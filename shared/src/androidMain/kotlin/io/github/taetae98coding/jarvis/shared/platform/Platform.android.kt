@@ -1,4 +1,4 @@
-package io.github.taetae98coding.jarvis.shared
+package io.github.taetae98coding.jarvis.shared.platform
 
 import android.os.Build
 

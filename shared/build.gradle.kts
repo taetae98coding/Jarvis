@@ -8,6 +8,30 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+val generateAppVersion = tasks.register("generateAppVersion") {
+    val appVersion = libs.versions.appVersion.get()
+    val outputDirectory = layout.buildDirectory.dir("generated/appVersion/kotlin")
+
+    inputs.property("appVersion", appVersion)
+    outputs.dir(outputDirectory)
+
+    doLast {
+        val file = outputDirectory.get()
+            .file("io/github/taetae98coding/jarvis/shared/AppVersion.kt")
+            .asFile
+
+        file.parentFile.mkdirs()
+        file.writeText(
+            """
+            package io.github.taetae98coding.jarvis.shared
+
+            internal const val APP_VERSION: String = "$appVersion"
+
+            """.trimIndent(),
+        )
+    }
+}
+
 kotlin {
     jvmToolchain(21)
 
@@ -53,13 +77,17 @@ kotlin {
     }
 
     sourceSets {
-        commonMain.dependencies {
-            api(libs.compose.runtime)
-            api(libs.compose.foundation)
-            api(libs.compose.material3)
-            api(libs.compose.ui)
-            api(libs.compose.components.resources)
-            api(libs.compose.ui.toolingPreview)
+        commonMain {
+            kotlin.srcDir(generateAppVersion)
+
+            dependencies {
+                api(libs.compose.runtime)
+                api(libs.compose.foundation)
+                api(libs.compose.material3)
+                api(libs.compose.ui)
+                api(libs.compose.components.resources)
+                api(libs.compose.ui.toolingPreview)
+            }
         }
 
         commonTest.dependencies {

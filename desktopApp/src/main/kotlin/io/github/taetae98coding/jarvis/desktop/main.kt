@@ -11,7 +11,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "Jarvis",
-        state = rememberWindowState(size = DpSize(600.dp, 400.dp)),
+        state = rememberWindowState(size = DpSize(900.dp, 640.dp)),
     ) {
         App()
     }

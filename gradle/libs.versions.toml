@@ -1,4 +1,6 @@
 [versions]
+appVersion = "1.0.0"
+
 kotlin = "2.4.20"
 agp = "9.4.1"
 composeMultiplatform = "1.12.0"
