@@ -1,5 +1,7 @@
 package io.github.taetae98coding.jarvis.shared.platform
 
+import kotlinx.coroutines.flow.Flow
+
 internal data class EmulatorSummary(
     val total: Int = 0,
     val running: Int = 0,
@@ -11,7 +13,7 @@ internal data class EmulatorStatus(
 )
 
 internal fun interface EmulatorProbe {
-    suspend fun probe(): EmulatorStatus
+    fun observe(): Flow<EmulatorStatus>
 }
 
 /**

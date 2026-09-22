@@ -10,7 +10,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -36,17 +39,19 @@ internal fun App(
     store: SettingsStore,
     probe: EmulatorProbe = emulatorProbe,
 ) {
-    val settings = remember(store) { AppSettings(store) }
+    val scope = rememberCoroutineScope()
+    val settings = remember(store) { AppSettings(store, scope) }
+    val keepScreenAwake by settings.keepScreenAwake.collectAsState()
 
     MaterialTheme {
         CompositionLocalProvider(LocalAppSettings provides settings) {
-            PlatformIdleInhibitor(settings.keepScreenAwake)
+            PlatformIdleInhibitor(keepScreenAwake)
 
             // 루트 Surface 에 붙여서 특정 화면의 수명과 무관하게 효과가 유지되도록 한다.
             Surface(
                 modifier = Modifier
                     .fillMaxSize()
-                    .keepScreenAwake(settings.keepScreenAwake),
+                    .keepScreenAwake(keepScreenAwake),
             ) {
                 Column(
                     modifier = Modifier

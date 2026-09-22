@@ -87,12 +87,14 @@ kotlin {
                 api(libs.compose.ui)
                 api(libs.compose.components.resources)
                 api(libs.compose.ui.toolingPreview)
+                api(libs.kotlinx.coroutines.core)
             }
         }
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.compose.ui.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
 
         jvmTest.dependencies {

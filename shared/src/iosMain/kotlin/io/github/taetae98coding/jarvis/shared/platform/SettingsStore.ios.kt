@@ -1,7 +1,12 @@
 package io.github.taetae98coding.jarvis.shared.platform
 
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSUserDefaults
+import platform.Foundation.NSUserDefaultsDidChangeNotification
 
 @Composable
 internal actual fun rememberSettingsStore(): SettingsStore = UserDefaultsSettingsStore
@@ -15,5 +20,15 @@ private object UserDefaultsSettingsStore : SettingsStore {
 
     override fun putBoolean(key: String, value: Boolean) {
         defaults.setBool(value, key)
+    }
+
+    override val changes: Flow<Unit> = callbackFlow {
+        val center = NSNotificationCenter.defaultCenter
+        val observer = center.addObserverForName(
+            name = NSUserDefaultsDidChangeNotification,
+            `object` = defaults,
+            queue = null,
+        ) { trySend(Unit) }
+        awaitClose { center.removeObserver(observer) }
     }
 }

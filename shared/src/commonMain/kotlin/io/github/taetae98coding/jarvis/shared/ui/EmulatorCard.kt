@@ -9,8 +9,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.taetae98coding.jarvis.shared.platform.EmulatorProbe
@@ -24,9 +24,7 @@ internal fun EmulatorCard(
 ) {
     // 프로브가 답하기 전까지는 null 이다. 빈 상태로 시작하면 SDK 도구를 아직 실행하는 중인데도
     // "0개" 를 사실인 것처럼 보여주게 된다.
-    val status by produceState<EmulatorStatus?>(initialValue = null, probe) {
-        value = probe.probe()
-    }
+    val status: EmulatorStatus? by probe.observe().collectAsState(initial = null)
 
     Card(modifier = modifier) {
         Column(

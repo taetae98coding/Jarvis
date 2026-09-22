@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -16,6 +18,7 @@ internal fun FeatureGrid(
     modifier: Modifier = Modifier,
 ) {
     val settings = LocalAppSettings.current
+    val keepScreenAwake by settings.keepScreenAwake.collectAsState()
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 220.dp),
@@ -27,8 +30,8 @@ internal fun FeatureGrid(
             ToggleFeatureCard(
                 title = "화면 꺼짐 방지",
                 description = "Jarvis 가 화면에 떠 있는 동안 화면이 꺼지지 않게 합니다.",
-                checked = settings.keepScreenAwake,
-                onCheckedChange = { settings.keepScreenAwake = it },
+                checked = keepScreenAwake,
+                onCheckedChange = settings::setKeepScreenAwake,
                 modifier = Modifier.testTag(KeepScreenAwakeTestTag),
             )
         }

@@ -1,7 +1,13 @@
 package io.github.taetae98coding.jarvis.shared.platform
 
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.seconds
 
 class EmulatorParsingTest {
     @Test
@@ -50,5 +56,30 @@ class EmulatorParsingTest {
     @Test
     fun readsNoSimulatorsFromAnEmptyListing() {
         assertEquals(EmulatorSummary(), parseSimulatorSummary("== Devices ==\n"))
+    }
+
+    @Test
+    fun pollingProbeCountsAgainAfterEachInterval() = runTest {
+        var calls = 0
+        val probe = pollingEmulatorProbe(interval = 5.seconds) {
+            calls += 1
+            EmulatorStatus(android = EmulatorSummary(total = calls))
+        }
+
+        val totals = probe.observe().take(3).toList().map { it.android.total }
+
+        assertEquals(listOf(1, 2, 3), totals)
+        assertEquals(10_000L, testScheduler.currentTime)
+    }
+
+    @Test
+    fun pollingProbeSkipsUnchangedCounts() = runTest {
+        val probe = pollingEmulatorProbe(interval = 5.seconds) { EmulatorStatus() }
+        val statuses = mutableListOf<EmulatorStatus>()
+        backgroundScope.launch { probe.observe().toList(statuses) }
+
+        advanceTimeBy(60.seconds)
+
+        assertEquals(listOf(EmulatorStatus()), statuses)
     }
 }

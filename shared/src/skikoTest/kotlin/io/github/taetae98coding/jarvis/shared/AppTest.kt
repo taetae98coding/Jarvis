@@ -10,12 +10,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import io.github.taetae98coding.jarvis.shared.platform.EmulatorProbe
+import io.github.taetae98coding.jarvis.shared.platform.EmulatorStatus
 import io.github.taetae98coding.jarvis.shared.platform.EmulatorSummary
 import io.github.taetae98coding.jarvis.shared.platform.InMemorySettingsStore
 import io.github.taetae98coding.jarvis.shared.platform.fakeEmulatorProbe
 import io.github.taetae98coding.jarvis.shared.platform.platformName
 import io.github.taetae98coding.jarvis.shared.settings.AppSettings
 import io.github.taetae98coding.jarvis.shared.ui.KeepScreenAwakeTestTag
+import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -70,6 +73,16 @@ class AppTest {
     }
 
     @Test
+    fun keepScreenAwakeFollowsChangesMadeOutsideTheApp() = runComposeUiTest {
+        val store = InMemorySettingsStore()
+        setContent { App(store, fakeEmulatorProbe()) }
+
+        store.putBoolean(AppSettings.KeepScreenAwakeKey, true)
+
+        onNodeWithTag(KeepScreenAwakeTestTag).assertIsOn()
+    }
+
+    @Test
     fun showsEmulatorCounts() = runComposeUiTest {
         setContent {
             App(
@@ -90,5 +103,23 @@ class AppTest {
         setContent { App(InMemorySettingsStore(), fakeEmulatorProbe()) }
 
         onAllNodesWithText("실행 중 0개 / 전체 0개").assertCountEquals(2)
+    }
+
+    @Test
+    fun showsPlaceholderUntilTheProbeAnswers() = runComposeUiTest {
+        setContent { App(InMemorySettingsStore(), EmulatorProbe { emptyFlow() }) }
+
+        onAllNodesWithText("확인 중…").assertCountEquals(2)
+    }
+
+    @Test
+    fun emulatorCountsFollowProbeUpdates() = runComposeUiTest {
+        val probe = fakeEmulatorProbe(android = EmulatorSummary(total = 3, running = 0))
+        setContent { App(InMemorySettingsStore(), probe) }
+        onNodeWithText("실행 중 0개 / 전체 3개").assertIsDisplayed()
+
+        probe.status.value = EmulatorStatus(android = EmulatorSummary(total = 3, running = 1))
+
+        onNodeWithText("실행 중 1개 / 전체 3개").assertIsDisplayed()
     }
 }

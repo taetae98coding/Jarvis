@@ -1,14 +1,33 @@
 package io.github.taetae98coding.jarvis.shared.platform
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
-internal actual val emulatorProbe: EmulatorProbe = EmulatorProbe {
+internal actual val emulatorProbe: EmulatorProbe = pollingEmulatorProbe(interval = 5.seconds) {
     withContext(Dispatchers.IO) {
         EmulatorStatus(android = androidSummary(), ios = iosSummary())
     }
+}
+
+// 에뮬레이터는 이 앱 밖에서 켜지고 지워지는데 그걸 알려주는 이벤트가 없다(`adb track-devices` 는
+// 있지만 `simctl` 에는 대응물이 없다). 그래서 주기적으로 다시 세고, 바뀐 결과만 흘려보낸다.
+internal fun pollingEmulatorProbe(
+    interval: Duration,
+    count: suspend () -> EmulatorStatus,
+): EmulatorProbe = EmulatorProbe {
+    flow {
+        while (true) {
+            emit(count())
+            delay(interval)
+        }
+    }.distinctUntilChanged()
 }
 
 private fun androidSummary(): EmulatorSummary {
