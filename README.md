@@ -20,27 +20,43 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 
 기본 패키지는 `io.github.taetae98coding.jarvis`다. 모듈마다 하위 패키지를 따로 쓰므로 같은 패키지가 여러 모듈에 걸치지 않는다.
 
+공용 코드는 clean architecture의 세 계층을 그대로 모듈로 나눈다. 의존은 한 방향이고 Gradle이 강제한다.
+
+```
+androidApp   iosApp(Xcode)   desktopApp   webApp
+      └────────────┴────────────┴─────────┘
+                   shared          ← 조립. 기능이 늘어도 커지지 않는다
+          ┌──────────┼──────────┐
+         ui        data         │
+          └──────────┴──────── domain   ← 아무것도 의존하지 않는다
+```
+
 | 모듈 | 패키지 | 내용 |
 |---|---|---|
-| `shared` | `.jarvis.shared` | KMP 라이브러리. 타깃은 android / jvm / iosArm64 / iosSimulatorArm64 / wasmJs |
+| `domain` | `.jarvis.domain` | 모델, 리포지토리 인터페이스, 유스케이스. 의존성은 `kotlinx-coroutines-core` 뿐 |
+| `data` | `.jarvis.data` | 리포지토리 구현. 플랫폼 API(`expect`/`actual`), 저장소, 직렬화, 프로세스·HTTP |
+| `ui` | `.jarvis.ui` | Compose 화면과 `JarvisAppState`. `domain`만 본다 |
+| `shared` | `.jarvis.shared` | 조립(composition root). `App()`, iOS `MainViewController()` |
 | `androidApp` | `.jarvis` | `com.android.application` — `MainActivity`가 `App()`을 setContent |
 | `desktopApp` | `.jarvis.desktop` | Kotlin/JVM + Compose Desktop — `main()`이 Window를 띄운다 |
 | `webApp` | `.jarvis.web` | Kotlin/Wasm — `main()`이 ComposeViewport에 `App()`을 붙인다 |
 | `iosApp` | — | Xcode 프로젝트. SwiftUI가 `shared`의 `MainViewController()`를 감싼다 |
 
-`shared` 내부는 세 갈래로 나뉜다.
+라이브러리 모듈 넷은 모두 android / jvm / iosArm64 / iosSimulatorArm64 / wasmJs 타깃을 갖는다.
+패키지는 모듈 루트 아래를 계층이 아니라 기능으로 나눈다(`appinfo`, `emulator`, `screen`, `settings`).
+같은 기능은 세 모듈에서 같은 이름을 쓰므로 `emulator`로 찾으면 세 계층이 함께 나온다.
 
-| 패키지 | 내용 |
-|---|---|
-| `.jarvis.shared` | `App.kt` — 첫 화면 |
-| `.jarvis.shared.ui` | `AppInfoCard`, `FeatureGrid`, `ToggleFeatureCard`, `SystemScreenAwakeCard`, `EmulatorCard` |
-| `.jarvis.shared.settings` | `AppSettings` — 앱 스코프 설정 상태 |
-| `.jarvis.shared.platform` | `platformName`, `SettingsStore`, `PlatformIdleInhibitor`, `rememberSystemScreenAwake`, `emulatorProbe` 등 플랫폼별 expect/actual |
+| 기능 | `domain` | `data` | `ui` |
+|---|---|---|---|
+| 앱 정보 | `AppInfo`, `GetAppInfoUseCase` | `platformName`, `APP_VERSION` | `AppInfoCard` |
+| 에뮬레이터 개수 | `EmulatorStatus`, `EmulatorRepository` | `EmulatorDataSource`, 호스트 에이전트 | `EmulatorCard` |
+| 화면 꺼짐 방지 | `ScreenAwakeSettingsRepository`, 유스케이스 7개 | `SettingsStore`, `IdleInhibitor`, `SystemScreenAwakeDataSource` | `ScreenAwakeCard`, `SystemScreenAwakeCard` |
 
 `androidApp`만 루트 패키지를 쓰는데, Android의 `applicationId`(= `io.github.taetae98coding.jarvis`)와 맞추기 위해서다.
+자세한 규칙(계층별 책임, 예외 둘, 가시성)은 [모듈 구조 스펙](docs/common/module-architecture.html)에 있다.
 
 AGP 9부터 `com.android.application`과 `org.jetbrains.kotlin.multiplatform`을 같은 모듈에 적용할 수 없다.
-그래서 공유 코드는 `com.android.kotlin.multiplatform.library`를 쓰는 `shared`에 두고, Android 앱은 별도 모듈로 분리했다.
+그래서 공유 코드는 `com.android.kotlin.multiplatform.library`를 쓰는 라이브러리 모듈들에 두고, Android 앱은 별도 모듈로 분리했다.
 Android 앱 모듈은 AGP 9의 내장 Kotlin 지원을 쓰므로 `kotlin-android` 플러그인을 따로 적용하지 않는다.
 
 ## 화면
@@ -54,15 +70,16 @@ Grid는 `GridCells.Adaptive`라 창 너비에 따라 열 수가 늘어난다.
 ### 앱 버전
 
 `gradle/libs.versions.toml`의 `appVersion` 하나가 원본이다.
-`shared`가 이 값으로 `APP_VERSION` 상수를 생성하고, Android `versionName`과 데스크톱 `packageVersion`도 같은 값을 읽는다.
+`data`가 이 값으로 `APP_VERSION` 상수를 생성하고, Android `versionName`과 데스크톱 `packageVersion`도 같은 값을 읽는다.
 iOS 번들 버전만 `iosApp/Configuration/Config.xcconfig`에서 따로 관리한다.
 
 ### 설정
 
-토글 상태는 `AppSettings`가 들고 있고 `LocalAppSettings`로 내려간다.
-`App()` 최상단에 있으므로 화면을 옮겨 다녀도 값과 효과가 유지되고, 새 화면은 `LocalAppSettings.current`로 바로 읽는다.
+토글 상태는 `ui`의 `JarvisAppState`가 들고 화면으로 내려간다.
+`App()` 최상단에서 한 번 만들어지므로 화면을 옮겨 다녀도 값과 효과가 유지된다.
 
-값은 `SettingsStore`에 저장되어 앱을 완전히 껐다 켜도 복원된다.
+값은 `domain`의 `ScreenAwakeSettingsRepository` 계약을 통해 `data`의 `SettingsStore`에 저장되어
+앱을 완전히 껐다 켜도 복원된다.
 
 | 플랫폼 | 저장소 | 변경 알림 |
 |---|---|---|
@@ -98,7 +115,7 @@ Emulator 카드가 개발자 머신의 Android 에뮬레이터와 iOS 시뮬레�
 Android SDK는 `ANDROID_HOME` → `ANDROID_SDK_ROOT` → `~/Library/Android/sdk` 순으로 찾는다.
 
 값은 5초마다 다시 세고 바뀐 결과만 흘려보낸다. **에뮬레이터를 켜고 끄면 몇 초 안에 숫자가 따라온다.**
-프로브가 답하기 전까지 카드는 "확인 중…"을 보여준다.
+값을 처음 받기 전까지 카드는 "확인 중…"을 보여준다.
 
 셀 방법이 없을 때는 0개가 아니라 "셀 수 없음"으로 보여준다. SDK를 못 찾은 경우와 데스크탑 앱이 꺼져 있는
 경우가 그렇다. 화면에 0이 보이면 정말 0개라는 뜻이다.
@@ -117,9 +134,10 @@ Compose가 플랫폼별 API를 대신 호출한다.
 | Web | Screen Wake Lock API (`navigator.wakeLock`) |
 | JVM (Desktop) | **없음** — `caffeinate -di` 프로세스를 직접 띄운다 (macOS 전용) |
 
-데스크탑만 Compose가 비워 둔 자리라, 그 한 칸을 `PlatformIdleInhibitor` expect/actual이 메운다.
+데스크탑만 Compose가 비워 둔 자리라, 그 한 칸을 `data`의 `IdleInhibitor` expect/actual이 메운다.
+설정을 따라 언제 걸고 풀지는 `domain`의 `ApplyKeepScreenAwakeUseCase`가 정한다.
 
-**앱이 없는 동안**은 `rememberSystemScreenAwake`가 담당하고 **Android만 구현이 있다.**
+**앱이 없는 동안**은 `data`의 `SystemScreenAwakeDataSource`가 담당하고 **Android만 구현이 있다.**
 시스템 전역 `SCREEN_OFF_TIMEOUT`을 직접 늘리는 방식이라 사용자가 따로 허용하는 `WRITE_SETTINGS`가 필요하고,
 마켓 심사를 통과하기 어려운 권한이어서 사이드로드를 전제로 둔 기능이다.
 원래 값은 앱이 보관해 두고 토글을 끌 때 되돌린다.
@@ -155,20 +173,24 @@ Android·iOS·Web에서 에뮬레이터 개수를 보려면 데스크탑 앱을 
 
 | 소스셋 | 내용 | 실행 타깃 |
 |---|---|---|
-| `shared/src/commonTest` | `PlatformTest`, `AppSettingsTest`, `ObserveSystemStateTest`, `HostAgentTest` | 전 타깃 (Android host 포함) |
-| `shared/src/skikoTest` | `AppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 저장·복원, 에뮬레이터 개수 표시 | jvm / wasmJs / ios |
-| `shared/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복 | jvm |
+| `domain/src/commonTest` | 유스케이스 — 화면 유지 적용 규칙, 권한 요청 규칙 | 전 타깃 (Android host 포함) |
+| `data/src/commonTest` | `PlatformNameTest`, `ScreenAwakeSettingsRepositoryTest`, `ObserveSystemStateTest`, `HostAgentTest` | 전 타깃 (Android host 포함) |
+| `data/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복 | jvm |
+| `ui/src/skikoTest` | `JarvisAppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 반영, 에뮬레이터 개수 표시 | jvm / wasmJs / ios |
 
-`skikoTest`는 `applyDefaultHierarchyTemplate`으로 정의한 중간 소스셋이라 jvm/wasmJs/ios가 함께 쓴다.
+`skikoTest`는 `ui`가 `applyDefaultHierarchyTemplate`으로 정의한 중간 소스셋이라 jvm/wasmJs/ios가 함께 쓴다.
 Android는 호스트에 렌더링할 Android 런타임이 없어 이 그룹에서 빠진다.
 
+UI 테스트는 가짜 **리포지토리**만 끼워서 돈다. `ui`가 `data`를 의존하지 않는다는 것이 테스트로 드러난다.
+
 ```bash
-./gradlew :shared:jvmTest                              # JVM
-./gradlew :shared:testAndroidHostTest                  # Android host
+./gradlew build                                        # 전부
+./gradlew :domain:jvmTest :data:jvmTest :ui:jvmTest    # JVM
+./gradlew :domain:testAndroidHostTest :data:testAndroidHostTest   # Android host
 CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  ./gradlew :shared:wasmJsBrowserTest                  # Wasm (헤드리스 Chrome 필요)
+  ./gradlew :ui:wasmJsBrowserTest                      # Wasm (헤드리스 Chrome 필요)
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-  ./gradlew :shared:iosSimulatorArm64Test              # iOS (Xcode 필요)
+  ./gradlew :ui:iosSimulatorArm64Test                  # iOS (Xcode 필요)
 ```
 
 ## 문서
@@ -180,9 +202,13 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 
 ## 플랫폼별 코드 추가하기
 
-`shared/src/commonMain`에 `expect`를 선언하고 각 `<target>Main`에 `actual`을 구현한다.
-현재는 `platformName`(`Platform.kt`)이 그 예시다.
+`data/src/commonMain`에 `expect`를 선언하고 각 `<target>Main`에 `actual`을 구현한다.
+현재는 `platformName`(`data/appinfo/PlatformName.kt`)이 가장 단순한 예시다.
+`ui`와 `domain`에는 `expect`를 두지 않는다. 예외 둘은 [모듈 구조 스펙](docs/common/module-architecture.html#exceptions)에 적혀 있다.
 
 한 타깃에서만 가능한 기능이라면 나머지 `actual`을 "지원하지 않음"으로 두는 쪽을 택했다.
-`rememberSystemScreenAwake`가 그렇게 구현되어 있고, 화면에서 카드를 감추는 대신 잠긴 채로 이유를 보여준다.
+`createSystemScreenAwakeDataSource`가 그렇게 구현되어 있고, 화면에서 카드를 감추는 대신 잠긴 채로 이유를 보여준다.
 이유는 [공통 스펙](docs/common/index.html#contract)에 적어 뒀다.
+
+기능을 하나 더할 때는 `shared`에 파일을 더하지 않는다.
+세 모듈의 같은 기능 패키지에 더하고, `JarvisContainer`의 조립 한 줄만 `shared`에 추가한다.

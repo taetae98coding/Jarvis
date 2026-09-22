@@ -16,7 +16,7 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>:androidApp</code> (앱, <code>com.android.application</code>) + <code>:shared</code> (<code>com.android.kotlin.multiplatform.library</code>)</dd>
+  <dt>모듈</dt><dd><code>:androidApp</code> (앱, <code>com.android.application</code>) + <code>:shared</code> → <code>:ui</code> · <code>:data</code> · <code>:domain</code> (모두 <code>com.android.kotlin.multiplatform.library</code>). <a href="#module-architecture">모듈 구조</a> 참고</dd>
   <dt><code>applicationId</code></dt><dd><code>io.github.taetae98coding.jarvis</code></dd>
   <dt>compileSdk / targetSdk / minSdk</dt><dd>37 / 37 / 24</dd>
   <dt>진입점</dt><dd><code>MainActivity</code> — <code>enableEdgeToEdge()</code> 후 <code>setContent { App() }</code></dd>
@@ -25,12 +25,13 @@
 
 <aside class="note">
   <strong>왜 앱 모듈이 분리되어 있나</strong>
-  AGP 9부터 <code>com.android.application</code>과 <code>org.jetbrains.kotlin.multiplatform</code>을 같은 모듈에 적용할 수 없다. 공유 코드는 <code>com.android.kotlin.multiplatform.library</code>를 쓰는 <code>:shared</code>에 두고, Android 앱은 AGP 9의 내장 Kotlin 지원을 쓰는 별도 모듈로 분리했다. <code>kotlin-android</code> 플러그인은 따로 적용하지 않는다.
+  AGP 9부터 <code>com.android.application</code>과 <code>org.jetbrains.kotlin.multiplatform</code>을 같은 모듈에 적용할 수 없다. 공유 코드는 <code>com.android.kotlin.multiplatform.library</code>를 쓰는 라이브러리 모듈들에 두고, Android 앱은 AGP 9의 내장 Kotlin 지원을 쓰는 별도 모듈로 분리했다. <code>kotlin-android</code> 플러그인은 따로 적용하지 않는다.
 </aside>
 
 <nav class="toc">
   <strong>차례</strong>
   <ol>
+    <li><a href="#module-architecture">모듈 구조</a></li>
     <li><a href="#app-info">앱 정보</a></li>
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
@@ -41,6 +42,40 @@
     <li><a href="#test">테스트</a></li>
   </ol>
 </nav>
+
+<section class="feature" id="module-architecture">
+<h2>모듈 구조 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/module-architecture.html">모듈 구조</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>com.android.kotlin.multiplatform.library</code>를 모듈마다 적용</td><td>채택. <code>namespace</code>가 모듈마다 달라야 한다. 두 라이브러리가 같은 namespace를 쓰면 R 클래스가 같은 좌표에 두 번 생성되어 AGP가 빌드를 멈춘다. 그래서 <code>…jarvis.domain</code> / <code>.data</code> / <code>.ui</code> / <code>.shared</code>로 나눴고, 이는 패키지 루트와 같다</td></tr>
+    <tr><td><code>withHostTest {}</code></td><td><code>commonTest</code>가 있는 모듈(<code>:domain</code>, <code>:data</code>)에만 선언한다. <code>:ui</code>의 UI 테스트는 Skiko가 필요해 Android 호스트 테스트로는 돌지 않는다(<a href="#test">테스트</a>)</td></tr>
+    <tr><td><code>LocalContext</code> + <code>PlatformContext</code></td><td>채택. <code>SharedPreferences</code>와 <code>Settings.System</code>이 <code>Context</code>를 요구하는데 <code>:data</code>에는 Compose가 없다. Compose 트리를 볼 수 있는 <code>:shared</code>가 <code>LocalContext.current.applicationContext</code>를 <code>PlatformContext</code>로 감싸 넘긴다</td></tr>
+    <tr><td><code>actual typealias PlatformContext = Context</code></td><td><strong>안 된다.</strong> <code>Context</code>가 abstract 클래스라 final인 <code>expect class</code>와 modality가 어긋나고 <code>EXPECT_ACTUAL_INCOMPATIBLE_MODALITY</code>로 컴파일이 깨진다. <code>expect abstract class</code>로 맞추면 나머지 세 타깃에서 인스턴스를 만들 수 없다. 그래서 별칭 대신 한 겹 감싸는 클래스를 쓴다</td></tr>
+    <tr><td><code>Application</code> 서브클래스 또는 <code>androidx.startup</code>으로 전역 컨텍스트 보관</td><td>버렸다. <code>:data</code>가 초기화 순서에 의존하게 되고, 앱 모듈이 매니페스트에 무언가를 등록해야 앱이 뜨는 구조가 된다. 컨텍스트를 요구하는 생성자가 하나뿐이라 이득이 없다</td></tr>
+    <tr><td>앱 모듈이 <code>:ui</code>·<code>:data</code>를 직접 의존</td><td>버렸다. <code>:androidApp</code>은 <code>implementation(projects.shared)</code> 하나만 둔다. 세 모듈은 전이 의존으로 APK에 들어가지만 컴파일 타임에는 보이지 않아, 앱 코드가 리포지토리를 직접 만드는 길이 막힌다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/androidMain/.../PlatformContext.android.kt</code>, <code>shared/src/androidMain/.../PlatformContext.android.kt</code></dd>
+  <dt>동작</dt><dd><code>actual class PlatformContext(val context: Context)</code>에 애플리케이션 컨텍스트를 담는다. 리포지토리가 컴포지션보다 오래 살 수 있으므로 Activity 컨텍스트를 넣지 않는다</dd>
+  <dt>실패</dt><dd>없다. <code>LocalContext</code>는 Compose 트리 안에서 항상 값을 갖는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>AGP가 모듈마다 R 클래스와 매니페스트를 만든다. 네 모듈 모두 리소스가 없어서 실제 비용은 빈 클래스 넷뿐이지만, <code>android.nonTransitiveRClass=true</code>가 켜져 있으므로 리소스를 넣게 되면 모듈별로 R을 import해야 한다.</li>
+  <li><code>INTERNET</code>·<code>WRITE_SETTINGS</code> 권한 선언은 <code>:androidApp</code>의 매니페스트에 있고, 그 권한을 쓰는 코드는 <code>:data</code>에 있다. 라이브러리 매니페스트로 옮기면 코드와 붙지만, 앱이 어떤 권한을 요구하는지 한곳에서 읽을 수 없게 되어 옮기지 않았다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :domain:testAndroidHostTest :data:testAndroidHostTest</code>가 호스트 JVM에서 돈다. 모듈 그래프와 Android 링크는 <code>./gradlew :androidApp:assembleDebug</code>로 확인한다.</p>
+</section>
 
 <section class="feature" id="app-info">
 <h2>앱 정보 <span class="badge ok">구현</span></h2>
@@ -57,7 +92,7 @@
 <p>해당 없음.</p>
 
 <h3>검증</h3>
-<p><code>PlatformTest</code>가 <code>testAndroidHostTest</code>에서 돈다. 화면 표시(<code>AppTest</code>)는 <a href="#test">Android UI 테스트가 없어</a> 검증하지 않는다.</p>
+<p><code>PlatformNameTest</code>가 <code>testAndroidHostTest</code>에서 돈다. 화면 표시(<code>JarvisAppTest</code>)는 <a href="#test">Android UI 테스트가 없어</a> 검증하지 않는다.</p>
 </section>
 
 <section class="feature" id="keep-screen-awake">
@@ -76,7 +111,7 @@
 </table>
 
 <h3>구현</h3>
-<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙이고, Compose가 <code>View.keepScreenOn</code>을 부른다. Android 전용 코드는 없다. <code>PlatformIdleInhibitor</code>의 Android actual은 <code>= Unit</code>이다.</p>
+<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙이고, Compose가 <code>View.keepScreenOn</code>을 부른다. Android 전용 코드는 없다. <code>:data</code>의 <code>createIdleInhibitor()</code>는 Android에서 <code>NoIdleInhibitor</code>를 돌려준다.</p>
 
 <h3>한계</h3>
 <ul>
@@ -109,7 +144,7 @@
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/androidMain/.../SystemScreenAwake.android.kt</code></dd>
+  <dt>파일</dt><dd><code>data/src/androidMain/.../screen/SystemScreenAwake.android.kt</code></dd>
   <dt>동작</dt><dd>토글이 켜지면 현재 <code>SCREEN_OFF_TIMEOUT</code>을 저장한 뒤 <code>Int.MAX_VALUE</code>(약 24.8일)로 덮어쓴다. 꺼지면 저장값으로 되돌린다</dd>
   <dt>권한</dt><dd><code>Settings.System.canWrite(context)</code>로 읽고, 없으면 <code>ACTION_MANAGE_WRITE_SETTINGS</code> 화면을 연다. 애플리케이션 컨텍스트로 띄우므로 <code>FLAG_ACTIVITY_NEW_TASK</code>가 필요하다</dd>
   <dt>되돌릴 값</dt><dd><code>jarvis.screen_off_timeout</code> SharedPreferences 파일. boolean만 다루는 <code>SettingsStore</code>에 Int를 넣을 수 없고, 사용자 설정이 아니라 내부 기록이라 <code>jarvis.settings</code>와도 섞지 않았다</dd>
@@ -151,7 +186,7 @@
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/androidMain/.../SettingsStore.android.kt</code></dd>
+  <dt>파일</dt><dd><code>data/src/androidMain/.../settings/SettingsStore.android.kt</code></dd>
   <dt>저장소</dt><dd><code>context.getSharedPreferences("jarvis.settings", MODE_PRIVATE)</code></dd>
   <dt>컨텍스트</dt><dd><code>LocalContext.current.applicationContext</code>. Activity 재생성과 무관하게 같은 파일을 본다</dd>
   <dt>쓰기</dt><dd><code>edit().putBoolean(key, value).apply()</code></dd>
@@ -170,7 +205,7 @@
 </ul>
 
 <h3>검증</h3>
-<p><code>AppSettingsTest</code>가 <code>testAndroidHostTest</code>에서 <code>InMemorySettingsStore</code>로 돈다. <code>SharedPreferences</code> 왕복 자체는 <span class="badge untested">미검증</span>이다.</p>
+<p><code>ScreenAwakeSettingsRepositoryTest</code>가 <code>testAndroidHostTest</code>에서 <code>InMemorySettingsStore</code>로 돈다. <code>SharedPreferences</code> 왕복 자체는 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="state-observation">
@@ -219,7 +254,7 @@
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/androidMain/.../HostAgent.android.kt</code></dd>
+  <dt>파일</dt><dd><code>data/src/androidMain/.../emulator/agent/HostAgent.android.kt</code></dd>
   <dt>동작</dt><dd><code>HttpURLConnection</code>으로 <a href="../common/emulator-count.html#agent">로컬 에이전트</a>에 GET. <code>Dispatchers.IO</code>에서 돈다</dd>
   <dt>주소</dt><dd><code>10.0.2.2</code> → <code>127.0.0.1</code> 순서로 시도해 처음 응답한 쪽을 쓴다. 뒤쪽은 실물 기기에서 <code>adb reverse tcp:47890 tcp:47890</code>을 걸었을 때의 경로다</dd>
   <dt>타임아웃</dt><dd>연결·읽기 각 1초. 에이전트는 미리 세 둔 값을 주므로 그보다 오래 걸리면 없는 것으로 본다</dd>
@@ -256,8 +291,9 @@ adb reverse tcp:47890 tcp:47890         # 실물 기기에서 에뮬레이터 �
 <table>
   <thead><tr><th>테스트</th><th>실행</th></tr></thead>
   <tbody>
-    <tr><td><code>PlatformTest</code>, <code>AppSettingsTest</code>, <code>ObserveSystemStateTest</code>, <code>HostAgentTest</code></td><td><code>./gradlew :shared:testAndroidHostTest</code> (호스트 JVM)</td></tr>
-    <tr><td>Compose UI 테스트 (<code>AppTest</code>)</td><td><strong>없음</strong></td></tr>
+    <tr><td><code>PlatformNameTest</code>, <code>ScreenAwakeSettingsRepositoryTest</code>, <code>ObserveSystemStateTest</code>, <code>HostAgentTest</code></td><td><code>./gradlew :data:testAndroidHostTest</code> (호스트 JVM)</td></tr>
+    <tr><td>유스케이스 테스트</td><td><code>./gradlew :domain:testAndroidHostTest</code> (호스트 JVM)</td></tr>
+    <tr><td>Compose UI 테스트 (<code>JarvisAppTest</code>)</td><td><strong>없음</strong></td></tr>
   </tbody>
 </table>
 

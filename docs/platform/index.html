@@ -33,6 +33,8 @@
   <li><a href="web.html">Web (Wasm)</a><p><code>:webApp</code> + <code>:shared</code>. Kotlin/Wasm, WasmGC 브라우저 필요</p></li>
 </ul>
 
+<p>앱 모듈이 직접 의존하는 것은 <code>:shared</code> 하나다. 공용 코드는 그 아래 <code>:domain</code> · <code>:data</code> · <code>:ui</code>로 나뉘어 있고, 플랫폼 API를 부르는 <code>actual</code>은 <code>:data</code>에 모인다. 어느 파일이 어느 모듈에 있는지는 <a href="../common/module-architecture.html">모듈 구조</a>에 있다.</p>
+
 <h2 id="sections">기능 섹션 구성</h2>
 
 <p>각 플랫폼 문서는 개요 표 다음에 공통 스펙과 같은 순서로 기능 섹션을 갖고, 끝에 빌드·실행과 테스트가 온다. 기능 섹션의 <code>id</code>는 네 문서에서 같아서 공통 스펙이 <code>android.html#settings</code>처럼 바로 가리킨다.</p>
@@ -40,6 +42,7 @@
 <table>
   <thead><tr><th><code>id</code></th><th>섹션</th><th>공통 스펙</th></tr></thead>
   <tbody>
+    <tr><td><code>module-architecture</code></td><td>모듈 구조</td><td><a href="../common/module-architecture.html">module-architecture.html</a></td></tr>
     <tr><td><code>app-info</code></td><td>앱 정보</td><td><a href="../common/app-info.html">app-info.html</a></td></tr>
     <tr><td><code>keep-screen-awake</code></td><td>화면 꺼짐 방지</td><td><a href="../common/keep-screen-awake.html">keep-screen-awake.html</a></td></tr>
     <tr><td><code>system-keep-screen-awake</code></td><td>화면 꺼짐 방지 (시스템 전역)</td><td><a href="../common/system-keep-screen-awake.html">system-keep-screen-awake.html</a></td></tr>

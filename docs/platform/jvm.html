@@ -16,7 +16,7 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>:desktopApp</code> + <code>:shared</code></dd>
+  <dt>모듈</dt><dd><code>:desktopApp</code> + <code>:shared</code> → <code>:ui</code> · <code>:data</code> · <code>:domain</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
   <dt>Kotlin 타깃</dt><dd><code>jvm()</code></dd>
   <dt>Java toolchain</dt><dd>21</dd>
   <dt>진입점</dt><dd><code>io.github.taetae98coding.jarvis.desktop.MainKt</code> — 900 × 640 dp 창</dd>
@@ -27,6 +27,7 @@
 <nav class="toc">
   <strong>차례</strong>
   <ol>
+    <li><a href="#module-architecture">모듈 구조</a></li>
     <li><a href="#app-info">앱 정보</a></li>
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
@@ -37,6 +38,39 @@
     <li><a href="#test">테스트</a></li>
   </ol>
 </nav>
+
+<section class="feature" id="module-architecture">
+<h2>모듈 구조 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/module-architecture.html">모듈 구조</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>호스트 에이전트를 <code>:data</code>의 <code>jvmMain</code>에 둔다</td><td>채택. <code>com.sun.net.httpserver</code>와 SDK 도구 실행은 바깥 세계에 닿는 일이라 data 계층이다. <code>:desktopApp</code>은 <code>:shared</code>가 재노출한 <code>startEmulatorHostAgent()</code>만 부른다</td></tr>
+    <tr><td><code>:desktopApp</code>이 <code>:data</code>를 직접 의존</td><td>버렸다. 앱 모듈이 조립 모듈 하나만 알게 두면, 데이터 계층 API가 바뀌어도 앱 진입점은 고치지 않는다. 대가는 <code>:shared</code>의 재노출 한 줄이다</td></tr>
+    <tr><td>에뮬레이터 폴링 Flow의 위치</td><td><code>:data</code>의 <code>jvmMain</code> 최상위 <code>val</code>(프로세스 싱글턴)로 둔다. 데스크톱 UI의 리포지토리와 로컬 에이전트가 같은 <code>shareIn</code> Flow를 구독해야 <code>adb</code>·<code>simctl</code>이 5초마다 한 번만 돈다. 에이전트는 <code>DataModule</code>을 거치지 않고 이 데이터 소스를 직접 구독한다</td></tr>
+    <tr><td><code>compose.desktop.currentOs</code></td><td><code>:desktopApp</code>과 <code>:ui</code>의 <code>jvmTest</code>에만 넣는다. <code>:data</code>·<code>:domain</code>은 Skiko 네이티브 런타임이 필요 없다</td></tr>
+    <tr><td><code>jvmToolchain(21)</code></td><td>네 모듈과 <code>:desktopApp</code>에 각각 선언한다. 툴체인은 모듈 단위 설정이라 상속되지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code>, <code>shared/src/jvmMain/.../EmulatorHostAgent.kt</code>, <code>shared/src/jvmMain/.../PlatformContext.jvm.kt</code></dd>
+  <dt>동작</dt><dd><code>:shared</code>의 <code>startEmulatorHostAgent()</code>가 <code>:data</code>의 같은 이름 함수를 부른다. <code>main()</code>은 분리 전과 똑같이 <code>startEmulatorHostAgent().use { application { … } }</code></dd>
+  <dt>실패</dt><dd>포트가 이미 쓰이면 조용히 no-op. 분리 전과 같다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>에이전트는 조립을 거치지 않고 <code>:data</code>의 데이터 소스를 직접 구독한다. 그래서 <code>main()</code>이 <code>App()</code>보다 먼저 에이전트를 띄울 수 있지만, 개수를 세는 경로가 컨테이너 밖에도 하나 있다는 뜻이기도 하다. 에뮬레이터 데이터 소스가 <code>PlatformContext</code>나 다른 상태를 요구하게 되면 이 경로부터 깨진다.</li>
+  <li><code>:shared</code>의 재노출 함수는 <code>:data</code>의 시그니처를 그대로 베낀다. 시그니처가 바뀌면 두 곳을 고쳐야 한다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :domain:jvmTest :data:jvmTest :ui:jvmTest</code>. 에이전트 서버 테스트(<code>HostAgentServerTest</code>)는 <code>:data:jvmTest</code>에 있고, Skiko 화면이 필요한 UI 테스트는 <code>:ui:jvmTest</code>에 있다.</p>
+</section>
 
 <section class="feature" id="app-info">
 <h2>앱 정보 <span class="badge ok">구현</span></h2>
@@ -53,7 +87,7 @@
 <p>해당 없음.</p>
 
 <h3>검증</h3>
-<p><code>PlatformTest</code>, <code>AppTest.showsAppVersion</code>, <code>AppTest.showsCurrentPlatformName</code>이 <code>jvmTest</code>에서 돈다.</p>
+<p><code>PlatformNameTest</code>, <code>JarvisAppTest.showsAppVersion</code>, <code>JarvisAppTest.showsCurrentPlatformName</code>이 <code>jvmTest</code>에서 돈다.</p>
 </section>
 
 <section class="feature" id="keep-screen-awake">
@@ -74,13 +108,13 @@
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/jvmMain/.../ScreenAwake.jvm.kt</code></dd>
-  <dt>훅</dt><dd><code>PlatformIdleInhibitor(enabled)</code>의 JVM actual만 본문이 있다</dd>
-  <dt>동작</dt><dd><code>DisposableEffect(enabled)</code>에서 켜지면 <code>ProcessBuilder("caffeinate", "-di").start()</code>, 꺼지거나 컴포지션이 사라지면 <code>process.destroy()</code></dd>
+  <dt>파일</dt><dd><code>data/src/jvmMain/.../screen/IdleInhibitor.jvm.kt</code></dd>
+  <dt>훅</dt><dd><code>createIdleInhibitor()</code>의 JVM actual만 본문이 있다</dd>
+  <dt>동작</dt><dd><code>setKeepScreenAwake(true)</code>면 <code>ProcessBuilder("caffeinate", "-di").start()</code>, <code>false</code>거나 화면이 사라져 <code>ApplyKeepScreenAwakeUseCase</code>가 취소되면 <code>process.destroy()</code></dd>
   <dt>정리</dt><dd>프로세스를 띄울 때 <code>Runtime.addShutdownHook</code>도 함께 건다. 자식 프로세스는 JVM이 죽어도 살아남으므로, 앱이 없는데 화면이 계속 켜져 있는 상태를 막는다. 토글을 끌 때는 훅을 떼고 죽인다</dd>
   <dt>실패</dt><dd><code>runCatching { ... }.getOrNull()</code>. 명령이 없으면 <code>null</code>이 되고 토글은 조용히 no-op이다</dd>
 </dl>
-<p>Compose가 비워 둔 자리를 이 한 칸으로 메운다. CMP가 데스크톱 경로를 구현하면 <code>PlatformIdleInhibitor</code> expect/actual은 통째로 걷어낸다.</p>
+<p>Compose가 비워 둔 자리를 이 한 칸으로 메운다. CMP가 데스크톱 경로를 구현하면 <code>createIdleInhibitor()</code> expect/actual과 <code>ApplyKeepScreenAwakeUseCase</code>는 통째로 걷어낸다.</p>
 
 <h3>한계</h3>
 <ul>
@@ -90,7 +124,7 @@
 </ul>
 
 <h3>검증</h3>
-<p><code>AppTest</code>의 토글·저장 테스트 4개가 <code>jvmTest</code>에서 돈다. <code>caffeinate</code>가 실제로 뜨는지는 <span class="badge untested">미검증</span>이다. 개발 머신에서 <code>pmset -g assertions</code>로 확인할 수 있다.</p>
+<p><code>JarvisAppTest</code>의 토글·저장 테스트 4개가 <code>jvmTest</code>에서 돈다. <code>caffeinate</code>가 실제로 뜨는지는 <span class="badge untested">미검증</span>이다. 개발 머신에서 <code>pmset -g assertions</code>로 확인할 수 있다.</p>
 </section>
 
 <section class="feature" id="system-keep-screen-awake">
@@ -110,15 +144,16 @@
 
 <h3>대체 동작</h3>
 <pre><code>@Composable
-internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwakeState =
-    UnsupportedSystemScreenAwake</code></pre>
+internal actual fun createSystemScreenAwakeDataSource(
+    context: PlatformContext,
+): SystemScreenAwakeDataSource = UnsupportedSystemScreenAwakeDataSource</code></pre>
 <p>카드는 같은 자리에 남고 잠긴 상태로 이유를 보여준다.</p>
 
 <h3>한계</h3>
 <p>해당 없음. 기능 자체가 없다.</p>
 
 <h3>검증</h3>
-<p><code>AppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code>와 <code>systemScreenAwakeExplainsWhyItIsUnavailable</code>이 <code>jvmTest</code>에서 잠긴 카드와 설명을 검증한다.</p>
+<p><code>JarvisAppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code>와 <code>systemScreenAwakeExplainsWhyItIsUnavailable</code>이 <code>jvmTest</code>에서 잠긴 카드와 설명을 검증한다.</p>
 </section>
 
 <section class="feature" id="settings">
@@ -136,7 +171,7 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/jvmMain/.../SettingsStore.jvm.kt</code></dd>
+  <dt>파일</dt><dd><code>data/src/jvmMain/.../settings/SettingsStore.jvm.kt</code></dd>
   <dt>노드</dt><dd><code>Preferences.userRoot().node("io/github/taetae98coding/jarvis")</code></dd>
   <dt>변경 감지</dt><dd><code>addPreferenceChangeListener</code>를 <code>callbackFlow</code>로 감싼다</dd>
 </dl>
@@ -149,7 +184,7 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 </ul>
 
 <h3>검증</h3>
-<p><code>AppSettingsTest</code>와 <code>AppTest</code>의 저장 테스트가 <code>InMemorySettingsStore</code>로 돈다. <code>java.util.prefs</code> 왕복은 네 플랫폼 중 유일하게 개발 머신에서 직접 확인했다.</p>
+<p><code>ScreenAwakeSettingsRepositoryTest</code>와 <code>JarvisAppTest</code>의 저장 테스트가 <code>InMemorySettingsStore</code>로 돈다. <code>java.util.prefs</code> 왕복은 네 플랫폼 중 유일하게 개발 머신에서 직접 확인했다.</p>
 </section>
 
 <section class="feature" id="state-observation">
@@ -201,7 +236,7 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/jvmMain/.../Emulator.jvm.kt</code></dd>
+  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/Emulator.jvm.kt</code></dd>
   <dt>주기</dt><dd><code>observeByPolling(interval = 5.seconds)</code>. 5초마다 다시 세고 바뀐 결과만 흘려보낸다. <a href="#state-observation">상태 조회 규칙</a> 참고</dd>
   <dt>공유</dt><dd><code>shareIn(WhileSubscribed(), replay = 1)</code>. UI와 에이전트가 같은 값을 본다</dd>
   <dt>스레드</dt><dd><code>withContext(Dispatchers.IO)</code>. UI를 막지 않는다</dd>
@@ -217,7 +252,7 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 <h4>로컬 에이전트</h4>
 <p>세어 둔 값을 같은 머신의 다른 타깃에 넘겨준다. 개수를 셀 수 있는 타깃이 여기뿐이라, <a href="../common/emulator-count.html#agent">공통 스펙의 에이전트</a>를 이 문서가 구현한다.</p>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/jvmMain/.../HostAgentServer.kt</code></dd>
+  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code></dd>
   <dt>서버</dt><dd>JDK 내장 <code>com.sun.net.httpserver.HttpServer</code>. 의존성을 더하지 않는다</dd>
   <dt>수명</dt><dd><code>startEmulatorHostAgent()</code>를 <code>desktopApp</code>의 <code>main()</code>이 <code>use {}</code>로 감싼다. 창을 닫으면 닫힌다</dd>
   <dt>바인딩</dt><dd><code>InetAddress.getLoopbackAddress()</code>. 에뮬레이터의 <code>10.0.2.2</code>와 <code>adb reverse</code>는 호스트 루프백으로 들어오므로 충분하고, LAN에는 열리지 않는다</dd>
@@ -253,8 +288,8 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 
 <section class="feature" id="test">
 <h2>테스트 <span class="badge ok">구현</span></h2>
-<pre><code>./gradlew :shared:jvmTest</code></pre>
-<p><code>PlatformTest</code>, <code>AppSettingsTest</code>, <code>ObserveSystemStateTest</code>, <code>HostAgentTest</code>, <code>AppTest</code>(Compose UI), <code>EmulatorParsingTest</code>, <code>HostAgentServerTest</code> 전부 돌아간다. <code>runComposeUiTest</code>가 Skiko 네이티브 런타임을 필요로 해서 <code>jvmTest</code>에 <code>compose.desktop.currentOs</code>를 넣어 둔다.</p>
+<pre><code>./gradlew :domain:jvmTest :data:jvmTest :ui:jvmTest</code></pre>
+<p>유스케이스 테스트(<code>:domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>ObserveSystemStateTest</code>·<code>HostAgentTest</code>·<code>EmulatorParsingTest</code>·<code>HostAgentServerTest</code>(<code>:data</code>), <code>JarvisAppTest</code>(<code>:ui</code>, Compose UI)가 돌아간다. <code>runComposeUiTest</code>가 Skiko 네이티브 런타임을 필요로 해서 <code>:ui</code>의 <code>jvmTest</code>에만 <code>compose.desktop.currentOs</code>를 넣는다.</p>
 <p>이 플랫폼만 에이전트 HTTP 왕복을 실제로 테스트한다. 서버가 여기 있기 때문이다. <code>caffeinate</code> 실행과 <code>java.util.prefs</code> 왕복은 <span class="badge untested">미검증</span>이다.</p>
 </section>
 

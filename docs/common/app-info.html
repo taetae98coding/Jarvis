@@ -60,10 +60,11 @@
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>UI</dt><dd><code>shared/ui/AppInfoCard.kt</code></dd>
+  <dt>모델</dt><dd><code>AppInfo(version, platform)</code> (<code>domain/appinfo</code>). 화면은 <code>GetAppInfoUseCase</code>로 한 번 읽는다</dd>
+  <dt>UI</dt><dd><code>ui/appinfo/AppInfoCard.kt</code></dd>
   <dt>버전 원본</dt><dd><code>gradle/libs.versions.toml</code>의 <code>appVersion</code></dd>
-  <dt>버전 생성</dt><dd><code>:shared</code>의 <code>generateAppVersion</code> 태스크가 <code>AppVersion.kt</code>에 <code>internal const val APP_VERSION</code>을 써 넣는다</dd>
-  <dt>플랫폼 이름</dt><dd><code>expect val platformName: String</code> (<code>shared/platform/Platform.kt</code>)</dd>
+  <dt>버전 생성</dt><dd><code>:data</code>의 <code>generateAppVersion</code> 태스크가 <code>AppVersion.kt</code>에 <code>internal const val APP_VERSION</code>을 써 넣는다</dd>
+  <dt>플랫폼 이름</dt><dd><code>internal expect val platformName: String</code> (<code>data/appinfo/PlatformName.kt</code>)</dd>
 </dl>
 
 <p>iOS 번들 버전(<code>MARKETING_VERSION</code>)만 Gradle과 연동되지 않는다. 화면에 보이는 값은 공용 <code>APP_VERSION</code>이고, 번들 버전은 <code>iosApp/Configuration/Config.xcconfig</code>에서 따로 관리한다. 자세한 내용은 <a href="../platform/ios.html#build">iOS 빌드</a>에 있다.</p>
@@ -85,9 +86,9 @@
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>PlatformTest.platformNameIsNotBlank</code></td><td>R3. 모든 타깃에서 이름이 비어 있지 않다</td><td><code>commonTest</code> (Android host 포함 전 타깃)</td></tr>
-    <tr><td><code>AppTest.showsAppVersion</code></td><td>R1. <code>APP_VERSION</code>이 화면에 보인다</td><td><code>skikoTest</code> (jvm / wasmJs / ios)</td></tr>
-    <tr><td><code>AppTest.showsCurrentPlatformName</code></td><td>R1. <code>platformName</code>이 화면에 보인다</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>PlatformNameTest.platformNameIsNotBlank</code></td><td>R3. 모든 타깃에서 이름이 비어 있지 않다</td><td><code>:data</code> <code>commonTest</code> (Android host 포함 전 타깃)</td></tr>
+    <tr><td><code>JarvisAppTest.showsAppVersion</code></td><td>R1. <code>AppInfo.version</code>이 화면에 보인다</td><td><code>:ui</code> <code>skikoTest</code> (jvm / wasmJs / ios)</td></tr>
+    <tr><td><code>JarvisAppTest.showsCurrentPlatformName</code></td><td>R1. <code>AppInfo.platform</code>이 화면에 보인다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 

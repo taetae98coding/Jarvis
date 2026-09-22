@@ -55,8 +55,8 @@
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/platform/ObserveSystemState.kt</code></dd>
-  <dt>공급</dt><dd>없음. <code>expect</code>가 아니라 commonMain 함수 세 개다</dd>
+  <dt>파일</dt><dd><code>data/state/ObserveSystemState.kt</code></dd>
+  <dt>공급</dt><dd>없음. <code>expect</code>가 아니라 <code>:data</code> commonMain 함수 세 개다. 상태를 읽는 쪽이 전부 <code>:data</code>라 바깥 모듈에 노출하지 않는다</dd>
 </dl>
 
 <table>
@@ -113,14 +113,14 @@
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>ObserveSystemStateTest.pollingReadsAgainAfterEachInterval</code></td><td>R2, R3. 0초·5초·10초에 읽는다</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>ObserveSystemStateTest.pollingSkipsUnchangedValues</code></td><td>R4. 1분을 돌려도 방출은 한 번</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>ObserveSystemStateTest.signalsDriveRereads</code></td><td>R1. 신호마다 다시 읽는다</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>ObserveSystemStateTest.signalsReplacePolling</code></td><td>R1. 신호 기반 조회는 시간이 지나도 다시 읽지 않는다</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>ObserveSystemStateTest.systemStateFollowsSignalsWhenTheyExist</code></td><td>R6. 신호가 있으면 신호를 쓴다</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>ObserveSystemStateTest.systemStateFallsBackToPollingWithoutSignals</code></td><td>R6. 신호가 없으면 폴링한다</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>AppSettingsTest.keepScreenAwakeFollowsChangesWhenTheStoreHasNoCallback</code></td><td>R6. 콜백 없는 저장소에서도 화면이 따라간다</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>HostAgentTest.probeFollowsAgentUpdates</code></td><td>R2, R4. 폴링으로 새 개수를 받는다</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>ObserveSystemStateTest.pollingReadsAgainAfterEachInterval</code></td><td>R2, R3. 0초·5초·10초에 읽는다</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ObserveSystemStateTest.pollingSkipsUnchangedValues</code></td><td>R4. 1분을 돌려도 방출은 한 번</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ObserveSystemStateTest.signalsDriveRereads</code></td><td>R1. 신호마다 다시 읽는다</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ObserveSystemStateTest.signalsReplacePolling</code></td><td>R1. 신호 기반 조회는 시간이 지나도 다시 읽지 않는다</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ObserveSystemStateTest.systemStateFollowsSignalsWhenTheyExist</code></td><td>R6. 신호가 있으면 신호를 쓴다</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ObserveSystemStateTest.systemStateFallsBackToPollingWithoutSignals</code></td><td>R6. 신호가 없으면 폴링한다</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeFollowsChangesWhenTheStoreHasNoCallback</code></td><td>R6. 콜백 없는 저장소에서도 상태가 따라간다</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentTest.dataSourceFollowsAgentUpdates</code></td><td>R2, R4. 폴링으로 새 개수를 받는다</td><td><code>:data</code> <code>commonTest</code></td></tr>
   </tbody>
 </table>
 

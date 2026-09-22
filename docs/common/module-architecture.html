@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>모듈 구조 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>모듈 구조</span></nav>
+
+<header>
+  <h1>모듈 구조</h1>
+  <p class="lead">공용 코드를 <code>:domain</code> · <code>:data</code> · <code>:ui</code> 세 계층 모듈로 나누고, <code>:shared</code>는 그 셋을 조립해 앱 진입점만 내놓는다. 기능이 늘어도 <code>:shared</code>는 커지지 않는다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>지금 구조는 모듈이 커지면 shared에 집중적으로 추가되는 구조잖아. clean architecture 맞춰서 모듈화 진행하자. ui 모듈 domain 모듈 data 모듈이 크게 있어야 할 것 같은데 검토해줘. 각각 모듈 책임에 맞게 구현하고 모듈 분리 후 각 모듈에 package 수정도 필요한지 검토해줘.</p>
+  <footer>2026-09-22 대화.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 공용 코드는 <code>:domain</code>, <code>:data</code>, <code>:ui</code> 세 Gradle 모듈에 나뉘어 있고, <code>:shared</code>에는 조립 코드와 플랫폼 진입점만 남는다.</li>
+  <li><strong>R2.</strong> 모듈 의존은 한 방향이다. <code>:ui → :domain</code>, <code>:data → :domain</code>, <code>:shared → :domain, :data, :ui</code>. <code>:ui</code>는 <code>:data</code>를, <code>:data</code>는 <code>:ui</code>를 컴파일 타임에 볼 수 없다.</li>
+  <li><strong>R3.</strong> <code>:domain</code>은 Compose와 플랫폼 API에 의존하지 않는다. 의존성은 <code>kotlinx-coroutines-core</code>뿐이고, <code>expect</code> 선언이 없다.</li>
+  <li><strong>R4.</strong> 플랫폼 API 호출(<code>expect</code>/<code>actual</code>)은 전부 <code>:data</code>에 있다. 단 Compose가 대신 불러 주는 것(<code>Modifier.keepScreenOn()</code>)과 Compose 트리에서만 얻을 수 있는 것(Android <code>Context</code>)은 예외이며 <a href="#exceptions">아래 예외 표</a>에 적는다.</li>
+  <li><strong>R5.</strong> <code>:ui</code>는 Compose API만 부른다. <code>:domain</code>의 모델·유스케이스로만 상태를 읽고 쓴다.</li>
+  <li><strong>R6.</strong> 패키지 루트는 모듈마다 다르다. <code>…jarvis.domain</code> / <code>…jarvis.data</code> / <code>…jarvis.ui</code> / <code>…jarvis.shared</code>. 그 아래는 계층이 아니라 기능으로 나눈다(<code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>settings</code>).</li>
+  <li><strong>R7.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 분리 전 테스트가 검증하던 내용은 분리 후에도 전부 검증된다.</li>
+  <li><strong>R8.</strong> 기능을 하나 더할 때 <code>:shared</code>에 파일을 더하지 않는다. 세 모듈의 같은 기능 패키지에 더하고, 조립 한 줄만 <code>:shared</code>에 추가한다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong>기능별 모듈</strong>(<code>:feature:emulator</code> 같은 세로 분리). 기능이 셋뿐이라 지금은 계층 분리만으로 충분하다. 기능 패키지를 모듈 경계와 같은 이름으로 맞춰 두었으므로 나중에 잘라내기만 하면 된다.</li>
+    <li><strong>DI 프레임워크</strong>. 생성자 주입과 <code>:shared</code>의 조립 클래스 하나로 충분하다. Koin·Hilt는 넣지 않았다.</li>
+    <li><strong>빌드 컨벤션 플러그인</strong>(<code>build-logic</code>). <a href="#decision-build">아래 결정</a> 참조.</li>
+    <li><strong>모듈 이름 변경</strong>. <code>:shared</code>와 iOS 프레임워크 이름 <code>Shared</code>는 그대로 둔다. Xcode 프로젝트가 <code>:shared:embedAndSignAppleFrameworkForXcode</code>를 직접 부르고, 이름을 바꿔도 얻는 것이 없다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<p>화면에 보이는 변화는 없다. 이 문서는 사용자에게 보이지 않는 구조에 대한 스펙이고, 그래서 <a href="#verification">검증</a>도 화면이 아니라 "기존 테스트가 새 자리에서 같은 것을 검증하는가"로 한다.</p>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>해당 없음</td></tr>
+    <tr><td>설명</td><td>해당 없음</td></tr>
+    <tr><td>컨트롤</td><td>해당 없음</td></tr>
+    <tr><td>테스트 태그</td><td>해당 없음</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<h3 id="modules">모듈</h3>
+
+<table>
+  <thead><tr><th>모듈</th><th>책임</th><th>의존</th><th>쓸 수 있는 것</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>:domain</code></td>
+      <td>모델과 규칙. 리포지토리 <em>인터페이스</em>와 유스케이스</td>
+      <td>없음</td>
+      <td>Kotlin, <code>kotlinx-coroutines-core</code></td>
+    </tr>
+    <tr>
+      <td><code>:data</code></td>
+      <td>리포지토리 <em>구현</em>. 플랫폼 API 호출, 저장소, 직렬화, 프로세스·HTTP</td>
+      <td><code>:domain</code></td>
+      <td>플랫폼 API(<code>expect</code>/<code>actual</code>), <code>kotlinx-serialization</code></td>
+    </tr>
+    <tr>
+      <td><code>:ui</code></td>
+      <td>Compose 화면과 화면 상태. 유스케이스만 부른다</td>
+      <td><code>:domain</code></td>
+      <td>Compose Multiplatform</td>
+    </tr>
+    <tr>
+      <td><code>:shared</code></td>
+      <td>조립(composition root)과 플랫폼 진입점. <code>App()</code>, <code>MainViewController()</code></td>
+      <td><code>:domain</code>, <code>:data</code>, <code>:ui</code></td>
+      <td>위 셋 전부</td>
+    </tr>
+  </tbody>
+</table>
+
+<pre class="tree"><code>:androidApp   :iosApp(Xcode)   :desktopApp   :webApp
+      └──────────────┴──────────────┴─────────┘
+                       :shared          ← 조립. 기능이 늘어도 커지지 않는다
+             ┌───────────┼───────────┐
+           :ui         :data         │
+             └───────────┴───────── :domain   ← 아무것도 의존하지 않는다</code></pre>
+
+<p>의존 방향은 Gradle이 강제한다. <code>:ui</code>의 빌드 파일에 <code>:data</code>가 없으므로 화면에서 <code>SharedPreferences</code>나 <code>HttpURLConnection</code>을 부르려면 컴파일이 깨진다. 반대로 <code>:data</code>에는 Compose 플러그인 자체가 없어서 <code>@Composable</code>을 쓸 수 없다.</p>
+
+<h3 id="packages">패키지</h3>
+
+<p>모듈마다 패키지 루트가 다르다. 같은 기능은 세 모듈에서 같은 마지막 이름을 쓴다. 기능을 찾을 때 <code>emulator</code>로 grep하면 세 계층이 함께 나온다.</p>
+
+<pre class="tree"><code>io.github.taetae98coding.jarvis
+├── domain
+│   ├── appinfo    AppInfo, AppInfoRepository, GetAppInfoUseCase
+│   ├── emulator   EmulatorStatus, EmulatorSummary, EmulatorRepository, ObserveEmulatorStatusUseCase
+│   └── screen     ScreenAwakeRepository, ScreenAwakeSettingsRepository,
+│                  SystemScreenAwakeStatus, SystemScreenAwakeRepository, 유스케이스 7개
+├── data
+│   ├── DataModule, PlatformContext                 ← data 조립과 플랫폼 핸들
+│   ├── appinfo    platformName(expect), APP_VERSION(생성), DefaultAppInfoRepository
+│   ├── emulator   EmulatorDataSource(expect), DefaultEmulatorRepository
+│   │   └── agent  HostAgent 주소·DTO·클라이언트(expect)·서버(jvm)
+│   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), 리포지토리 구현
+│   ├── settings   SettingsStore(interface + expect 팩토리), 플랫폼 저장소 구현
+│   └── state      observeByPolling / observeOnSignals / observeSystemState
+├── ui
+│   ├── app        JarvisApp, JarvisAppState, FeatureGrid
+│   ├── appinfo    AppInfoCard
+│   ├── component  ToggleFeatureCard
+│   ├── emulator   EmulatorCard
+│   └── screen     ScreenAwakeCard, SystemScreenAwakeCard, Modifier.keepScreenAwake
+└── shared         App, JarvisContainer, rememberPlatformContext(expect),
+                   MainViewController(ios), startEmulatorHostAgent(jvm)</code></pre>
+
+<aside class="decision">
+  <strong>결정: 패키지는 계층이 아니라 기능으로 나눈다</strong>
+  모듈 이름이 이미 계층이므로 <code>data.repository</code>, <code>ui.screen.component</code> 같은 계층 패키지를 또 두지 않는다. 기능 패키지가 곧 미래의 기능 모듈 경계다. 예전 <code>shared.platform</code>은 계층도 기능도 아닌 "플랫폼에 닿는 것 전부"라 기능이 늘수록 커지기만 했다. 그 패키지는 사라지고 내용은 <code>data</code>의 기능 패키지로 흩어진다.
+</aside>
+
+<h3 id="layers">계층별 규칙</h3>
+
+<dl class="meta">
+  <dt>domain</dt>
+  <dd>아무 API도 부르지 않는다. 상태는 <code>Flow</code>로 받고 정책만 적는다. 예: "설정이 켜져 있고 권한이 허용된 동안에만 시스템 전역 효과를 적용한다"는 <code>ApplySystemScreenAwakeUseCase</code>에 있다. 리포지토리는 인터페이스만 있다.</dd>
+
+  <dt>data</dt>
+  <dd>리포지토리를 구현하고 플랫폼 API를 부른다. 모든 <code>expect</code> 선언이 여기 있다. 바깥 세계의 표현(JSON DTO, SharedPreferences 키, <code>adb</code> 출력)은 여기서 도메인 모델로 바꾼다. 도메인 모델에는 <code>@Serializable</code>을 붙이지 않는다.</dd>
+
+  <dt>ui</dt>
+  <dd>Compose만 부른다. 화면 상태는 <code>JarvisAppState</code>가 유스케이스로부터 만들고, 카드는 값과 콜백만 받는다. 저장·권한·프로세스는 모르고, "권한이 없으면 설정 화면을 연다" 같은 판단도 유스케이스가 한다.</dd>
+
+  <dt>shared</dt>
+  <dd><code>JarvisContainer</code>가 <code>DataModule</code> → 유스케이스 → <code>JarvisAppState</code>를 잇는다. <code>App()</code>은 컨테이너를 만들어 <code>JarvisApp()</code>에 넘기는 것이 전부다. 기능이 늘면 컨테이너에 줄이 늘 뿐 파일은 늘지 않는다.</dd>
+</dl>
+
+<h3 id="exceptions">계층 규칙의 예외</h3>
+
+<p>플랫폼에 닿는데 <code>:data</code>에 둘 수 없는 것이 둘 있다. 예외를 만드는 대신 감추면 다음 사람이 규칙을 잘못 읽는다.</p>
+
+<table>
+  <thead><tr><th>무엇</th><th>어디</th><th>왜 data에 못 두나</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>Modifier.keepScreenAwake(enabled)</code></td>
+      <td><code>:ui</code> <code>ui/screen</code></td>
+      <td>Compose의 <code>Modifier.keepScreenOn()</code>이 플랫폼 API를 대신 부른다. Modifier 형태로만 존재하므로 Compose 밖으로 꺼낼 수 없다. 이 modifier가 커버하지 못하는 JVM은 <code>:data</code>의 <code>IdleInhibitor</code>가 맡는다</td>
+    </tr>
+    <tr>
+      <td><code>rememberPlatformContext()</code></td>
+      <td><code>:shared</code></td>
+      <td>Android <code>Context</code>는 <code>LocalContext</code>로만 얻을 수 있다. <code>:data</code>에 Compose를 들이지 않으려고, 컨텍스트를 <code>PlatformContext</code>로 감싸 넘기는 일만 조립 모듈이 한다</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="context">PlatformContext</h3>
+
+<p><code>:data</code>의 <code>expect class PlatformContext</code>는 플랫폼 핸들을 담는 상자다. Android에서만 <code>Context</code>를 들고 있고 나머지 셋에서는 빈 클래스다. Android 저장소와 시스템 설정 접근이 <code>Context</code>를 요구하는데, 그것을 <code>:data</code>가 전역으로 들고 있게 하지 않으려는 선택이다.</p>
+
+<pre><code>// :data
+expect class PlatformContext
+
+class DataModule(context: PlatformContext, scope: CoroutineScope) { … }
+
+// :shared
+@Composable
+internal expect fun rememberPlatformContext(): PlatformContext</code></pre>
+
+<aside class="decision">
+  <strong>결정: 전역 <code>Context</code> 대신 <code>PlatformContext</code>를 넘긴다</strong>
+  <code>androidx.startup</code>이나 <code>ContentProvider</code>로 애플리케이션 컨텍스트를 몰래 잡아 두는 방법도 있다. 의존성이 늘고, <code>:data</code>가 초기화 순서에 의존하게 되고, 테스트에서 갈아끼울 수 없어서 버렸다. 지금은 컨텍스트가 필요한 곳이 생성자 하나뿐이라 무엇이 무엇을 요구하는지 코드에 드러난다.
+</aside>
+
+<aside class="decision" id="decision-build">
+  <strong>결정: 빌드 컨벤션 플러그인을 넣지 않는다</strong>
+  모듈 넷이 타깃 선언(android/jvm/ios/wasmJs)을 각자 반복한다. <code>build-logic</code> 포함 빌드로 묶는 안을 검토했지만, 실제로 겹치는 것은 20줄 남짓이고 모듈마다 다른 부분(iOS 프레임워크는 <code>:shared</code>만, <code>binaries.executable()</code>은 <code>:ui</code>와 <code>:webApp</code>만, 직렬화는 <code>:data</code>만, Compose는 <code>:ui</code>·<code>:shared</code>만)이 그보다 많다. 포함 빌드와 버전 카탈로그 연결이 늘리는 고장 지점이 지금은 이득보다 크다. 모듈이 여섯을 넘거나 같은 설정을 세 번째로 복사하게 되면 그때 도입한다.
+</aside>
+
+<h3 id="visibility">가시성</h3>
+
+<p>모듈이 갈리면서 <code>internal</code>의 범위가 모듈 경계로 줄었다. 경계를 넘는 것만 <code>public</code>으로 올린다.</p>
+
+<table>
+  <thead><tr><th>모듈</th><th><code>public</code></th><th><code>internal</code></th></tr></thead>
+  <tbody>
+    <tr><td><code>:domain</code></td><td>모델, 리포지토리 인터페이스, 유스케이스</td><td>없음</td></tr>
+    <tr><td><code>:data</code></td><td><code>DataModule</code>, <code>PlatformContext</code>, <code>startEmulatorHostAgent()</code></td><td>리포지토리 구현, 데이터 소스, DTO, <code>SettingsStore</code>, <code>expect</code> 선언</td></tr>
+    <tr><td><code>:ui</code></td><td><code>JarvisApp()</code>, <code>JarvisAppState</code></td><td>카드, 그리드, 테스트 태그</td></tr>
+    <tr><td><code>:shared</code></td><td><code>App()</code>, <code>MainViewController()</code>, <code>startEmulatorHostAgent()</code></td><td><code>JarvisContainer</code>, <code>rememberPlatformContext()</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>네 모듈이 각각 <code>com.android.kotlin.multiplatform.library</code>를 쓰고 namespace를 따로 갖는다. <code>Context</code>는 <code>PlatformContext</code>로 감싸 <code>:data</code>에 넘긴다</td><td><a href="../platform/android.html#module-architecture">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>프레임워크는 <code>:shared</code>만 만든다. 정적 프레임워크가 의존 klib을 모두 링크하므로 <code>export()</code> 없이도 동작한다</td><td><a href="../platform/ios.html#module-architecture">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>호스트 에이전트는 <code>:data</code>의 <code>jvmMain</code>에 있고 <code>:shared</code>가 데스크톱 앱에 재노출한다</td><td><a href="../platform/jvm.html#module-architecture">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>모듈마다 <code>wasmJs { browser() }</code>를 선언한다. Compose 를 쓰는 모듈은 <code>binaries.executable()</code>도 요구된다</td><td><a href="../platform/web.html#module-architecture">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<p>구조 자체를 검증하는 테스트는 없다. 대신 분리 전 테스트가 전부 새 모듈로 옮겨 가 같은 것을 검증하고(R7), 의존 방향(R2)은 Gradle이 컴파일 단계에서 강제한다.</p>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>./gradlew build</code></td><td>R1, R2. 모듈 그래프가 성립하고 네 타깃이 모두 컴파일된다</td><td>—</td></tr>
+    <tr><td><code>:domain:allTests</code> — 유스케이스 테스트</td><td>R3, R7. 도메인 규칙이 Compose·플랫폼 없이 검증된다</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>:data:allTests</code> — <code>ScreenAwakeSettingsRepositoryTest</code>, <code>HostAgentTest</code>, <code>ObserveSystemStateTest</code>, <code>PlatformNameTest</code></td><td>R4, R7. 저장·와이어 포맷·조회 규칙</td><td><code>commonTest</code>, <code>jvmTest</code></td></tr>
+    <tr><td><code>:ui:allTests</code> — <code>JarvisAppTest</code></td><td>R5, R7. 화면이 가짜 리포지토리만으로 렌더링되고 토글이 동작한다</td><td><code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p><code>:ui</code>의 UI 테스트가 가짜 <em>리포지토리</em>로 도는 것 자체가 R5의 증거다. <code>:ui</code>가 <code>:data</code>를 봐야 했다면 이 테스트는 플랫폼 저장소 없이는 컴파일되지 않았을 것이다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><code>expect</code>/<code>actual</code>은 한 모듈 안에서만 짝이 맞는다. 그래서 플랫폼 구현이 필요한 기능은 반드시 <code>:data</code>(또는 <code>:shared</code>)를 거친다. <code>:ui</code>에 플랫폼 분기가 필요한 경우는 <a href="#exceptions">예외 표</a>의 둘뿐이고, 늘어난다면 규칙이 아니라 이 표를 고쳐야 한다.</li>
+  <li>모듈 경계를 넘는 선언은 <code>public</code>이 된다. <code>:data</code>의 <code>DataModule</code>은 앱 코드에서도 보인다. Kotlin에 "이 모듈에게만 공개"가 없어서 규약으로만 막는다.</li>
+  <li>빌드 파일이 넷으로 늘어 타깃 선언이 반복된다. <a href="#decision-build">결정</a>에 적은 조건이 되면 컨벤션 플러그인으로 걷어낸다.</li>
+  <li>모듈 경계를 넘는 테스트가 없다. 실제 플랫폼 저장소와 화면을 함께 도는 테스트는 분리 전에도 없었고(<a href="index.html#limit-store-untested">공통 한계</a>) 지금도 없다. <code>:shared</code>의 조립이 틀리면 컴파일은 통과하고 앱에서만 드러난다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

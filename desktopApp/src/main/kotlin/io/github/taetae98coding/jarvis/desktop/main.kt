@@ -6,7 +6,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import io.github.taetae98coding.jarvis.shared.App
-import io.github.taetae98coding.jarvis.shared.platform.startEmulatorHostAgent
+import io.github.taetae98coding.jarvis.shared.startEmulatorHostAgent
 
 // 에뮬레이터 개수를 세는 SDK 도구는 개발자 머신에서만 돌아간다. 데스크탑 앱은 그걸 할 수 있는
 // 유일한 타깃이므로, 같은 머신의 에뮬레이터·시뮬레이터·브라우저에 결과를 넘겨 주는 에이전트를 함께

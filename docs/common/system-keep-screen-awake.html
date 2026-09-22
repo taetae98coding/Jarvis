@@ -80,26 +80,38 @@
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>UI</dt><dd><code>shared/ui/SystemScreenAwakeCard.kt</code></dd>
-  <dt>상태</dt><dd><code>AppSettings.keepSystemScreenAwake: StateFlow&lt;Boolean&gt;</code>, 키 <code>keep_system_screen_awake</code></dd>
-  <dt>공급</dt><dd><code>shared/platform/SystemScreenAwake.kt</code></dd>
+  <dt>UI</dt><dd><code>ui/screen/SystemScreenAwakeCard.kt</code></dd>
+  <dt>상태</dt><dd><code>ScreenAwakeSettingsRepository.keepSystemScreenAwake: StateFlow&lt;Boolean&gt;</code>, 키 <code>keep_system_screen_awake</code></dd>
+  <dt>모델</dt><dd><code>SystemScreenAwakeStatus(supported, permitted, screenOffTimeout)</code> (<code>domain/screen</code>)</dd>
+  <dt>공급</dt><dd><code>data/screen/SystemScreenAwakeDataSource.kt</code></dd>
 </dl>
 
-<pre><code>internal interface SystemScreenAwakeState {
-    val supported: Boolean
-    val permitted: Boolean
-    val screenOffTimeout: Duration?
+<pre><code>// :domain — 화면과 규칙이 보는 것
+data class SystemScreenAwakeStatus(
+    val supported: Boolean,
+    val permitted: Boolean,
+    val screenOffTimeout: Duration?,
+)
+
+interface SystemScreenAwakeRepository {
+    val status: StateFlow&lt;SystemScreenAwakeStatus&gt;
+    fun setEnabled(enabled: Boolean)
     fun requestPermission()
 }
 
-internal data object UnsupportedSystemScreenAwake : SystemScreenAwakeState { … }
-
-@Composable
-internal expect fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwakeState</code></pre>
+// :data — 플랫폼이 실제로 할 수 있는 것
+internal expect fun createSystemScreenAwakeDataSource(
+    context: PlatformContext,
+): SystemScreenAwakeDataSource</code></pre>
 
 <aside class="decision">
-  <strong>결정: 적용과 상태 읽기를 한 함수에 둔다</strong>
-  둘 다 화면 수명보다 오래 살아야 한다. 효과는 카드가 스크롤 밖으로 나가도 유지되어야 하고(R8), 권한 상태를 보는 <a href="state-observation.html">폴링</a>도 한 곳에서만 돌아야 한다. 그래서 <code>App()</code>이 루트에서 한 번 부르고 상태를 <code>FeatureGrid</code>로 내려보낸다. <code>PlatformIdleInhibitor</code>처럼 적용만 하는 훅과 카드가 따로 상태를 읽는 구조로 두면 폴링이 두 벌 돌고, 카드가 사라질 때 효과도 흔들린다.
+  <strong>결정: 적용과 상태 읽기를 한 데이터 소스에 둔다</strong>
+  둘 다 화면 수명보다 오래 살아야 한다. 효과는 카드가 스크롤 밖으로 나가도 유지되어야 하고(R8), 권한 상태를 보는 <a href="state-observation.html">폴링</a>도 한 곳에서만 돌아야 한다. 그래서 <code>SystemScreenAwakeDataSource</code> 하나가 읽기와 쓰기를 모두 갖고, 리포지토리가 그 상태를 컨테이너 수명의 <code>StateFlow</code>로 공유한다. 카드마다 상태를 읽게 두면 폴링이 여러 벌 돌고, 카드가 사라질 때 효과도 흔들린다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 적용 규칙은 화면이 아니라 유스케이스에 둔다</strong>
+  "권한이 있을 때만, 설정을 따라 적용한다"와 "권한이 없으면 설정 화면을 연다"는 <code>ApplySystemScreenAwakeUseCase</code>·<code>SetKeepSystemScreenAwakeUseCase</code>에 있다. 예전에는 카드의 <code>onCheckedChange</code>와 Android <code>actual</code>의 <code>LaunchedEffect</code>에 나뉘어 있어서, 규칙을 읽으려면 화면 코드와 플랫폼 코드를 함께 봐야 했다. 지금은 Compose도 플랫폼도 없는 <code>:domain</code> 테스트로 검증한다.
 </aside>
 
 <aside class="decision">
@@ -129,14 +141,17 @@ internal expect fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>AppSettingsTest.keepSystemScreenAwakeDefaultsToOff</code></td><td>R1. 기본값 꺼짐</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>AppSettingsTest.keepSystemScreenAwakeIsStoredUnderItsOwnKey</code></td><td>R7. 앱 수명 내 토글과 키가 섞이지 않는다</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>AppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code></td><td>R6. 카드가 잠기고 눌러도 켜지지 않는다</td><td><code>skikoTest</code></td></tr>
-    <tr><td><code>AppTest.systemScreenAwakeExplainsWhyItIsUnavailable</code></td><td>R6. 불가능한 이유가 화면에 보인다</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepSystemScreenAwakeDefaultsToOff</code></td><td>R1. 기본값 꺼짐</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepSystemScreenAwakeIsStoredUnderItsOwnKey</code></td><td>R7. 앱 수명 내 토글과 키가 섞이지 않는다</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>SetKeepSystemScreenAwakeUseCaseTest</code> (3개)</td><td>R3, R5. 권한이 없으면 설정 화면을 열고, 설정값은 그대로 저장된다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ApplySystemScreenAwakeUseCaseTest</code> (3개)</td><td>R2, R4. 권한이 있을 때만 적용하고, 권한이 늦게 들어와도 적용한다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code></td><td>R6. 카드가 잠기고 눌러도 켜지지 않는다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.systemScreenAwakeExplainsWhyItIsUnavailable</code></td><td>R6. 불가능한 이유가 화면에 보인다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.systemScreenAwakeTogglesWhereItIsSupported</code></td><td>R1. 지원하는 플랫폼에서는 토글이 열려 있고 켜진다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 
-<p>R2~R5는 <span class="badge untested">미검증</span>이다. 실제로 시스템 설정을 바꾸고 권한 화면을 여는 경로는 Android 기기에서만 돌고, <a href="../platform/android.html#test">Android에는 UI 테스트가 없다</a>. 개발 기기에서 수동으로 확인한다.</p>
+<p>규칙(언제 적용하고 언제 권한을 요구하는지)은 <code>:domain</code> 테스트가 가짜 리포지토리로 검증한다. 화면이 지원되는 플랫폼처럼 동작하는지도 <code>:ui</code>가 가짜 상태로 검증한다. 다만 <strong>실제로</strong> <code>Settings.System</code>을 쓰고 권한 화면이 열리는 경로는 여전히 <span class="badge untested">미검증</span>이다. Android 기기에서만 돌고 <a href="../platform/android.html#test">Android에는 UI 테스트가 없다</a>. 개발 기기에서 수동으로 확인한다.</p>
 
 <h2 id="limits">한계</h2>
 

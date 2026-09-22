@@ -47,6 +47,7 @@
 ├── index.html                    ← 이 문서. 진입점, 범례, 지원 현황
 ├── common/                       ← 공통 스펙: 기능 하나에 문서 하나
 │   ├── index.html                   공통 규약과 모든 플랫폼에 공통인 한계
+│   ├── module-architecture.html     모듈 구조 (domain / data / ui / shared)
 │   ├── app-info.html                앱 정보 카드
 │   ├── keep-screen-awake.html       화면 꺼짐 방지
 │   ├── system-keep-screen-awake.html   화면 꺼짐 방지 (시스템 전역)
@@ -88,6 +89,13 @@
     <tr><th>기능</th><th class="center">Android</th><th class="center">iOS</th><th class="center">JVM (macOS)</th><th class="center">Web</th></tr>
   </thead>
   <tbody>
+    <tr>
+      <td><a href="common/module-architecture.html">모듈 구조</a></td>
+      <td class="center"><a href="platform/android.html#module-architecture"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#module-architecture"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#module-architecture"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#module-architecture"><span class="badge ok">구현</span></a></td>
+    </tr>
     <tr>
       <td><a href="common/app-info.html">앱 정보 카드</a></td>
       <td class="center"><a href="platform/android.html#app-info"><span class="badge ok">구현</span></a></td>
@@ -146,6 +154,7 @@
 
 <ul class="cards">
   <li><a href="common/index.html">공통 규약과 한계</a><p>expect/actual 목록, 앱 구조, 모든 플랫폼에 공통인 한계</p></li>
+  <li><a href="common/module-architecture.html">모듈 구조</a><p>domain / data / ui 계층 모듈과 조립 모듈, 패키지 규칙</p></li>
   <li><a href="common/app-info.html">앱 정보 카드</a><p>앱 버전과 실행 중인 플랫폼을 보여준다</p></li>
   <li><a href="common/keep-screen-awake.html">화면 꺼짐 방지</a><p>토글이 켜져 있는 동안 화면이 꺼지지 않게 한다</p></li>
   <li><a href="common/system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a><p>앱이 없는 동안에도 화면이 꺼지지 않게 한다. Android만 가능하다</p></li>

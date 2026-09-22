@@ -16,7 +16,7 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>:webApp</code> + <code>:shared</code></dd>
+  <dt>모듈</dt><dd><code>:webApp</code> + <code>:shared</code> → <code>:ui</code> · <code>:data</code> · <code>:domain</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
   <dt>Kotlin 타깃</dt><dd><code>wasmJs</code> (Kotlin/Wasm, WasmGC)</dd>
   <dt>진입점</dt><dd><code>main()</code> → <code>ComposeViewport(document.body!!)</code></dd>
   <dt>번들</dt><dd>webpack, <code>webApp.js</code> + <code>.wasm</code> 두 개 (앱 ~2 MB, Skiko ~8 MB)</dd>
@@ -30,6 +30,7 @@
 <nav class="toc">
   <strong>차례</strong>
   <ol>
+    <li><a href="#module-architecture">모듈 구조</a></li>
     <li><a href="#app-info">앱 정보</a></li>
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
@@ -40,6 +41,39 @@
     <li><a href="#test">테스트</a></li>
   </ol>
 </nav>
+
+<section class="feature" id="module-architecture">
+<h2>모듈 구조 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/module-architecture.html">모듈 구조</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>모듈마다 <code>wasmJs { browser() }</code></td><td>필수다. <code>browser()</code>를 빠뜨린 모듈은 wasmJs 타깃의 테스트·번들 설정이 없어 의존하는 쪽에서 링크가 깨진다</td></tr>
+    <tr><td><code>binaries.executable()</code></td><td><code>:webApp</code>(실제 번들), <code>:ui</code>(UI 테스트 번들), <code>:shared</code>에 둔다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 브라우저 UI 테스트가 렌더링하지 못한다. <code>:shared</code>에는 테스트가 없지만 Compose 플러그인의 <code>checkComposeUiTestConfigurationForWasmJs</code>가 Compose 를 쓰는 wasmJs 타깃이면 예외 없이 요구한다(<a href="https://youtrack.jetbrains.com/issue/CMP-4906">CMP-4906</a>). <code>:domain</code>·<code>:data</code>는 Compose 를 쓰지 않아 검사 대상이 아니다</td></tr>
+    <tr><td>번들 개수</td><td>하나다. <code>:webApp</code>의 <code>outputModuleName = "webApp"</code>이 의존 klib 넷을 한 <code>webApp.js</code>로 묶는다. 모듈을 나눠도 브라우저가 받는 파일 수는 그대로다</td></tr>
+    <tr><td><code>kotlinx.browser</code>(<code>window</code>, <code>localStorage</code>, <code>fetch</code>)</td><td><code>:data</code>의 <code>wasmJsMain</code>에서만 쓴다. <code>:ui</code>는 브라우저 API를 직접 부르지 않고 Compose의 <code>Modifier.keepScreenOn()</code>만 쓴다</td></tr>
+    <tr><td>Wasm 코드 분할(모듈별 지연 로딩)</td><td>버렸다. Kotlin/Wasm에는 아직 klib 단위 코드 분할이 없다. 모듈 분리는 소스 구조에만 영향을 주고 번들 크기·로딩 방식은 바뀌지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>shared/src/wasmJsMain/.../PlatformContext.wasmJs.kt</code>, <code>data/src/wasmJsMain/.../PlatformContext.wasmJs.kt</code></dd>
+  <dt>동작</dt><dd>브라우저에는 넘길 플랫폼 핸들이 없어 <code>PlatformContext</code>는 빈 클래스다. <code>main()</code>은 분리 전과 같이 <code>ComposeViewport(document.body!!) { App() }</code></dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>번들이 하나라 <code>:ui</code>만 고쳐도 브라우저는 전체를 다시 받는다. 분리 전과 같다.</li>
+  <li><code>:ui</code>와 <code>:shared</code>의 <code>binaries.executable()</code>은 테스트와 플러그인 검사를 위한 설정이다. 라이브러리 모듈에 실행 바이너리를 두는 것이 어색하고, <code>:shared</code>는 쓰지도 않는 webpack 번들을 하나 더 만든다. CMP-4906이 닫히면 <code>:shared</code> 쪽은 걷어낸다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :ui:wasmJsBrowserTest</code>가 브라우저에서 화면을 렌더링해 확인한다. <code>:domain:wasmJsBrowserTest</code>와 <code>:data:wasmJsBrowserTest</code>는 화면 없이 도메인·데이터 테스트만 돈다.</p>
+</section>
 
 <section class="feature" id="app-info">
 <h2>앱 정보 <span class="badge ok">구현</span></h2>
@@ -56,7 +90,7 @@
 <p>브라우저를 구분해야 하면 <code>navigator.userAgent</code>를 붙여야 한다.</p>
 
 <h3>검증</h3>
-<p><code>PlatformTest</code>, <code>AppTest.showsAppVersion</code>, <code>AppTest.showsCurrentPlatformName</code>이 <code>wasmJsBrowserTest</code>에서 돈다.</p>
+<p><code>PlatformNameTest</code>, <code>JarvisAppTest.showsAppVersion</code>, <code>JarvisAppTest.showsCurrentPlatformName</code>이 <code>wasmJsBrowserTest</code>에서 돈다.</p>
 </section>
 
 <section class="feature" id="keep-screen-awake">
@@ -74,7 +108,7 @@
 </table>
 
 <h3>구현</h3>
-<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙인다. Web 전용 코드는 없다. <code>PlatformIdleInhibitor</code>의 wasmJs actual은 <code>= Unit</code>이다.</p>
+<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙인다. Web 전용 코드는 없다. <code>:data</code>의 <code>createIdleInhibitor()</code>는 wasmJs에서 <code>NoIdleInhibitor</code>를 돌려준다.</p>
 <p>예전에는 <code>@JsFun</code> 브릿지로 sentinel과 <code>visibilitychange</code> 리스너를 <code>globalThis</code> 전역 세 개에 들고 있었다. Compose 구현으로 넘기면서 전부 걷어냈고, 컴포지션보다 오래 살던 리스너도 함께 사라졌다.</p>
 
 <h3>한계</h3>
@@ -86,7 +120,7 @@
 </ul>
 
 <h3>검증</h3>
-<p><code>AppTest</code>의 토글·저장 테스트 4개가 헤드리스 Chrome에서 돈다. wake lock이 실제로 잡히는지는 <span class="badge untested">미검증</span>이다. 헤드리스 환경에서는 보안 컨텍스트 조건을 만족해도 화면이 없다.</p>
+<p><code>JarvisAppTest</code>의 토글·저장 테스트 4개가 헤드리스 Chrome에서 돈다. wake lock이 실제로 잡히는지는 <span class="badge untested">미검증</span>이다. 헤드리스 환경에서는 보안 컨텍스트 조건을 만족해도 화면이 없다.</p>
 </section>
 
 <section class="feature" id="system-keep-screen-awake">
@@ -105,16 +139,16 @@
 </table>
 
 <h3>대체 동작</h3>
-<pre><code>@Composable
-internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwakeState =
-    UnsupportedSystemScreenAwake</code></pre>
+<pre><code>internal actual fun createSystemScreenAwakeDataSource(
+    context: PlatformContext,
+): SystemScreenAwakeDataSource = UnsupportedSystemScreenAwakeDataSource</code></pre>
 <p>카드는 같은 자리에 남고 잠긴 상태로 이유를 보여준다.</p>
 
 <h3>한계</h3>
 <p>해당 없음. 기능 자체가 없다.</p>
 
 <h3>검증</h3>
-<p><code>AppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code>와 <code>systemScreenAwakeExplainsWhyItIsUnavailable</code>이 <code>wasmJsBrowserTest</code>에서 잠긴 카드와 설명을 검증한다.</p>
+<p><code>JarvisAppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code>와 <code>systemScreenAwakeExplainsWhyItIsUnavailable</code>이 <code>wasmJsBrowserTest</code>에서 잠긴 카드와 설명을 검증한다.</p>
 </section>
 
 <section class="feature" id="settings">
@@ -133,7 +167,7 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/wasmJsMain/.../SettingsStore.wasmJs.kt</code></dd>
+  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../settings/SettingsStore.wasmJs.kt</code></dd>
   <dt>키</dt><dd><code>jarvis.settings.&lt;key&gt;</code>. <code>localStorage</code>는 오리진 전체가 공유하므로 다른 플랫폼 저장소가 기본으로 갖는 앱 단위 격리를 키 접두사로 대신한다</dd>
   <dt>직렬화</dt><dd><code>value.toString()</code> / <code>toBooleanStrictOrNull() ?: defaultValue</code></dd>
   <dt>변경 감지</dt><dd><code>merge(localChanges, remoteChanges)</code>. <code>remoteChanges</code>는 <code>window</code>의 <code>storage</code> 이벤트, <code>localChanges</code>는 <code>putBoolean</code>이 직접 <code>tryEmit</code>하는 <code>MutableSharedFlow</code></dd>
@@ -151,7 +185,7 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 </ul>
 
 <h3>검증</h3>
-<p><code>AppSettingsTest</code>와 <code>AppTest</code>의 저장 테스트가 <code>InMemorySettingsStore</code>로 돈다. <code>localStorage</code> 왕복은 <span class="badge untested">미검증</span>이다.</p>
+<p><code>ScreenAwakeSettingsRepositoryTest</code>와 <code>JarvisAppTest</code>의 저장 테스트가 <code>InMemorySettingsStore</code>로 돈다. <code>localStorage</code> 왕복은 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="state-observation">
@@ -194,7 +228,7 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/wasmJsMain/.../HostAgent.wasmJs.kt</code></dd>
+  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
   <dt>동작</dt><dd><code>window.fetch(hostAgentUrl("localhost")).await&lt;Response&gt;()</code></dd>
   <dt>타입 인자</dt><dd><code>await</code>의 타입 인자를 적어 준다. <code>Promise</code>가 out 변성이어서 반환 타입만으로는 추론되지 않는다</dd>
   <dt>실패</dt><dd>에이전트가 없으면 <code>fetch</code>가 <code>TypeError</code>로 거절된다. 연결 실패와 잘못된 응답을 가릴 필요가 없어서 <code>runCatching</code>으로 둘 다 <code>null</code>로 묶는다</dd>
@@ -230,9 +264,9 @@ internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwa
 <section class="feature" id="test">
 <h2>테스트 <span class="badge ok">구현</span></h2>
 <pre><code>CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  ./gradlew :shared:wasmJsBrowserTest</code></pre>
-<p><code>PlatformTest</code>, <code>AppSettingsTest</code>, <code>ObserveSystemStateTest</code>, <code>HostAgentTest</code>, <code>AppTest</code>(Compose UI)가 헤드리스 Chrome에서 돈다. <code>CHROME_BIN</code>을 지정하지 않으면 Karma가 브라우저를 찾지 못한다.</p>
-<p><code>:shared</code>의 <code>wasmJs</code> 타깃에 <code>binaries.executable()</code>이 있는 이유도 이 테스트 때문이다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 UI 테스트가 렌더링하지 못한다.</p>
+  ./gradlew :domain:wasmJsBrowserTest :data:wasmJsBrowserTest :ui:wasmJsBrowserTest</code></pre>
+<p>유스케이스 테스트(<code>:domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>ObserveSystemStateTest</code>·<code>HostAgentTest</code>(<code>:data</code>), <code>JarvisAppTest</code>(<code>:ui</code>, Compose UI)가 헤드리스 Chrome에서 돈다. <code>CHROME_BIN</code>을 지정하지 않으면 Karma가 브라우저를 찾지 못한다.</p>
+<p><code>:ui</code>의 <code>wasmJs</code> 타깃에 <code>binaries.executable()</code>이 있는 이유도 이 테스트 때문이다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 UI 테스트가 렌더링하지 못한다.</p>
 </section>
 
 <footer class="page">
