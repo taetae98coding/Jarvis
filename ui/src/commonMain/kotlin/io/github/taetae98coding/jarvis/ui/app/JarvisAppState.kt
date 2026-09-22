@@ -5,6 +5,12 @@ import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.GetAppInfoUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
+import io.github.taetae98coding.jarvis.domain.rotation.ObserveDeviceRotationStatusUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.RotateDeviceUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
+import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationAngleUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationLockUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplyKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplySystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveKeepScreenAwakeUseCase
@@ -34,10 +40,14 @@ class JarvisAppState(
     observeKeepScreenAwake: ObserveKeepScreenAwakeUseCase,
     observeKeepSystemScreenAwake: ObserveKeepSystemScreenAwakeUseCase,
     observeSystemScreenAwakeStatus: ObserveSystemScreenAwakeStatusUseCase,
+    observeDeviceRotationStatus: ObserveDeviceRotationStatusUseCase,
     private val setKeepScreenAwake: SetKeepScreenAwakeUseCase,
     private val setKeepSystemScreenAwake: SetKeepSystemScreenAwakeUseCase,
     private val applyKeepScreenAwake: ApplyKeepScreenAwakeUseCase,
     private val applySystemScreenAwake: ApplySystemScreenAwakeUseCase,
+    private val setDeviceRotationAngle: SetDeviceRotationAngleUseCase,
+    private val setDeviceRotationLock: SetDeviceRotationLockUseCase,
+    private val rotateDevice: RotateDeviceUseCase,
 ) {
     val appInfo: AppInfo = getAppInfo()
 
@@ -52,12 +62,26 @@ class JarvisAppState(
 
     val systemScreenAwake: StateFlow<SystemScreenAwakeStatus> = observeSystemScreenAwakeStatus()
 
+    val deviceRotation: StateFlow<DeviceRotationStatus> = observeDeviceRotationStatus()
+
     fun onKeepScreenAwakeChange(value: Boolean) {
         setKeepScreenAwake(value)
     }
 
     fun onKeepSystemScreenAwakeChange(value: Boolean) {
         setKeepSystemScreenAwake(value)
+    }
+
+    fun onDeviceRotationAngleClick(angle: RotationAngle) {
+        setDeviceRotationAngle(angle)
+    }
+
+    fun onDeviceRotate(steps: Int) {
+        rotateDevice(steps)
+    }
+
+    fun onDeviceRotationLockChange(locked: Boolean) {
+        setDeviceRotationLock(locked)
     }
 
     /**

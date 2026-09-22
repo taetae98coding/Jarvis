@@ -4,6 +4,10 @@ import io.github.taetae98coding.jarvis.data.DataModule
 import io.github.taetae98coding.jarvis.data.PlatformContext
 import io.github.taetae98coding.jarvis.domain.appinfo.GetAppInfoUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.ObserveDeviceRotationStatusUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.RotateDeviceUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationAngleUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationLockUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplyKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplySystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveKeepScreenAwakeUseCase
@@ -26,6 +30,8 @@ internal class JarvisContainer(
 ) {
     private val data = DataModule(context, scope)
 
+    private val setDeviceRotationAngle = SetDeviceRotationAngleUseCase(data.deviceRotationRepository)
+
     val appState = JarvisAppState(
         scope = scope,
         getAppInfo = GetAppInfoUseCase(data.appInfoRepository),
@@ -33,6 +39,7 @@ internal class JarvisContainer(
         observeKeepScreenAwake = ObserveKeepScreenAwakeUseCase(data.screenAwakeSettingsRepository),
         observeKeepSystemScreenAwake = ObserveKeepSystemScreenAwakeUseCase(data.screenAwakeSettingsRepository),
         observeSystemScreenAwakeStatus = ObserveSystemScreenAwakeStatusUseCase(data.systemScreenAwakeRepository),
+        observeDeviceRotationStatus = ObserveDeviceRotationStatusUseCase(data.deviceRotationRepository),
         setKeepScreenAwake = SetKeepScreenAwakeUseCase(data.screenAwakeSettingsRepository),
         setKeepSystemScreenAwake = SetKeepSystemScreenAwakeUseCase(
             data.screenAwakeSettingsRepository,
@@ -46,5 +53,8 @@ internal class JarvisContainer(
             data.screenAwakeSettingsRepository,
             data.systemScreenAwakeRepository,
         ),
+        setDeviceRotationAngle = setDeviceRotationAngle,
+        setDeviceRotationLock = SetDeviceRotationLockUseCase(data.deviceRotationRepository),
+        rotateDevice = RotateDeviceUseCase(data.deviceRotationRepository, setDeviceRotationAngle),
     )
 }

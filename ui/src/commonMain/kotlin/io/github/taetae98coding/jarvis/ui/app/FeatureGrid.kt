@@ -11,6 +11,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorCard
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorTestTag
+import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationCard
+import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.ui.screen.ScreenAwakeCard
@@ -25,6 +27,7 @@ internal fun FeatureGrid(
     val keepSystemScreenAwake by state.keepSystemScreenAwake.collectAsState()
     val systemScreenAwake by state.systemScreenAwake.collectAsState()
     val emulatorStatus by state.emulatorStatus.collectAsState()
+    val deviceRotation by state.deviceRotation.collectAsState()
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 220.dp),
@@ -53,6 +56,16 @@ internal fun FeatureGrid(
             EmulatorCard(
                 status = emulatorStatus,
                 modifier = Modifier.testTag(EmulatorTestTag),
+            )
+        }
+
+        item {
+            DeviceRotationCard(
+                status = deviceRotation,
+                onAngleClick = state::onDeviceRotationAngleClick,
+                onRotate = state::onDeviceRotate,
+                onLockedChange = state::onDeviceRotationLockChange,
+                modifier = Modifier.testTag(DeviceRotationTestTag),
             )
         }
     }

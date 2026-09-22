@@ -20,7 +20,7 @@
   <dt><code>applicationId</code></dt><dd><code>io.github.taetae98coding.jarvis</code></dd>
   <dt>compileSdk / targetSdk / minSdk</dt><dd>37 / 37 / 24</dd>
   <dt>진입점</dt><dd><code>MainActivity</code> — <code>enableEdgeToEdge()</code> 후 <code>setContent { App() }</code></dd>
-  <dt>권한</dt><dd><code>INTERNET</code> (<a href="#emulator">에뮬레이터 개수</a>), <code>WRITE_SETTINGS</code> (<a href="#system-keep-screen-awake">시스템 전역 화면 유지</a>). <code>WAKE_LOCK</code>은 쓰지 않는다</dd>
+  <dt>권한</dt><dd><code>INTERNET</code> (<a href="#emulator">에뮬레이터 개수</a>), <code>WRITE_SETTINGS</code> (<a href="#system-keep-screen-awake">시스템 전역 화면 유지</a>, <a href="#device-rotation">화면 회전</a>). <code>WAKE_LOCK</code>은 쓰지 않는다</dd>
 </dl>
 
 <aside class="note">
@@ -38,6 +38,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
+    <li><a href="#device-rotation">화면 회전</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -273,6 +274,50 @@
 
 <h3>검증</h3>
 <p><code>HostAgentTest</code>가 <code>testAndroidHostTest</code>에서 가짜 조회 함수로 폴링과 "셀 수 없음" 처리를 검증한다. <code>HttpURLConnection</code>으로 실제 요청을 보내는 부분은 에뮬레이터와 데스크톱 앱이 함께 있어야 해서 <span class="badge untested">미검증</span>이다. 개발 머신에서 <code>curl</code>로 에이전트 왕복을 확인했다.</p>
+</section>
+
+<section class="feature" id="device-rotation">
+<h2>화면 회전 <span class="badge workaround">우회</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/device-rotation.html">화면 회전</a></p>
+
+<h3>기술 조사</h3>
+<p>네 플랫폼 중 유일하게 <strong>기기 전역</strong> 회전을 바꿀 수 있다. 앱 창만 돌리는 정식 경로(<code>requestedOrientation</code>)가 따로 있지만, 이 기능이 요구하는 것은 기기 쪽이다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>WRITE_SETTINGS</code> + <code>Settings.System.ACCELEROMETER_ROTATION</code> · <code>USER_ROTATION</code></td><td><strong>채택.</strong> 자동 회전 on/off가 <code>ACCELEROMETER_ROTATION</code>(1/0), 고정 각도가 <code>USER_ROTATION</code>(<code>Surface.ROTATION_*</code>, 0~3)이다. 기기 전역이라 홈 화면과 다른 앱도 따라 돈다. <a href="#system-keep-screen-awake">시스템 전역 화면 유지</a>가 이미 쓰는 권한이라 매니페스트에 추가할 것이 없다</td></tr>
+    <tr><td><code>Activity.requestedOrientation</code> (<code>ActivityInfo.SCREEN_ORIENTATION_*</code>)</td><td>버렸다. 권한이 필요 없고 정식 API지만 우리 Activity만 돈다. 홈으로 나가면 사라지고 회전잠금 토글의 뜻도 기기가 아니라 앱이 된다. 게다가 <code>:data</code>가 들고 있는 것은 애플리케이션 컨텍스트뿐이라(<a href="#module-architecture">모듈 구조</a>) Activity를 잡으려면 수명 추적을 새로 들여야 한다</td></tr>
+    <tr><td><code>IWindowManager.freezeRotation()</code> / <code>thawRotation()</code></td><td>버렸다. 시스템이 실제로 쓰는 경로지만 <code>@hide</code>라 리플렉션이 필요하고, 호출에 <code>SET_ORIENTATION</code> 서명 권한이 필요하다. 사용자가 허용할 수 있는 권한이 아니다</td></tr>
+    <tr><td><code>DevicePolicyManager</code> (device owner)</td><td>버렸다. <code>adb shell dpm set-device-owner</code>로 공장초기화 상태에서만 프로비저닝된다. <a href="#system-keep-screen-awake">시스템 전역 화면 유지</a>의 조사와 같은 결론</td></tr>
+    <tr><td><code>DisplayManager.getDisplay(DEFAULT_DISPLAY).rotation</code></td><td><strong>채택(읽기).</strong> 자동 회전 중에는 <code>USER_ROTATION</code>이 갱신되지 않으므로 "지금 실제 각도"는 디스플레이에서 읽어야 한다. <code>Context.getDisplay()</code>는 API 30+에서 visual context를 요구해 애플리케이션 컨텍스트로는 예외가 나지만, <code>DisplayManager</code> 경로에는 그 제약이 없다</td></tr>
+    <tr><td><code>DisplayManager.DisplayListener.onDisplayChanged</code></td><td><strong>채택(관찰).</strong> 회전은 콜백이 있으므로 <a href="#state-observation">상태 조회 규칙</a>의 폴링 쪽으로 가지 않는다. 잠금 여부는 <code>ACCELEROMETER_ROTATION</code>의 <code>ContentObserver</code>가 알려준다</td></tr>
+    <tr><td><code>OrientationEventListener</code></td><td>버렸다. 센서 각도(0~359)를 알려줄 뿐 화면이 실제로 돌았는지는 모른다. 잠긴 동안에도 계속 방출된다</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/androidMain/.../rotation/DeviceRotation.android.kt</code></dd>
+  <dt>잠금</dt><dd><code>ACCELEROMETER_ROTATION</code>에 0(잠금) 또는 1(자동)을 쓴다</dd>
+  <dt>각도</dt><dd><code>USER_ROTATION</code>에 <code>degrees / 90</code>을 쓴다. 자동 회전이 켜진 채로 쓰면 값만 남고 화면은 돌지 않아서, 규칙상 항상 잠금이 먼저 걸린다(<a href="../common/device-rotation.html#implementation">공통 스펙 R5</a>)</dd>
+  <dt>읽기</dt><dd>각도는 <code>DisplayManager</code>의 <code>Display.rotation</code>, 잠금은 <code>ACCELEROMETER_ROTATION == 0</code></dd>
+  <dt>권한</dt><dd><code>Settings.System.canWrite(context)</code>. 없으면 <code>ACTION_MANAGE_WRITE_SETTINGS</code> 화면을 연다. <a href="#system-keep-screen-awake">시스템 전역 화면 유지</a>와 같은 권한이라 한쪽을 허용하면 둘 다 열린다</dd>
+  <dt>실패</dt><dd><code>canWrite</code> 확인 뒤 권한이 회수되면 <code>putInt</code>가 <code>SecurityException</code>을 던진다. <code>runCatching</code>으로 삼켜 no-op이 된다</dd>
+</dl>
+
+<p>각도 상수는 <code>Surface.ROTATION_*</code>와 <code>RotationAngle.degrees / 90</code>이 그대로 일치한다(<a href="../common/device-rotation.html#angle">각도 기준</a>). 변환표를 따로 두지 않는 이유다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>고정된 방향을 선언한 앱이 이긴다.</strong> <code>android:screenOrientation</code>으로 방향을 못박은 앱을 열면 그 앱 화면은 우리가 건 각도를 무시한다. 홈 화면으로 돌아오면 다시 우리 각도다.</li>
+  <li><strong>앱을 종료해도 잠금이 남는다.</strong> 시스템 전역 값이라 그것이 이 기능의 목적이지만, 되돌리려면 토글을 끄거나 시스템 설정에서 자동 회전을 켜야 한다.</li>
+  <li><strong>제조사 ROM이 개입할 수 있다.</strong> 일부 ROM은 180°(<code>ROTATION_180</code>)를 허용하지 않거나 잠금 상태를 자체 UI로 덮어쓴다.</li>
+  <li><strong>기본 디스플레이만 다룬다.</strong> 폴더블의 두 번째 화면이나 외부 디스플레이는 <code>DEFAULT_DISPLAY</code>가 아니라서 읽지도 쓰지도 않는다.</li>
+  <li>권한이 없는 동안 카드의 컨트롤은 눌리지만 회전 대신 권한 화면이 열린다. 설명이 그 사실을 적는다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동 테스트가 없다. <code>Settings.System</code>을 실제로 쓰고 화면이 도는 경로는 기기에서만 돌고, <a href="#test">Android에는 UI 테스트가 없다</a>. 규칙(잠근 뒤 각도를 쓴다, 권한이 없으면 권한 화면을 연다)은 <code>:domain</code> <code>commonTest</code>가, 카드 표시는 <code>:ui</code> <code>skikoTest</code>가 다른 타깃에서 검증한다. 기기에서는 카드의 버튼을 누른 뒤 <strong>설정 &gt; 디스플레이 &gt; 화면 자동 회전</strong>이 꺼지고 홈 화면까지 같이 도는지로 확인한다.</p>
 </section>
 
 <section class="feature" id="build">

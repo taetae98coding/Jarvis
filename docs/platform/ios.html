@@ -41,6 +41,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
+    <li><a href="#device-rotation">화면 회전</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -251,6 +252,60 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>HostAgentTest</code>가 <code>iosSimulatorArm64Test</code>에서 가짜 조회 함수로 폴링과 "셀 수 없음" 처리를 검증한다. <code>NSURLSession</code>으로 실제 요청을 보내는 부분은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="device-rotation">
+<h2>화면 회전 <span class="badge workaround">우회</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/device-rotation.html">화면 회전</a></p>
+
+<h3>기술 조사</h3>
+<p>시스템 회전잠금(제어 센터)은 앱이 읽지도 쓰지도 못한다. 열려 있는 것은 <strong>내 앱 창을 어느 방향으로 둘지</strong>뿐이고, 그것도 두 가지를 같이 해야 한다. 어느 방향을 허용할지(<code>supportedInterfaceOrientations</code>)와 지금 어느 방향으로 갈지(<code>requestGeometryUpdate</code>)다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>UIWindowScene.requestGeometryUpdate(.iOS(interfaceOrientations:))</code> (iOS 16+)</td><td><strong>채택.</strong> Kotlin/Native 바인딩은 <code>requestGeometryUpdateWithPreferences(preferences, errorHandler)</code>, 선호값은 <code>UIWindowSceneGeometryPreferencesIOS(interfaceOrientations = mask)</code>다. 배포 타깃이 iOS 16.0이라 분기가 필요 없다. 요청한 방향이 앱의 허용 목록에 없으면 <code>errorHandler</code>로 실패가 온다</td></tr>
+    <tr><td><code>application(_:supportedInterfaceOrientationsFor:)</code> (UIApplicationDelegate)</td><td><strong>채택.</strong> 회전잠금의 실체다. 이 마스크를 한 방향으로 좁혀야 사용자가 기기를 돌려도 되돌아가지 않는다. 앱 델리게이트의 답이 뷰 컨트롤러의 답보다 우선하므로, SwiftUI <code>WindowGroup</code>이 만든 <code>UIHostingController</code>를 건드리지 않고 여기 한 곳에 게이트를 둔다</td></tr>
+    <tr><td><code>UIViewController.supportedInterfaceOrientations</code> 오버라이드</td><td>버렸다. Compose는 <code>ComposeUIViewController()</code>가 만든 컨트롤러를 SwiftUI <code>UIViewControllerRepresentable</code> 안에 넣는다. 이 컨트롤러는 루트가 아니라 자식이라 UIKit이 방향을 물어보지 않는다. 루트를 바꾸려면 SwiftUI 진입점을 UIKit으로 되돌려야 한다</td></tr>
+    <tr><td><code>UIDevice.setValue(_:forKey: "orientation")</code></td><td>버렸다. 비공개 KVC다. iOS 16부터는 그나마도 무시되는 경우가 많고 심사에서 걸린다. <code>requestGeometryUpdate</code>가 이 트릭을 대체하려고 나온 API다</td></tr>
+    <tr><td><code>UIViewController.attemptRotationToDeviceOrientation()</code></td><td>iOS 16에서 deprecated. 마스크를 바꾼 뒤 재평가를 요청하는 용도였고, 지금은 <code>setNeedsUpdateOfSupportedInterfaceOrientations()</code>가 그 자리다. 우리는 마스크를 바꾼 직후 곧바로 <code>requestGeometryUpdate</code>를 부르므로 둘 다 쓰지 않는다</td></tr>
+    <tr><td>시스템 회전잠금 읽기</td><td><strong>없다.</strong> <code>UIDevice.orientation</code>은 물리적 기기 자세만 알려주고 잠겼는지는 모른다. 그래서 카드의 잠금 상태는 "시스템이 잠겼나"가 아니라 "우리가 마스크를 좁혔나"다</td></tr>
+    <tr><td><code>UIDeviceOrientationDidChangeNotification</code></td><td><strong>채택(관찰).</strong> <code>beginGeneratingDeviceOrientationNotifications()</code> 후 신호를 받아 <code>windowScene.interfaceOrientation</code>을 다시 읽는다(<a href="#state-observation">상태 조회 규칙</a>). 우리가 방향을 바꿨을 때는 기기가 움직이지 않아 알림이 오지 않으므로, 자체 신호를 하나 더 흘려 같은 경로로 합류시킨다</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/iosMain/.../rotation/DeviceRotation.ios.kt</code>, <code>shared/src/iosMain/.../DeviceRotationGate.kt</code>, <code>iosApp/iosApp/iOSApp.swift</code>, <code>iosApp/iosApp/Info.plist</code></dd>
+  <dt>잠금</dt><dd>허용 마스크를 <code>UIInterfaceOrientationMaskAll</code>(자동)과 한 방향(<code>잠금</code>) 사이에서 바꾼다. 마스크는 <code>DeviceRotationGate</code>가 들고 있고, Swift <code>AppDelegate</code>가 <code>supportedInterfaceOrientationsFor</code>에서 그 값을 읽는다</dd>
+  <dt>각도</dt><dd>마스크를 목표 방향 하나로 좁힌 뒤 <code>requestGeometryUpdateWithPreferences</code>를 부른다</dd>
+  <dt>읽기</dt><dd><code>UIApplication.sharedApplication.connectedScenes</code>에서 첫 <code>UIWindowScene</code>의 <code>interfaceOrientation</code></dd>
+  <dt>Info.plist</dt><dd><code>UISupportedInterfaceOrientations</code>에 <code>UIInterfaceOrientationPortraitUpsideDown</code>을 추가했다. 없으면 180° 요청이 무조건 거절된다</dd>
+  <dt>실패</dt><dd><code>errorHandler</code>가 부르는 것은 로그도 남기지 않고 무시한다. 다음 관찰 주기에 실제 방향이 그대로 흘러와 카드가 저절로 사실을 보여준다</dd>
+</dl>
+
+<p>Kotlin이 Swift로 값을 내보내는 통로는 <code>:shared</code>뿐이다(<code>:data</code>는 프레임워크로 export되지 않는다). 그래서 <code>MainViewController()</code>와 같은 자리에 <code>supportedInterfaceOrientationMask()</code>를 하나 더 둔다.</p>
+
+<pre><code>// iosApp/iosApp/iOSApp.swift
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        supportedInterfaceOrientationsFor window: UIWindow?
+    ) -> UIInterfaceOrientationMask {
+        UIInterfaceOrientationMask(rawValue: UInt(DeviceRotationGateKt.supportedInterfaceOrientationMask()))
+    }
+}</code></pre>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>기기가 아니라 앱만 돈다.</strong> 홈 화면과 다른 앱은 그대로다. 시스템 회전잠금을 켜거나 끄는 공개 API는 없다.</li>
+  <li><strong>노치가 있는 iPhone은 180°를 거절한다.</strong> Info.plist에 허용을 적어도 시스템이 거꾸로 방향을 지원하지 않아 요청이 실패하고 각도가 그대로 남는다. iPad에서는 동작한다.</li>
+  <li><strong>시스템 회전잠금이 켜져 있으면 사용자의 물리 회전은 무시된다.</strong> 우리 <code>requestGeometryUpdate</code>는 그래도 통하므로, 카드로는 돌아가는데 손으로는 안 돌아가는 상태가 된다.</li>
+  <li><strong>iPad 멀티태스킹에서는 요청이 무시될 수 있다.</strong> 스플릿 뷰에서는 시스템이 창 방향을 정한다.</li>
+  <li><code>UIApplicationSupportsMultipleScenes</code>가 켜져 있어 창이 여럿이면 첫 번째 <code>UIWindowScene</code>만 읽고 쓴다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동 테스트가 없다. 회전은 실기기·시뮬레이터에서만 일어나고 <code>iosSimulatorArm64Test</code>에는 창이 없다. Kotlin 쪽은 <code>./gradlew :shared:compileKotlinIosSimulatorArm64</code>로 컴파일까지 확인했지만, <code>AppDelegate</code>가 마스크를 제대로 물어 오는지는 Xcode 빌드에서만 드러난다. 규칙과 카드 표시는 <code>:domain</code>·<code>:ui</code> 테스트가 다른 타깃에서 검증한다. 기기에서는 카드의 각도 버튼을 누른 뒤 기기를 손으로 돌려 되돌아가지 않는지(잠금), 토글을 끄면 다시 따라 도는지로 확인한다.</p>
 </section>
 
 <section class="feature" id="build">
