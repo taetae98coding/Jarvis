@@ -37,6 +37,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
+    <li><a href="#device-rotation">화면 회전</a></li>
     <li><a href="#card-ripple">카드 물결 효과</a></li>
     <li><a href="#emulator-control">에뮬레이터 목록·화면·제스처</a></li>
     <li><a href="#build">빌드·실행</a></li>
@@ -247,6 +248,47 @@
 
 <h3>검증</h3>
 <p><code>HostAgentTest</code>가 <code>wasmJsBrowserTest</code>에서 가짜 조회 함수로 폴링과 "셀 수 없음" 처리를 검증한다. <code>fetch</code>로 실제 요청을 보내는 부분은 에이전트가 떠 있는지에 결과가 달라져서 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="device-rotation">
+<h2>화면 회전 <span class="badge partial">조건부</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/device-rotation.html">화면 회전</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>screen.orientation.lock(type)</code> / <code>unlock()</code></td><td><strong>채택.</strong> 잠금과 회전이 한 호출이다. 인자는 각도가 아니라 <code>portrait-primary</code> 같은 이름이고, Promise를 돌려준다. 실패는 예외가 아니라 거절로 온다</td></tr>
+    <tr><td><code>screen.orientation.angle</code> / <code>.type</code>, <code>change</code> 이벤트</td><td><strong>채택(관찰).</strong> <code>angle</code>이 <a href="../common/device-rotation.html#angle">공통 각도 기준</a>과 그대로 같다. 콜백이 있으므로 폴링하지 않는다(<a href="#state-observation">상태 조회 규칙</a>)</td></tr>
+    <tr><td>전체화면 없이 <code>lock()</code></td><td>브라우저마다 다르다. Chrome/Android는 문서가 전체화면일 때만 허용하고 아니면 <code>NotSupportedError</code>로 거절한다. 데스크톱 브라우저는 전체화면이어도 거절한다. iOS Safari는 API 자체가 없다</td></tr>
+    <tr><td>잠글 때 자동으로 <code>requestFullscreen()</code></td><td>버렸다. 성공률은 오르지만 버튼 하나가 화면 전체를 덮어 버린다. 사용자가 요청하지 않은 모드 전환이라 카드 하나의 권한을 넘는다. 대신 거절당하면 그 사실을 설명에 적는다</td></tr>
+    <tr><td><code>kotlinx-browser</code>의 <code>Screen</code></td><td>0.5.0의 <code>org.w3c.dom.Screen</code>에는 <code>orientation</code>이 없다. <code>external interface</code>와 <code>js(&quot;…&quot;)</code>로 직접 잡는다. <a href="#settings">설정 저장</a>이 <code>localStorage</code>를 쓰는 것과 같은 모듈 안이지만 선언은 이 파일에서만 쓴다</td></tr>
+    <tr><td><code>CSS</code> <code>transform: rotate()</code> 로 캔버스를 돌리기</td><td>버렸다. JVM의 창 변환과 같은 이유다. 브라우저 UI와 입력 좌표가 따라오지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../rotation/DeviceRotation.wasmJs.kt</code></dd>
+  <dt>잠금</dt><dd>현재 각도의 방향 이름으로 <code>lock()</code>, 해제는 <code>unlock()</code></dd>
+  <dt>각도</dt><dd>목표 각도를 방향 이름으로 바꿔 <code>lock()</code>. natural이 세로인지는 지금의 <code>type</code>과 <code>angle</code> 조합에서 역산한다(세로 이름인데 각도가 90·270이면 natural은 가로다)</dd>
+  <dt>읽기</dt><dd><code>screen.orientation.angle</code>. <code>screen.orientation</code>이 없으면 <code>supported = false</code></dd>
+  <dt>실패</dt><dd><code>lock()</code>의 Promise가 거절되면 <code>permitted = false</code>로 흘려 카드 설명을 바꾼다. 거절 사유(전체화면 필요, 데스크톱 미지원)는 브라우저마다 달라 그대로 옮기지 않는다</dd>
+</dl>
+
+<p>권한이라는 말은 여기서 브라우저 정책을 가리킨다. Android의 <code>WRITE_SETTINGS</code>처럼 사용자가 허용할 대상이 아니라서, 카드는 권한 화면을 여는 대신 왜 거절됐는지만 보여준다(<code>requestPermission()</code>이 no-op이다).</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>데스크톱 브라우저에서는 거의 항상 거절된다.</strong> 카드는 현재 각도(대개 0°)를 보여주고, 버튼을 누르면 설명이 "브라우저가 회전 고정을 거부했습니다"로 바뀐다.</li>
+  <li><strong>iOS Safari에는 API가 없다.</strong> <code>screen.orientation</code>은 있어도 <code>lock</code>이 없어 <code>supported = false</code>로 떨어진다.</li>
+  <li><strong>전체화면을 벗어나면 잠금이 풀린다.</strong> 브라우저가 자동으로 해제하고, <code>change</code> 이벤트로 그 사실이 카드에 반영된다.</li>
+  <li><strong>natural이 가로인 기기에서 각도와 이름의 대응이 어긋날 수 있다.</strong> <code>lock()</code>이 각도를 받지 않아서 생기는 한계다. 역산이 틀리면 90°와 270°가 뒤바뀐다.</li>
+  <li>돌아가는 것은 브라우저 문서(탭)지 기기가 아니다. OS 회전잠금은 그대로다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동 테스트가 없다. <code>wasmJsTest</code>는 헤드리스 Chrome에서 도는데 데스크톱 브라우저라 <code>lock()</code>이 거절되고, 돌아갈 화면도 없다. 규칙과 카드 표시는 <code>:domain</code>·<code>:ui</code> 테스트가 검증한다(<code>:ui</code>의 <code>wasmJsBrowserTest</code>도 그 중 하나다). 실제 회전은 안드로이드 크롬에서 전체화면으로 열어 수동 확인한다.</p>
 </section>
 
 <section class="feature" id="card-ripple">

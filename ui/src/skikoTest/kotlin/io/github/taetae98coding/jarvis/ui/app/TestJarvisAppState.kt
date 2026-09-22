@@ -14,6 +14,13 @@ import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUse
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationRepository
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
+import io.github.taetae98coding.jarvis.domain.rotation.ObserveDeviceRotationStatusUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.RotateDeviceUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
+import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationAngleUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationLockUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplyKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplySystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveKeepScreenAwakeUseCase
@@ -38,12 +45,15 @@ internal fun rememberTestJarvisAppState(
     settings: ScreenAwakeSettingsRepository = FakeScreenAwakeSettingsRepository(),
     systemScreenAwake: SystemScreenAwakeRepository = FakeSystemScreenAwakeRepository(),
     emulator: EmulatorRepository = FakeEmulatorRepository(),
+    deviceRotation: DeviceRotationRepository = FakeDeviceRotationRepository(),
     screenAwake: ScreenAwakeRepository = ScreenAwakeRepository { },
     appInfo: AppInfo = TestAppInfo,
 ): JarvisAppState {
     val scope = rememberCoroutineScope()
 
     return remember(scope) {
+        val setDeviceRotationAngle = SetDeviceRotationAngleUseCase(deviceRotation)
+
         JarvisAppState(
             scope = scope,
             getAppInfo = GetAppInfoUseCase { appInfo },
@@ -54,10 +64,14 @@ internal fun rememberTestJarvisAppState(
             observeKeepScreenAwake = ObserveKeepScreenAwakeUseCase(settings),
             observeKeepSystemScreenAwake = ObserveKeepSystemScreenAwakeUseCase(settings),
             observeSystemScreenAwakeStatus = ObserveSystemScreenAwakeStatusUseCase(systemScreenAwake),
+            observeDeviceRotationStatus = ObserveDeviceRotationStatusUseCase(deviceRotation),
             setKeepScreenAwake = SetKeepScreenAwakeUseCase(settings),
             setKeepSystemScreenAwake = SetKeepSystemScreenAwakeUseCase(settings, systemScreenAwake),
             applyKeepScreenAwake = ApplyKeepScreenAwakeUseCase(settings, screenAwake),
             applySystemScreenAwake = ApplySystemScreenAwakeUseCase(settings, systemScreenAwake),
+            setDeviceRotationAngle = setDeviceRotationAngle,
+            setDeviceRotationLock = SetDeviceRotationLockUseCase(deviceRotation),
+            rotateDevice = RotateDeviceUseCase(deviceRotation, setDeviceRotationAngle),
         )
     }
 }
@@ -122,4 +136,21 @@ internal object SilentEmulatorRepository : EmulatorRepository {
     override fun observeScreen(deviceId: String) = emptyFlow<ByteArray?>()
 
     override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) = Unit
+}
+
+// 기본값은 Skiko 로 렌더링하는 세 타깃 중 JVM 의 실제 상태와 같다. 돌릴 화면이 없다.
+internal class FakeDeviceRotationRepository(
+    initial: DeviceRotationStatus = DeviceRotationStatus(),
+) : DeviceRotationRepository {
+    override val status = MutableStateFlow(initial)
+
+    override fun setAngle(angle: RotationAngle) {
+        status.value = status.value.copy(angle = angle)
+    }
+
+    override fun setLocked(locked: Boolean) {
+        status.value = status.value.copy(locked = locked)
+    }
+
+    override fun requestPermission() = Unit
 }

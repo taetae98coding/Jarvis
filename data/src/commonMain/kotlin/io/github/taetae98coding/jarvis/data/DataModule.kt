@@ -3,6 +3,8 @@ package io.github.taetae98coding.jarvis.data
 import io.github.taetae98coding.jarvis.data.appinfo.DefaultAppInfoRepository
 import io.github.taetae98coding.jarvis.data.emulator.DefaultEmulatorRepository
 import io.github.taetae98coding.jarvis.data.emulator.emulatorDataSource
+import io.github.taetae98coding.jarvis.data.rotation.DefaultDeviceRotationRepository
+import io.github.taetae98coding.jarvis.data.rotation.createDeviceRotationDataSource
 import io.github.taetae98coding.jarvis.data.screen.DefaultScreenAwakeRepository
 import io.github.taetae98coding.jarvis.data.screen.DefaultScreenAwakeSettingsRepository
 import io.github.taetae98coding.jarvis.data.screen.DefaultSystemScreenAwakeRepository
@@ -11,6 +13,7 @@ import io.github.taetae98coding.jarvis.data.screen.createSystemScreenAwakeDataSo
 import io.github.taetae98coding.jarvis.data.settings.createSettingsStore
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationRepository
 import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeRepository
 import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeSettingsRepository
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeRepository
@@ -38,4 +41,7 @@ class DataModule(
 
     val systemScreenAwakeRepository: SystemScreenAwakeRepository =
         DefaultSystemScreenAwakeRepository(createSystemScreenAwakeDataSource(context), scope)
+
+    val deviceRotationRepository: DeviceRotationRepository =
+        DefaultDeviceRotationRepository(createDeviceRotationDataSource(context), scope)
 }
