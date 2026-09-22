@@ -33,7 +33,7 @@
   <li><a href="web.html">Web (Wasm)</a><p><code>:webApp</code> + <code>:shared</code>. Kotlin/Wasm, WasmGC 브라우저 필요</p></li>
 </ul>
 
-<p>앱 모듈이 직접 의존하는 것은 <code>:shared</code> 하나다. 공용 코드는 그 아래 <code>:domain</code> · <code>:data</code> · <code>:ui</code>로 나뉘어 있고, 플랫폼 API를 부르는 <code>actual</code>은 <code>:data</code>에 모인다. 어느 파일이 어느 모듈에 있는지는 <a href="../common/module-architecture.html">모듈 구조</a>에 있다.</p>
+<p>앱 모듈이 직접 의존하는 것은 <code>:shared</code> 하나다. 공용 코드는 그 아래 기능마다 <code>domain</code> · <code>data</code> · <code>ui</code> 모듈로 나뉘어 있고, 플랫폼 API를 부르는 <code>actual</code>은 기능의 <code>data</code> 모듈(과 <code>:core:data</code>)에 모인다. 어느 파일이 어느 모듈에 있는지는 <a href="../common/module-architecture.html">모듈 구조</a>에 있다.</p>
 
 <h2 id="sections">기능 섹션 구성</h2>
 

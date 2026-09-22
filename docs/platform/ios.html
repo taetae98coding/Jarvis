@@ -16,7 +16,7 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>iosApp</code> (Xcode 프로젝트) + <code>:shared</code> 프레임워크 → <code>:ui</code> · <code>:data</code> · <code>:domain</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
+  <dt>모듈</dt><dd><code>iosApp</code> (Xcode 프로젝트) + <code>:shared</code> 프레임워크 → <code>:app:ui</code> → 기능 모듈 열둘 + <code>:core:*</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
   <dt>Kotlin 타깃</dt><dd><code>iosArm64</code>, <code>iosSimulatorArm64</code></dd>
   <dt>프레임워크</dt><dd><code>Shared</code> (static)</dd>
   <dt>Deployment target</dt><dd>iOS 16.0</dd>
@@ -35,6 +35,10 @@
   <strong>차례</strong>
   <ol>
     <li><a href="#module-architecture">모듈 구조</a></li>
+    <li><a href="#dependency-injection">의존성 주입</a></li>
+    <li><a href="#view-model">화면 상태 소유 (ViewModel)</a></li>
+    <li><a href="#navigation">화면 이동 (Navigation3)</a></li>
+    <li><a href="#retained-state">재생성을 넘기는 상태 (retain)</a></li>
     <li><a href="#app-info">앱 정보</a></li>
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
@@ -59,29 +63,161 @@
 <table>
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
-    <tr><td>프레임워크를 <code>:shared</code> 하나만 만든다 (umbrella)</td><td>채택. <code>isStatic = true</code> 정적 프레임워크는 의존 klib(<code>:domain</code>, <code>:data</code>, <code>:ui</code>)을 모두 링크해 들어간다. Xcode 프로젝트는 <code>:shared:embedAndSignAppleFrameworkForXcode</code> 하나만 부르면 되고, 스크립트 단계를 고칠 필요가 없었다</td></tr>
-    <tr><td>모듈마다 프레임워크를 만들어 Xcode에 넷 다 넣기</td><td>버렸다. 정적 프레임워크 넷이 Kotlin 런타임과 공통 klib을 각자 품어 심볼이 중복되고, Xcode 쪽 임베드 설정이 모듈 수만큼 늘어난다. KMP가 권장하는 형태도 umbrella 하나다</td></tr>
-    <tr><td><code>export(projects.domain)</code></td><td>지금은 넣지 않는다. Swift가 부르는 것은 <code>MainViewControllerKt.MainViewController()</code>뿐이고, 링크에는 export가 필요 없다. export는 Objective-C 헤더에 그 모듈의 <code>public</code> 선언을 <em>내보낼 때만</em> 필요하다. Swift에서 도메인 모델을 직접 다루게 되면 그때 <code>export(projects.domain)</code>을 추가한다</td></tr>
-    <tr><td>타깃 선언</td><td>네 모듈이 모두 <code>iosArm64</code>와 <code>iosSimulatorArm64</code>를 선언해야 한다. 의존 모듈에 없는 타깃은 링크되지 않는다. Compose Multiplatform 1.12+가 <code>iosX64</code> 아티팩트를 더 이상 배포하지 않는 것도 네 모듈에 똑같이 적용된다</td></tr>
-    <tr><td>cinterop(<code>platform.Foundation</code>, <code>platform.UIKit</code>)</td><td><code>:data</code>의 <code>iosMain</code>에서만 쓴다. <code>:ui</code>와 <code>:domain</code>의 <code>iosMain</code>은 비어 있다. 플랫폼 API 호출이 <code>:data</code>에 모인다는 규칙이 iOS에서는 "cinterop import가 <code>:data</code>에만 있다"로 그대로 보인다</td></tr>
+    <tr><td>프레임워크를 <code>:shared</code> 하나만 만든다 (umbrella)</td><td>채택. <code>isStatic = true</code> 정적 프레임워크가 의존 klib 열여섯 개를 모두 링크해 들어간다. 기능 모듈을 늘려도 Xcode 프로젝트는 <code>:shared:embedAndSignAppleFrameworkForXcode</code> 하나만 부르고 스크립트 단계를 고칠 필요가 없다</td></tr>
+    <tr><td>기능마다 프레임워크를 만들어 Xcode에 넣기</td><td>버렸다. 정적 프레임워크가 Kotlin 런타임과 공통 klib을 각자 품어 심볼이 중복되고, Xcode 쪽 임베드 설정이 모듈 수만큼 늘어난다. KMP가 권장하는 형태도 umbrella 하나다</td></tr>
+    <tr><td><code>export(projects.feature.emulator.domain)</code></td><td>지금은 넣지 않는다. Swift가 부르는 것은 <code>MainViewControllerKt.MainViewController()</code>와 <a href="#device-rotation">회전 마스크</a>뿐이고, 링크에는 export가 필요 없다. export는 Objective-C 헤더에 그 모듈의 <code>public</code> 선언을 <em>내보낼 때만</em> 필요하다</td></tr>
+    <tr><td>타깃 선언</td><td>열여섯 모듈이 모두 <code>iosArm64</code>·<code>iosSimulatorArm64</code>를 선언해야 한다. 의존 모듈에 없는 타깃은 링크되지 않는다. 컨벤션 플러그인이 그 선언을 한곳에서 만들기 때문에 모듈을 추가할 때 빠뜨릴 수 없다</td></tr>
+    <tr><td>cinterop(<code>platform.Foundation</code>, <code>platform.UIKit</code>)</td><td>기능의 <code>data</code> 모듈 <code>iosMain</code>에서만 쓴다. <code>ui</code>·<code>domain</code> 모듈의 <code>iosMain</code>은 비어 있다. 플랫폼 API 호출이 data 계층에 모인다는 규칙이 iOS에서는 "cinterop import가 data 모듈에만 있다"로 그대로 보인다</td></tr>
   </tbody>
 </table>
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/iosMain/.../MainViewController.kt</code>, <code>shared/src/iosMain/.../PlatformContext.ios.kt</code>, <code>data/src/iosMain/.../PlatformContext.ios.kt</code></dd>
-  <dt>동작</dt><dd><code>MainViewController()</code>는 그대로 <code>ComposeUIViewController { App() }</code>이다. iOS에는 넘길 플랫폼 핸들이 없어 <code>PlatformContext</code>는 빈 클래스다</dd>
+  <dt>파일</dt><dd><code>shared/src/iosMain/.../MainViewController.kt</code>, <code>shared/src/iosMain/.../JarvisKoin.ios.kt</code>, <code>core/data/src/iosMain/.../PlatformContext.ios.kt</code></dd>
+  <dt>동작</dt><dd><code>MainViewController()</code>가 Koin 을 세운 뒤 <code>ComposeUIViewController { App() }</code>를 돌려준다. iOS에는 넘길 플랫폼 핸들이 없어 <code>PlatformContext</code>는 빈 클래스다</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
 
 <h3>한계</h3>
 <ul>
   <li>Swift에서 보이는 API는 <code>:shared</code>의 <code>public</code> 선언뿐이다. <code>EmulatorStatus</code> 같은 도메인 모델을 SwiftUI에서 쓰려면 <code>export</code>를 추가해야 하고, 그때 헤더가 커진다.</li>
-  <li>모듈이 넷이라 <code>linkDebugFrameworkIosSimulatorArm64</code> 전에 klib 넷을 컴파일한다. 클린 빌드 시간이 분리 전보다 늘고, 대신 한 모듈만 고쳤을 때는 나머지가 캐시에서 온다.</li>
+  <li>링크 전에 klib 열여섯 개를 컴파일한다. 클린 빌드 시간이 기능 분리 전보다 늘고, 대신 한 기능만 고쳤을 때는 나머지가 캐시에서 온다.</li>
 </ul>
 
 <h3>검증</h3>
-<p><code>./gradlew :shared:linkDebugFrameworkIosSimulatorArm64</code>가 네 모듈의 klib 링크를 확인한다. 테스트는 <code>./gradlew :domain:iosSimulatorArm64Test :data:iosSimulatorArm64Test :ui:iosSimulatorArm64Test</code>로 모듈마다 돈다.</p>
+<p><code>./gradlew :shared:linkDebugFrameworkIosSimulatorArm64</code>가 열여섯 모듈의 klib 링크를 확인하고, 테스트는 <code>./gradlew iosSimulatorArm64Test</code>로 모듈마다 돈다.</p>
+
+<aside class="warn">
+  <strong>이 변경은 iOS 링크를 확인하지 못했다</strong>
+  기능 분리 작업을 한 머신에 Xcode 가 없어(<code>xcode-select</code>가 Command Line Tools 만 가리킨다) <code>xcrun xcodebuild -version</code> 이 실패하고, Kotlin/Native 링크와 시뮬레이터 테스트가 돌지 않았다. 열여섯 모듈의 <code>compileKotlinIosArm64</code>·<code>compileKotlinIosSimulatorArm64</code> 까지는 성공했다. 링크·테스트는 Xcode 가 있는 머신에서 확인해야 한다.
+</aside>
+</section>
+
+
+<section class="feature" id="dependency-injection">
+<h2>의존성 주입 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/dependency-injection.html">의존성 주입</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>MainViewController()</code>에서 <code>startJarvisKoin()</code></td><td>채택. Swift 가 부르는 유일한 공유 코드 진입점이고, 컨트롤러를 만들기 전에 Koin 이 서 있으면 된다. <code>PlatformContext</code>는 빈 상자라 인자가 없다</td></tr>
+    <tr><td>Swift 쪽(<code>iOSApp.init</code>)에서 시작</td><td>버렸다. <code>startJarvisKoin()</code>을 <code>Shared</code> 프레임워크의 함수로 내보내면 Swift 에서도 부를 수 있지만, 그러면 시작 시점이 Swift 와 Kotlin 두 곳에 흩어진다. 지금은 Compose 화면이 유일한 소비자다</td></tr>
+    <tr><td><code>koin-core</code>의 iOS 아티팩트</td><td><code>iosArm64</code>·<code>iosSimulatorArm64</code> 변형이 퍼블리시된다. 이 프로젝트의 타깃 목록(<code>iosX64</code> 제외)과 맞는다</td></tr>
+    <tr><td>Koin 을 <code>KoinComponent</code>로 Swift 에 노출</td><td>버렸다. Swift 가 리포지토리를 직접 꺼낼 이유가 없다. 프레임워크 표면에 남는 것은 <code>MainViewController()</code>와 <a href="#device-rotation">회전 마스크</a>뿐이다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>shared/src/iosMain/.../MainViewController.kt</code>, <code>shared/src/iosMain/.../JarvisKoin.ios.kt</code></dd>
+  <dt>동작</dt><dd><code>MainViewController()</code>가 <code>startJarvisKoin()</code>을 부른 뒤 <code>ComposeUIViewController { JarvisApp() }</code>를 돌려준다. SwiftUI 가 <code>ComposeView</code>를 다시 만들면 <code>MainViewController()</code>도 다시 불리므로 두 번 시작해도 안전해야 한다</dd>
+  <dt>실패</dt><dd>정의가 빠져 있으면 첫 화면에서 Kotlin 예외가 올라오고 앱이 죽는다. Swift 쪽에는 <code>NSException</code>이 아니라 크래시로 보인다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>Koin 이 Compose 화면보다 먼저 필요해지는 코드(예: 앱 델리게이트가 읽는 값)는 이 시작점보다 앞선다. 지금 그런 코드는 <a href="#device-rotation">회전 마스크</a> 하나고, 그것은 Koin 을 거치지 않는 <code>DeviceRotationGate</code> 싱글턴이라 문제가 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>정의 해석은 <code>:shared</code>의 <code>jvmTest</code>가 대표로 본다. iOS 에서는 <code>:app:ui</code>의 skiko UI 테스트(<code>iosSimulatorArm64Test</code>)가 가짜 리포지토리를 담은 Koin 으로 화면을 그리는 것으로 확인된다.</p>
+</section>
+
+<section class="feature" id="view-model">
+<h2>화면 상태 소유 (ViewModel) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/view-model.html">화면 상태 소유 (ViewModel)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Compose Multiplatform 의 기본 owner</td><td>채택. skiko 타깃의 <code>compose-ui</code>에 <code>findComposeDefaultViewModelStoreOwner()</code>가 있고, <code>ComposeUIViewController</code>가 만든 컴포지션이 그것을 <code>LocalViewModelStoreOwner</code>로 제공한다. 앱 코드가 owner 를 만들지 않는다</td></tr>
+    <tr><td><code>lifecycle-viewmodel-compose</code>의 iOS 아티팩트</td><td><code>org.jetbrains.androidx.lifecycle</code> 2.11.0 이 <code>iosArm64</code>·<code>iosSimulatorArm64</code>를 퍼블리시한다. <code>viewModelScope</code>의 <code>Dispatchers.Main</code>은 메인 큐다</td></tr>
+    <tr><td>UIKit 호출 스레드</td><td>확인해 둘 것. <a href="#device-rotation">회전</a>과 <a href="#keep-screen-awake">화면 꺼짐 방지</a>는 UIKit 을 부르고 메인 스레드를 요구한다. ViewModel 의 동작은 <code>viewModelScope</code>(메인 큐)에서 돌고, 앱 수명 <code>CoroutineScope</code>도 <code>Dispatchers.Main</code>이라 예전과 같은 스레드에서 호출된다</td></tr>
+    <tr><td>Swift 가 ViewModel 을 직접 쓰기</td><td>버렸다. <code>ViewModel</code>을 프레임워크로 내보내면 Swift 화면도 같은 상태를 볼 수 있지만, 이 앱의 화면은 전부 Compose 다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. iOS 전용 코드는 없다</dd>
+  <dt>동작</dt><dd><code>ComposeUIViewController</code>가 사라질 때 그 컴포지션의 <code>ViewModelStore</code>가 비워지고 <code>onCleared()</code>가 불린다</dd>
+  <dt>실패</dt><dd>없다. owner 가 항상 제공된다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>SwiftUI 가 <code>ComposeView</code>를 다시 만들면(뷰 계층 재구성) 새 <code>ViewModelStore</code>가 만들어져 앱 수명 ViewModel 도 새로 만들어진다. 지금 구조(<code>WindowGroup</code> 하나, <code>ContentView</code> 하나)에서는 일어나지 않는다.</li>
+  <li>iOS 에는 "구성 변경"이 없어 ViewModel 이 재생성을 넘는 성질을 쓸 일이 없다. ViewModel 을 쓰는 이유는 여기서는 수명 분리(화면별 정리)와 주입이다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui</code>의 <code>iosSimulatorArm64Test</code>에서 skiko UI 테스트가 돈다. 화면 전환 시 상태가 정리되는 것은 <code>JarvisAppTest.backReturnsToListThenGrid</code>가 본다.</p>
+</section>
+
+<section class="feature" id="navigation">
+<h2>화면 이동 (Navigation3) <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/navigation.html">화면 이동 (Navigation3)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>NavDisplay</code>(JetBrains <code>navigation3-ui</code>)</td><td>채택. iOS 변형이 퍼블리시되고 <code>SinglePaneSceneStrategy</code>가 그대로 돈다. 앱 안의 "← 뒤로"로 백스택을 줄인다</td></tr>
+    <tr><td>화면 가장자리 스와이프(<code>interactivePopGestureRecognizer</code>)</td><td>오지 않는다. 그 제스처는 <code>UINavigationController</code>가 제공하는데, 이 앱의 컨트롤러 계층은 <code>WindowGroup</code> → <code>ContentView</code> → <code>UIViewControllerRepresentable</code> → <code>ComposeUIViewController</code>라 내비게이션 컨트롤러가 없다</td></tr>
+    <tr><td>Swift 쪽을 <code>NavigationStack</code>/<code>UINavigationController</code>로 감싸기</td><td>버렸다. 제스처는 얻지만 화면 스택이 Swift 와 Kotlin 두 곳에 생긴다. 어느 쪽이 사실인지 맞추는 비용이 제스처 하나보다 크다</td></tr>
+    <tr><td><code>navigationevent</code>로 제스처를 공급하기</td><td>후보로 남긴다. <code>NavDisplay</code>는 <code>navigationevent-compose</code>의 상태를 보므로, iOS 쪽에서 <code>NavigationEventDispatcher</code>에 제스처 진행을 밀어 넣으면 예측 뒤로까지 가능하다. 우리 쪽에서 디스패처를 만들어 주는 코드가 필요하고 검증하지 못했다</td></tr>
+    <tr><td>백스택 저장·복원</td><td><code>rememberNavBackStack</code>은 <code>SaveableStateRegistry</code>에 저장한다. iOS 에서 Compose 컴포지션이 프로세스를 넘어 복원되는 경로는 없으므로 실제 복원은 일어나지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. iOS 전용 코드는 없다</dd>
+  <dt>동작</dt><dd>앱 안의 "← 뒤로" 버튼이 유일한 뒤로 경로다. 홈에서는 뒤로 갈 곳이 없다</dd>
+  <dt>실패</dt><dd>가장자리 스와이프는 아무 일도 하지 않는다. 화면이 반쯤 끌려가다 되돌아오는 식의 어긋난 피드백은 없다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>iOS 사용자가 기대하는 가장자리 스와이프로 뒤로 갈 수 없다. 화면이 셋뿐이고 상단에 "← 뒤로"가 항상 있어서 막히지는 않는다.</li>
+  <li>앱을 껐다 켜면 항상 홈에서 시작한다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui</code>의 <code>iosSimulatorArm64Test</code>에서 카드 → 목록 → 화면 → 뒤로 경로가 검증된다. 가장자리 스와이프가 오지 않는다는 사실은 테스트하지 않는다(없는 입력이다).</p>
+</section>
+
+<section class="feature" id="retained-state">
+<h2>재생성을 넘기는 상태 (retain) <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/retained-state.html">재생성을 넘기는 상태 (retain)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>retain</code> + 플랫폼이 제공하는 <code>RetainedValuesStore</code></td><td>저장소가 없다. <code>runtime-retain</code>은 iOS 변형을 퍼블리시하지만, skiko 쪽 <code>compose-ui</code>에는 Android 의 <code>LifecycleRetainedValuesStore</code>에 해당하는 구현이 없다. <code>LocalRetainedValuesStore</code>의 기본값인 <code>ForgetfulRetainedValuesStore</code>가 쓰이고, 컴포지션을 벗어난 값은 바로 버려진다</td></tr>
+    <tr><td>재생성 경로 자체</td><td>없다. iOS 에는 구성 변경으로 화면을 다시 만드는 개념이 없고, 회전은 같은 컴포지션이 다시 측정될 뿐이다. 보관할 구간이 없으므로 <code>retain</code>이 <code>remember</code>처럼 움직여도 사용자에게 보이는 차이가 없다</td></tr>
+    <tr><td><code>retainManagedRetainedValuesStore()</code>로 루트에 저장소 깔기</td><td>버렸다. 값이 실제로 보관되게 만들 수는 있지만, 보관해야 할 재생성 구간이 없는데 화면을 떠난 프레임만 메모리에 남는다(<a href="../common/retained-state.html">R4</a> 위반)</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. iOS 전용 코드는 없다</dd>
+  <dt>동작</dt><dd><code>retain</code>은 컴파일되고 <code>remember</code>와 같게 동작한다. 예외도 경고도 없다</dd>
+  <dt>실패</dt><dd>없다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><code>retain</code>이 코드에 적어 두는 "컴포지션보다 오래 사는 값"이라는 의도가 iOS 에서는 실행되지 않는다. skiko 쪽에 저장소 구현이 생기면 코드를 고치지 않고 동작이 켜진다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>같은 코드가 컴파일되고 화면이 정상 동작하는 것까지 skiko UI 테스트가 본다. 보관 여부는 확인할 대상이 아니다(보관하는 저장소가 없다).</p>
 </section>
 
 <section class="feature" id="app-info">
@@ -118,7 +254,7 @@
 </table>
 
 <h3>구현</h3>
-<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙인다. iOS 전용 코드는 없다. <code>:data</code>의 <code>createIdleInhibitor()</code>는 iOS에서 <code>NoIdleInhibitor</code>를 돌려준다.</p>
+<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙인다. iOS 전용 코드는 없다. <code>:feature:screen:data</code>의 <code>createIdleInhibitor()</code>는 iOS에서 <code>NoIdleInhibitor</code>를 돌려준다.</p>
 
 <h3>한계</h3>
 <ul>
@@ -182,7 +318,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/iosMain/.../settings/SettingsStore.ios.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/screen/data/src/iosMain/.../settings/SettingsStore.ios.kt</code></dd>
   <dt>읽기</dt><dd><code>if (defaults.objectForKey(key) == null) defaultValue else defaults.boolForKey(key)</code></dd>
   <dt>쓰기</dt><dd><code>defaults.setBool(value, key)</code></dd>
   <dt>변경 감지</dt><dd><code>NSNotificationCenter.defaultCenter.addObserverForName(NSUserDefaultsDidChangeNotification, object = defaults)</code>를 <code>callbackFlow</code>로 감싼다</dd>
@@ -239,7 +375,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
   <dt>동작</dt><dd><code>NSURLSession.sharedSession.dataTaskWithURL</code>을 <code>suspendCancellableCoroutine</code>으로 감싼다. 코루틴이 취소되면 <code>task.cancel()</code></dd>
   <dt>본문 디코딩</dt><dd><code>NSData</code>의 바이트를 <code>readBytes</code>로 읽어 UTF-8로 디코딩한다. <code>NSString</code>으로 감싼 뒤 <code>String</code>으로 캐스팅하는 관용구는 정적 타입이 이어지지 않아 컴파일러가 경고한다</dd>
   <dt>ATS</dt><dd>평문 HTTP라 <code>NSAllowsLocalNetworking</code>으로 예외를 연다. 루프백과 로컬 네트워크에만 적용되고 <code>NSAllowsArbitraryLoads</code>처럼 전체를 열지는 않는다</dd>
@@ -279,7 +415,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/iosMain/.../rotation/DeviceRotation.ios.kt</code>, <code>shared/src/iosMain/.../DeviceRotationGate.kt</code>, <code>iosApp/iosApp/iOSApp.swift</code>, <code>iosApp/iosApp/Info.plist</code></dd>
+  <dt>파일</dt><dd><code>feature/rotation/data/src/iosMain/.../rotation/DeviceRotation.ios.kt</code>, <code>shared/src/iosMain/.../DeviceRotationGate.kt</code>, <code>iosApp/iosApp/iOSApp.swift</code>, <code>iosApp/iosApp/Info.plist</code></dd>
   <dt>잠금</dt><dd>허용 마스크를 <code>UIInterfaceOrientationMaskAll</code>(자동)과 한 방향(<code>잠금</code>) 사이에서 바꾼다. 마스크는 <code>DeviceRotationGate</code>가 들고 있고, Swift <code>AppDelegate</code>가 <code>supportedInterfaceOrientationsFor</code>에서 그 값을 읽는다</dd>
   <dt>각도</dt><dd>마스크를 목표 방향 하나로 좁힌 뒤 <code>requestGeometryUpdateWithPreferences</code>를 부른다</dd>
   <dt>읽기</dt><dd><code>UIApplication.sharedApplication.connectedScenes</code>에서 첫 <code>UIWindowScene</code>의 <code>interfaceOrientation</code></dd>
@@ -287,7 +423,7 @@ internal actual fun createSystemScreenAwakeDataSource(
   <dt>실패</dt><dd><code>errorHandler</code>가 부르는 것은 로그도 남기지 않고 무시한다. 다음 관찰 주기에 실제 방향이 그대로 흘러와 카드가 저절로 사실을 보여준다</dd>
 </dl>
 
-<p>Kotlin이 Swift로 값을 내보내는 통로는 <code>:shared</code>뿐이다(<code>:data</code>는 프레임워크로 export되지 않는다). 그래서 <code>MainViewController()</code>와 같은 자리에 <code>supportedInterfaceOrientationMask()</code>를 하나 더 둔다.</p>
+<p>Kotlin이 Swift로 값을 내보내는 통로는 <code>:shared</code>뿐이다(기능 모듈은 프레임워크로 export되지 않는다). 그래서 <code>MainViewController()</code>와 같은 자리에 <code>supportedInterfaceOrientationMask()</code>를 하나 더 둔다.</p>
 
 <pre><code>// iosApp/iosApp/iOSApp.swift
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -309,7 +445,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 </ul>
 
 <h3>검증</h3>
-<p>자동 테스트가 없다. 회전은 실기기·시뮬레이터에서만 일어나고 <code>iosSimulatorArm64Test</code>에는 창이 없다. Kotlin 쪽은 <code>./gradlew :shared:compileKotlinIosSimulatorArm64</code>로 컴파일까지 확인했지만, <code>AppDelegate</code>가 마스크를 제대로 물어 오는지는 Xcode 빌드에서만 드러난다. 규칙과 카드 표시는 <code>:domain</code>·<code>:ui</code> 테스트가 다른 타깃에서 검증한다. 기기에서는 카드의 각도 버튼을 누른 뒤 기기를 손으로 돌려 되돌아가지 않는지(잠금), 토글을 끄면 다시 따라 도는지로 확인한다.</p>
+<p>자동 테스트가 없다. 회전은 실기기·시뮬레이터에서만 일어나고 <code>iosSimulatorArm64Test</code>에는 창이 없다. Kotlin 쪽은 <code>./gradlew :shared:compileKotlinIosSimulatorArm64</code>로 컴파일까지 확인했지만, <code>AppDelegate</code>가 마스크를 제대로 물어 오는지는 Xcode 빌드에서만 드러난다. 규칙과 카드 표시는 <code>:feature:rotation:domain</code>·<code>:app:ui</code> 테스트가 다른 타깃에서 검증한다. 기기에서는 카드의 각도 버튼을 누른 뒤 기기를 손으로 돌려 되돌아가지 않는지(잠금), 토글을 끄면 다시 따라 도는지로 확인한다.</p>
 </section>
 
 <section class="feature" id="card-ripple">
@@ -327,7 +463,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
+  <dt>파일</dt><dd><code>core/ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>feature/emulator/ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
   <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
@@ -356,7 +492,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
   <dt>동작</dt><dd><code>127.0.0.1:47890</code> 의 목록·프레임·제스처 엔드포인트. 취소되면 <code>NSURLSessionTask.cancel</code> 로 요청도 끊는다</dd>
   <dt>실패</dt><dd>연결 실패와 200 이외 응답을 모두 없는 것으로 본다. 목록은 비고 프레임은 <code>null</code> 이 된다</dd>
 </dl>
@@ -386,7 +522,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
   <dt>동작</dt><dd><code>POST http://127.0.0.1:47890/emulators/launch</code>, 본문 <code>{"id":"…"}</code></dd>
   <dt>실패</dt><dd>연결 실패와 200 이외 응답을 모두 없는 것으로 본다</dd>
 </dl>
@@ -413,7 +549,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
   <dt>동작</dt><dd><code>POST http://127.0.0.1:47890/emulators/wake</code>, 본문 <code>{"id":"…"}</code></dd>
   <dt>실패</dt><dd>조용히 버린다. 다음 목록 갱신에서 화면이 여전히 꺼진 것으로 보인다</dd>
 </dl>
@@ -443,9 +579,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 <section class="feature" id="test">
 <h2>테스트 <span class="badge ok">구현</span></h2>
-<pre><code>DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-  ./gradlew :domain:iosSimulatorArm64Test :data:iosSimulatorArm64Test :ui:iosSimulatorArm64Test</code></pre>
-<p>유스케이스 테스트(<code>:domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>ObserveSystemStateTest</code>·<code>HostAgentTest</code>(<code>:data</code>), <code>JarvisAppTest</code>(<code>:ui</code>, Compose UI)가 전부 돌아간다. UI 테스트는 <code>:ui</code>의 <code>skikoTest</code> 소스셋에 있어 JVM·Web과 공유한다. 단, 위와 같은 이유로 Xcode가 있어야 한다.</p>
+<pre><code>DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./gradlew iosSimulatorArm64Test</code></pre>
+<p>유스케이스 테스트(기능의 <code>domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>HostAgentTest</code>(기능의 <code>data</code>), <code>ObserveSystemStateTest</code>(<code>:core:data</code>), <code>JarvisAppTest</code>(<code>:app:ui</code>, Compose UI)가 전부 돌아간다. UI 테스트는 <code>:app:ui</code>의 <code>skikoTest</code> 소스셋에 있어 JVM·Web과 공유한다. 단, 위와 같은 이유로 Xcode가 있어야 한다.</p>
 <p>플랫폼 API를 실제로 부르는 경로(<code>NSUserDefaults</code> 왕복, <code>NSURLSession</code> 요청)는 <span class="badge untested">미검증</span>이다.</p>
 </section>
 

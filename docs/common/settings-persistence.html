@@ -91,7 +91,7 @@
 
 <aside class="decision">
   <strong>결정: 도메인 인터페이스가 <code>StateFlow</code>를 돌려준다</strong>
-  <code>Flow</code>만 돌려주면 첫 값이 컴포지션 한 번 뒤에 도착해 R2가 깨진다. "구독 전에도 현재 값이 있다"는 것이 이 기능의 요구사항이라 타입으로 적었다. 대가로 <code>:domain</code>이 <code>StateFlow</code>를 알게 되지만, 그것은 <code>kotlinx-coroutines-core</code> 안이고 <code>:domain</code>이 이미 <code>Flow</code>에 의존한다.
+  <code>Flow</code>만 돌려주면 첫 값이 컴포지션 한 번 뒤에 도착해 R2가 깨진다. "구독 전에도 현재 값이 있다"는 것이 이 기능의 요구사항이라 타입으로 적었다. 대가로 <code>domain</code>이 <code>StateFlow</code>를 알게 되지만, 그것은 <code>kotlinx-coroutines-core</code> 안이고 <code>domain</code>이 이미 <code>Flow</code>에 의존한다.
 </aside>
 
 <p>키는 기능이 소유한다. <code>keep_screen_awake</code>·<code>keep_system_screen_awake</code>는 <code>DefaultScreenAwakeSettingsRepository</code> 안에 있고, 다른 기능이 설정을 갖게 되면 같은 <code>SettingsStore</code>를 쓰는 자기 리포지토리를 만든다. 모든 설정을 한 클래스에 모으면 그 클래스가 <a href="module-architecture.html">분리 전의 <code>:shared</code>처럼</a> 기능 수만큼 커진다.</p>
@@ -113,16 +113,16 @@
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeDefaultsToOff</code></td><td>R1. 키가 없으면 기본값</td><td><code>:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeReadsStoredValue</code></td><td>R2. 생성 직후 저장된 값이 <code>value</code>에 있다</td><td><code>:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeWritesThroughToStore</code></td><td>R1. 쓰기가 저장소에 닿는다</td><td><code>:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeFollowsChangesMadeOutsideTheApp</code></td><td>R3. 저장소를 직접 바꾸면 상태가 따라간다</td><td><code>:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeFollowsChangesWhenTheStoreHasNoCallback</code></td><td>R3. 알림 없는 저장소에서도 폴링으로 따라간다</td><td><code>:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.keepScreenAwakeIsPersisted</code> / <code>IsRestoredOnRelaunch</code> / <code>FollowsChangesMadeOutsideTheApp</code></td><td>R2, R3을 화면 레벨에서</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeDefaultsToOff</code></td><td>R1. 키가 없으면 기본값</td><td><code>:feature:screen:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeReadsStoredValue</code></td><td>R2. 생성 직후 저장된 값이 <code>value</code>에 있다</td><td><code>:feature:screen:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeWritesThroughToStore</code></td><td>R1. 쓰기가 저장소에 닿는다</td><td><code>:feature:screen:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeFollowsChangesMadeOutsideTheApp</code></td><td>R3. 저장소를 직접 바꾸면 상태가 따라간다</td><td><code>:feature:screen:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeFollowsChangesWhenTheStoreHasNoCallback</code></td><td>R3. 알림 없는 저장소에서도 폴링으로 따라간다</td><td><code>:feature:screen:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.keepScreenAwakeIsPersisted</code> / <code>IsRestoredOnRelaunch</code> / <code>FollowsChangesMadeOutsideTheApp</code></td><td>R2, R3을 화면 레벨에서</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 
-<p><code>:data</code> 테스트는 <code>InMemorySettingsStore</code>를, <code>:ui</code> 테스트는 가짜 <code>ScreenAwakeSettingsRepository</code>를 쓴다. 플랫폼 저장소 구현은 <a href="index.html#limit-store-untested">자동 테스트가 없다</a>.</p>
+<p><code>:feature:screen:data</code> 테스트는 <code>InMemorySettingsStore</code>를, <code>ui</code> 테스트는 가짜 <code>ScreenAwakeSettingsRepository</code>를 쓴다. 플랫폼 저장소 구현은 <a href="index.html#limit-store-untested">자동 테스트가 없다</a>.</p>
 
 <h2 id="limits">한계</h2>
 

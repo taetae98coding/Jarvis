@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>재생성을 넘기는 상태 (retain) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>재생성을 넘기는 상태 (retain)</span></nav>
+
+<header>
+  <h1>재생성을 넘기는 상태 (retain)</h1>
+  <p class="lead">기기 화면에 마지막으로 그린 프레임을 <code>retain</code>으로 들고 있는다. 컴포지션이 다시 만들어져도 빈 화면으로 되돌아가지 않고, 화면을 떠나면 프레임도 함께 버려진다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>Koin 적용해서 DI 사용하도록 해줘. 그리고 Compose에서 제공하는 Retain 개념과 ViewModel 개념 Navigation3 개념 적용해서 Koin이랑도 연동까지 구현해줘.</p>
+  <footer>2026-09-22 대화. 같은 지시에서 <a href="dependency-injection.html">의존성 주입</a>, <a href="view-model.html">ViewModel</a>, <a href="navigation.html">화면 이동</a> 스펙이 함께 나왔다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 기기 화면의 마지막 프레임과 "가져오지 못했다" 표시는 <code>retain</code>이 들고 있는다. 컴포지션이 다시 만들어지는 동안에도 값이 유지된다.</li>
+  <li><strong>R2.</strong> 프레임을 <code>rememberSaveable</code>로 저장하지 않는다. 디코딩된 이미지는 직렬화하지 않는다.</li>
+  <li><strong>R3.</strong> 프레임은 <code>ViewModel</code>에 두지 않는다. <code>ImageBitmap</code>은 화면 계층의 타입이다.</li>
+  <li><strong>R4.</strong> 기기 화면 엔트리가 백스택에서 빠지면 프레임도 버려진다. 다시 들어가면 "화면을 가져오는 중…"부터 시작한다.</li>
+  <li><strong>R5.</strong> <code>deviceId</code>가 바뀌면 이전 기기의 프레임을 보여주지 않는다.</li>
+  <li><strong>R6.</strong> 보관해 주는 저장소가 없는 플랫폼에서도 코드는 같고 예외 없이 동작한다. 그때 <code>retain</code>은 <code>remember</code>와 같게 움직인다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong><code>RetainedEffect</code></strong>. 재생성을 넘겨 살아 있어야 하는 코루틴이 없다. 앱 수명 효과는 <a href="view-model.html">ViewModel</a>이, 화면 수명 수집은 <code>LaunchedEffect</code>가 맡는다.</li>
+    <li><strong>직접 만든 <code>RetainedValuesStore</code> 제공</strong>. <code>retainManagedRetainedValuesStore()</code>로 루트에 저장소를 깔면 skiko 타깃에서도 "컴포지션을 벗어난 값 보관"을 흉내낼 수 있다. 재생성 경로가 없는 플랫폼에서 보관할 이유가 없고, 화면을 떠난 프레임이 메모리에 남는 쪽이 오히려 R4 를 어긴다.</li>
+    <li><strong>프레임 캐시</strong>(기기별로 마지막 프레임을 모아 두기). 목록에 미리보기를 붙이는 기능이 생기면 그때 별도 스펙으로 다룬다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>어디</td><td>기기 화면(<code>EmulatorStreamScreen</code>)</td></tr>
+    <tr><td>보이는 것</td><td>마지막으로 디코딩에 성공한 프레임. 한 장도 없으면 "화면을 가져오는 중…", 한 장도 못 받고 실패했으면 "화면을 가져올 수 없습니다."</td></tr>
+    <tr><td>컨트롤</td><td>없다. 사용자 입력이 아니라 상태의 수명에 관한 기능이다</td></tr>
+    <tr><td>테스트 태그</td><td><code>emulator:frame</code> (기존 태그 그대로)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<h3 id="api">API</h3>
+
+<dl class="meta">
+  <dt>의존성</dt><dd><code>androidx.compose.runtime:runtime-retain</code> 1.12.0 — Compose Multiplatform 1.12.0 이 쓰는 <code>androidx.compose.runtime</code>과 같은 버전 줄이다. <code>retain</code>은 <code>runtime</code> 이 아니라 이 별도 아티팩트에 있다</dd>
+  <dt>쓰는 것</dt><dd><code>retain(vararg keys) { }</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/ui/.../emulator/EmulatorStreamScreen.kt</code>, <code>feature/emulator/ui/.../emulator/EmulatorFrameState.kt</code></dd>
+</dl>
+
+<pre><code>// 마지막 프레임과 실패 표시를 한 객체에 담는다. retain 은 키가 같으면 같은 인스턴스를 돌려준다.
+@Stable
+internal class EmulatorFrameState {
+    var image by mutableStateOf&lt;ImageBitmap?&gt;(null)
+    var failed by mutableStateOf(false)
+}
+
+@Composable
+internal fun EmulatorStreamScreen(…) {
+    // deviceId 가 바뀌면 새 인스턴스다 (R5).
+    val frame = retain(deviceId) { EmulatorFrameState() }
+    …
+}</code></pre>
+
+<h3 id="lifespan">수명</h3>
+
+<p>Compose 는 값의 수명을 셋으로 구분한다. 이 앱은 셋을 각각 쓴다.</p>
+
+<table>
+  <thead><tr><th>API</th><th>사는 동안</th><th>이 앱에서 쓰는 곳</th></tr></thead>
+  <tbody>
+    <tr><td><code>remember</code></td><td>컴포지션에 붙어 있는 동안</td><td>스크롤 상태, 디코딩 결과를 담을 로컬 값</td></tr>
+    <tr><td><code>retain</code></td><td>컴포지션을 벗어나도, <code>RetainedValuesStore</code>가 보관하는 동안</td><td>기기 화면의 마지막 프레임</td></tr>
+    <tr><td><code>rememberSaveable</code></td><td>직렬화되어 프로세스가 죽어도</td><td><a href="navigation.html#backstack">백스택</a>(<code>rememberNavBackStack</code> 내부)</td></tr>
+    <tr><td><code>ViewModel</code></td><td>그 화면이 백스택에 있는 동안</td><td><a href="view-model.html">화면 상태와 유스케이스 호출</a></td></tr>
+  </tbody>
+</table>
+
+<aside class="decision">
+  <strong>결정: 프레임은 <code>retain</code>이고 ViewModel 이 아니다</strong>
+  <code>EmulatorScreenViewModel</code>도 같은 수명을 갖는다(엔트리가 빠지면 정리된다). 그런데도 프레임을 ViewModel 에 올리지 않았다. <code>ImageBitmap</code>은 플랫폼 그래픽 객체를 감싼 Compose 타입이고, 그것을 ViewModel 에 두면 화면 계층의 자원이 상태 계층으로 올라간다. ViewModel 은 <code>ByteArray</code>를 흘려보내는 데까지만 알고, 디코딩과 그 결과의 수명은 화면이 갖는다. 덧붙여 <code>retain</code>은 "이 값은 컴포지션보다 오래 살아야 한다"는 의도를 그 자리에 한 단어로 적어 준다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: <code>rememberSaveable</code>은 쓰지 않는다</strong>
+  프레임은 기기 해상도 PNG 한 장이다. Android 의 저장 상태는 <code>Bundle</code>을 거쳐 시스템 프로세스로 가고, 메가바이트 단위 값을 넣으면 <code>TransactionTooLargeException</code>으로 앱이 죽는다. 게다가 저장할 값은 이미 낡은 프레임이다 — 프로세스가 다시 뜨면 0.5초 안에 새 프레임이 온다.
+</aside>
+
+<h3 id="store">누가 보관하나</h3>
+
+<p><code>retain</code>은 스스로 값을 붙들지 않는다. 컴포지션을 벗어날 때 <code>LocalRetainedValuesStore</code>에 물어보고, 저장소가 보관하겠다고 하면 남고 아니면 버려진다. 기본값은 아무것도 보관하지 않는 <code>ForgetfulRetainedValuesStore</code>다. 그래서 저장소를 제공하는 플랫폼에서만 값이 실제로 재생성을 넘고, 나머지에서는 <code>remember</code>와 같다(R6).</p>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>compose-ui</code>의 <code>LifecycleRetainedValuesStore</code>가 Activity 재생성 구간에 값을 보관한다. 이 앱은 회전을 <code>configChanges</code>로 직접 받으므로 그 구간에 들어가는 일 자체가 드물다</td><td><a href="../platform/android.html#retained-state">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>보관하는 저장소가 없다. 대신 컴포지션을 다시 만드는 플랫폼 경로도 없어서 사용자에게 보이는 차이가 없다</td><td><a href="../platform/ios.html#retained-state">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge partial">조건부</span></td><td>같다. 창 크기 변경은 컴포지션을 다시 만들지 않는다</td><td><a href="../platform/jvm.html#retained-state">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>같다. 페이지를 새로 고치면 프로세스째로 사라지므로 <code>retain</code>이 개입할 구간이 없다</td><td><a href="../platform/web.html#retained-state">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.tapOnStreamIsSentInDeviceCoordinates</code>, <code>dragOnStreamIsSentAsSwipe</code></td><td>R1 의 일반 경로. <code>retain</code>에 담긴 프레임으로 좌표 변환과 제스처가 성립한다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.runningDeviceOpensStreamScreen</code></td><td>R4. 프레임이 없는 첫 진입은 "화면을 가져오는 중…"이다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>./gradlew build</code></td><td>R6. 네 타깃 모두 같은 <code>retain</code> 호출로 컴파일된다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<p>R1 의 핵심(재생성을 넘어 값이 남는다)에는 자동 테스트가 없다. <code>runComposeUiTest</code>에 "컴포지션만 버리고 저장소는 남기는" 경로가 없고, 그 경로를 가진 유일한 플랫폼인 Android 에는 <a href="../platform/android.html#test">UI 테스트가 없다</a>. 수동으로는 개발자 옵션의 "활동 유지 안함"을 켜고 기기 화면에서 홈으로 나갔다 돌아와 프레임이 그대로인지 본다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>실제로 값을 보관하는 플랫폼이 Android 하나고, 그 Android 마저 <code>configChanges</code> 선언 때문에 재생성 경로가 드물다. 지금 <code>retain</code>이 주는 가장 큰 값은 동작보다 표시다 — 이 값의 수명이 컴포지션보다 길다는 사실이 코드에 적혀 있다.</li>
+  <li><code>retain</code>은 직렬화하지 않으므로 프로세스가 죽으면 프레임도 사라진다. 그것이 <code>rememberSaveable</code>과의 차이고, 여기서는 의도다.</li>
+  <li><code>retain</code>은 실험 단계 API 가 아니지만 아티팩트가 <code>runtime</code>과 분리돼 있어 버전을 따로 올려야 한다. Compose Multiplatform 을 올릴 때 <code>runtime-retain</code> 버전도 같은 줄로 맞춰야 하고, 어긋나면 <code>runtime</code> 내부 API 불일치로 링크가 깨진다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

@@ -3,6 +3,9 @@ rootProject.name = "Jarvis"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
+    // 타깃 선언을 모듈 16개가 반복하지 않게 컨벤션 플러그인을 여기서 들여온다.
+    includeBuild("build-logic")
+
     repositories {
         google {
             mavenContent {
@@ -33,9 +36,26 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-include(":domain")
-include(":data")
-include(":ui")
+include(":core:data")
+include(":core:ui")
+
+include(":feature:appinfo:domain")
+include(":feature:appinfo:data")
+include(":feature:appinfo:ui")
+
+include(":feature:emulator:domain")
+include(":feature:emulator:data")
+include(":feature:emulator:ui")
+
+include(":feature:screen:domain")
+include(":feature:screen:data")
+include(":feature:screen:ui")
+
+include(":feature:rotation:domain")
+include(":feature:rotation:data")
+include(":feature:rotation:ui")
+
+include(":app:ui")
 include(":shared")
 include(":androidApp")
 include(":desktopApp")

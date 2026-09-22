@@ -132,7 +132,7 @@ internal expect fun createDeviceRotationDataSource(
 
 <aside class="decision">
   <strong>결정: "각도를 고르면 잠근다"는 규칙은 유스케이스에 둔다</strong>
-  R5는 플랫폼 사정이 아니라 기능의 규칙이다. <code>SetDeviceRotationAngleUseCase</code>가 <code>setLocked(true)</code> 다음에 <code>setAngle(angle)</code>을 부르고, <code>:domain</code> 테스트가 가짜 리포지토리로 순서까지 검증한다. 세 플랫폼의 <code>actual</code>에 같은 규칙을 세 번 적는 길은 버렸다. 잠금을 먼저 거는 이유는 Android에서 자동 회전이 켜진 채로 <code>USER_ROTATION</code>을 쓰면 값만 남고 화면은 그대로여서다.
+  R5는 플랫폼 사정이 아니라 기능의 규칙이다. <code>SetDeviceRotationAngleUseCase</code>가 <code>setLocked(true)</code> 다음에 <code>setAngle(angle)</code>을 부르고, <code>:feature:rotation:domain</code> 테스트가 가짜 리포지토리로 순서까지 검증한다. 세 플랫폼의 <code>actual</code>에 같은 규칙을 세 번 적는 길은 버렸다. 잠금을 먼저 거는 이유는 Android에서 자동 회전이 켜진 채로 <code>USER_ROTATION</code>을 쓰면 값만 남고 화면은 그대로여서다.
 </aside>
 
 <aside class="decision">
@@ -142,7 +142,7 @@ internal expect fun createDeviceRotationDataSource(
 
 <aside class="decision">
   <strong>결정: 회전 각도는 저장하지 않는다</strong>
-  <a href="keep-screen-awake.html">화면 꺼짐 방지</a>는 설정값을 저장하고 앱이 뜰 때 다시 적용한다. 회전은 반대다. 시스템(또는 브라우저)이 이미 값을 들고 있고 앱이 없어도 유지되므로, 우리가 한 벌 더 저장하면 두 값이 어긋날 때 무엇이 사실인지 알 수 없어진다. 카드는 항상 시스템에서 읽는다. 그래서 <code>applyEffects()</code>에 붙는 항목도 없다.
+  <a href="keep-screen-awake.html">화면 꺼짐 방지</a>는 설정값을 저장하고 앱이 뜰 때 다시 적용한다. 회전은 반대다. 시스템(또는 브라우저)이 이미 값을 들고 있고 앱이 없어도 유지되므로, 우리가 한 벌 더 저장하면 두 값이 어긋날 때 무엇이 사실인지 알 수 없어진다. 카드는 항상 시스템에서 읽는다. 그래서 <code>JarvisViewModel</code>이 적용하는 효과 목록에도 회전은 없다.
 </aside>
 
 <h2 id="platforms">플랫폼별 판정</h2>
@@ -162,15 +162,15 @@ internal expect fun createDeviceRotationDataSource(
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>RotationAngleTest</code> (4개)</td><td>R4. <code>+90</code>·<code>-90</code>가 네 각도를 순환한다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
-    <tr><td><code>SetDeviceRotationAngleUseCaseTest</code> (3개)</td><td>R2, R5, R7. 잠근 뒤 각도를 쓰고, 권한이 없으면 아무것도 쓰지 않고 권한 화면을 연다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
-    <tr><td><code>RotateDeviceUseCaseTest</code> (4개)</td><td>R4. 현재 각도 기준으로 한 칸씩, 각도를 모르면 0° 기준</td><td><code>:domain</code> <code>commonTest</code></td></tr>
-    <tr><td><code>SetDeviceRotationLockUseCaseTest</code> (2개)</td><td>R3, R7. 잠금만 바꾸고 각도는 건드리지 않는다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.deviceRotationShowsCurrentAngle</code></td><td>R1, R6. 리포지토리가 흘리는 각도가 카드에 보인다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.deviceRotationAngleButtonLocksToThatAngle</code></td><td>R2, R5. 버튼이 각도와 잠금을 함께 건다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.deviceRotationRotatesForwardAndBackward</code></td><td>R4. 두 버튼이 한 칸씩 돌린다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.deviceRotationLockTogglesWhereItIsSupported</code></td><td>R3. 지원하는 플랫폼에서 토글이 열려 있다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.deviceRotationIsLockedWhereItIsNotSupported</code></td><td>R8. 카드가 잠기고 이유를 보여준다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>RotationAngleTest</code> (4개)</td><td>R4. <code>+90</code>·<code>-90</code>가 네 각도를 순환한다</td><td><code>:feature:rotation:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>SetDeviceRotationAngleUseCaseTest</code> (3개)</td><td>R2, R5, R7. 잠근 뒤 각도를 쓰고, 권한이 없으면 아무것도 쓰지 않고 권한 화면을 연다</td><td><code>:feature:rotation:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>RotateDeviceUseCaseTest</code> (4개)</td><td>R4. 현재 각도 기준으로 한 칸씩, 각도를 모르면 0° 기준</td><td><code>:feature:rotation:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>SetDeviceRotationLockUseCaseTest</code> (2개)</td><td>R3, R7. 잠금만 바꾸고 각도는 건드리지 않는다</td><td><code>:feature:rotation:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.deviceRotationShowsCurrentAngle</code></td><td>R1, R6. 리포지토리가 흘리는 각도가 카드에 보인다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.deviceRotationAngleButtonLocksToThatAngle</code></td><td>R2, R5. 버튼이 각도와 잠금을 함께 건다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.deviceRotationRotatesForwardAndBackward</code></td><td>R4. 두 버튼이 한 칸씩 돌린다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.deviceRotationLockTogglesWhereItIsSupported</code></td><td>R3. 지원하는 플랫폼에서 토글이 열려 있다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.deviceRotationIsLockedWhereItIsNotSupported</code></td><td>R8. 카드가 잠기고 이유를 보여준다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 

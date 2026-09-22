@@ -75,7 +75,7 @@
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>도메인 모델</dt><dd><code>EmulatorDevice.isAsleep</code> — 연결되어 있지만 화면이 꺼져 있다. <code>:data</code> 가 정한다</dd>
+  <dt>도메인 모델</dt><dd><code>EmulatorDevice.isAsleep</code> — 연결되어 있지만 화면이 꺼져 있다. <code>data</code> 가 정한다</dd>
   <dt>리포지토리</dt><dd><code>EmulatorRepository.wake(deviceId: String)</code> — <code>suspend</code>, 반환값 없음</dd>
   <dt>유스케이스</dt><dd><code>WakeDeviceUseCase(device)</code> — <code>canControl</code> 이 아니면 아무것도 하지 않는다 (R5)</dd>
   <dt>UI</dt><dd><code>ui/emulator/EmulatorListScreen.kt</code> 의 줄 오른쪽 버튼</dd>
@@ -133,12 +133,12 @@
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>JarvisAppTest.sleepingDeviceCanBeWokenUp</code></td><td>R1, R2, R4. 꺼진 기기에만 문구와 버튼이 있고 누르면 요청이 나간다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppStateTest.wakingASleepingDeviceReachesTheRepository</code></td><td>R2. 화면의 요청이 리포지토리까지 간다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>WakeDeviceUseCaseTest</code></td><td>R5. 입력을 받지 못하는 기기의 요청이 리포지토리까지 가지 않는다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
-    <tr><td><code>EmulatorParsingTest.readsTheScreenState</code></td><td><code>dumpsys deviceidle get screen</code> 출력 해석. <code>true</code>/<code>false</code> 가 아니면 모르는 것으로 둔다</td><td><code>:data</code> <code>jvmTest</code></td></tr>
-    <tr><td><code>HostAgentTest.wakeRequestsAreSentToTheAgent</code></td><td>요청의 경로와 본문</td><td><code>:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>HostAgentServerTest.forwardsWakeRequests</code></td><td>에이전트가 <code>204</code> 로 답하고 데이터 소스에 넘긴다</td><td><code>:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.sleepingDeviceCanBeWokenUp</code></td><td>R1, R2, R4. 꺼진 기기에만 문구와 버튼이 있고 누르면 요청이 나간다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>EmulatorDevicesViewModelTest.wakingASleepingDeviceReachesTheRepository</code></td><td>R2. 화면의 요청이 리포지토리까지 간다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>WakeDeviceUseCaseTest</code></td><td>R5. 입력을 받지 못하는 기기의 요청이 리포지토리까지 가지 않는다</td><td><code>:feature:emulator:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>EmulatorParsingTest.readsTheScreenState</code></td><td><code>dumpsys deviceidle get screen</code> 출력 해석. <code>true</code>/<code>false</code> 가 아니면 모르는 것으로 둔다</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>HostAgentTest.wakeRequestsAreSentToTheAgent</code></td><td>요청의 경로와 본문</td><td><code>:feature:emulator:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentServerTest.forwardsWakeRequests</code></td><td>에이전트가 <code>204</code> 로 답하고 데이터 소스에 넘긴다</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
     <tr><td>수동 확인</td><td>R2, R3. 실물 기기에서 <code>dumpsys deviceidle get screen</code> 이 <code>false</code> → <code>KEYCODE_WAKEUP</code> → <code>true</code> 가 되는 것을 개발 머신에 연결된 기기로 확인했다</td><td>—</td></tr>
   </tbody>
 </table>

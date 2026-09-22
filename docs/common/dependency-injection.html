@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>의존성 주입 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>의존성 주입</span></nav>
+
+<header>
+  <h1>의존성 주입</h1>
+  <p class="lead">리포지토리 구현·유스케이스·ViewModel·화면 라우트를 Koin 모듈로 선언하고, 쓰는 쪽은 생성자 주입과 <code>koinViewModel()</code>로만 받는다. 손으로 조립하던 <code>JarvisContainer</code>와 <code>DataModule</code>은 사라진다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>Koin 적용해서 DI 사용하도록 해줘. 그리고 Compose에서 제공하는 Retain 개념과 ViewModel 개념 Navigation3 개념 적용해서 Koin이랑도 연동까지 구현해줘.</p>
+  <footer>2026-09-22 대화. 같은 지시에서 <a href="view-model.html">ViewModel</a>, <a href="navigation.html">화면 이동</a>, <a href="retained-state.html">재생성을 넘기는 상태</a> 스펙이 함께 나왔다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 리포지토리 구현, 유스케이스, ViewModel, 화면 라우트는 Koin 모듈에 선언한다. 어느 클래스도 자기 의존을 직접 <code>new</code> 하지 않는다.</li>
+  <li><strong>R2.</strong> Koin 모듈은 Gradle 모듈마다 자기 것을 선언한다. 기능 하나가 <code>&lt;기능&gt;DomainModule</code>·<code>&lt;기능&gt;DataModule</code>·<code>&lt;기능&gt;UiModule</code> 셋을 내놓고, <code>:shared</code>는 그 목록을 합치고 플랫폼 핸들만 더한다.</li>
+  <li><strong>R3.</strong> Koin 은 프로세스마다 한 번 시작한다. 네 플랫폼 진입점이 <code>startJarvisKoin()</code>을 부르고, 두 번 불려도 첫 번째만 유효하다.</li>
+  <li><strong>R4.</strong> 리포지토리는 앱 전체에 하나(<code>single</code>), 유스케이스는 부를 때마다 새로(<code>factory</code>), ViewModel 은 <code>viewModel</code> 정의로 등록한다.</li>
+  <li><strong>R5.</strong> 플랫폼 핸들(<code>PlatformContext</code>)과 앱 수명 <code>CoroutineScope</code>는 <code>:shared</code>가 등록하고 <code>:data</code>는 <code>get()</code>으로만 받는다. <code>:data</code>는 <code>Context</code>를 전역으로 들고 있지 않는다.</li>
+  <li><strong>R6.</strong> 네 타깃이 같은 모듈 선언을 쓴다. 플랫폼 분기는 <code>data</code> 모듈의 <code>expect</code>/<code>actual</code> 안에만 남고, Koin 모듈에는 없다.</li>
+  <li><strong>R7.</strong> 테스트는 가짜 리포지토리를 담은 Koin 모듈을 끼워 화면 전체를 띄운다. 유스케이스와 ViewModel 은 진짜 모듈이 만들고, 테스트마다 Koin 을 새로 세운다.</li>
+  <li><strong>R8.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 주입 전 테스트가 검증하던 내용은 주입 후에도 전부 검증된다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong>koin-annotations (KSP)</strong>. 정의가 서른 개 남짓이라 DSL 로 다 읽힌다. KSP 를 붙이면 네 타깃마다 프로세서 설정이 붙고, 생성 코드가 없으면 IDE 에서 정의를 따라갈 수 없다.</li>
+    <li><strong>koin-android</strong>(<code>androidContext()</code>, <code>AndroidViewModel</code>). Android 전용 API 라 공용 모듈 선언이 갈라진다. <code>PlatformContext</code>가 이미 같은 일을 한다.</li>
+    <li><strong>Koin scope API</strong>(<code>scope&lt;T&gt; { }</code>). 화면 수명 객체는 Koin scope 가 아니라 <a href="view-model.html">ViewModel</a>과 <a href="navigation.html">NavEntry</a>가 맡는다. 수명 개념을 두 군데 두지 않는다.</li>
+    <li><strong>모듈 지연 로딩</strong>(<code>lazyModules</code>). 시작 비용이 문제가 된 적이 없다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<p>화면에 보이는 변화는 없다. 주입이 실패하면 화면이 뜨지 않고 <code>NoDefinitionFoundException</code>으로 죽는다. 그래서 <a href="#verification">검증</a>은 화면이 아니라 "모든 정의가 해석되는가"와 "기존 화면 테스트가 주입으로도 같은 것을 검증하는가"로 한다.</p>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>해당 없음</td></tr>
+    <tr><td>설명</td><td>해당 없음</td></tr>
+    <tr><td>컨트롤</td><td>해당 없음</td></tr>
+    <tr><td>테스트 태그</td><td>해당 없음</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<h3 id="modules">모듈</h3>
+
+<p>Koin 모듈 파일은 Gradle 모듈마다 하나다. 기능을 더할 때 고치는 파일이 그 기능의 계층과 같은 자리에 있고, 기존 기능의 파일은 열지 않는다.</p>
+
+<table>
+  <thead><tr><th>Koin 모듈</th><th>파일</th><th>등록하는 것</th></tr></thead>
+  <tbody>
+    <tr><td><code>&lt;기능&gt;DomainModule</code></td><td><code>feature/&lt;기능&gt;/domain/.../&lt;기능&gt;DomainModule.kt</code></td><td>그 기능의 유스케이스. <code>factoryOf(::GetAppInfoUseCase)</code> 식으로 생성자만 가리킨다</td></tr>
+    <tr><td><code>&lt;기능&gt;DataModule</code></td><td><code>feature/&lt;기능&gt;/data/.../&lt;기능&gt;DataModule.kt</code></td><td>리포지토리 구현을 도메인 인터페이스 타입으로 <code>single</code>. <code>expect</code> 팩토리(<code>createSettingsStore</code> 등)를 여기서 부른다</td></tr>
+    <tr><td><code>&lt;기능&gt;UiModule</code></td><td><code>feature/&lt;기능&gt;/ui/.../&lt;기능&gt;UiModule.kt</code></td><td>그 기능의 ViewModel, 화면 라우트, 라우트 키 직렬화 등록(<a href="navigation.html#koin">Koin ↔ Navigation3</a>)</td></tr>
+    <tr><td><code>appUiModule</code></td><td><code>app/ui/.../ui/AppUiModule.kt</code></td><td>앱 셸의 <code>Home</code> 라우트 하나</td></tr>
+    <tr><td><code>platformModule(context)</code></td><td><code>shared/.../shared/JarvisKoin.kt</code></td><td><code>PlatformContext</code>와 앱 수명 <code>CoroutineScope</code>. 진입점이 만든 값을 그대로 담는다</td></tr>
+  </tbody>
+</table>
+
+<pre><code>// :shared — 조립은 이 목록 하나로 끝난다. 기능을 더하면 세 줄이 늘어난다.
+internal fun jarvisModules(context: PlatformContext): List&lt;Module&gt; =
+    listOf(
+        platformModule(context),
+        appInfoDomainModule, appInfoDataModule, appInfoUiModule,
+        emulatorDomainModule, emulatorDataModule, emulatorUiModule,
+        screenDomainModule, screenDataModule, screenUiModule,
+        rotationDomainModule, rotationDataModule, rotationUiModule,
+        appUiModule,
+    )</code></pre>
+
+<h3 id="definitions">정의 종류</h3>
+
+<table>
+  <thead><tr><th>무엇</th><th>정의</th><th>왜</th></tr></thead>
+  <tbody>
+    <tr><td>리포지토리 6개 (기능 넷에 흩어져 있다)</td><td><code>single</code></td><td>설정값·시스템 상태·폴링 <code>Flow</code>를 들고 있다. 두 개가 생기면 구독자마다 폴링이 돌고, 설정 변경이 서로에게 보이지 않는다</td></tr>
+    <tr><td>유스케이스 20개</td><td><code>factory</code></td><td>상태가 없다. 리포지토리 참조만 들고 있어서 만드는 비용이 필드 대입 한 번이다</td></tr>
+    <tr><td>ViewModel 7개</td><td><code>viewModel</code></td><td>수명은 Koin 이 아니라 <code>ViewModelStore</code>가 정한다. <a href="view-model.html">ViewModel</a> 참고</td></tr>
+    <tr><td>화면 라우트 3개 (기능이 둘, 앱 셸이 하나)</td><td><code>navigation&lt;T&gt;</code></td><td><code>koin-compose-navigation3</code>의 DSL. <code>NavKey</code> 하나에 <code>@Composable</code> 본문 하나를 매달고, <code>koinEntryProvider()</code>가 모아서 <code>NavDisplay</code>에 넘긴다</td></tr>
+    <tr><td>라우트 키 직렬화 등록</td><td><code>single(named&lt;T&gt;())</code></td><td><code>:core:ui</code>의 <code>navKeySerializers</code> DSL. 앱 셸이 <code>getAll</code> 로 모아 백스택 저장 설정을 만든다(<a href="navigation.html#backstack">근거</a>)</td></tr>
+    <tr><td><code>PlatformContext</code>, 앱 <code>CoroutineScope</code></td><td><code>single</code></td><td>진입점이 만든 인스턴스를 그대로 넣는다(<code>single { context }</code>)</td></tr>
+  </tbody>
+</table>
+
+<h3 id="start">시작 지점</h3>
+
+<p>Compose 트리 밖에서 시작한다. Android 의 <code>Context</code>만 진입점에서 명시적으로 넘긴다.</p>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>어디서</th><th>호출</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><code>MainActivity.onCreate</code>, <code>setContent</code> 전</td><td><code>startJarvisKoin(applicationContext)</code></td></tr>
+    <tr><td>iOS</td><td><code>MainViewController()</code> 진입 시</td><td><code>startJarvisKoin()</code></td></tr>
+    <tr><td>JVM</td><td><code>main()</code></td><td><code>startJarvisKoin()</code></td></tr>
+    <tr><td>Web</td><td><code>main()</code></td><td><code>startJarvisKoin()</code></td></tr>
+  </tbody>
+</table>
+
+<p><code>startJarvisKoin()</code>은 두 번 불려도 안전하다. Android 는 Activity 가 다시 만들어지면 <code>onCreate</code>가 다시 돌고, iOS 는 <code>MainViewController()</code>가 여러 번 만들어질 수 있다. 이미 시작돼 있으면 그 인스턴스를 그대로 돌려준다.</p>
+
+<pre><code>fun startJarvisKoin(): Koin =
+    // 이미 시작된 Koin 에 startKoin 을 다시 부르면 KoinAppAlreadyStartedException 이다.
+    KoinPlatformTools.defaultContext().getOrNull()
+        ?: startKoin { modules(jarvisModules(PlatformContext())) }.koin</code></pre>
+
+<aside class="decision">
+  <strong>결정: 컴포지션 안이 아니라 진입점에서 <code>startKoin</code> 한다</strong>
+  <code>KoinApplication { }</code> 컴포저블로 컴포지션 안에서 시작하면 Android <code>Context</code>를 <code>LocalContext</code>로 얻을 수 있어서 진입점을 고치지 않아도 된다. 버렸다. 컴포지션이 다시 만들어질 때 Koin 인스턴스도 다시 만들어지고, 그러면 <a href="view-model.html">ViewModel</a>은 살아남은 채 이미 취소된 앱 스코프를 쥔 리포지토리를 계속 들고 있게 된다. 설정 토글이 회전 뒤에 조용히 멈추는 종류의 버그다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: <code>rememberPlatformContext()</code>를 없앤다</strong>
+  Compose 트리에서 <code>Context</code>를 꺼내던 <a href="module-architecture.html#exceptions">계층 규칙의 예외</a> 하나가 사라진다. 이제 <code>MainActivity</code>가 <code>applicationContext</code>를 <code>startJarvisKoin(context)</code>에 넘기므로, 플랫폼 핸들이 Compose 를 거치지 않는다. <code>:shared</code>의 <code>androidMain</code>에는 <code>Context</code>를 <code>PlatformContext</code>로 감싸는 한 줄만 남는다. <code>PlatformContext</code> 자체는 <code>:core:data</code>에 있다. 예전에 버렸던 "<code>Application</code> 서브클래스나 <code>androidx.startup</code>으로 전역 컨텍스트 보관" 과는 다르다. 매니페스트에 등록하는 것도, 초기화 순서를 숨기는 것도 없고, 컨텍스트를 넘기는 코드가 진입점에 그대로 보인다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 유스케이스는 <code>factory</code>, 리포지토리는 <code>single</code></strong>
+  반대로 두면(유스케이스 <code>single</code>) 정의가 서른 개 넘는 객체를 앱이 뜰 때 다 만들게 되고, 상태 없는 객체를 공유해서 얻는 것이 없다. 리포지토리를 <code>factory</code>로 두면 <a href="emulator-count.html#agent">에뮬레이터 폴링</a>이 구독자 수만큼 돌고 <a href="settings-persistence.html">설정 변경 구독</a>이 서로 보이지 않는다.
+</aside>
+
+<h3 id="injection">받는 쪽</h3>
+
+<table>
+  <thead><tr><th>어디</th><th>어떻게 받나</th></tr></thead>
+  <tbody>
+    <tr><td>리포지토리 구현, 유스케이스, ViewModel</td><td>생성자 파라미터. Koin API 를 import 하지 않는다. 기능의 유스케이스는 Koin 없이도 <code>new</code> 할 수 있고 테스트가 그렇게 한다</td></tr>
+    <tr><td>화면(<code>@Composable</code>)</td><td><code>koinViewModel()</code>. 그 외 타입을 화면에서 직접 꺼내지 않는다 — 화면이 유스케이스를 <code>koinInject()</code> 하기 시작하면 <a href="view-model.html">상태 소유</a>가 흐려진다</td></tr>
+    <tr><td>Koin 라우트 정의 본문</td><td><code>Scope</code> 리시버. <code>get()</code>으로 내비게이터를 받고 <code>koinViewModel()</code>로 ViewModel 을 받는다</td></tr>
+  </tbody>
+</table>
+
+<h3 id="test">테스트 주입</h3>
+
+<p>화면 테스트는 가짜 리포지토리를 담은 모듈을 만들어 프로덕션과 같은 전역 Koin 을 세운다. 기능들의 <code>domain</code>·<code>ui</code> Koin 모듈은 진짜 그대로 쓰고 <code>data</code> 모듈만 바꿔 끼운다. 유스케이스와 ViewModel 을 손으로 조립하던 <code>rememberTestJarvisAppState()</code>가 사라지고, 대신 조립 자체가 테스트 대상이 된다.</p>
+
+<pre><code>@Composable
+internal fun TestJarvisApp(emulator: EmulatorRepository = FakeEmulatorRepository(), …) {
+    remember(scope) {
+        // 이전 테스트가 남긴 것이 있으면 먼저 치운다.
+        if (KoinPlatformTools.defaultContext().getOrNull() != null) stopKoin()
+
+        startKoin { modules(fakes, /* 기능들의 domain·ui 모듈, appUiModule */) }
+    }
+
+    JarvisApp()
+}</code></pre>
+
+<aside class="decision">
+  <strong>결정: 테스트도 전역 Koin 을 쓴다</strong>
+  처음에는 <code>KoinApplication { }</code> 컴포저블로 테스트마다 격리된 Koin 을 만들려 했다. 동작하지 않는다. 그 함수가 쓰는 <code>rememberKoinApplication</code> 은 전역 Koin 이 이미 있으면 새 인스턴스를 만들지 않고 전역 것을 그대로 쓴다. 테스트가 컴포지션을 정리하지 않고 끝나면 먼저 실행된 테스트의 가짜 저장소가 그대로 남아, 다음 테스트가 자기 가짜에 클릭 결과를 기대하며 실패한다. 증상이 "토글이 눌리지 않는다" 라서 원인을 찾기까지 시간이 걸렸다. 대신 테스트마다 전역 Koin 을 세우고 이전 것을 <code>stopKoin()</code> 으로 치운다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>MainActivity.onCreate</code>에서 <code>applicationContext</code>를 넘겨 시작한다. <code>koin-android</code> 없이 <code>koin-core</code>만 쓴다</td><td><a href="../platform/android.html#dependency-injection">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td><code>MainViewController()</code>가 시작한다. Swift 는 Koin 을 모른다</td><td><a href="../platform/ios.html#dependency-injection">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td><code>main()</code>에서 호스트 에이전트를 띄운 뒤 시작한다</td><td><a href="../platform/jvm.html#dependency-injection">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td><code>main()</code>에서 <code>ComposeViewport</code> 전에 시작한다. <code>koin-core</code>는 wasmJs 아티팩트를 퍼블리시한다</td><td><a href="../platform/web.html#dependency-injection">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisKoinTest.everyDefinitionResolves</code></td><td>R1, R2, R4. 네 모듈을 실제로 시작해 리포지토리·유스케이스를 전부 해석한다. 정의를 빼먹으면 이 테스트가 먼저 깨진다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisKoinTest.repositoriesAreSingletons</code></td><td>R4. 같은 인터페이스를 두 번 꺼내면 같은 인스턴스다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisKoinTest.startIsIdempotent</code></td><td>R3. 두 번 불러도 같은 Koin 을 돌려준다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest</code> 전부</td><td>R7, R8. 가짜 리포지토리만 끼운 Koin 으로 화면이 그려지고 토글·목록·제스처가 그대로 동작한다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>./gradlew build</code></td><td>R6. 네 타깃이 같은 모듈 선언으로 컴파일된다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>Koin 은 런타임에 해석한다. 정의를 빼먹어도 컴파일은 통과하고 앱이 뜰 때 죽는다. <code>:shared</code>의 해석 테스트가 그 간격을 메우지만, 그 테스트는 JVM 에서만 돈다. 네 타깃이 같은 모듈을 쓰므로 한 타깃에서 해석되면 나머지도 해석된다는 전제에 기대고 있다.</li>
+  <li>ViewModel 정의는 해석 테스트로 확인하지 않는다. <code>ViewModelStoreOwner</code> 없이 꺼낼 수 없어서다. 대신 <code>:app:ui</code>의 화면 테스트가 실제로 <code>koinViewModel()</code>을 거친다.</li>
+  <li>앱 수명 <code>CoroutineScope</code>가 <code>Dispatchers.Main</code>이다. JVM 에서 이 디스패처는 <code>kotlinx-coroutines-swing</code>이 클래스패스에 있어야 존재한다. Compose Desktop 은 그것을 데려오지 않아서 <code>:shared</code>의 <code>jvmMain</code>이 직접 선언한다. 처음에는 Compose Desktop 이 준다고 보고 넣지 않았는데, 데스크톱 앱이 첫 리포지토리를 만드는 순간 <code>Dispatchers.Main[missing]</code>으로 뜨지 않았다. 기능의 <code>data</code> 모듈을 다른 JVM 프로그램에서 쓰려면 같은 아티팩트를 넣거나 스코프를 직접 넘겨야 한다.</li>
+  <li>테스트가 전역 Koin 을 쓴다. 같은 타깃의 테스트가 동시에 돌면 서로의 Koin 을 치우게 된다. 지금은 네 타깃 모두 테스트를 순차로 돌리므로 성립하지만, 병렬 실행을 켜면 깨진다.</li>
+  <li>모듈 경계를 넘는 선언은 <code>public</code>이 된다. 기능들의 Koin 모듈이 앱 코드에서도 보인다. 예전 <code>DataModule</code>과 같은 종류의 한계고, 규약으로만 막는다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

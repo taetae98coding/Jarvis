@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화면 상태 소유 (ViewModel) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>화면 상태 소유 (ViewModel)</span></nav>
+
+<header>
+  <h1>화면 상태 소유 (ViewModel)</h1>
+  <p class="lead">화면 하나가 쓰는 상태와 유스케이스 호출을 <code>androidx.lifecycle.ViewModel</code>이 소유한다. 앱 전체 상태 하나였던 <code>JarvisAppState</code>가 기능별·화면별 ViewModel 일곱으로 갈라진다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>Koin 적용해서 DI 사용하도록 해줘. 그리고 Compose에서 제공하는 Retain 개념과 ViewModel 개념 Navigation3 개념 적용해서 Koin이랑도 연동까지 구현해줘.</p>
+  <footer>2026-09-22 대화. 같은 지시에서 <a href="dependency-injection.html">의존성 주입</a>, <a href="navigation.html">화면 이동</a>, <a href="retained-state.html">재생성을 넘기는 상태</a> 스펙이 함께 나왔다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 화면 상태와 유스케이스 호출은 <code>ViewModel</code>이 소유한다. <code>@Composable</code> 함수는 <code>StateFlow</code>를 모으고 콜백을 부르는 일만 한다.</li>
+  <li><strong>R2.</strong> ViewModel 은 유스케이스만 생성자로 받는다. 리포지토리·저장소·플랫폼 API·Compose 타입을 받지 않는다.</li>
+  <li><strong>R3.</strong> ViewModel 은 Koin 의 <code>viewModel</code> 정의로 등록하고 화면은 <code>koinViewModel()</code>로만 받는다.</li>
+  <li><strong>R4.</strong> 화면 수명 ViewModel(<code>EmulatorDevicesViewModel</code>, <code>EmulatorScreenViewModel</code>)은 그 화면이 백스택에서 빠질 때 <code>onCleared()</code>되고, 들고 있던 코루틴이 취소된다. 기기 화면 촬영은 그 시점에 멈춘다.</li>
+  <li><strong>R5.</strong> 앱 수명 ViewModel(<code>ScreenAwakeEffectViewModel</code>)은 화면을 옮겨 다녀도 살아 있다. 화면 꺼짐 방지 효과는 이 ViewModel 의 스코프에서 적용된다.</li>
+  <li><strong>R6.</strong> 상태를 만드는 코루틴 스코프는 <code>viewModelScope</code>다. 앱 수명 <code>CoroutineScope</code>를 ViewModel 에 넘기지 않는다.</li>
+  <li><strong>R7.</strong> 네 타깃 모두 같은 ViewModel 코드를 쓴다. <code>ViewModelStoreOwner</code>를 화면 코드가 직접 만들지 않는다.</li>
+  <li><strong>R9.</strong> ViewModel 은 그 기능의 <code>ui</code> 모듈 안에서 <code>internal</code> 이다. 기능이 내놓는 것은 인자 없는 카드·화면 컴포저블과 Koin 모듈뿐이다.</li>
+  <li><strong>R8.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 특히 에뮬레이터 개수는 구독자가 없어도 흐르고(<code>Eagerly</code>), 기기 목록과 실행 잠금은 화면이 열려 있는 동안에만 흐른다(<code>WhileSubscribed</code>).</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong><code>SavedStateHandle</code></strong>. 프로세스가 죽은 뒤 복원해야 하는 값은 지금 백스택뿐이고, 그것은 <a href="navigation.html#backstack">Navigation3 의 백스택</a>이 저장한다. ViewModel 안에는 복원할 사용자 입력이 없다.</li>
+    <li><strong>UI 이벤트 채널</strong>(<code>Channel</code> + <code>collectAsEffect</code>). 스낵바·토스트·다이얼로그가 없어서 한 방향 상태 흐름으로 충분하다.</li>
+    <li><strong>화면별 UiState data class</strong>. 카드마다 독립된 <code>StateFlow</code>를 쓰는 지금 형태가 불필요한 재구성을 덜 만든다. 카드가 서로의 값에 의존하게 되면 그때 합친다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<p>화면에 보이는 변화는 없다. 옮긴 것은 상태의 소유자와 수명이다.</p>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>해당 없음</td></tr>
+    <tr><td>설명</td><td>해당 없음</td></tr>
+    <tr><td>컨트롤</td><td>해당 없음</td></tr>
+    <tr><td>테스트 태그</td><td>해당 없음</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<h3 id="viewmodels">ViewModel 일곱</h3>
+
+<table>
+  <thead><tr><th>ViewModel</th><th>수명</th><th>상태</th><th>동작</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>ScreenAwakeEffectViewModel</code><br><code>:feature:screen:ui</code></td>
+      <td>앱. <code>JarvisApp()</code>의 <code>ViewModelStoreOwner</code>에 붙는다</td>
+      <td><code>keepScreenAwake: StateFlow&lt;Boolean&gt;</code></td>
+      <td><code>init</code>에서 <code>ApplyKeepScreenAwakeUseCase</code>·<code>ApplySystemScreenAwakeUseCase</code>를 <code>viewModelScope</code>에 띄운다</td>
+    </tr>
+    <tr>
+      <td><code>AppInfoViewModel</code><br><code>:feature:appinfo:ui</code></td>
+      <td>홈 화면 엔트리</td>
+      <td><code>appInfo</code></td>
+      <td>없음</td>
+    </tr>
+    <tr>
+      <td><code>ScreenAwakeViewModel</code><br><code>:feature:screen:ui</code></td>
+      <td>홈 화면 엔트리</td>
+      <td><code>keepScreenAwake</code>, <code>keepSystemScreenAwake</code>, <code>systemScreenAwake</code></td>
+      <td>토글 둘</td>
+    </tr>
+    <tr>
+      <td><code>EmulatorStatusViewModel</code><br><code>:feature:emulator:ui</code></td>
+      <td>홈 화면 엔트리</td>
+      <td><code>status</code>(<code>Eagerly</code>, 초기값 <code>null</code>)</td>
+      <td>없음. 카드 클릭은 <code>LocalNavigator</code> 가 받는다</td>
+    </tr>
+    <tr>
+      <td><code>DeviceRotationViewModel</code><br><code>:feature:rotation:ui</code></td>
+      <td>홈 화면 엔트리</td>
+      <td><code>deviceRotation</code></td>
+      <td>각도 버튼 넷, 회전 둘, 잠금 하나</td>
+    </tr>
+    <tr>
+      <td><code>EmulatorDevicesViewModel</code><br><code>:feature:emulator:ui</code></td>
+      <td>기기 목록 화면</td>
+      <td><code>devices</code>(<code>WhileSubscribed</code>), <code>launchingDevices</code>(<code>WhileSubscribed</code>)</td>
+      <td>실행·화면 켜기 요청과 실행 잠금 타임아웃</td>
+    </tr>
+    <tr>
+      <td><code>EmulatorScreenViewModel(deviceId)</code><br><code>:feature:emulator:ui</code></td>
+      <td>기기 화면 하나. 엔트리마다 따로 만들어진다</td>
+      <td><code>device: StateFlow&lt;EmulatorDevice?&gt;</code>(목록에서 <code>id</code>로 찾는다), <code>frames: Flow&lt;ByteArray?&gt;</code>(cold)</td>
+      <td>제스처 전달</td>
+    </tr>
+  </tbody>
+</table>
+
+<pre><code>App()                                        ← :shared. Koin 시작 후 JarvisApp() 만 부른다
+└─ JarvisApp()                               ← :app:ui
+   └─ MaterialTheme
+      └─ Surface(Modifier.appScreenAwake())  ← ScreenAwakeEffectViewModel (앱 수명)
+         └─ NavDisplay(backStack, entryProvider = koinEntryProvider())
+            ├─ Home                   → HomeScreen() → 기능 카드 넷이 각자 koinViewModel()
+            ├─ EmulatorRoute.Devices  → EmulatorListScreen(koinViewModel())
+            └─ EmulatorRoute.Screen   → EmulatorStreamScreen(koinViewModel { parametersOf(deviceId) })</code></pre>
+
+<aside class="decision">
+  <strong>결정: 앱 수명 상태도 ViewModel 에 둔다</strong>
+  화면 꺼짐 방지 효과는 카드보다, 그리고 어느 화면보다 오래 살아야 한다(<a href="keep-screen-awake.html">화면 꺼짐 방지</a>). 예전에는 루트의 <code>LaunchedEffect</code>가 그 수명을 만들었다. 지금은 <code>ScreenAwakeEffectViewModel</code>의 <code>viewModelScope</code>가 만들고, 앱 셸은 <code>Modifier.appScreenAwake()</code> 한 줄만 붙인다. 얻는 것: 컴포지션이 다시 만들어져도(Android Activity 재생성) 효과가 끊기고 다시 걸리는 일이 없다. 잃는 것: 효과가 언제 취소되는지가 <code>LaunchedEffect</code>만큼 코드에 드러나지 않는다 — 그래서 <code>init</code> 위에 그 사실을 주석으로 남긴다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 화면 상태를 <code>WhileSubscribed</code>로 유지한다</strong>
+  ViewModel 수명이 화면 수명이라 <code>SharingStarted.Eagerly</code>로 바꿔도 결과가 비슷해 보인다. 그대로 뒀다. 기기 목록은 실행 중인 기기 수만큼 <code>adb</code> 명령을 더 도는 조회고(<a href="emulator-control.html">기기 목록</a>), 화면이 전환 애니메이션 동안 살아 있는 사이에도 폴링이 돌 이유가 없다. 반대로 에뮬레이터 개수는 <code>Eagerly</code>여야 카드가 "확인 중…"에서 숫자로 한 번만 바뀐다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 기기 화면 ViewModel 은 <code>deviceId</code>만 받는다</strong>
+  예전 라우트는 <code>EmulatorDevice</code>를 통째로 들고 다녔다. 지금은 <code>deviceId</code>만 받아 <code>observeDevices()</code>에서 찾는다. 이유는 두 가지다. 라우트 키는 저장·복원되므로 직렬화 가능한 최소 식별자여야 하고(<a href="navigation.html#backstack">백스택 저장</a>), 기기의 상태(<code>isAsleep</code>, <code>canControl</code>)는 화면이 열려 있는 동안에도 바뀌므로 복사해 온 값보다 목록이 사실이다. 대가로 목록이 첫 답을 하기 전 한 프레임 동안 기기 이름이 비어 있을 수 있다 — 그 사이에는 제목 없이 "화면을 가져오는 중…"만 보인다.
+</aside>
+
+<h3 id="owners">ViewModelStoreOwner</h3>
+
+<p>Owner 는 우리가 만들지 않는다. 앱 수명 owner 는 플랫폼이 주고(<a href="#platforms">플랫폼별 판정</a>), 화면 수명 owner 는 Navigation3 의 <code>rememberViewModelStoreNavEntryDecorator()</code>가 엔트리마다 만든다. 그 데코레이터가 백스택에서 빠지는 엔트리의 <code>ViewModelStore</code>를 비우는 것이 R4 의 구현이다.</p>
+
+<dl class="meta">
+  <dt>의존성</dt><dd><code>org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose</code> 2.11.0 — <code>viewModel()</code>, <code>LocalViewModelStoreOwner</code></dd>
+  <dt>엔트리 owner</dt><dd><code>org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3</code> 2.11.0</dd>
+  <dt>주입</dt><dd><code>io.insert-koin:koin-compose-viewmodel</code> 4.2.2 — <code>koinViewModel()</code>, 모듈 DSL 의 <code>viewModelOf(::ScreenAwakeViewModel)</code></dd>
+</dl>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>ComponentActivity</code>가 <code>ViewModelStoreOwner</code>다. 이 앱은 회전을 <code>configChanges</code>로 직접 받으므로 실제로 재생성을 넘는 일은 드물다</td><td><a href="../platform/android.html#view-model">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td><code>ComposeUIViewController</code>가 owner 를 제공한다. 컨트롤러가 사라질 때 <code>onCleared()</code>가 불린다</td><td><a href="../platform/ios.html#view-model">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td><code>Window</code> 컴포지션이 owner 를 제공한다. 창을 닫을 때 정리된다</td><td><a href="../platform/jvm.html#view-model">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td><code>ComposeViewport</code> 컴포지션이 owner 를 제공한다. 탭을 닫으면 프로세스째로 사라진다</td><td><a href="../platform/web.html#view-model">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>EmulatorDevicesViewModelTest.launchLocksTheDeviceUntilItShowsUp</code></td><td>R1, R6. 실행 잠금이 ViewModel 안에서 <code>viewModelScope</code>로 돌아간다</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>EmulatorDevicesViewModelTest.launchLockClearsWhenTheDeviceStarts</code></td><td>R8. 기기가 목록에 뜨면 잠금이 풀린다</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>EmulatorDevicesViewModelTest.launchIsNotSentTwiceForTheSameDevice</code></td><td>R8. 같은 기기에 요청이 두 번 나가지 않는다</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>EmulatorDevicesViewModelTest.wakingASleepingDeviceReachesTheRepository</code></td><td>R1. 화면의 요청이 유스케이스를 거쳐 리포지토리까지 간다</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest</code> 전부</td><td>R3, R7, R8. <code>koinViewModel()</code>로 받은 ViewModel 로 세 화면이 그려지고 동작이 같다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppLaunchLockTest.launchingDeviceLocksTheButton</code></td><td>R1. ViewModel 의 파생 상태가 화면까지 온다. Wasm 에서 이벤트 루프가 막혀 <code>jvmTest</code> 에만 있다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.backReturnsToListThenGrid</code></td><td>R4 의 앞쪽. 뒤로 두 번이면 엔트리가 차례로 빠진다. 빠진 엔트리의 <code>ViewModel</code> 이 정리되는 것은 자동으로 확인하지 않는다(<a href="#limits">한계</a>)</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>ViewModel 의 상태 테스트는 <code>:feature:emulator:ui</code>의 <code>jvmTest</code>에만 있다. <code>viewModelScope</code>가 <code>Dispatchers.Main.immediate</code>를 쓰고, 테스트에서 그것을 갈아끼우는 <code>Dispatchers.setMain</code>이 Wasm 에서는 쓸 수 없다. 나머지 타깃은 화면 테스트로만 확인된다.</li>
+  <li><code>onCleared()</code>가 언제 불리는지는 플랫폼이 정한다. JVM 데스크톱에서 창을 강제로 죽이면 <code>ApplyKeepScreenAwakeUseCase</code>의 정리(<code>caffeinate</code> 종료)가 돌지 못한다. 이 성질은 예전 <code>LaunchedEffect</code> 시절과 같다.</li>
+  <li><code>EmulatorScreenViewModel</code>이 <code>deviceId</code>로 기기를 못 찾으면(목록에서 사라진 기기) 화면은 제목 없이 "화면을 가져오는 중…"에 머문다. 목록으로 자동으로 돌아가지는 않는다.</li>
+  <li><code>onCleared()</code>가 실제로 불리는지 보는 테스트가 없다. 화면을 나갔다 다시 들어와 첫 프레임부터 시작하는지를 화면 테스트로 확인하려 했지만, 가짜 저장소가 프레임을 즉시 흘려보내 "화면을 가져오는 중…"이 한 프레임도 남지 않아 판정할 수 없었다. 지금은 데코레이터(<code>rememberViewModelStoreNavEntryDecorator</code>)의 계약에 기대고 있다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

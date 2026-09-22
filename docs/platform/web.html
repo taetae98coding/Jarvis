@@ -16,7 +16,7 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>:webApp</code> + <code>:shared</code> → <code>:ui</code> · <code>:data</code> · <code>:domain</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
+  <dt>모듈</dt><dd><code>:webApp</code> + <code>:shared</code> → <code>:app:ui</code> → 기능 모듈 열둘 + <code>:core:*</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
   <dt>Kotlin 타깃</dt><dd><code>wasmJs</code> (Kotlin/Wasm, WasmGC)</dd>
   <dt>진입점</dt><dd><code>main()</code> → <code>ComposeViewport(document.body!!)</code></dd>
   <dt>번들</dt><dd>webpack, <code>webApp.js</code> + <code>.wasm</code> 두 개 (앱 ~2 MB, Skiko ~8 MB)</dd>
@@ -31,6 +31,10 @@
   <strong>차례</strong>
   <ol>
     <li><a href="#module-architecture">모듈 구조</a></li>
+    <li><a href="#dependency-injection">의존성 주입</a></li>
+    <li><a href="#view-model">화면 상태 소유 (ViewModel)</a></li>
+    <li><a href="#navigation">화면 이동 (Navigation3)</a></li>
+    <li><a href="#retained-state">재생성을 넘기는 상태 (retain)</a></li>
     <li><a href="#app-info">앱 정보</a></li>
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
@@ -55,29 +59,155 @@
 <table>
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
-    <tr><td>모듈마다 <code>wasmJs { browser() }</code></td><td>필수다. <code>browser()</code>를 빠뜨린 모듈은 wasmJs 타깃의 테스트·번들 설정이 없어 의존하는 쪽에서 링크가 깨진다</td></tr>
-    <tr><td><code>binaries.executable()</code></td><td><code>:webApp</code>(실제 번들), <code>:ui</code>(UI 테스트 번들), <code>:shared</code>에 둔다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 브라우저 UI 테스트가 렌더링하지 못한다. <code>:shared</code>에는 테스트가 없지만 Compose 플러그인의 <code>checkComposeUiTestConfigurationForWasmJs</code>가 Compose 를 쓰는 wasmJs 타깃이면 예외 없이 요구한다(<a href="https://youtrack.jetbrains.com/issue/CMP-4906">CMP-4906</a>). <code>:domain</code>·<code>:data</code>는 Compose 를 쓰지 않아 검사 대상이 아니다</td></tr>
-    <tr><td>번들 개수</td><td>하나다. <code>:webApp</code>의 <code>outputModuleName = "webApp"</code>이 의존 klib 넷을 한 <code>webApp.js</code>로 묶는다. 모듈을 나눠도 브라우저가 받는 파일 수는 그대로다</td></tr>
-    <tr><td><code>kotlinx.browser</code>(<code>window</code>, <code>localStorage</code>, <code>fetch</code>)</td><td><code>:data</code>의 <code>wasmJsMain</code>에서만 쓴다. <code>:ui</code>는 브라우저 API를 직접 부르지 않고 Compose의 <code>Modifier.keepScreenOn()</code>만 쓴다</td></tr>
-    <tr><td>Wasm 코드 분할(모듈별 지연 로딩)</td><td>버렸다. Kotlin/Wasm에는 아직 klib 단위 코드 분할이 없다. 모듈 분리는 소스 구조에만 영향을 주고 번들 크기·로딩 방식은 바뀌지 않는다</td></tr>
+    <tr><td>모듈마다 <code>wasmJs { browser() }</code></td><td>필수다. <code>browser()</code>를 빠뜨린 모듈은 wasmJs 타깃의 테스트·번들 설정이 없어 의존하는 쪽에서 링크가 깨진다. 컨벤션 플러그인이 선언하므로 모듈을 추가할 때 빠뜨릴 수 없다</td></tr>
+    <tr><td><code>binaries.executable()</code></td><td>Compose 를 쓰는 모듈(<code>:core:ui</code>, 기능의 <code>ui</code> 넷, <code>:app:ui</code>, <code>:shared</code>)에 컨벤션 플러그인이 넣는다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 브라우저 UI 테스트가 렌더링하지 못하고, Compose 플러그인의 <code>checkComposeUiTestConfigurationForWasmJs</code>가 테스트가 없는 모듈에도 예외 없이 요구한다(<a href="https://youtrack.jetbrains.com/issue/CMP-4906">CMP-4906</a>). <code>domain</code>·<code>data</code> 모듈은 Compose 를 쓰지 않아 검사 대상이 아니다</td></tr>
+    <tr><td>번들 개수</td><td>하나다. <code>:webApp</code>의 <code>outputModuleName = "webApp"</code>이 의존 klib 열여섯 개를 한 <code>webApp.js</code>로 묶는다. 기능을 나눠도 브라우저가 받는 파일 수는 그대로다</td></tr>
+    <tr><td><code>kotlinx.browser</code>(<code>window</code>, <code>localStorage</code>, <code>fetch</code>)</td><td>기능의 <code>data</code> 모듈 <code>wasmJsMain</code>에서만 쓴다. <code>ui</code> 모듈은 브라우저 API를 직접 부르지 않고 Compose의 <code>Modifier.keepScreenOn()</code>만 쓴다</td></tr>
+    <tr><td>Wasm 코드 분할(기능별 지연 로딩)</td><td>버렸다. Kotlin/Wasm에는 아직 klib 단위 코드 분할이 없다. 기능 분리는 소스 구조에만 영향을 주고 번들 크기·로딩 방식은 바뀌지 않는다</td></tr>
   </tbody>
 </table>
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>shared/src/wasmJsMain/.../PlatformContext.wasmJs.kt</code>, <code>data/src/wasmJsMain/.../PlatformContext.wasmJs.kt</code></dd>
-  <dt>동작</dt><dd>브라우저에는 넘길 플랫폼 핸들이 없어 <code>PlatformContext</code>는 빈 클래스다. <code>main()</code>은 분리 전과 같이 <code>ComposeViewport(document.body!!) { App() }</code></dd>
+  <dt>파일</dt><dd><code>shared/src/wasmJsMain/.../JarvisKoin.wasmJs.kt</code>, <code>core/data/src/wasmJsMain/.../PlatformContext.wasmJs.kt</code></dd>
+  <dt>동작</dt><dd>브라우저에는 넘길 플랫폼 핸들이 없어 <code>PlatformContext</code>는 빈 클래스다. <code>main()</code>은 <code>startJarvisKoin()</code> 후 <code>ComposeViewport(document.body!!) { App() }</code></dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
 
 <h3>한계</h3>
 <ul>
-  <li>번들이 하나라 <code>:ui</code>만 고쳐도 브라우저는 전체를 다시 받는다. 분리 전과 같다.</li>
-  <li><code>:ui</code>와 <code>:shared</code>의 <code>binaries.executable()</code>은 테스트와 플러그인 검사를 위한 설정이다. 라이브러리 모듈에 실행 바이너리를 두는 것이 어색하고, <code>:shared</code>는 쓰지도 않는 webpack 번들을 하나 더 만든다. CMP-4906이 닫히면 <code>:shared</code> 쪽은 걷어낸다.</li>
+  <li>번들이 하나라 기능 하나만 고쳐도 브라우저는 전체를 다시 받는다. 기능 분리 전과 같다.</li>
+  <li>Compose 라이브러리 모듈에 <code>binaries.executable()</code>을 두는 것은 테스트와 플러그인 검사를 위한 설정이다. 라이브러리에 실행 바이너리를 두는 것이 어색하고, 쓰지도 않는 webpack 번들을 모듈마다 하나씩 만든다. CMP-4906이 닫히면 걷어낸다.</li>
+  <li>기능 분리 후 <code>:app:ui</code>의 wasmJs 테스트 실행 바이너리 컴파일이 Kotlin 컴파일러 힙 3G 에서 <code>OutOfMemoryError: GC overhead limit exceeded</code> 로 죽었다. 링크되는 klib 수가 늘어난 탓이고, <code>kotlin.daemon.jvmargs</code> 를 6G 로 올려 해결했다. 모듈이 더 늘면 다시 조정해야 한다.</li>
 </ul>
 
 <h3>검증</h3>
-<p><code>./gradlew :ui:wasmJsBrowserTest</code>가 브라우저에서 화면을 렌더링해 확인한다. <code>:domain:wasmJsBrowserTest</code>와 <code>:data:wasmJsBrowserTest</code>는 화면 없이 도메인·데이터 테스트만 돈다.</p>
+<p><code>./gradlew :app:ui:wasmJsBrowserTest</code>가 브라우저에서 화면을 렌더링해 확인한다(33개). 기능 모듈의 <code>wasmJsBrowserTest</code>는 화면 없이 도메인·데이터 테스트만 돈다.</p>
+</section>
+
+
+<section class="feature" id="dependency-injection">
+<h2>의존성 주입 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/dependency-injection.html">의존성 주입</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>main()</code>에서 <code>startJarvisKoin()</code></td><td>채택. <code>ComposeViewport</code> 전에 시작한다. <code>PlatformContext</code>는 빈 상자다</td></tr>
+    <tr><td><code>koin-core</code>의 wasmJs 아티팩트</td><td><code>koin-core-wasm-js</code>·<code>koin-compose-wasm-js</code>·<code>koin-compose-viewmodel-wasm-js</code>·<code>koin-compose-navigation3-wasm-js</code>가 모두 퍼블리시된다. Koin 은 리플렉션 대신 <code>KClass</code> 키를 쓰므로 Wasm 에서도 같은 코드가 돈다</td></tr>
+    <tr><td>단일 스레드 전제</td><td>문제 없음. Wasm 은 이벤트 루프가 하나라 Koin 의 인스턴스 생성 동기화가 경합할 일이 없다. 앱 수명 스코프의 <code>Dispatchers.Main</code>도 그 이벤트 루프다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>webApp/src/wasmJsMain/.../main.kt</code>, <code>shared/src/wasmJsMain/.../JarvisKoin.wasmJs.kt</code></dd>
+  <dt>동작</dt><dd><code>startJarvisKoin()</code> 후 <code>ComposeViewport(document.body!!) { JarvisApp() }</code></dd>
+  <dt>실패</dt><dd>정의가 빠져 있으면 브라우저 콘솔에 Kotlin 예외가 찍히고 화면이 비어 있다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>페이지를 새로 고치면 Koin 인스턴스도 새로 만들어진다. 앱 상태가 브라우저 세션 수명을 넘지 않는다는 기존 성질과 같다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui</code>의 <code>wasmJsBrowserTest</code>에서 가짜 리포지토리를 담은 Koin 으로 화면 테스트가 돈다. 정의 해석 테스트는 JVM 에만 있다.</p>
+</section>
+
+<section class="feature" id="view-model">
+<h2>화면 상태 소유 (ViewModel) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/view-model.html">화면 상태 소유 (ViewModel)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Compose Multiplatform 의 기본 owner</td><td>채택. skiko <code>compose-ui</code>의 <code>findComposeDefaultViewModelStoreOwner()</code>를 <code>ComposeViewport</code> 컴포지션이 제공한다</td></tr>
+    <tr><td><code>lifecycle-viewmodel-compose</code>의 wasmJs 아티팩트</td><td><code>org.jetbrains.androidx.lifecycle</code> 2.11.0 이 <code>wasm-js</code> 변형을 퍼블리시한다</td></tr>
+    <tr><td><code>Dispatchers.setMain</code>으로 ViewModel 단위 테스트</td><td>쓸 수 없다. Wasm 의 메인 디스패처를 테스트에서 갈아끼울 수 없어 <code>viewModelScope</code>를 제어할 수 없다. 그래서 ViewModel 상태 테스트는 <a href="jvm.html#view-model">JVM</a>에만 두고, Wasm 에서는 화면 테스트로 확인한다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. Web 전용 코드는 없다</dd>
+  <dt>동작</dt><dd>탭이 살아 있는 동안 앱 수명 ViewModel 이 살아 있다. 화면 수명 ViewModel 은 엔트리가 빠질 때 정리된다</dd>
+  <dt>실패</dt><dd>없다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>탭을 닫거나 새로 고치면 프로세스째로 사라진다. <code>onCleared()</code>가 불릴 보장이 없고, 그래서 정리 코드에 기대는 동작을 두지 않는다.</li>
+  <li>단일 스레드라 <code>viewModelScope</code>에서 무거운 일을 하면 화면이 멈춘다. 프레임 디코딩을 별도 디스패처로 보내지 않는 이유와 같은 제약이다(<a href="../common/emulator-control.html#implementation">기기 화면</a>).</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui</code>의 <code>wasmJsBrowserTest</code>에서 <code>JarvisAppTest</code>가 돈다.</p>
+</section>
+
+<section class="feature" id="navigation">
+<h2>화면 이동 (Navigation3) <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/navigation.html">화면 이동 (Navigation3)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>NavDisplay</code>(JetBrains <code>navigation3-ui</code>의 wasm-js 변형)</td><td>채택. 앱 안의 "← 뒤로"로 백스택을 줄인다</td></tr>
+    <tr><td>브라우저 뒤로 버튼</td><td>연결되지 않는다. 브라우저 뒤로는 <code>history</code> 항목을 되돌리는 것이고, 우리 백스택은 그 히스토리에 아무 항목도 넣지 않았다. 지금 누르면 앱 화면이 아니라 페이지를 벗어난다</td></tr>
+    <tr><td><code>window.history.pushState</code> + <code>popstate</code> 브리지</td><td>후보로 남긴다. 화면을 옮길 때 <code>pushState</code>로 항목을 쌓고 <code>popstate</code>에서 백스택을 줄이면 브라우저 뒤로가 앱 뒤로가 된다. <code>kotlinx-browser</code>로 가능하다. 두 스택을 동기화하는 규칙(중복 push, 새로고침 후 복원)이 새 스펙 하나만큼 되어 이번 스코프에서 뺐다</td></tr>
+    <tr><td>해시 라우팅(<code>#/devices</code>)</td><td>버렸다. URL 이 앱 상태를 나르게 되면 딥링크 스펙이 먼저 필요하다</td></tr>
+    <tr><td>백스택 저장·복원</td><td>저장은 되지만 새로고침을 넘지 못한다. 컴포지션 저장 상태가 <code>sessionStorage</code> 같은 곳으로 나가지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. Web 전용 코드는 없다</dd>
+  <dt>동작</dt><dd>앱 안의 "← 뒤로" 버튼이 유일한 뒤로 경로다</dd>
+  <dt>실패</dt><dd>브라우저 뒤로를 누르면 앱을 벗어난다. 이전 페이지가 없으면 아무 일도 일어나지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>브라우저 뒤로 버튼이 앱 화면을 되돌리지 않는다. 사용자가 기기 화면에서 뒤로를 누르면 앱이 사라진다.</li>
+  <li>새로고침하면 항상 홈에서 시작한다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui</code>의 <code>wasmJsBrowserTest</code>가 앱 안의 이동 경로를 본다. 브라우저 뒤로는 테스트하지 않는다(연결하지 않은 동작이다).</p>
+</section>
+
+<section class="feature" id="retained-state">
+<h2>재생성을 넘기는 상태 (retain) <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/retained-state.html">재생성을 넘기는 상태 (retain)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>retain</code> + 플랫폼이 제공하는 <code>RetainedValuesStore</code></td><td>저장소가 없다. <code>runtime-retain</code>의 <code>wasm-js</code> 변형은 퍼블리시되지만 skiko <code>compose-ui</code>에 보관 구현이 없다. 기본값 <code>ForgetfulRetainedValuesStore</code>가 쓰인다</td></tr>
+    <tr><td>재생성 경로 자체</td><td>없다. 창 크기 변경은 컴포지션을 다시 만들지 않고, 새로고침은 프로세스를 끝낸다. <code>retain</code>이 개입할 구간이 없다</td></tr>
+    <tr><td><code>sessionStorage</code>에 프레임 보관</td><td>버렸다. 그것은 <code>retain</code>이 아니라 직렬화다. 마지막 프레임을 저장해 둘 이유도 없다 — 새로고침 후 0.5초 안에 새 프레임이 온다(에이전트가 살아 있다면)</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. Web 전용 코드는 없다</dd>
+  <dt>동작</dt><dd><code>retain</code>은 <code>remember</code>와 같게 동작한다</dd>
+  <dt>실패</dt><dd>없다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>보관이 일어나지 않으므로 이 플랫폼에서 <code>retain</code>과 <code>remember</code>의 차이를 관찰할 수 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui</code>의 <code>wasmJsBrowserTest</code>가 <code>retain</code>에 담긴 프레임으로 화면이 그려지는 것까지 본다.</p>
 </section>
 
 <section class="feature" id="app-info">
@@ -113,7 +243,7 @@
 </table>
 
 <h3>구현</h3>
-<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙인다. Web 전용 코드는 없다. <code>:data</code>의 <code>createIdleInhibitor()</code>는 wasmJs에서 <code>NoIdleInhibitor</code>를 돌려준다.</p>
+<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙인다. Web 전용 코드는 없다. <code>:feature:screen:data</code>의 <code>createIdleInhibitor()</code>는 wasmJs에서 <code>NoIdleInhibitor</code>를 돌려준다.</p>
 <p>예전에는 <code>@JsFun</code> 브릿지로 sentinel과 <code>visibilitychange</code> 리스너를 <code>globalThis</code> 전역 세 개에 들고 있었다. Compose 구현으로 넘기면서 전부 걷어냈고, 컴포지션보다 오래 살던 리스너도 함께 사라졌다.</p>
 
 <h3>한계</h3>
@@ -172,7 +302,7 @@
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../settings/SettingsStore.wasmJs.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/screen/data/src/wasmJsMain/.../settings/SettingsStore.wasmJs.kt</code></dd>
   <dt>키</dt><dd><code>jarvis.settings.&lt;key&gt;</code>. <code>localStorage</code>는 오리진 전체가 공유하므로 다른 플랫폼 저장소가 기본으로 갖는 앱 단위 격리를 키 접두사로 대신한다</dd>
   <dt>직렬화</dt><dd><code>value.toString()</code> / <code>toBooleanStrictOrNull() ?: defaultValue</code></dd>
   <dt>변경 감지</dt><dd><code>merge(localChanges, remoteChanges)</code>. <code>remoteChanges</code>는 <code>window</code>의 <code>storage</code> 이벤트, <code>localChanges</code>는 <code>putBoolean</code>이 직접 <code>tryEmit</code>하는 <code>MutableSharedFlow</code></dd>
@@ -233,7 +363,7 @@
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
   <dt>동작</dt><dd><code>window.fetch(hostAgentUrl("localhost")).await&lt;Response&gt;()</code></dd>
   <dt>타입 인자</dt><dd><code>await</code>의 타입 인자를 적어 준다. <code>Promise</code>가 out 변성이어서 반환 타입만으로는 추론되지 않는다</dd>
   <dt>실패</dt><dd>에이전트가 없으면 <code>fetch</code>가 <code>TypeError</code>로 거절된다. 연결 실패와 잘못된 응답을 가릴 필요가 없어서 <code>runCatching</code>으로 둘 다 <code>null</code>로 묶는다</dd>
@@ -271,7 +401,7 @@
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../rotation/DeviceRotation.wasmJs.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/rotation/data/src/wasmJsMain/.../rotation/DeviceRotation.wasmJs.kt</code></dd>
   <dt>잠금</dt><dd>현재 각도의 방향 이름으로 <code>lock()</code>, 해제는 <code>unlock()</code></dd>
   <dt>각도</dt><dd>목표 각도를 방향 이름으로 바꿔 <code>lock()</code>. natural이 세로인지는 지금의 <code>type</code>과 <code>angle</code> 조합에서 역산한다(세로 이름인데 각도가 90·270이면 natural은 가로다)</dd>
   <dt>읽기</dt><dd><code>screen.orientation.angle</code>. <code>screen.orientation</code>이 없으면 <code>supported = false</code></dd>
@@ -290,7 +420,7 @@
 </ul>
 
 <h3>검증</h3>
-<p>자동 테스트가 없다. <code>wasmJsTest</code>는 헤드리스 Chrome에서 도는데 데스크톱 브라우저라 <code>lock()</code>이 거절되고, 돌아갈 화면도 없다. 규칙과 카드 표시는 <code>:domain</code>·<code>:ui</code> 테스트가 검증한다(<code>:ui</code>의 <code>wasmJsBrowserTest</code>도 그 중 하나다). 실제 회전은 안드로이드 크롬에서 전체화면으로 열어 수동 확인한다.</p>
+<p>자동 테스트가 없다. <code>wasmJsTest</code>는 헤드리스 Chrome에서 도는데 데스크톱 브라우저라 <code>lock()</code>이 거절되고, 돌아갈 화면도 없다. 규칙과 카드 표시는 <code>:feature:rotation:domain</code>·<code>:app:ui</code> 테스트가 검증한다(<code>:app:ui</code>의 <code>wasmJsBrowserTest</code>도 그 중 하나다). 실제 회전은 안드로이드 크롬에서 전체화면으로 열어 수동 확인한다.</p>
 </section>
 
 <section class="feature" id="card-ripple">
@@ -308,7 +438,7 @@
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
+  <dt>파일</dt><dd><code>core/ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>feature/emulator/ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
   <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
@@ -340,7 +470,7 @@
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
   <dt>동작</dt><dd><code>http://localhost:47890</code> 의 목록·프레임·제스처 엔드포인트. 페이지 오리진과 포트가 달라 교차 출처이고, 에이전트가 <code>Access-Control-Allow-Origin: *</code> 를 붙인다</dd>
   <dt>실패</dt><dd>에이전트가 없으면 <code>fetch</code> 가 <code>TypeError</code> 로 거절된다. 목록은 비고 프레임은 <code>null</code> 이 된다</dd>
 </dl>
@@ -371,7 +501,7 @@
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
   <dt>동작</dt><dd><code>POST http://localhost:47890/emulators/launch</code>, 본문 <code>{"id":"…"}</code></dd>
   <dt>실패</dt><dd><code>fetch</code> 가 거절되면 조용히 버린다</dd>
 </dl>
@@ -398,7 +528,7 @@
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/wasmJsMain/.../emulator/agent/HostAgent.wasmJs.kt</code></dd>
   <dt>동작</dt><dd><code>POST http://localhost:47890/emulators/wake</code>, 본문 <code>{"id":"…"}</code></dd>
   <dt>실패</dt><dd>조용히 버린다. 다음 목록 갱신에서 화면이 여전히 꺼진 것으로 보인다</dd>
 </dl>
@@ -430,14 +560,14 @@
 <section class="feature" id="test">
 <h2>테스트 <span class="badge ok">구현</span></h2>
 <pre><code>CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  ./gradlew :domain:wasmJsBrowserTest :data:wasmJsBrowserTest :ui:wasmJsBrowserTest</code></pre>
-<p>유스케이스 테스트(<code>:domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>ObserveSystemStateTest</code>·<code>HostAgentTest</code>(<code>:data</code>), <code>JarvisAppTest</code>(<code>:ui</code>, Compose UI)가 헤드리스 Chrome에서 돈다. <code>CHROME_BIN</code>을 지정하지 않으면 Karma가 브라우저를 찾지 못한다.</p>
+  ./gradlew wasmJsBrowserTest</code></pre>
+<p>유스케이스 테스트(기능의 <code>domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>HostAgentTest</code>(기능의 <code>data</code>), <code>ObserveSystemStateTest</code>(<code>:core:data</code>), <code>JarvisAppTest</code>(<code>:app:ui</code>, Compose UI)가 헤드리스 Chrome에서 돈다. <code>CHROME_BIN</code>을 지정하지 않으면 Karma가 브라우저를 찾지 못한다.</p>
 <aside class="warn">
   <strong>UI 테스트에서 <code>waitUntil</code> 로 Flow 전파를 기다리지 않는다</strong>
-  스레드가 하나뿐이라 <code>waitUntil</code> 의 폴링 루프가 이벤트 루프를 잡고 있으면, 그동안 <code>stateIn</code> 같은 중간 단계를 거치는 <code>Flow</code> 가 화면까지 전파되지 못한다. 가짜 저장소의 값을 바꾸고 그 결과가 목록에 나타나기를 <code>waitUntil</code> 로 기다리는 테스트가 세 번에 한 번꼴로 10초 타임아웃에 걸렸다. 그런 규칙은 화면을 그리지 않는 <code>JarvisAppStateTest</code> 에서 <code>runTest</code> 로 확인한다. 프레임 디코딩에 같은 제약이 걸리는 이야기는 <a href="../common/emulator-control.html#implementation">기기 목록·화면·제스처</a>에 있다.
+  스레드가 하나뿐이라 <code>waitUntil</code> 의 폴링 루프가 이벤트 루프를 잡고 있으면, 그동안 <code>stateIn</code> 같은 중간 단계를 거치는 <code>Flow</code> 가 화면까지 전파되지 못한다. 가짜 저장소의 값을 바꾸고 그 결과가 목록에 나타나기를 <code>waitUntil</code> 로 기다리는 테스트가 세 번에 한 번꼴로 10초 타임아웃에 걸렸다. 그런 규칙은 화면을 그리지 않는 <code>EmulatorDevicesViewModelTest</code>(<a href="jvm.html#view-model">JVM</a>)에서 <code>runTest</code> 로 확인한다. 프레임 디코딩에 같은 제약이 걸리는 이야기는 <a href="../common/emulator-control.html#implementation">기기 목록·화면·제스처</a>에 있다.
 </aside>
 
-<p><code>:ui</code>의 <code>wasmJs</code> 타깃에 <code>binaries.executable()</code>이 있는 이유도 이 테스트 때문이다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 UI 테스트가 렌더링하지 못한다.</p>
+<p>Compose 를 쓰는 모듈의 <code>wasmJs</code> 타깃에 <code>binaries.executable()</code>이 있는 이유도 이 테스트 때문이다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 UI 테스트가 렌더링하지 못한다.</p>
 </section>
 
 <footer class="page">

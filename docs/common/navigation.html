@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화면 이동 (Navigation3) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>화면 이동 (Navigation3)</span></nav>
+
+<header>
+  <h1>화면 이동 (Navigation3)</h1>
+  <p class="lead">홈 · 기기 목록 · 기기 화면 사이의 이동을 <code>NavDisplay</code>와 백스택이 맡는다. 라우트는 그 화면을 가진 기능 모듈이 Koin 에 등록하고, 백스택은 앱 셸의 컴포지션이 들고 저장한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>Koin 적용해서 DI 사용하도록 해줘. 그리고 Compose에서 제공하는 Retain 개념과 ViewModel 개념 Navigation3 개념 적용해서 Koin이랑도 연동까지 구현해줘.</p>
+  <footer>2026-09-22 대화. 같은 지시에서 <a href="dependency-injection.html">의존성 주입</a>, <a href="view-model.html">ViewModel</a>, <a href="retained-state.html">재생성을 넘기는 상태</a> 스펙이 함께 나왔다.</footer>
+</blockquote>
+
+<p>이 스펙은 <a href="emulator-control.html">기기 목록·화면·제스처</a>가 임시로 두었던 자체 라우트를 걷어낸다. 그때의 판단은 이렇게 적혀 있었다.</p>
+
+<blockquote>
+  <p>내비게이션 라이브러리를 쓰지 않는 이유는 경로가 이 둘뿐이고 딥링크도 백스택 복원도 필요 없기 때문이다. 경로가 늘면 그때 라이브러리를 들인다.</p>
+  <footer><code>ui/.../emulator/EmulatorRoute.kt</code>, 커밋 <code>6f079c2</code>.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 화면은 셋이다. 앱 셸이 가진 <code>Home</code>(기능 그리드)과 에뮬레이터 기능이 가진 <code>EmulatorRoute.Devices</code>·<code>EmulatorRoute.Screen(deviceId)</code>. 이동은 백스택에 키를 넣고 빼는 것으로만 일어난다.</li>
+  <li><strong>R2.</strong> 라우트 키는 <code>NavKey</code>이고 <code>@Serializable</code>이다. 화면에 필요한 값은 키에 직렬화 가능한 형태로만 담는다.</li>
+  <li><strong>R3.</strong> 백스택은 <code>rememberNavBackStack</code>으로 저장·복원된다. 복원 경로가 있는 플랫폼에서는 앱을 다시 띄웠을 때 마지막 화면으로 돌아온다.</li>
+  <li><strong>R4.</strong> 각 라우트의 <code>@Composable</code> 본문은 그 기능의 Koin 모듈에 <code>navigation&lt;T&gt;</code>로 선언하고, <code>NavDisplay</code>는 <code>koinEntryProvider()</code>가 모아 준 <code>entryProvider</code>만 받는다. 화면을 하나 더할 때 앱 셸은 고치지 않는다.</li>
+  <li><strong>R5.</strong> 엔트리마다 <code>ViewModelStore</code>와 <code>SaveableStateHolder</code>가 따로 붙는다. 엔트리가 백스택에서 빠지면 둘 다 비워진다.</li>
+  <li><strong>R6.</strong> "← 뒤로"는 백스택을 한 칸 줄인다. 홈에서는 뒤로 갈 곳이 없다.</li>
+  <li><strong>R7.</strong> 이동 후에도 앱 수명 효과(<a href="keep-screen-awake.html">화면 꺼짐 방지</a>)는 끊기지 않는다. <code>NavDisplay</code>는 그 효과보다 안쪽에 있다.</li>
+  <li><strong>R8.</strong> 사용자에게 보이는 화면 구성과 전환 결과는 바뀌지 않는다. 카드를 누르면 목록, 기기를 누르면 화면, 뒤로 두 번 누르면 그리드다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong>딥링크</strong>. <code>navigation3-runtime</code>에 <code>DeepLinkMatcher</code>가 있지만 앱을 밖에서 열 창구(Android intent-filter, 커스텀 스킴, URL 경로)를 만들지 않았다. 지금은 열 이유가 없다.</li>
+    <li><strong>여러 창(Scene) 전략</strong>. <code>SinglePaneSceneStrategy</code> 기본값만 쓴다. 넓은 창에서 목록·화면을 나란히 두는 <code>TwoPaneScene</code>은 화면이 셋뿐인 지금 이득이 없다.</li>
+    <li><strong>전환 애니메이션 지정</strong>. <code>NavDisplay</code>의 기본 전환을 쓴다.</li>
+    <li><strong>브라우저 히스토리 연동</strong>. <a href="../platform/web.html#navigation">Web</a> 참고.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>라우트</td><td><code>Home</code> / <code>EmulatorDevices</code> / <code>EmulatorScreen(deviceId)</code></td></tr>
+    <tr><td>들어가는 길</td><td>에뮬레이터 카드 클릭 → <code>EmulatorDevices</code>. 목록의 기기 클릭(<code>canStream</code>일 때만) → <code>EmulatorScreen</code></td></tr>
+    <tr><td>나오는 길</td><td>"← 뒤로" 버튼, 그리고 플랫폼이 제공하는 시스템 뒤로(<a href="#platforms">판정</a>)</td></tr>
+    <tr><td>컨트롤</td><td><code>EmulatorTopBar</code>의 <code>TextButton</code> "← 뒤로"</td></tr>
+    <tr><td>테스트 태그</td><td>화면마다 기존 태그 그대로. <code>emulator:list</code>, <code>emulator:screen</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<h3 id="routes">라우트</h3>
+
+<pre><code>// :app:ui — 셸이 가진 유일한 라우트
+@Serializable
+internal data object HomeRoute : NavKey
+
+// :feature:emulator:ui — 이 기능이 가진 화면 둘. 앱 셸은 이 타입을 모른다.
+@Serializable
+internal sealed interface EmulatorRoute : NavKey {
+    @Serializable data object Devices : EmulatorRoute
+
+    // 기기 상태가 아니라 식별자만 나른다. 이유는 view-model.html 의 결정에 있다.
+    @Serializable data class Screen(val deviceId: String) : EmulatorRoute
+}</code></pre>
+
+<h3 id="backstack">백스택</h3>
+
+<p><code>rememberNavBackStack</code>은 <code>PolymorphicSerializer(NavKey::class)</code>로 백스택을 저장한다. <code>NavKey</code>는 sealed 가 아닌 인터페이스라 구현을 직접 등록해 줘야 하고, 안 하면 다음 메시지로 죽는다.</p>
+
+<blockquote>
+  <p>You must pass a <code>SavedStateConfiguration.serializersModule</code> configured to handle <code>NavKey</code> open polymorphism. Define it with: <code>polymorphic(NavKey::class) { ... }</code></p>
+  <footer><code>androidx.navigation3:navigation3-runtime</code> 1.1.1 의 <code>rememberNavBackStack</code>.</footer>
+</blockquote>
+
+<p>등록 목록을 앱 셸에 두면 화면을 더할 때마다 셸을 고쳐야 한다. 그래서 <code>:core:ui</code> 가 <code>NavKeySerializers</code> 를 정의하고, 기능이 자기 라우트를 Koin 에 등록하고, 셸이 <code>getAll</code> 로 모은다(<a href="module-architecture.html#decision-navkeys">모듈 구조의 결정</a>).</p>
+
+<pre><code>// :feature:emulator:ui — emulatorUiModule 안
+navKeySerializers&lt;EmulatorRoute&gt; {
+    subclass(EmulatorRoute.Devices::class, EmulatorRoute.Devices.serializer())
+    subclass(EmulatorRoute.Screen::class, EmulatorRoute.Screen.serializer())
+}
+
+// :app:ui — 셸은 자기 것만 알고 나머지는 모아서 채운다
+val registrations = currentKoinScope().getAll&lt;NavKeySerializers&gt;()
+
+SavedStateConfiguration {
+    serializersModule = SerializersModule {
+        polymorphic(NavKey::class) {
+            subclass(HomeRoute::class, HomeRoute.serializer())
+
+            registrations.forEach { it.register(this) }
+        }
+    }
+}</code></pre>
+
+<h3 id="display">NavDisplay</h3>
+
+<pre><code>NavDisplay(
+    backStack = backStack,
+    onBack = navigator::back,
+    entryDecorators = listOf(
+        // NavDisplay 의 기본값과 같다. 목록을 넘기는 순간 기본값이 사라지므로 함께 적는다.
+        rememberSaveableStateHolderNavEntryDecorator(),
+        // 엔트리마다 ViewModelStore 를 만들고, 백스택에서 빠질 때 비운다.
+        rememberViewModelStoreNavEntryDecorator(),
+    ),
+    entryProvider = koinEntryProvider(),
+)</code></pre>
+
+<p>ViewModel 데코레이터는 별도 아티팩트(<code>lifecycle-viewmodel-navigation3</code>)에 있어서 <code>NavDisplay</code>의 기본값에 들어갈 수 없고, 그것이 <a href="view-model.html#owners">화면 수명 ViewModel</a>의 전제라 직접 넘긴다. 목록을 직접 주면 기본값이 사라지므로 <code>rememberSaveableStateHolderNavEntryDecorator()</code>도 함께 적는다. Scene 설정 데코레이터는 이 버전에서 <code>internal</code> 이라 목록에 넣을 수 없고, <code>NavDisplay</code>가 안에서 알아서 붙인다.</p>
+
+<h3 id="koin">Koin ↔ Navigation3</h3>
+
+<p><code>koin-compose-navigation3</code>이 두 조각을 준다. 모듈 쪽의 <code>navigation&lt;T : NavKey&gt;</code> DSL 과 화면 쪽의 <code>koinEntryProvider()</code>다. 전자는 <code>EntryProviderInstaller</code> 타입 정의를 등록하고, 후자는 현재 Koin 스코프에서 그 정의를 <code>getAll</code>로 모아 <code>entryProvider</code>를 만든다.</p>
+
+<pre><code>// :feature:emulator:ui — emulatorUiModule
+navigation&lt;EmulatorRoute.Devices&gt; {
+    val navigator = LocalNavigator.current
+
+    EmulatorListScreen(
+        viewModel = koinViewModel(),
+        onSelect = { device -&gt; navigator.goTo(EmulatorRoute.Screen(device.id)) },
+        onBack = navigator::back,
+    )
+}
+
+navigation&lt;EmulatorRoute.Screen&gt; { route -&gt;
+    EmulatorStreamScreen(viewModel = koinViewModel { parametersOf(route.deviceId) }, …)
+}</code></pre>
+
+<aside class="decision">
+  <strong>결정: 라우트 정의는 Koin 에, 백스택은 컴포지션에 둔다</strong>
+  백스택도 Koin <code>single</code>로 둘 수 있다. <code>NavBackStack</code>은 스냅샷 상태 리스트라 컴포지션 밖에서도 만들어진다. 버렸다. 그러면 저장·복원(R3)을 우리가 다시 구현해야 하고, 화면 이동이 전역 가변 상태가 된다. 반대로 라우트 본문을 Koin 에 두면 얻는 것이 분명하다 — 화면은 그 기능 모듈 안에서만 선언되고 <code>NavDisplay</code>를 부르는 앱 셸은 라우트 목록을 모른다. 두 세계를 잇는 값이 내비게이터 하나뿐이라, 그것만 <code>LocalNavigator</code>로 내려보낸다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 내비게이터를 CompositionLocal 로 내려보낸다</strong>
+  라우트 본문은 Koin 모듈이 선언할 때 백스택을 알 수 없다(그때는 컴포지션이 없다). 선택지는 셋이었다. (1) 백스택을 Koin 에 둔다 — 위 결정에서 버렸다. (2) <code>navigation</code> 정의에 파라미터로 내비게이터를 넘긴다 — <code>koinEntryProvider()</code>가 정의를 <code>getAll</code>로 꺼내므로 파라미터를 끼울 자리가 없다. (3) <code>staticCompositionLocalOf</code>로 내려보낸다 — 채택. 값이 앱 수명 동안 바뀌지 않아 <code>static</code>이 맞고, 제공하는 곳이 <code>JarvisApp()</code> 한 곳이다. <code>Navigator</code>와 <code>LocalNavigator</code>는 기능이 서로를 모른 채 이동할 수 있게 <code>:core:ui</code>에 둔다.
+</aside>
+
+<h3 id="deps">의존성</h3>
+
+<dl class="meta">
+  <dt>런타임</dt><dd><code>androidx.navigation3:navigation3-runtime</code> 1.1.1 — <code>NavKey</code>, <code>NavBackStack</code>, <code>rememberNavBackStack</code>, <code>entryProvider</code>. androidx 가 직접 퍼블리시하는 KMP 아티팩트다(android/desktop/ios/wasm-js)</dd>
+  <dt>화면</dt><dd><code>org.jetbrains.androidx.navigation3:navigation3-ui</code> 1.1.1 — <code>NavDisplay</code>, Scene 전략. JetBrains 가 skiko 타깃까지 퍼블리시하는 쪽이고, 같은 버전의 androidx 런타임을 끌고 온다</dd>
+  <dt>Koin 연동</dt><dd><code>io.insert-koin:koin-compose-navigation3</code> 4.2.2 — <code>navigation&lt;T&gt;</code>, <code>koinEntryProvider()</code></dd>
+</dl>
+
+<aside class="note">
+  <strong>버전 조합</strong>
+  <code>koin-compose-navigation3</code> 4.2.2 의 POM 은 <code>navigation3-runtime</code> 1.0.1 을 가리킨다. 1.1.1 로 올려도 Koin 이 부르는 <code>EntryProviderScope.addEntryProvider(KClass, …)</code> 시그니처가 그대로라 바이너리 호환이다. 이 조합이 깨지면 증상은 <code>NoSuchMethodError</code>이고, 그때는 Koin 의 DSL 대신 <code>entryProvider { entry&lt;…&gt; { } }</code>를 <code>JarvisApp()</code>에 직접 쓰면 된다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>시스템 뒤로 제스처가 <code>NavDisplay</code>의 <code>onBack</code>까지 온다. 백스택은 <code>SavedStateRegistry</code>에 저장된다</td><td><a href="../platform/android.html#navigation">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>앱 안의 "← 뒤로"는 동작한다. 화면 가장자리 스와이프는 SwiftUI 가 만든 컨트롤러에 백스택이 없어서 오지 않는다</td><td><a href="../platform/ios.html#navigation">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>OS 에 "뒤로" 개념이 없어 앱 안의 버튼이 유일한 경로다. 그것으로 요구사항이 충족된다</td><td><a href="../platform/jvm.html#navigation">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>앱 안의 "← 뒤로"는 동작한다. 브라우저 뒤로 버튼은 앱 백스택과 연결되지 않아 페이지를 벗어난다</td><td><a href="../platform/web.html#navigation">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.emulatorCardOpensDeviceList</code></td><td>R1, R4. 카드 클릭이 백스택에 <code>EmulatorDevices</code>를 넣고 그 엔트리가 그려진다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.runningDeviceOpensStreamScreen</code></td><td>R1, R2. 기기 클릭이 <code>EmulatorScreen(deviceId)</code>로 간다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.stoppedDeviceCannotBeOpened</code></td><td>R8. 화면을 찍을 수 없는 기기는 이동하지 않는다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.backReturnsToListThenGrid</code></td><td>R5, R6. 뒤로 두 번이면 그리드고, 빠진 엔트리의 상태는 남지 않는다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.keepScreenAwake…</code></td><td>R7. 이동과 무관하게 루트의 효과가 유지된다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>./gradlew build</code></td><td>R2. 라우트가 <code>@Serializable</code>이 아니면 컴파일이 깨진다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<p>R3(백스택 복원)은 자동 테스트가 없다. <code>runComposeUiTest</code>에 저장 상태를 버리고 컴포지션을 다시 만드는 경로가 없어서다. 수동으로는 Android 개발자 옵션의 "활동 유지 안함"을 켜고 기기 화면에서 앱을 내렸다 올려 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><code>NavKey</code> 구현을 <code>SerializersModule</code>에 등록하는 일이 수동이다. 라우트를 추가하고 <code>subclass()</code> 한 줄을 잊으면 컴파일은 통과하고 그 화면으로 이동할 때 런타임에 죽는다. 기능이 <code>navKeySerializers</code> 블록을 아예 잊으면 그 기능의 모든 화면이 같은 이유로 죽는다.</li>
+  <li>라우트 정의가 Koin 에 있으므로 어떤 화면이 있는지는 런타임 목록이다. 존재하지 않는 키로 이동하면 <code>NavDisplay</code>가 그 시점에 예외를 던진다. <code>when</code> 으로 갈랐던 예전 코드에서는 컴파일러가 빠진 분기를 잡아 줬다.</li>
+  <li>기기 화면에서 기기가 목록에서 사라져도 백스택은 그대로다. 화면은 <a href="view-model.html#limits">제목 없는 "가져오는 중"</a>에 머문다.</li>
+  <li>브라우저 뒤로와 iOS 가장자리 스와이프는 앱 백스택과 이어지지 않는다. 플랫폼 문서의 해당 섹션에 이유와 우회 후보를 적었다.</li>
+  <li>메타데이터 컴파일에 <code>KLIB loader: The same 'unique_name=savedstate_commonMain' found in more than one library</code> 류의 경고가 새로 생긴다. Navigation3 가 <code>androidx.savedstate</code>·<code>androidx.navigationevent</code>를, 같이 쓰는 JetBrains 쪽 아티팩트가 <code>org.jetbrains.androidx.*</code> 의 같은 라이브러리를 끌고 와서다. 두 벌이 클래스패스에 함께 있지만 컴파일·테스트·실행에는 문제가 없었다. 한쪽을 <code>exclude</code> 하면 어느 쪽이 skiko 타깃의 실제 구현인지에 따라 링크가 깨질 수 있어 건드리지 않았다. JetBrains 가 <code>navigation3-runtime</code> 도 퍼블리시하면 사라질 종류의 경고다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

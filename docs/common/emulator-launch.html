@@ -75,11 +75,11 @@
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>도메인 모델</dt><dd><code>EmulatorDevice.canLaunch</code> — <a href="emulator-control.html#implementation">능력 플래그</a> 중 하나. <code>:data</code> 가 정한다</dd>
+  <dt>도메인 모델</dt><dd><code>EmulatorDevice.canLaunch</code> — <a href="emulator-control.html#implementation">능력 플래그</a> 중 하나. <code>data</code> 가 정한다</dd>
   <dt>리포지토리</dt><dd><code>EmulatorRepository.launch(deviceId: String)</code> — <code>suspend</code>, 반환값 없음</dd>
   <dt>유스케이스</dt><dd><code>LaunchEmulatorUseCase(device)</code> — <code>canLaunch</code> 가 아니면 아무것도 하지 않는다 (R6)</dd>
   <dt>UI</dt><dd><code>ui/emulator/EmulatorListScreen.kt</code> 의 줄 오른쪽 버튼</dd>
-  <dt>상태</dt><dd><code>JarvisAppState.launchingDevices: StateFlow&lt;Set&lt;String&gt;&gt;</code> — 실행을 눌렀고 아직 뜨지 않은 기기의 <code>id</code>. 요청 집합과 기기 목록을 <code>combine</code> 해서 유도한다</dd>
+  <dt>상태</dt><dd><code>EmulatorDevicesViewModel.launchingDevices: StateFlow&lt;Set&lt;String&gt;&gt;</code> — 실행을 눌렀고 아직 뜨지 않은 기기의 <code>id</code>. 요청 집합과 기기 목록을 <code>combine</code> 해서 유도한다</dd>
 </dl>
 
 <p>실행은 요청만 보내고 결과를 기다리지 않는다. 켜졌는지는 <a href="emulator-control.html">목록 폴링</a>이 알려주는 것이 유일한 경로다. 그래서 들고 있는 것은 "요청을 보냈다" 하나뿐이고, 화면에 보이는 잠금은 그것과 목록에서 유도한다.</p>
@@ -138,13 +138,13 @@ launchingDevices = launchRequests 중에서
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>JarvisAppTest.stoppedDeviceCanBeLaunched</code></td><td>R1, R2. 꺼진 기기에만 버튼이 있고 누르면 요청이 나간다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.launchingDeviceLocksTheButton</code></td><td>R3. 누른 뒤 버튼이 "켜는 중…" 으로 잠긴다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppStateTest.launchLockClearsWhenTheDeviceStarts</code></td><td>R3. 기기가 목록에 뜨면 잠금이 풀린다. 화면을 그리지 않고 상태만 본다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppStateTest.launchIsNotSentTwiceForTheSameDevice</code></td><td>R3. 같은 기기에 요청이 두 번 나가지 않는다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>LaunchEmulatorUseCaseTest</code></td><td>R6. 켤 수 없는 기기의 요청이 리포지토리까지 가지 않는다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
-    <tr><td><code>HostAgentTest.launchRequestsAreSentToTheAgent</code></td><td>실행 요청의 경로와 본문</td><td><code>:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>HostAgentServerTest.forwardsLaunchRequests</code></td><td>에이전트가 <code>204</code> 로 답하고 데이터 소스에 넘긴다. 본문이 깨지면 <code>400</code></td><td><code>:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.stoppedDeviceCanBeLaunched</code></td><td>R1, R2. 꺼진 기기에만 버튼이 있고 누르면 요청이 나간다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppLaunchLockTest.launchingDeviceLocksTheButton</code></td><td>R3. 누른 뒤 버튼이 "켜는 중…" 으로 잠긴다. 잠금 값이 <code>viewModelScope</code> 를 지나 화면에 오는데 Wasm 에서는 <code>waitUntil</code> 의 폴링이 그 이벤트 루프를 잡고 있어서, 이 검증만 <code>jvmTest</code> 에 둔다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>EmulatorDevicesViewModelTest.launchLockClearsWhenTheDeviceStarts</code></td><td>R3. 기기가 목록에 뜨면 잠금이 풀린다. 화면을 그리지 않고 상태만 본다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>EmulatorDevicesViewModelTest.launchIsNotSentTwiceForTheSameDevice</code></td><td>R3. 같은 기기에 요청이 두 번 나가지 않는다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>LaunchEmulatorUseCaseTest</code></td><td>R6. 켤 수 없는 기기의 요청이 리포지토리까지 가지 않는다</td><td><code>:feature:emulator:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentTest.launchRequestsAreSentToTheAgent</code></td><td>실행 요청의 경로와 본문</td><td><code>:feature:emulator:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentServerTest.forwardsLaunchRequests</code></td><td>에이전트가 <code>204</code> 로 답하고 데이터 소스에 넘긴다. 본문이 깨지면 <code>400</code></td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
     <tr><td>수동 확인</td><td>R2, R4, R5. 실제로 AVD·시뮬레이터가 뜨는 것 <span class="badge untested">미검증</span></td><td>—</td></tr>
   </tbody>
 </table>

@@ -91,9 +91,9 @@
   <dt>에이전트</dt><dd><code>data/emulator/agent/</code> — 주소, 와이어 포맷(DTO), 폴링 데이터 소스, JVM 서버</dd>
 </dl>
 
-<p><code>JarvisAppState</code>가 <code>observeEmulatorStatus()</code>를 <code>stateIn(scope, Eagerly, initial = null)</code>로 들고 카드에는 값만 넘긴다. 초기값이 <code>null</code>인 것이 R3이다. 요약이 <code>null</code>인 것이 R7이다. 둘은 다른 층의 null이다. 전자는 "아직 답하지 않았다", 후자는 "답했고 셀 수 없다고 했다"다.</p>
+<p><code>EmulatorStatusViewModel</code>이 <code>observeEmulatorStatus()</code>를 <code>stateIn(viewModelScope, Eagerly, initial = null)</code>로 들고 카드에는 값만 넘긴다. 초기값이 <code>null</code>인 것이 R3이다. 요약이 <code>null</code>인 것이 R7이다. 둘은 다른 층의 null이다. 전자는 "아직 답하지 않았다", 후자는 "답했고 셀 수 없다고 했다"다.</p>
 
-<p>도메인 모델에는 <code>@Serializable</code>을 붙이지 않는다. 와이어 포맷은 <code>:data</code>의 <code>EmulatorStatusDto</code>가 갖고, 경계에서 도메인 모델로 바꾼다. JSON 필드 이름이 바뀌어도 <code>:domain</code>과 <code>:ui</code>는 그대로다.</p>
+<p>도메인 모델에는 <code>@Serializable</code>을 붙이지 않는다. 와이어 포맷은 <code>data</code>의 <code>EmulatorStatusDto</code>가 갖고, 경계에서 도메인 모델로 바꾼다. JSON 필드 이름이 바뀌어도 <code>domain</code>과 <code>ui</code>는 그대로다.</p>
 
 <p>개수 조회는 <a href="state-observation.html">상태 조회 규칙</a>을 따른다. 가상 기기 상태에는 어느 플랫폼에서도 변경 콜백이 없어서 전부 폴링이다(5초).</p>
 
@@ -136,7 +136,7 @@
   </tbody>
 </table>
 
-<p>요청마다 세지 않는다. JVM 데이터 소스를 <code>shareIn(replay = 1)</code>으로 공유해서 UI와 에이전트가 같은 값을 보고, SDK 도구는 구독자 수와 무관하게 5초에 한 번만 돈다. 데이터 소스가 <code>:data</code> <code>jvmMain</code>의 프로세스 싱글턴인 이유가 이것이다. 에이전트는 조립(<code>DataModule</code>)을 거치지 않고 이 데이터 소스를 직접 구독한다.</p>
+<p>요청마다 세지 않는다. JVM 데이터 소스를 <code>shareIn(replay = 1)</code>으로 공유해서 UI와 에이전트가 같은 값을 보고, SDK 도구는 구독자 수와 무관하게 5초에 한 번만 돈다. 데이터 소스가 <code>data</code> <code>jvmMain</code>의 프로세스 싱글턴인 이유가 이것이다. 에이전트는 Koin(<code>dataModule</code>)을 거치지 않고 이 데이터 소스를 직접 구독한다.</p>
 
 <aside class="warn">
   <strong>인증이 없다</strong>
@@ -160,14 +160,14 @@
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>JarvisAppTest.showsEmulatorCounts</code></td><td>R1. 두 줄의 형식과 값</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.tellsZeroApartFromUncountable</code></td><td>R7. 0개와 셀 수 없음이 다르게 보인다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.showsUncountableWhenNothingCanCount</code></td><td>R5, R7. 셀 수 없어도 카드는 두 줄을 유지한다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.showsPlaceholderUntilTheRepositoryAnswers</code></td><td>R3. 응답 전 "확인 중…"</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.emulatorCountsFollowRepositoryUpdates</code></td><td>R4. 새 값이 오면 화면이 바뀐다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>HostAgentTest</code> (5개)</td><td>R7, R8. 와이어 포맷 왕복, 깨진 응답, 모르는 필드, 에이전트 부재, 폴링 갱신</td><td><code>:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>EmulatorParsingTest</code> (5개)</td><td>R2. <code>emulator</code>·<code>adb</code>·<code>simctl</code> 출력 파싱</td><td><code>:data</code> <code>jvmTest</code></td></tr>
-    <tr><td><code>HostAgentServerTest</code> (5개)</td><td>R8. 에이전트를 실제로 띄워 HTTP 왕복, 503/405, CORS 헤더, 포트 충돌</td><td><code>:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.showsEmulatorCounts</code></td><td>R1. 두 줄의 형식과 값</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.tellsZeroApartFromUncountable</code></td><td>R7. 0개와 셀 수 없음이 다르게 보인다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.showsUncountableWhenNothingCanCount</code></td><td>R5, R7. 셀 수 없어도 카드는 두 줄을 유지한다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.showsPlaceholderUntilTheRepositoryAnswers</code></td><td>R3. 응답 전 "확인 중…"</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.emulatorCountsFollowRepositoryUpdates</code></td><td>R4. 새 값이 오면 화면이 바뀐다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>HostAgentTest</code> (5개)</td><td>R7, R8. 와이어 포맷 왕복, 깨진 응답, 모르는 필드, 에이전트 부재, 폴링 갱신</td><td><code>:feature:emulator:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>EmulatorParsingTest</code> (5개)</td><td>R2. <code>emulator</code>·<code>adb</code>·<code>simctl</code> 출력 파싱</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>HostAgentServerTest</code> (5개)</td><td>R8. 에이전트를 실제로 띄워 HTTP 왕복, 503/405, CORS 헤더, 포트 충돌</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
   </tbody>
 </table>
 

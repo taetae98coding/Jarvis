@@ -13,6 +13,14 @@ android-targetSdk = "37"
 
 androidx-activityCompose = "1.13.0"
 
+koin = "4.2.2"
+
+# Compose Multiplatform 1.12.0 이 쓰는 androidx.compose.runtime 과 같은 버전 줄이어야 한다.
+composeRuntimeRetain = "1.12.0"
+
+androidx-lifecycle = "2.11.0"
+androidx-navigation3 = "1.1.1"
+
 kotlinx-browser = "0.5.0"
 kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.11.0"
@@ -20,10 +28,27 @@ kotlinx-serialization = "1.11.0"
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
+koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+koin-compose-navigation3 = { module = "io.insert-koin:koin-compose-navigation3", version.ref = "koin" }
+
+# ViewModel 과 Navigation3 는 JetBrains 가 skiko 타깃까지 퍼블리시하는 쪽을 쓴다.
+androidx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "androidx-lifecycle" }
+androidx-navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "androidx-navigation3" }
+# 런타임은 androidx 가 직접 KMP 로 퍼블리시한다. JetBrains 쪽에는 -ui 만 있다.
+androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "androidx-navigation3" }
+
+# retain 은 runtime 이 아니라 별도 아티팩트다.
+compose-runtime-retain = { module = "androidx.compose.runtime:runtime-retain", version.ref = "composeRuntimeRetain" }
+
 kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser", version.ref = "kotlinx-browser" }
 
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+# JVM 에서 Dispatchers.Main 을 제공한다. Compose Desktop 은 이것을 데려오지 않아서 :shared 가 직접 넣는다.
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
@@ -36,6 +61,13 @@ compose-components-resources = { module = "org.jetbrains.compose.components:comp
 compose-ui-toolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+
+# build-logic 의 컨벤션 플러그인이 쓰는 플러그인 마커. plugins { } 로 적용하려면 컴파일
+# 클래스패스에 있어야 해서 라이브러리로도 선언한다.
+plugin-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+plugin-android = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+plugin-compose = { module = "org.jetbrains.compose:compose-gradle-plugin", version.ref = "composeMultiplatform" }
+plugin-composeCompiler = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

@@ -10,6 +10,10 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 | Kotlin | 2.4.20 |
 | Android Gradle Plugin | 9.4.1 |
 | Compose Multiplatform | 1.12.0 (material3만 별도 라인인 1.9.0) |
+| Koin | 4.2.2 (`koin-compose`, `koin-compose-viewmodel`, `koin-compose-navigation3`) |
+| Lifecycle (ViewModel) | 2.11.0 (`org.jetbrains.androidx.lifecycle`) |
+| Navigation3 | 1.1.1 (`navigation3-ui`는 JetBrains, `navigation3-runtime`은 androidx) |
+| `compose-runtime-retain` | 1.12.0 (`retain` 은 `runtime` 과 다른 아티팩트다) |
 | Gradle | 9.7.1 |
 | compileSdk / targetSdk / minSdk | 37 / 37 / 24 |
 | JVM toolchain | 21 |
@@ -20,41 +24,69 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 
 기본 패키지는 `io.github.taetae98coding.jarvis`다. 모듈마다 하위 패키지를 따로 쓰므로 같은 패키지가 여러 모듈에 걸치지 않는다.
 
-공용 코드는 clean architecture의 세 계층을 그대로 모듈로 나눈다. 의존은 한 방향이고 Gradle이 강제한다.
+공용 코드는 **기능마다 clean architecture 세 계층을 모듈로** 갖는다. 기능은 `appinfo` · `emulator` · `screen` · `rotation` 넷이고 서로를 의존하지 않는다. 의존은 한 방향이고 Gradle이 강제한다.
 
 ```
 androidApp   iosApp(Xcode)   desktopApp   webApp
       └────────────┴────────────┴─────────┘
-                   shared          ← 조립. 기능이 늘어도 커지지 않는다
-          ┌──────────┼──────────┐
-         ui        data         │
-          └──────────┴──────── domain   ← 아무것도 의존하지 않는다
+                   shared               ← Koin 시작. 기능이 늘어도 커지지 않는다
+                   app:ui               ← JarvisApp(), Home 화면, FeatureGrid, 백스택
+     ┌───────────────┼───────────────┬───────────────┐
+ feature:appinfo  feature:emulator  feature:screen  feature:rotation
+     │      기능마다 ui → domain ← data
+     └───────────────┴───────────────┴───────────────┘
+              core:ui        core:data              ← 두 기능 이상이 쓰는 것만
 ```
 
 | 모듈 | 패키지 | 내용 |
 |---|---|---|
-| `domain` | `.jarvis.domain` | 모델, 리포지토리 인터페이스, 유스케이스. 의존성은 `kotlinx-coroutines-core` 뿐 |
-| `data` | `.jarvis.data` | 리포지토리 구현. 플랫폼 API(`expect`/`actual`), 저장소, 직렬화, 프로세스·HTTP |
-| `ui` | `.jarvis.ui` | Compose 화면과 `JarvisAppState`. `domain`만 본다 |
-| `shared` | `.jarvis.shared` | 조립(composition root). `App()`, iOS `MainViewController()` |
-| `androidApp` | `.jarvis` | `com.android.application` — `MainActivity`가 `App()`을 setContent |
+| `feature:<기능>:domain` | `.jarvis.domain.<기능>` | 모델, 리포지토리 인터페이스, 유스케이스, `<기능>DomainModule`. 의존성은 `kotlinx-coroutines-core` 와 `koin-core` 뿐 |
+| `feature:<기능>:data` | `.jarvis.data.<기능>` | 리포지토리 구현과 `<기능>DataModule`. 플랫폼 API(`expect`/`actual`), 저장소, 직렬화, 프로세스·HTTP |
+| `feature:<기능>:ui` | `.jarvis.ui.<기능>` | 카드·화면, ViewModel, 라우트, `<기능>UiModule`. 같은 기능의 `domain`만 본다 |
+| `core:data` | `.jarvis.data`, `.jarvis.data.state` | `PlatformContext`(expect class), 상태 조회 규칙 3종 |
+| `core:ui` | `.jarvis.ui.component`, `.jarvis.ui.navigation` | `ToggleFeatureCard`, `Navigator`·`LocalNavigator`, `NavKeySerializers` |
+| `app:ui` | `.jarvis.ui.app` | `JarvisApp()`, Home 라우트와 화면, `FeatureGrid`, 백스택, `appUiModule` |
+| `shared` | `.jarvis.shared` | Koin 시작(`startJarvisKoin()`)과 진입점. `App()`, iOS `MainViewController()` |
+| `build-logic` | — | 컨벤션 플러그인 `jarvis.kmp.library` / `jarvis.kmp.compose` / `jarvis.kmp.test`. 타깃 선언이 여기 한곳에만 있다 |
+| `androidApp` | `.jarvis` | `com.android.application` — `MainActivity`가 Koin 을 세우고 `App()`을 setContent |
 | `desktopApp` | `.jarvis.desktop` | Kotlin/JVM + Compose Desktop — `main()`이 Window를 띄운다 |
 | `webApp` | `.jarvis.web` | Kotlin/Wasm — `main()`이 ComposeViewport에 `App()`을 붙인다 |
 | `iosApp` | — | Xcode 프로젝트. SwiftUI가 `shared`의 `MainViewController()`를 감싼다 |
 
-라이브러리 모듈 넷은 모두 android / jvm / iosArm64 / iosSimulatorArm64 / wasmJs 타깃을 갖는다.
-패키지는 모듈 루트 아래를 계층이 아니라 기능으로 나눈다(`appinfo`, `emulator`, `screen`, `settings`).
-같은 기능은 세 모듈에서 같은 이름을 쓰므로 `emulator`로 찾으면 세 계층이 함께 나온다.
+라이브러리 모듈 열여섯은 모두 android / jvm / iosArm64 / iosSimulatorArm64 / wasmJs 타깃을 갖는다. 그 선언은 `build-logic`의 컨벤션 플러그인에만 있다.
+패키지는 기능 분리 전 이름(`.jarvis.<계층>.<기능>`)을 그대로 쓴다. 모듈 경로와 순서가 반대지만, 그 덕에 분리 과정에서 `import`가 한 줄도 바뀌지 않았다.
+같은 기능은 세 모듈에서 같은 마지막 이름을 쓰므로 `emulator`로 찾으면 세 계층이 함께 나온다.
 
-| 기능 | `domain` | `data` | `ui` |
+| 기능 | `feature:<기능>:domain` | `feature:<기능>:data` | `feature:<기능>:ui` |
 |---|---|---|---|
 | 앱 정보 | `AppInfo`, `GetAppInfoUseCase` | `platformName`, `APP_VERSION` | `AppInfoCard` |
 | 에뮬레이터 개수 | `EmulatorStatus`, `EmulatorRepository` | `EmulatorDataSource`, 호스트 에이전트 | `EmulatorCard` |
 | 에뮬레이터 목록·화면·제스처 | `EmulatorDevice`, `EmulatorGesture`, 유스케이스 3개 | `EmulatorDataSource`, 호스트 에이전트 | `EmulatorListScreen`, `EmulatorStreamScreen` |
 | 화면 꺼짐 방지 | `ScreenAwakeSettingsRepository`, 유스케이스 7개 | `SettingsStore`, `IdleInhibitor`, `SystemScreenAwakeDataSource` | `ScreenAwakeCard`, `SystemScreenAwakeCard` |
 
+## 의존성 주입 · ViewModel · 화면 이동
+
+조립은 Koin 이 한다. 기능마다 세 개의 Koin 모듈을 갖고(`<기능>DomainModule` / `<기능>DataModule` / `<기능>UiModule`),
+`shared`가 그 목록을 합쳐 플랫폼 핸들만 더한다. 네 진입점이 각각 `startJarvisKoin()`을 부르고, 두 번 불려도
+첫 번째만 유효하다. 손으로 조립하던 `JarvisContainer`와 `DataModule` 클래스는 사라졌다.
+
+화면 상태는 ViewModel 일곱이 나눠 갖는다. 앱 수명 `ScreenAwakeEffectViewModel`(화면 꺼짐 방지 효과),
+홈의 카드 넷이 각자 쓰는 `AppInfoViewModel` · `ScreenAwakeViewModel` · `EmulatorStatusViewModel` · `DeviceRotationViewModel`,
+그리고 에뮬레이터 화면의 `EmulatorDevicesViewModel` · `EmulatorScreenViewModel(deviceId)`.
+카드는 인자를 받지 않고 자기 ViewModel 을 `koinViewModel()`로 직접 받으므로, 앱 셸은 기능의 유스케이스도 상태도 모른다.
+
+화면 이동은 Navigation3 다. 라우트 본문은 그 기능의 Koin 모듈에서 `navigation<T>` 로 선언하고
+`NavDisplay`는 `koinEntryProvider()`가 모아 준 목록만 받으므로, 화면을 더할 때 앱 셸은 고치지 않는다.
+백스택 키의 직렬화 등록도 기능이 `navKeySerializers` 로 내고 셸이 `getAll` 로 모은다.
+
+기기 화면의 마지막 프레임은 `retain` 이 들고 있다 — 컴포지션보다 오래 살아야 하지만 직렬화하고 싶지 않은 값이다.
+
+자세한 내용은 [의존성 주입](docs/common/dependency-injection.html) · [ViewModel](docs/common/view-model.html) ·
+[화면 이동](docs/common/navigation.html) · [retain](docs/common/retained-state.html) 스펙에 있다.
+
 `androidApp`만 루트 패키지를 쓰는데, Android의 `applicationId`(= `io.github.taetae98coding.jarvis`)와 맞추기 위해서다.
-자세한 규칙(계층별 책임, 예외 둘, 가시성)은 [모듈 구조 스펙](docs/common/module-architecture.html)에 있다.
+Android `namespace`는 컨벤션 플러그인이 프로젝트 경로에서 만든다(`:feature:emulator:data` → `…jarvis.feature.emulator.data`). AGP는 유일한 namespace만 요구한다.
+자세한 규칙(계층별 책임, 예외, 가시성)은 [모듈 구조 스펙](docs/common/module-architecture.html)에 있다.
 
 AGP 9부터 `com.android.application`과 `org.jetbrains.kotlin.multiplatform`을 같은 모듈에 적용할 수 없다.
 그래서 공유 코드는 `com.android.kotlin.multiplatform.library`를 쓰는 라이브러리 모듈들에 두고, Android 앱은 별도 모듈로 분리했다.
@@ -77,8 +109,8 @@ iOS 번들 버전만 `iosApp/Configuration/Config.xcconfig`에서 따로 관리�
 
 ### 설정
 
-토글 상태는 `ui`의 `JarvisAppState`가 들고 화면으로 내려간다.
-`App()` 최상단에서 한 번 만들어지므로 화면을 옮겨 다녀도 값과 효과가 유지된다.
+토글 상태는 `feature:screen:ui`의 `ScreenAwakeViewModel`이 들고 카드로 내려간다.
+화면 꺼짐 방지 효과는 앱 수명 `ScreenAwakeEffectViewModel`의 `viewModelScope`에서 걸리므로 화면을 옮겨 다녀도 유지된다.
 
 값은 `domain`의 `ScreenAwakeSettingsRepository` 계약을 통해 `data`의 `SettingsStore`에 저장되어
 앱을 완전히 껐다 켜도 복원된다.
@@ -195,24 +227,28 @@ Android·iOS·Web에서 에뮬레이터 개수·목록·화면을 보려면 데�
 
 | 소스셋 | 내용 | 실행 타깃 |
 |---|---|---|
-| `domain/src/commonTest` | 유스케이스 — 화면 유지 적용 규칙, 권한 요청 규칙 | 전 타깃 (Android host 포함) |
-| `data/src/commonTest` | `PlatformNameTest`, `ScreenAwakeSettingsRepositoryTest`, `ObserveSystemStateTest`, `HostAgentTest` | 전 타깃 (Android host 포함) |
-| `data/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복(개수·목록·화면·제스처) | jvm |
-| `ui/src/skikoTest` | `JarvisAppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 반영, 에뮬레이터 개수·목록·화면·제스처 | jvm / wasmJs / ios |
+| `feature/*/domain/src/commonTest` | 유스케이스 — 화면 유지 적용 규칙, 권한 요청 규칙, 회전 각도 규칙, 실행·깨우기 가드 | 전 타깃 (Android host 포함) |
+| `feature/*/data/src/commonTest` | `PlatformNameTest`, `ScreenAwakeSettingsRepositoryTest`, `HostAgentTest` | 전 타깃 (Android host 포함) |
+| `core/data/src/commonTest` | `ObserveSystemStateTest` — 신호·폴링 조회 규칙 | 전 타깃 (Android host 포함) |
+| `feature/emulator/data/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복 | jvm |
+| `feature/emulator/ui/src/jvmTest` | `EmulatorDevicesViewModelTest` — 실행 잠금 규칙 (`viewModelScope`) | jvm |
+| `app/ui/src/skikoTest` | `JarvisAppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 반영, 화면 이동, 에뮬레이터 목록·화면·제스처 | jvm / wasmJs / ios |
+| `app/ui/src/jvmTest` | `JarvisAppLaunchLockTest` — 실행 잠금이 화면에 그려지는 것 (Wasm 에서는 이벤트 루프가 막혀 JVM 에만 둔다) | jvm |
+| `shared/src/jvmTest` | `JarvisKoinTest` — 기능들의 Koin 모듈을 합친 그래프가 모든 정의를 해석한다 | jvm |
 
-`skikoTest`는 `ui`가 `applyDefaultHierarchyTemplate`으로 정의한 중간 소스셋이라 jvm/wasmJs/ios가 함께 쓴다.
+`skikoTest`는 컨벤션 플러그인이 `applyDefaultHierarchyTemplate`으로 정의한 중간 소스셋이라 jvm/wasmJs/ios가 함께 쓴다.
 Android는 호스트에 렌더링할 Android 런타임이 없어 이 그룹에서 빠진다.
 
-UI 테스트는 가짜 **리포지토리**만 끼워서 돈다. `ui`가 `data`를 의존하지 않는다는 것이 테스트로 드러난다.
+UI 테스트는 가짜 **리포지토리**만 끼워서 돈다. 기능의 `ui`가 `data`를 의존하지 않는다는 것이 테스트로 드러난다.
 
 ```bash
-./gradlew build                                        # 전부
-./gradlew :domain:jvmTest :data:jvmTest :ui:jvmTest    # JVM
-./gradlew :domain:testAndroidHostTest :data:testAndroidHostTest   # Android host
+./gradlew build                     # 전부
+./gradlew jvmTest                   # JVM (모든 모듈)
+./gradlew testAndroidHostTest       # Android host
 CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  ./gradlew :ui:wasmJsBrowserTest                      # Wasm (헤드리스 Chrome 필요)
+  ./gradlew wasmJsBrowserTest       # Wasm (헤드리스 Chrome 필요)
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-  ./gradlew :ui:iosSimulatorArm64Test                  # iOS (Xcode 필요)
+  ./gradlew iosSimulatorArm64Test   # iOS (Xcode 필요)
 ```
 
 ## 문서
@@ -224,13 +260,14 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 
 ## 플랫폼별 코드 추가하기
 
-`data/src/commonMain`에 `expect`를 선언하고 각 `<target>Main`에 `actual`을 구현한다.
-현재는 `platformName`(`data/appinfo/PlatformName.kt`)이 가장 단순한 예시다.
-`ui`와 `domain`에는 `expect`를 두지 않는다. 예외 둘은 [모듈 구조 스펙](docs/common/module-architecture.html#exceptions)에 적혀 있다.
+그 기능의 `data` 모듈 `src/commonMain`에 `expect`를 선언하고 각 `<target>Main`에 `actual`을 구현한다.
+현재는 `platformName`(`feature/appinfo/data`의 `data/appinfo/PlatformName.kt`)이 가장 단순한 예시다.
+두 기능 이상이 쓰는 플랫폼 핸들만 `core:data`로 내린다(`PlatformContext`).
+기능의 `ui`와 `domain` 모듈에는 `expect`를 두지 않는다. 예외 하나(`Modifier.keepScreenAwake`)는 [모듈 구조 스펙](docs/common/module-architecture.html#exceptions)에 적혀 있다.
 
 한 타깃에서만 가능한 기능이라면 나머지 `actual`을 "지원하지 않음"으로 두는 쪽을 택했다.
 `createSystemScreenAwakeDataSource`가 그렇게 구현되어 있고, 화면에서 카드를 감추는 대신 잠긴 채로 이유를 보여준다.
 이유는 [공통 스펙](docs/common/index.html#contract)에 적어 뒀다.
 
-기능을 하나 더할 때는 `shared`에 파일을 더하지 않는다.
-세 모듈의 같은 기능 패키지에 더하고, `JarvisContainer`의 조립 한 줄만 `shared`에 추가한다.
+기능을 하나 더할 때는 `feature/<기능>/{domain,data,ui}` 세 모듈을 만들고, 고치는 기존 파일은
+`settings.gradle.kts` · `shared`의 모듈 목록 · 카드를 놓는 `FeatureGrid` 뿐이다.

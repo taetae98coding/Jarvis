@@ -12,7 +12,7 @@
 
 <header>
   <h1>모듈 구조</h1>
-  <p class="lead">공용 코드를 <code>:domain</code> · <code>:data</code> · <code>:ui</code> 세 계층 모듈로 나누고, <code>:shared</code>는 그 셋을 조립해 앱 진입점만 내놓는다. 기능이 늘어도 <code>:shared</code>는 커지지 않는다.</p>
+  <p class="lead">기능 하나가 <code>domain</code> · <code>data</code> · <code>ui</code> 세 모듈을 갖는다. 계층은 그 셋의 의존 방향으로, 기능은 모듈 묶음으로 갈린다. <code>:shared</code>는 기능들의 Koin 모듈을 나열하고 진입점만 내놓는다.</p>
 </header>
 
 <nav class="toc">
@@ -32,29 +32,38 @@
 
 <blockquote class="instruction">
   <p>지금 구조는 모듈이 커지면 shared에 집중적으로 추가되는 구조잖아. clean architecture 맞춰서 모듈화 진행하자. ui 모듈 domain 모듈 data 모듈이 크게 있어야 할 것 같은데 검토해줘. 각각 모듈 책임에 맞게 구현하고 모듈 분리 후 각 모듈에 package 수정도 필요한지 검토해줘.</p>
-  <footer>2026-09-22 대화.</footer>
+  <footer>2026-09-22 대화. 계층 모듈 셋(<code>:domain</code>·<code>:data</code>·<code>:ui</code>)이 이 지시에서 나왔다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>feature:emulator 이런 식으로 모듈을 분리하는게 좋지 않아?</p>
+  <footer>2026-09-22 대화. 아래 <a href="#decision-feature">기능 모듈 결정</a>이 이 지시의 답이고, 예전 스펙이 "스코프에서 뺀 것" 으로 적어 두었던 항목 둘(기능별 모듈, 빌드 컨벤션 플러그인)을 뒤집는다.</footer>
 </blockquote>
 
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 공용 코드는 <code>:domain</code>, <code>:data</code>, <code>:ui</code> 세 Gradle 모듈에 나뉘어 있고, <code>:shared</code>에는 조립 코드와 플랫폼 진입점만 남는다.</li>
-  <li><strong>R2.</strong> 모듈 의존은 한 방향이다. <code>:ui → :domain</code>, <code>:data → :domain</code>, <code>:shared → :domain, :data, :ui</code>. <code>:ui</code>는 <code>:data</code>를, <code>:data</code>는 <code>:ui</code>를 컴파일 타임에 볼 수 없다.</li>
-  <li><strong>R3.</strong> <code>:domain</code>은 Compose와 플랫폼 API에 의존하지 않는다. 의존성은 <code>kotlinx-coroutines-core</code>뿐이고, <code>expect</code> 선언이 없다.</li>
-  <li><strong>R4.</strong> 플랫폼 API 호출(<code>expect</code>/<code>actual</code>)은 전부 <code>:data</code>에 있다. 단 Compose가 대신 불러 주는 것(<code>Modifier.keepScreenOn()</code>)과 Compose 트리에서만 얻을 수 있는 것(Android <code>Context</code>)은 예외이며 <a href="#exceptions">아래 예외 표</a>에 적는다.</li>
-  <li><strong>R5.</strong> <code>:ui</code>는 Compose API만 부른다. <code>:domain</code>의 모델·유스케이스로만 상태를 읽고 쓴다.</li>
-  <li><strong>R6.</strong> 패키지 루트는 모듈마다 다르다. <code>…jarvis.domain</code> / <code>…jarvis.data</code> / <code>…jarvis.ui</code> / <code>…jarvis.shared</code>. 그 아래는 계층이 아니라 기능으로 나눈다(<code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>settings</code>).</li>
-  <li><strong>R7.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 분리 전 테스트가 검증하던 내용은 분리 후에도 전부 검증된다.</li>
-  <li><strong>R8.</strong> 기능을 하나 더할 때 <code>:shared</code>에 파일을 더하지 않는다. 세 모듈의 같은 기능 패키지에 더하고, 조립 한 줄만 <code>:shared</code>에 추가한다.</li>
+  <li><strong>R1.</strong> 공용 코드는 기능마다 <code>:feature:&lt;기능&gt;:domain</code> · <code>:feature:&lt;기능&gt;:data</code> · <code>:feature:&lt;기능&gt;:ui</code> 셋으로 나뉜다. 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code> 넷이다.</li>
+  <li><strong>R2.</strong> 계층 의존은 기능 안에서 한 방향이다. <code>ui → domain</code>, <code>data → domain</code>. 어느 기능에서도 <code>ui</code>가 <code>data</code>를, <code>data</code>가 <code>ui</code>를 컴파일 타임에 볼 수 없다.</li>
+  <li><strong>R3.</strong> 기능은 서로를 의존하지 않는다. 기능 사이에 필요한 것은 <code>:core:*</code>로 내려가고, 기능 하나가 다른 기능의 타입을 import 하면 그 구조는 틀린 것이다.</li>
+  <li><strong>R4.</strong> <code>:core:*</code>에는 두 기능 이상이 쓰는 것만 둔다. 한 기능만 쓰는 것은 그 기능이 갖는다.</li>
+  <li><strong>R5.</strong> <code>:domain</code>은 Compose와 플랫폼 API에 의존하지 않는다. 의존성은 <code>kotlinx-coroutines-core</code>와 <code>koin-core</code>뿐이고 <code>expect</code> 선언이 없다. 플랫폼 API 호출은 전부 <code>data</code> 모듈에 있다.</li>
+  <li><strong>R6.</strong> 기능 모듈은 자기 조립을 스스로 들고 있다. <code>domain</code>은 유스케이스를, <code>data</code>는 리포지토리를, <code>ui</code>는 ViewModel·화면·라우트를 각각 자기 Koin 모듈에 등록한다.</li>
+  <li><strong>R7.</strong> 앱 셸(<code>:app:ui</code>)은 어떤 화면이 있는지 모른다. 라우트는 각 기능의 Koin 모듈이 등록하고, 백스택 키의 직렬화 등록도 기능이 함께 낸다.</li>
+  <li><strong>R8.</strong> 기능을 하나 더할 때 고치는 기존 파일은 <code>settings.gradle.kts</code>와 <code>:shared</code>의 모듈 목록, 그리고 카드를 놓는 <code>FeatureGrid</code> 뿐이다.</li>
+  <li><strong>R9.</strong> 패키지 루트는 모듈마다 다르다. 기능 분리 전의 패키지(<code>…jarvis.&lt;계층&gt;.&lt;기능&gt;</code>)를 그대로 쓴다.</li>
+  <li><strong>R10.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 분리 전 테스트가 검증하던 내용은 분리 후에도 전부 검증된다.</li>
+  <li><strong>R11.</strong> 타깃 선언(android/jvm/iosArm64/iosSimulatorArm64/wasmJs)은 한곳에만 있다. 모듈 빌드 파일은 자기와 다른 것만 적는다.</li>
 </ol>
 
 <aside class="warn">
   <strong>스코프에서 뺀 것</strong>
   <ul>
-    <li><strong>기능별 모듈</strong>(<code>:feature:emulator</code> 같은 세로 분리). 기능이 셋뿐이라 지금은 계층 분리만으로 충분하다. 기능 패키지를 모듈 경계와 같은 이름으로 맞춰 두었으므로 나중에 잘라내기만 하면 된다.</li>
-    <li><strong>DI 프레임워크</strong>. 생성자 주입과 <code>:shared</code>의 조립 클래스 하나로 충분하다. Koin·Hilt는 넣지 않았다.</li>
-    <li><strong>빌드 컨벤션 플러그인</strong>(<code>build-logic</code>). <a href="#decision-build">아래 결정</a> 참조.</li>
-    <li><strong>모듈 이름 변경</strong>. <code>:shared</code>와 iOS 프레임워크 이름 <code>Shared</code>는 그대로 둔다. Xcode 프로젝트가 <code>:shared:embedAndSignAppleFrameworkForXcode</code>를 직접 부르고, 이름을 바꿔도 얻는 것이 없다.</li>
+    <li><strong>기능당 모듈 하나</strong>(<code>:feature:emulator</code> 안에 계층을 함께 두는 안). 모듈 수는 적어지지만 Gradle 이 강제하던 "화면은 저장소를 못 본다"(R2)가 기능 안에서 사라진다. 이 프로젝트는 그 강제를 규칙의 근거로 쓰고 있어서(<a href="#verification">검증</a>) 계층을 나눈 쪽을 택했다.</li>
+    <li><strong>패키지 이름 변경</strong>(<code>jarvis.emulator.domain</code> 식의 기능 우선 이름). <a href="#decision-package">아래 결정</a> 참조.</li>
+    <li><strong><code>:core:domain</code></strong>. 기능 사이에 공유되는 도메인 타입이 지금 하나도 없다. 빈 모듈을 만들지 않는다(R4).</li>
+    <li><strong>모듈 이름 변경</strong>. <code>:shared</code>와 iOS 프레임워크 이름 <code>Shared</code>는 그대로 둔다. Xcode 프로젝트가 <code>:shared:embedAndSignAppleFrameworkForXcode</code>를 직접 부른다.</li>
+    <li><strong>기능별 앱 배포</strong>(Dynamic Feature, 별도 앱). 모듈 경계는 그쪽으로 가는 길을 열어 두지만 이번에 만들지는 않는다.</li>
   </ul>
 </aside>
 
@@ -74,187 +83,218 @@
 
 <h2 id="implementation">공통 구현</h2>
 
-<h3 id="modules">모듈</h3>
+<h3 id="modules">모듈 지도</h3>
+
+<pre class="tree"><code>:androidApp   iosApp(Xcode)   :desktopApp   :webApp
+      └──────────────┴──────────────┴─────────┘
+                    :shared              ← Koin 시작, App(), 진입점
+                       │
+                    :app:ui              ← JarvisApp, Home 화면, FeatureGrid, 백스택
+        ┌──────────────┼──────────────┬──────────────┐
+  :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation
+        │  ui → domain ← data (기능마다 셋)
+        └──────────────┴──────────────┴──────────────┘
+                 :core:ui        :core:data           ← 두 기능 이상이 쓰는 것만</code></pre>
 
 <table>
-  <thead><tr><th>모듈</th><th>책임</th><th>의존</th><th>쓸 수 있는 것</th></tr></thead>
+  <thead><tr><th>모듈</th><th>패키지</th><th>내용</th><th>의존</th></tr></thead>
   <tbody>
-    <tr>
-      <td><code>:domain</code></td>
-      <td>모델과 규칙. 리포지토리 <em>인터페이스</em>와 유스케이스</td>
-      <td>없음</td>
-      <td>Kotlin, <code>kotlinx-coroutines-core</code></td>
-    </tr>
-    <tr>
-      <td><code>:data</code></td>
-      <td>리포지토리 <em>구현</em>. 플랫폼 API 호출, 저장소, 직렬화, 프로세스·HTTP</td>
-      <td><code>:domain</code></td>
-      <td>플랫폼 API(<code>expect</code>/<code>actual</code>), <code>kotlinx-serialization</code></td>
-    </tr>
-    <tr>
-      <td><code>:ui</code></td>
-      <td>Compose 화면과 화면 상태. 유스케이스만 부른다</td>
-      <td><code>:domain</code></td>
-      <td>Compose Multiplatform</td>
-    </tr>
-    <tr>
-      <td><code>:shared</code></td>
-      <td>조립(composition root)과 플랫폼 진입점. <code>App()</code>, <code>MainViewController()</code></td>
-      <td><code>:domain</code>, <code>:data</code>, <code>:ui</code></td>
-      <td>위 셋 전부</td>
-    </tr>
+    <tr><td><code>:core:data</code></td><td><code>…data</code>, <code>…data.state</code></td><td><code>PlatformContext</code>(expect class), <code>observeByPolling</code>/<code>observeOnSignals</code>/<code>observeSystemState</code></td><td>없음</td></tr>
+    <tr><td><code>:core:ui</code></td><td><code>…ui.component</code>, <code>…ui.navigation</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>·<code>LocalNavigator</code>, <code>NavKeySerializers</code></td><td>Compose, navigation3-runtime</td></tr>
+    <tr><td><code>:feature:&lt;기능&gt;:domain</code></td><td><code>…domain.&lt;기능&gt;</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, <code>&lt;기능&gt;DomainModule</code></td><td>없음</td></tr>
+    <tr><td><code>:feature:&lt;기능&gt;:data</code></td><td><code>…data.&lt;기능&gt;</code></td><td>리포지토리 구현, <code>expect</code>/<code>actual</code>, DTO, <code>&lt;기능&gt;DataModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:data</code></td></tr>
+    <tr><td><code>:feature:&lt;기능&gt;:ui</code></td><td><code>…ui.&lt;기능&gt;</code></td><td>카드·화면, ViewModel, 라우트, <code>&lt;기능&gt;UiModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:ui</code></td></tr>
+    <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>네 기능의 <code>ui</code>, <code>:core:ui</code></td></tr>
+    <tr><td><code>:shared</code></td><td><code>…shared</code></td><td><code>startJarvisKoin()</code>, <code>platformModule</code>, <code>App()</code>, <code>MainViewController()</code></td><td><code>:app:ui</code>, 네 기능의 <code>data</code>·<code>domain</code></td></tr>
   </tbody>
 </table>
 
-<pre class="tree"><code>:androidApp   :iosApp(Xcode)   :desktopApp   :webApp
-      └──────────────┴──────────────┴─────────┘
-                       :shared          ← 조립. 기능이 늘어도 커지지 않는다
-             ┌───────────┼───────────┐
-           :ui         :data         │
-             └───────────┴───────── :domain   ← 아무것도 의존하지 않는다</code></pre>
+<p>의존 방향은 Gradle 이 강제한다. <code>:feature:emulator:ui</code>의 빌드 파일에 <code>:feature:emulator:data</code>가 없으므로 화면에서 <code>adb</code>를 부르려면 컴파일이 깨진다. <code>:feature:screen:ui</code>에는 <code>:feature:emulator:domain</code>이 없어서 기능을 가로지르는 참조도 컴파일 단계에서 막힌다(R3).</p>
 
-<p>의존 방향은 Gradle이 강제한다. <code>:ui</code>의 빌드 파일에 <code>:data</code>가 없으므로 화면에서 <code>SharedPreferences</code>나 <code>HttpURLConnection</code>을 부르려면 컴파일이 깨진다. 반대로 <code>:data</code>에는 Compose 플러그인 자체가 없어서 <code>@Composable</code>을 쓸 수 없다.</p>
+<aside class="decision" id="decision-feature">
+  <strong>결정: 기능 × 계층으로 나눈다 (모듈 16개)</strong>
+  기능이 넷이고 계층이 셋이라 <code>:core</code> 둘과 <code>:app:ui</code>, <code>:shared</code> 를 더해 16개가 된다. 모듈 수가 늘어나는 대신 얻는 것은 두 가지다. 기능 사이 결합이 컴파일 단계에서 막히고(예전에는 <code>:ui</code> 한 모듈 안이라 <code>screen</code> 코드가 <code>emulator</code> 를 import 해도 빌드가 통과했다), 기능 하나를 통째로 잘라내거나 다른 앱에 끼우는 일이 가능해진다. 지금 실제 교차 참조는 없었으므로 이 분리는 <em>예방</em>이 목적이고, 그 사실을 여기 적어 둔다.
+  <br><br>
+  분리가 지금 가능해진 이유는 <a href="dependency-injection.html">Koin</a>과 <a href="navigation.html">Navigation3</a> 때문이다. 손으로 조립하던 시절에는 <code>JarvisContainer</code> 가 모든 유스케이스를 알아야 해서 기능이 자기 조립을 가질 수 없었다.
+</aside>
 
 <h3 id="packages">패키지</h3>
 
-<p>모듈마다 패키지 루트가 다르다. 같은 기능은 세 모듈에서 같은 마지막 이름을 쓴다. 기능을 찾을 때 <code>emulator</code>로 grep하면 세 계층이 함께 나온다.</p>
+<p>패키지는 기능 분리 전과 같다. 모듈 경계만 생기고 <code>import</code> 는 한 줄도 바뀌지 않는다.</p>
 
 <pre class="tree"><code>io.github.taetae98coding.jarvis
 ├── domain
-│   ├── appinfo    AppInfo, AppInfoRepository, GetAppInfoUseCase
-│   ├── emulator   EmulatorStatus, EmulatorSummary, EmulatorRepository, ObserveEmulatorStatusUseCase
-│   └── screen     ScreenAwakeRepository, ScreenAwakeSettingsRepository,
-│                  SystemScreenAwakeStatus, SystemScreenAwakeRepository, 유스케이스 7개
+│   ├── appinfo    AppInfo, AppInfoRepository, GetAppInfoUseCase, appInfoDomainModule
+│   ├── emulator   EmulatorDevice, EmulatorRepository, 유스케이스 6개, emulatorDomainModule
+│   ├── screen     ScreenAwakeRepository, SystemScreenAwakeStatus, 유스케이스 7개, screenDomainModule
+│   └── rotation   RotationAngle, DeviceRotationRepository, 유스케이스 4개, rotationDomainModule
 ├── data
-│   ├── DataModule, PlatformContext                 ← data 조립과 플랫폼 핸들
+│   ├── PlatformContext(expect)                      ← :core:data
+│   ├── state      observeByPolling / observeOnSignals / observeSystemState   ← :core:data
 │   ├── appinfo    platformName(expect), APP_VERSION(생성), DefaultAppInfoRepository
-│   ├── emulator   EmulatorDataSource(expect), DefaultEmulatorRepository
-│   │   └── agent  HostAgent 주소·DTO·클라이언트(expect)·서버(jvm)
-│   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), 리포지토리 구현
-│   ├── settings   SettingsStore(interface + expect 팩토리), 플랫폼 저장소 구현
-│   └── state      observeByPolling / observeOnSignals / observeSystemState
+│   ├── emulator   EmulatorDataSource(expect), 리포지토리, agent(주소·DTO·클라이언트·서버)
+│   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), SettingsStore(expect)
+│   └── rotation   DeviceRotationDataSource(expect), DeviceRotationGate(ios)
 ├── ui
-│   ├── app        JarvisApp, JarvisAppState, FeatureGrid
-│   ├── appinfo    AppInfoCard
-│   ├── component  ToggleFeatureCard
-│   ├── emulator   EmulatorCard
-│   └── screen     ScreenAwakeCard, SystemScreenAwakeCard, Modifier.keepScreenAwake
-└── shared         App, JarvisContainer, rememberPlatformContext(expect),
+│   ├── component  ToggleFeatureCard                  ← :core:ui
+│   ├── navigation Navigator, LocalNavigator, NavKeySerializers   ← :core:ui
+│   ├── appinfo    AppInfoCard, AppInfoViewModel
+│   ├── emulator   EmulatorCard, 목록·화면, ViewModel 셋, EmulatorRoute, EmulatorFrameState
+│   ├── screen     ScreenAwakeCard, SystemScreenAwakeCard, Modifier.appScreenAwake, ViewModel 둘
+│   ├── rotation   DeviceRotationCard, DeviceRotationViewModel
+│   └── app        JarvisApp, HomeRoute, HomeScreen, FeatureGrid   ← :app:ui
+└── shared         App, startJarvisKoin(플랫폼별), platformModule,
                    MainViewController(ios), startEmulatorHostAgent(jvm)</code></pre>
 
-<aside class="decision">
-  <strong>결정: 패키지는 계층이 아니라 기능으로 나눈다</strong>
-  모듈 이름이 이미 계층이므로 <code>data.repository</code>, <code>ui.screen.component</code> 같은 계층 패키지를 또 두지 않는다. 기능 패키지가 곧 미래의 기능 모듈 경계다. 예전 <code>shared.platform</code>은 계층도 기능도 아닌 "플랫폼에 닿는 것 전부"라 기능이 늘수록 커지기만 했다. 그 패키지는 사라지고 내용은 <code>data</code>의 기능 패키지로 흩어진다.
+<aside class="decision" id="decision-package">
+  <strong>결정: 패키지 이름은 그대로 둔다</strong>
+  모듈이 <code>:feature:emulator:domain</code> 인데 패키지가 <code>jarvis.domain.emulator</code> 라서 순서가 반대다. 기능 우선(<code>jarvis.emulator.domain</code>)으로 바꾸는 안을 검토했지만 버렸다. 파일 117개의 <code>package</code>·<code>import</code> 를 함께 고치면 이 변경의 diff 에서 "무엇이 어디로 옮겨졌는가" 를 읽을 수 없게 된다. 패키지가 이미 모듈마다 유일해서 R9 도 성립한다. 기능을 별도 저장소로 떼어낼 때가 오면 그때 같이 바꾼다.
+  <br><br>
+  Android <code>namespace</code> 는 패키지와 다르게 프로젝트 경로에서 만든다(<code>:feature:emulator:data</code> → <code>io.github.taetae98coding.jarvis.feature.emulator.data</code>). AGP 는 모듈마다 유일한 namespace 만 요구하고, 그 값은 R 클래스 좌표로만 쓰인다.
 </aside>
 
-<h3 id="layers">계층별 규칙</h3>
+<h3 id="feature-module">기능 모듈이 갖는 것</h3>
 
-<dl class="meta">
-  <dt>domain</dt>
-  <dd>아무 API도 부르지 않는다. 상태는 <code>Flow</code>로 받고 정책만 적는다. 예: "설정이 켜져 있고 권한이 허용된 동안에만 시스템 전역 효과를 적용한다"는 <code>ApplySystemScreenAwakeUseCase</code>에 있다. 리포지토리는 인터페이스만 있다.</dd>
+<p>기능 하나는 세 개의 Koin 모듈을 내놓는다. 이름은 <code>&lt;기능&gt;DomainModule</code> · <code>&lt;기능&gt;DataModule</code> · <code>&lt;기능&gt;UiModule</code> 이다.</p>
 
-  <dt>data</dt>
-  <dd>리포지토리를 구현하고 플랫폼 API를 부른다. 모든 <code>expect</code> 선언이 여기 있다. 바깥 세계의 표현(JSON DTO, SharedPreferences 키, <code>adb</code> 출력)은 여기서 도메인 모델로 바꾼다. 도메인 모델에는 <code>@Serializable</code>을 붙이지 않는다.</dd>
+<pre><code>// :feature:emulator:ui — 라우트와 ViewModel 을 자기가 등록한다
+val emulatorUiModule = module {
+    viewModelOf(::EmulatorStatusViewModel)
+    viewModelOf(::EmulatorDevicesViewModel)
+    viewModel { parameters -&gt; EmulatorScreenViewModel(parameters.get(), get(), get(), get()) }
 
-  <dt>ui</dt>
-  <dd>Compose만 부른다. 화면 상태는 <code>JarvisAppState</code>가 유스케이스로부터 만들고, 카드는 값과 콜백만 받는다. 저장·권한·프로세스는 모르고, "권한이 없으면 설정 화면을 연다" 같은 판단도 유스케이스가 한다.</dd>
+    navigation&lt;EmulatorRoute.Devices&gt; { … }
+    navigation&lt;EmulatorRoute.Screen&gt; { route -&gt; … }
 
-  <dt>shared</dt>
-  <dd><code>JarvisContainer</code>가 <code>DataModule</code> → 유스케이스 → <code>JarvisAppState</code>를 잇는다. <code>App()</code>은 컨테이너를 만들어 <code>JarvisApp()</code>에 넘기는 것이 전부다. 기능이 늘면 컨테이너에 줄이 늘 뿐 파일은 늘지 않는다.</dd>
-</dl>
+    // 백스택을 저장할 때 필요한 다형성 등록. 앱 셸이 getAll 로 모은다.
+    navKeySerializers {
+        subclass(EmulatorRoute.Devices::class, EmulatorRoute.Devices.serializer())
+        subclass(EmulatorRoute.Screen::class, EmulatorRoute.Screen.serializer())
+    }
+}</code></pre>
+
+<aside class="decision" id="decision-navkeys">
+  <strong>결정: <code>NavKey</code> 직렬화 등록도 기능이 낸다</strong>
+  <code>rememberNavBackStack</code> 은 <code>polymorphic(NavKey::class)</code> 등록을 요구한다(<a href="navigation.html#backstack">근거</a>). 그 목록을 앱 셸에 두면 화면을 더할 때마다 셸을 고쳐야 하고 R7 이 깨진다. 그래서 <code>:core:ui</code> 가 <code>NavKeySerializers</code> 타입을 정의하고, 기능이 Koin 에 하나씩 등록하고, 앱 셸이 <code>getAll()</code> 로 모아 <code>SavedStateConfiguration</code> 을 만든다. 라우트를 추가하고 등록을 잊으면 그 화면으로 이동할 때 런타임에 죽는 성질은 그대로다.
+</aside>
+
+<aside class="decision" id="decision-home">
+  <strong>결정: <code>HomeViewModel</code> 을 기능별 ViewModel 로 해체한다</strong>
+  홈 화면은 네 기능의 카드를 놓는 자리다. 예전에는 <code>HomeViewModel</code> 하나가 앱 정보·에뮬레이터 개수·화면 꺼짐 방지·회전을 모두 들고 있었는데, 그러면 <code>:app:ui</code> 가 네 기능의 유스케이스를 알아야 해서 R3·R7 이 깨진다. 지금은 카드마다 자기 기능의 ViewModel 을 <code>koinViewModel()</code> 로 직접 받고, <code>FeatureGrid</code> 는 인자 없는 카드 컴포저블 넷을 배치만 한다. 화면 꺼짐 방지의 앱 수명 효과도 <code>:feature:screen:ui</code> 의 <code>Modifier.appScreenAwake()</code> 안으로 들어가 앱 셸이 그 내부를 모른다.
+</aside>
+
+<h3 id="core">core 에 무엇이 남나</h3>
+
+<table>
+  <thead><tr><th>무엇</th><th>어디</th><th>왜 core 인가</th></tr></thead>
+  <tbody>
+    <tr><td><code>PlatformContext</code></td><td><code>:core:data</code></td><td><code>screen</code>·<code>rotation</code>·<code>emulator</code> 의 data 가 모두 받는다. <code>expect</code>/<code>actual</code> 은 한 모듈 안에서만 짝이 맞으므로 이 경계는 협상이 안 된다</td></tr>
+    <tr><td><code>observeSystemState</code> 3종</td><td><code>:core:data</code></td><td>세 기능의 데이터 소스가 같은 <a href="state-observation.html">조회 규칙</a>을 쓴다</td></tr>
+    <tr><td><code>ToggleFeatureCard</code></td><td><code>:core:ui</code></td><td><code>screen</code> 의 카드 둘과 <code>rotation</code> 이 함께 쓴다</td></tr>
+    <tr><td><code>Navigator</code>, <code>LocalNavigator</code></td><td><code>:core:ui</code></td><td>기능이 서로를 모른 채 이동하려면 이동 수단만 공용이어야 한다</td></tr>
+    <tr><td><code>SettingsStore</code></td><td><code>:feature:screen:data</code></td><td><strong>core 가 아니다.</strong> 지금 설정을 저장하는 기능이 <code>screen</code> 하나뿐이다(R4). 두 번째 기능이 쓰게 되면 <code>:core:data</code> 로 올린다</td></tr>
+  </tbody>
+</table>
+
+<h3 id="build-logic">빌드 컨벤션 플러그인</h3>
+
+<p>모듈 16개가 타깃 선언을 반복할 수 없어서 <code>build-logic</code> 포함 빌드를 만든다. 플러그인은 셋이다.</p>
+
+<table>
+  <thead><tr><th>플러그인</th><th>하는 일</th><th>쓰는 곳</th></tr></thead>
+  <tbody>
+    <tr><td><code>jarvis.kmp.library</code></td><td>KMP + AGP KMP 라이브러리, <code>jvmToolchain(21)</code>, 타깃 다섯, 경로에서 만든 namespace, <code>kotlinx-coroutines-core</code>·<code>koin-core</code></td><td>모든 공용 모듈(<code>compose</code> 플러그인이 이것을 적용한다)</td></tr>
+    <tr><td><code>jarvis.kmp.compose</code></td><td>위에 더해 Compose 플러그인, Compose·Koin·Navigation3 의존성, skiko 소스셋 묶음, <code>binaries.executable()</code></td><td><code>ui</code>·<code>:core:ui</code>·<code>:app:ui</code></td></tr>
+    <tr><td><code>jarvis.kmp.test</code></td><td><code>withHostTest</code> 와 테스트 의존성. 테스트가 있는 모듈만 적용한다</td><td>테스트가 있는 모듈</td></tr>
+  </tbody>
+</table>
+
+<aside class="decision" id="decision-build">
+  <strong>결정: 빌드 컨벤션 플러그인을 넣는다 (예전 결정을 뒤집는다)</strong>
+  예전 스펙은 "모듈이 여섯을 넘거나 같은 설정을 세 번째로 복사하게 되면 그때 도입한다" 고 적고 <code>build-logic</code> 을 뺐다. 기능 분리가 그 조건을 넘긴다 — 16개 모듈이 같은 타깃 선언 25줄을 반복하게 된다. 포함 빌드와 버전 카탈로그 연결이 늘리는 고장 지점은 그대로지만, 복사본 16개가 늘리는 고장 지점이 더 크다.
+</aside>
 
 <h3 id="exceptions">계층 규칙의 예외</h3>
 
-<p>플랫폼에 닿는데 <code>:data</code>에 둘 수 없는 것이 둘 있다. 예외를 만드는 대신 감추면 다음 사람이 규칙을 잘못 읽는다.</p>
+<p>플랫폼에 닿는데 <code>data</code> 에 둘 수 없는 것이 하나 있다. 예외를 만드는 대신 감추면 다음 사람이 규칙을 잘못 읽는다.</p>
 
 <table>
   <thead><tr><th>무엇</th><th>어디</th><th>왜 data에 못 두나</th></tr></thead>
   <tbody>
     <tr>
       <td><code>Modifier.keepScreenAwake(enabled)</code></td>
-      <td><code>:ui</code> <code>ui/screen</code></td>
-      <td>Compose의 <code>Modifier.keepScreenOn()</code>이 플랫폼 API를 대신 부른다. Modifier 형태로만 존재하므로 Compose 밖으로 꺼낼 수 없다. 이 modifier가 커버하지 못하는 JVM은 <code>:data</code>의 <code>IdleInhibitor</code>가 맡는다</td>
-    </tr>
-    <tr>
-      <td><code>rememberPlatformContext()</code></td>
-      <td><code>:shared</code></td>
-      <td>Android <code>Context</code>는 <code>LocalContext</code>로만 얻을 수 있다. <code>:data</code>에 Compose를 들이지 않으려고, 컨텍스트를 <code>PlatformContext</code>로 감싸 넘기는 일만 조립 모듈이 한다</td>
+      <td><code>:feature:screen:ui</code></td>
+      <td>Compose의 <code>Modifier.keepScreenOn()</code>이 플랫폼 API를 대신 부른다. Modifier 형태로만 존재하므로 Compose 밖으로 꺼낼 수 없다. 이 modifier가 커버하지 못하는 JVM은 <code>:feature:screen:data</code> 의 <code>IdleInhibitor</code>가 맡는다</td>
     </tr>
   </tbody>
 </table>
 
 <h3 id="context">PlatformContext</h3>
 
-<p><code>:data</code>의 <code>expect class PlatformContext</code>는 플랫폼 핸들을 담는 상자다. Android에서만 <code>Context</code>를 들고 있고 나머지 셋에서는 빈 클래스다. Android 저장소와 시스템 설정 접근이 <code>Context</code>를 요구하는데, 그것을 <code>:data</code>가 전역으로 들고 있게 하지 않으려는 선택이다.</p>
-
-<pre><code>// :data
-expect class PlatformContext
-
-class DataModule(context: PlatformContext, scope: CoroutineScope) { … }
-
-// :shared
-@Composable
-internal expect fun rememberPlatformContext(): PlatformContext</code></pre>
+<p><code>:core:data</code> 의 <code>expect class PlatformContext</code> 는 플랫폼 핸들을 담는 상자다. Android에서만 <code>Context</code>를 들고 있고 나머지 셋에서는 빈 클래스다. Android 저장소와 시스템 설정 접근이 <code>Context</code>를 요구하는데, 그것을 <code>data</code> 가 전역으로 들고 있게 하지 않으려는 선택이다. 값은 진입점이 만들어 <code>:shared</code> 의 <code>platformModule</code> 이 Koin 에 등록하고, 각 기능의 data 모듈이 <code>get()</code> 으로 받는다.</p>
 
 <aside class="decision">
   <strong>결정: 전역 <code>Context</code> 대신 <code>PlatformContext</code>를 넘긴다</strong>
-  <code>androidx.startup</code>이나 <code>ContentProvider</code>로 애플리케이션 컨텍스트를 몰래 잡아 두는 방법도 있다. 의존성이 늘고, <code>:data</code>가 초기화 순서에 의존하게 되고, 테스트에서 갈아끼울 수 없어서 버렸다. 지금은 컨텍스트가 필요한 곳이 생성자 하나뿐이라 무엇이 무엇을 요구하는지 코드에 드러난다.
-</aside>
-
-<aside class="decision" id="decision-build">
-  <strong>결정: 빌드 컨벤션 플러그인을 넣지 않는다</strong>
-  모듈 넷이 타깃 선언(android/jvm/ios/wasmJs)을 각자 반복한다. <code>build-logic</code> 포함 빌드로 묶는 안을 검토했지만, 실제로 겹치는 것은 20줄 남짓이고 모듈마다 다른 부분(iOS 프레임워크는 <code>:shared</code>만, <code>binaries.executable()</code>은 <code>:ui</code>와 <code>:webApp</code>만, 직렬화는 <code>:data</code>만, Compose는 <code>:ui</code>·<code>:shared</code>만)이 그보다 많다. 포함 빌드와 버전 카탈로그 연결이 늘리는 고장 지점이 지금은 이득보다 크다. 모듈이 여섯을 넘거나 같은 설정을 세 번째로 복사하게 되면 그때 도입한다.
+  <code>androidx.startup</code>이나 <code>ContentProvider</code>로 애플리케이션 컨텍스트를 몰래 잡아 두는 방법도 있다. 의존성이 늘고, <code>data</code> 가 초기화 순서에 의존하게 되고, 테스트에서 갈아끼울 수 없어서 버렸다. 컨텍스트를 요구하는 것은 <code>PlatformContext</code>를 받는 Koin 정의들뿐이고, 그 값은 <code>MainActivity</code>가 <code>startJarvisKoin(applicationContext)</code>로 명시적으로 넘긴다.
 </aside>
 
 <h3 id="visibility">가시성</h3>
 
-<p>모듈이 갈리면서 <code>internal</code>의 범위가 모듈 경계로 줄었다. 경계를 넘는 것만 <code>public</code>으로 올린다.</p>
+<p>모듈이 많아지면서 <code>internal</code> 의 범위가 기능 경계로 줄었다. 경계를 넘는 것만 <code>public</code> 으로 올린다.</p>
 
 <table>
   <thead><tr><th>모듈</th><th><code>public</code></th><th><code>internal</code></th></tr></thead>
   <tbody>
-    <tr><td><code>:domain</code></td><td>모델, 리포지토리 인터페이스, 유스케이스</td><td>없음</td></tr>
-    <tr><td><code>:data</code></td><td><code>DataModule</code>, <code>PlatformContext</code>, <code>startEmulatorHostAgent()</code></td><td>리포지토리 구현, 데이터 소스, DTO, <code>SettingsStore</code>, <code>expect</code> 선언</td></tr>
-    <tr><td><code>:ui</code></td><td><code>JarvisApp()</code>, <code>JarvisAppState</code></td><td>카드, 그리드, 테스트 태그</td></tr>
-    <tr><td><code>:shared</code></td><td><code>App()</code>, <code>MainViewController()</code>, <code>startEmulatorHostAgent()</code></td><td><code>JarvisContainer</code>, <code>rememberPlatformContext()</code></td></tr>
+    <tr><td><code>domain</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, Koin 모듈</td><td>없음</td></tr>
+    <tr><td><code>data</code></td><td>Koin 모듈, <code>emulator</code> 만 추가로 <code>startEmulatorHostAgent()</code></td><td>리포지토리 구현, 데이터 소스, DTO, <code>expect</code> 선언</td></tr>
+    <tr><td><code>ui</code></td><td>카드·화면 진입 컴포저블, Koin 모듈</td><td>ViewModel, 라우트, 테스트 태그</td></tr>
+    <tr><td><code>:core:data</code></td><td><code>PlatformContext</code>, 조회 규칙 3종</td><td>없음</td></tr>
+    <tr><td><code>:core:ui</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>, <code>LocalNavigator</code>, <code>NavKeySerializers</code></td><td>없음</td></tr>
+    <tr><td><code>:app:ui</code></td><td><code>JarvisApp()</code>, <code>appUiModule</code></td><td>Home 라우트·화면, <code>FeatureGrid</code></td></tr>
+    <tr><td><code>:shared</code></td><td><code>App()</code>, <code>startJarvisKoin()</code>, <code>MainViewController()</code>, <code>startEmulatorHostAgent()</code></td><td><code>platformModule()</code>, <code>jarvisModules()</code></td></tr>
   </tbody>
 </table>
+
+<p>기능의 ViewModel 이 <code>internal</code> 인 것이 <a href="#decision-home">홈 해체</a>의 결과다. 카드는 인자 없는 컴포저블이고 ViewModel 은 그 안에서만 보인다.</p>
 
 <h2 id="platforms">플랫폼별 판정</h2>
 
 <table>
   <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
   <tbody>
-    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>네 모듈이 각각 <code>com.android.kotlin.multiplatform.library</code>를 쓰고 namespace를 따로 갖는다. <code>Context</code>는 <code>PlatformContext</code>로 감싸 <code>:data</code>에 넘긴다</td><td><a href="../platform/android.html#module-architecture">android.html</a></td></tr>
-    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>프레임워크는 <code>:shared</code>만 만든다. 정적 프레임워크가 의존 klib을 모두 링크하므로 <code>export()</code> 없이도 동작한다</td><td><a href="../platform/ios.html#module-architecture">ios.html</a></td></tr>
-    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>호스트 에이전트는 <code>:data</code>의 <code>jvmMain</code>에 있고 <code>:shared</code>가 데스크톱 앱에 재노출한다</td><td><a href="../platform/jvm.html#module-architecture">jvm.html</a></td></tr>
-    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>모듈마다 <code>wasmJs { browser() }</code>를 선언한다. Compose 를 쓰는 모듈은 <code>binaries.executable()</code>도 요구된다</td><td><a href="../platform/web.html#module-architecture">web.html</a></td></tr>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>모듈마다 <code>com.android.kotlin.multiplatform.library</code> 와 유일한 namespace. 컨벤션 플러그인이 프로젝트 경로에서 namespace 를 만든다</td><td><a href="../platform/android.html#module-architecture">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>프레임워크는 <code>:shared</code> 만 만든다. 정적 프레임워크가 모든 모듈의 klib 을 링크하므로 모듈이 늘어도 Xcode 설정은 그대로다</td><td><a href="../platform/ios.html#module-architecture">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>호스트 에이전트는 <code>:feature:emulator:data</code> 의 <code>jvmMain</code> 에 있고 <code>:shared</code> 가 데스크톱 앱에 재노출한다</td><td><a href="../platform/jvm.html#module-architecture">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>컨벤션 플러그인이 모든 모듈에 <code>wasmJs { browser() }</code> 를 선언하고, Compose 를 쓰는 모듈에는 <code>binaries.executable()</code> 도 넣는다</td><td><a href="../platform/web.html#module-architecture">web.html</a></td></tr>
   </tbody>
 </table>
 
 <h2 id="verification">검증</h2>
 
-<p>구조 자체를 검증하는 테스트는 없다. 대신 분리 전 테스트가 전부 새 모듈로 옮겨 가 같은 것을 검증하고(R7), 의존 방향(R2)은 Gradle이 컴파일 단계에서 강제한다.</p>
+<p>구조 자체를 검증하는 테스트는 없다. 대신 분리 전 테스트가 전부 새 모듈로 옮겨 가 같은 것을 검증하고(R10), 의존 방향(R2·R3)은 Gradle 이 컴파일 단계에서 강제한다.</p>
 
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>./gradlew build</code></td><td>R1, R2. 모듈 그래프가 성립하고 네 타깃이 모두 컴파일된다</td><td>—</td></tr>
-    <tr><td><code>:domain:allTests</code> — 유스케이스 테스트</td><td>R3, R7. 도메인 규칙이 Compose·플랫폼 없이 검증된다</td><td><code>commonTest</code></td></tr>
-    <tr><td><code>:data:allTests</code> — <code>ScreenAwakeSettingsRepositoryTest</code>, <code>HostAgentTest</code>, <code>ObserveSystemStateTest</code>, <code>PlatformNameTest</code></td><td>R4, R7. 저장·와이어 포맷·조회 규칙</td><td><code>commonTest</code>, <code>jvmTest</code></td></tr>
-    <tr><td><code>:ui:allTests</code> — <code>JarvisAppTest</code></td><td>R5, R7. 화면이 가짜 리포지토리만으로 렌더링되고 토글이 동작한다</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>./gradlew build</code></td><td>R1, R2, R3, R11. 모듈 그래프가 성립하고 다섯 타깃이 모두 컴파일된다</td><td>—</td></tr>
+    <tr><td><code>:feature:*:domain:allTests</code> — 유스케이스 테스트</td><td>R5, R10. 도메인 규칙이 Compose·플랫폼 없이 검증된다</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>:feature:*:data:allTests</code>, <code>:core:data:allTests</code></td><td>R5, R10. 저장·와이어 포맷·조회 규칙</td><td><code>commonTest</code>, <code>jvmTest</code></td></tr>
+    <tr><td><code>:app:ui:allTests</code> — <code>JarvisAppTest</code></td><td>R6, R7, R10. 네 기능의 가짜 리포지토리만 끼운 Koin 으로 앱이 그려지고 이동·토글·제스처가 그대로 동작한다</td><td><code>skikoTest</code>, <code>jvmTest</code></td></tr>
+    <tr><td><code>:shared:jvmTest</code> — <code>JarvisKoinTest</code></td><td>R6, R8. 기능들의 Koin 모듈을 합친 그래프가 모든 정의를 해석한다</td><td><code>jvmTest</code></td></tr>
   </tbody>
 </table>
 
-<p><code>:ui</code>의 UI 테스트가 가짜 <em>리포지토리</em>로 도는 것 자체가 R5의 증거다. <code>:ui</code>가 <code>:data</code>를 봐야 했다면 이 테스트는 플랫폼 저장소 없이는 컴파일되지 않았을 것이다.</p>
+<p><code>:app:ui</code> 의 화면 테스트가 가짜 <em>리포지토리</em>로 도는 것 자체가 R2 의 증거다. 화면이 저장소를 봐야 했다면 이 테스트는 플랫폼 저장소 없이는 컴파일되지 않았을 것이다.</p>
 
 <h2 id="limits">한계</h2>
 
 <ul>
-  <li><code>expect</code>/<code>actual</code>은 한 모듈 안에서만 짝이 맞는다. 그래서 플랫폼 구현이 필요한 기능은 반드시 <code>:data</code>(또는 <code>:shared</code>)를 거친다. <code>:ui</code>에 플랫폼 분기가 필요한 경우는 <a href="#exceptions">예외 표</a>의 둘뿐이고, 늘어난다면 규칙이 아니라 이 표를 고쳐야 한다.</li>
-  <li>모듈 경계를 넘는 선언은 <code>public</code>이 된다. <code>:data</code>의 <code>DataModule</code>은 앱 코드에서도 보인다. Kotlin에 "이 모듈에게만 공개"가 없어서 규약으로만 막는다.</li>
-  <li>빌드 파일이 넷으로 늘어 타깃 선언이 반복된다. <a href="#decision-build">결정</a>에 적은 조건이 되면 컨벤션 플러그인으로 걷어낸다.</li>
-  <li>모듈 경계를 넘는 테스트가 없다. 실제 플랫폼 저장소와 화면을 함께 도는 테스트는 분리 전에도 없었고(<a href="index.html#limit-store-untested">공통 한계</a>) 지금도 없다. <code>:shared</code>의 조립이 틀리면 컴파일은 통과하고 앱에서만 드러난다.</li>
+  <li>화면 테스트 전부(<code>JarvisAppTest</code> 34개와 가짜 리포지토리·픽스처)가 <code>:app:ui</code> 에 모여 있다. 앱 조립을 통째로 띄우는 테스트라 기능 모듈에 둘 자리가 없고, KMP 에는 테스트 코드를 모듈 사이에 공유하는 깔끔한 수단이 없다. 기능 단위 화면 테스트가 필요해지면 기능 모듈마다 가짜를 다시 만들거나 테스트 전용 모듈을 만들어야 한다.</li>
+  <li>기능 모듈 자체에는 아직 화면 테스트가 없다. 기능의 ViewModel 규칙을 보는 테스트(<code>EmulatorDevicesViewModelTest</code>)도 픽스처 때문에 <code>:app:ui</code> 의 <code>jvmTest</code> 에 있다.</li>
+  <li>모듈이 16개라 콜드 빌드 태스크 수가 세 배 남짓 늘었다. 증분 빌드와 병렬성은 좋아지지만 CI 의 첫 빌드는 느려진다.</li>
+  <li><code>expect</code>/<code>actual</code> 은 한 모듈 안에서만 짝이 맞는다. 그래서 플랫폼 구현이 필요한 기능은 반드시 자기 <code>data</code> 모듈(또는 <code>:core:data</code>)을 거친다.</li>
+  <li>모듈 경계를 넘는 선언은 <code>public</code> 이 된다. 기능의 Koin 모듈은 앱 코드에서도 보인다. Kotlin 에 "이 모듈에게만 공개" 가 없어서 규약으로만 막는다.</li>
+  <li>패키지 순서가 모듈 순서와 반대다(<a href="#decision-package">결정</a>). IDE 의 프로젝트 트리와 패키지 트리가 다르게 보인다.</li>
 </ul>
 
 <footer class="page">

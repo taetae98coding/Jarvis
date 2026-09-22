@@ -16,7 +16,7 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>:desktopApp</code> + <code>:shared</code> → <code>:ui</code> · <code>:data</code> · <code>:domain</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
+  <dt>모듈</dt><dd><code>:desktopApp</code> + <code>:shared</code> → <code>:app:ui</code> → 기능 모듈 열둘 + <code>:core:*</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
   <dt>Kotlin 타깃</dt><dd><code>jvm()</code></dd>
   <dt>Java toolchain</dt><dd>21</dd>
   <dt>진입점</dt><dd><code>io.github.taetae98coding.jarvis.desktop.MainKt</code> — 900 × 640 dp 창</dd>
@@ -28,6 +28,10 @@
   <strong>차례</strong>
   <ol>
     <li><a href="#module-architecture">모듈 구조</a></li>
+    <li><a href="#dependency-injection">의존성 주입</a></li>
+    <li><a href="#view-model">화면 상태 소유 (ViewModel)</a></li>
+    <li><a href="#navigation">화면 이동 (Navigation3)</a></li>
+    <li><a href="#retained-state">재생성을 넘기는 상태 (retain)</a></li>
     <li><a href="#app-info">앱 정보</a></li>
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
@@ -52,29 +56,155 @@
 <table>
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
-    <tr><td>호스트 에이전트를 <code>:data</code>의 <code>jvmMain</code>에 둔다</td><td>채택. <code>com.sun.net.httpserver</code>와 SDK 도구 실행은 바깥 세계에 닿는 일이라 data 계층이다. <code>:desktopApp</code>은 <code>:shared</code>가 재노출한 <code>startEmulatorHostAgent()</code>만 부른다</td></tr>
-    <tr><td><code>:desktopApp</code>이 <code>:data</code>를 직접 의존</td><td>버렸다. 앱 모듈이 조립 모듈 하나만 알게 두면, 데이터 계층 API가 바뀌어도 앱 진입점은 고치지 않는다. 대가는 <code>:shared</code>의 재노출 한 줄이다</td></tr>
-    <tr><td>에뮬레이터 폴링 Flow의 위치</td><td><code>:data</code>의 <code>jvmMain</code> 최상위 <code>val</code>(프로세스 싱글턴)로 둔다. 데스크톱 UI의 리포지토리와 로컬 에이전트가 같은 <code>shareIn</code> Flow를 구독해야 <code>adb</code>·<code>simctl</code>이 5초마다 한 번만 돈다. 에이전트는 <code>DataModule</code>을 거치지 않고 이 데이터 소스를 직접 구독한다</td></tr>
-    <tr><td><code>compose.desktop.currentOs</code></td><td><code>:desktopApp</code>과 <code>:ui</code>의 <code>jvmTest</code>에만 넣는다. <code>:data</code>·<code>:domain</code>은 Skiko 네이티브 런타임이 필요 없다</td></tr>
-    <tr><td><code>jvmToolchain(21)</code></td><td>네 모듈과 <code>:desktopApp</code>에 각각 선언한다. 툴체인은 모듈 단위 설정이라 상속되지 않는다</td></tr>
+    <tr><td>호스트 에이전트를 <code>:feature:emulator:data</code>의 <code>jvmMain</code>에 둔다</td><td>채택. <code>com.sun.net.httpserver</code>와 SDK 도구 실행은 바깥 세계에 닿는 일이라 data 계층이고, 에뮬레이터 기능의 일부다. <code>:desktopApp</code>은 <code>:shared</code>가 재노출한 <code>startEmulatorHostAgent()</code>만 부른다</td></tr>
+    <tr><td><code>:desktopApp</code>이 기능 모듈을 직접 의존</td><td>버렸다. 앱 모듈이 <code>:shared</code> 하나만 알게 두면, 기능 모듈이 늘거나 이름이 바뀌어도 앱 진입점은 고치지 않는다. 대가는 <code>:shared</code>의 재노출 한 줄이다</td></tr>
+    <tr><td>에뮬레이터 폴링 Flow의 위치</td><td><code>:feature:emulator:data</code>의 <code>jvmMain</code> 최상위 <code>val</code>(프로세스 싱글턴)로 둔다. 데스크톱 UI의 리포지토리와 로컬 에이전트가 같은 <code>shareIn</code> Flow를 구독해야 <code>adb</code>·<code>simctl</code>이 5초마다 한 번만 돈다. 에이전트는 Koin(<code>emulatorDataModule</code>)을 거치지 않고 이 데이터 소스를 직접 구독한다</td></tr>
+    <tr><td><code>compose.desktop.currentOs</code></td><td><code>:desktopApp</code>과 <code>:app:ui</code>의 <code>jvmTest</code>에만 넣는다. 기능의 <code>ui</code> 모듈에는 Skiko 화면 테스트가 없고, <code>data</code>·<code>domain</code>은 Skiko 네이티브 런타임이 필요 없다</td></tr>
+    <tr><td><code>jvmToolchain(21)</code></td><td>컨벤션 플러그인 <code>jarvis.kmp.library</code>가 선언한다. 툴체인은 모듈 단위 설정이라 상속되지 않으므로, 모듈 열여섯이 각자 적는 것을 피하려면 플러그인이 유일한 방법이다. <code>:desktopApp</code>은 KMP 모듈이 아니라 자기 빌드 파일에 남아 있다</td></tr>
+    <tr><td><code>kotlinx-coroutines-swing</code></td><td><code>:shared</code>의 <code>jvmMain</code>에 넣는다. 앱 수명 스코프가 <code>Dispatchers.Main</code>이고 JVM 에서 그 디스패처는 이 아티팩트가 있어야 존재한다. Compose Desktop 이 데려온다고 보고 넣지 않았다가 앱이 첫 리포지토리를 만드는 순간 죽었다(<a href="#dependency-injection">의존성 주입</a>)</td></tr>
   </tbody>
 </table>
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code>, <code>shared/src/jvmMain/.../EmulatorHostAgent.kt</code>, <code>shared/src/jvmMain/.../PlatformContext.jvm.kt</code></dd>
-  <dt>동작</dt><dd><code>:shared</code>의 <code>startEmulatorHostAgent()</code>가 <code>:data</code>의 같은 이름 함수를 부른다. <code>main()</code>은 분리 전과 똑같이 <code>startEmulatorHostAgent().use { application { … } }</code></dd>
-  <dt>실패</dt><dd>포트가 이미 쓰이면 조용히 no-op. 분리 전과 같다</dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code>, <code>shared/src/jvmMain/.../EmulatorHostAgent.kt</code>, <code>shared/src/jvmMain/.../JarvisKoin.jvm.kt</code></dd>
+  <dt>동작</dt><dd><code>:shared</code>의 <code>startEmulatorHostAgent()</code>가 <code>:feature:emulator:data</code>의 같은 이름 함수를 부른다. <code>main()</code>은 <code>startEmulatorHostAgent().use { startJarvisKoin(); application { … } }</code></dd>
+  <dt>실패</dt><dd>포트가 이미 쓰이면 조용히 no-op. 기능 분리 전과 같다</dd>
 </dl>
 
 <h3>한계</h3>
 <ul>
-  <li>에이전트는 조립을 거치지 않고 <code>:data</code>의 데이터 소스를 직접 구독한다. 그래서 <code>main()</code>이 <code>App()</code>보다 먼저 에이전트를 띄울 수 있지만, 개수를 세는 경로가 컨테이너 밖에도 하나 있다는 뜻이기도 하다. 에뮬레이터 데이터 소스가 <code>PlatformContext</code>나 다른 상태를 요구하게 되면 이 경로부터 깨진다.</li>
-  <li><code>:shared</code>의 재노출 함수는 <code>:data</code>의 시그니처를 그대로 베낀다. 시그니처가 바뀌면 두 곳을 고쳐야 한다.</li>
+  <li>에이전트는 Koin 을 거치지 않고 데이터 소스를 직접 구독한다. 그래서 <code>main()</code>이 화면보다 먼저 에이전트를 띄울 수 있지만, 개수를 세는 경로가 주입 그래프 밖에도 하나 있다는 뜻이기도 하다. 에뮬레이터 데이터 소스가 <code>PlatformContext</code>나 다른 상태를 요구하게 되면 이 경로부터 깨진다.</li>
+  <li><code>:shared</code>의 재노출 함수는 <code>:feature:emulator:data</code>의 시그니처를 그대로 베낀다. 시그니처가 바뀌면 두 곳을 고쳐야 한다.</li>
 </ul>
 
 <h3>검증</h3>
-<p><code>./gradlew :domain:jvmTest :data:jvmTest :ui:jvmTest</code>. 에이전트 서버 테스트(<code>HostAgentServerTest</code>)는 <code>:data:jvmTest</code>에 있고, Skiko 화면이 필요한 UI 테스트는 <code>:ui:jvmTest</code>에 있다.</p>
+<p><code>./gradlew jvmTest</code>. 에이전트 서버 테스트(<code>HostAgentServerTest</code>)는 <code>:feature:emulator:data:jvmTest</code>, ViewModel 상태 테스트는 <code>:feature:emulator:ui:jvmTest</code>, Skiko 화면이 필요한 UI 테스트는 <code>:app:ui:jvmTest</code>, Koin 해석 테스트는 <code>:shared:jvmTest</code>에 있다.</p>
+</section>
+
+
+<section class="feature" id="dependency-injection">
+<h2>의존성 주입 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/dependency-injection.html">의존성 주입</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>main()</code>에서 <code>startJarvisKoin()</code></td><td>채택. 호스트 에이전트를 띄운 뒤, <code>application { }</code> 앞에서 시작한다. <code>PlatformContext</code>는 빈 상자다</td></tr>
+    <tr><td>앱 수명 <code>CoroutineScope</code>의 디스패처</td><td><code>Dispatchers.Main</code>을 쓴다. 예전에 리포지토리에 넘기던 스코프도 컴포지션의 <code>rememberCoroutineScope()</code>(EDT)였으므로 스레드가 바뀌지 않는다. 단 이 디스패처는 JVM 에서 <code>kotlinx-coroutines-swing</code>이 클래스패스에 있을 때만 존재한다. <strong>Compose Desktop 은 그것을 데려오지 않는다</strong> — 처음에 그렇게 보고 넣지 않았다가 앱이 첫 리포지토리를 만드는 순간 <code>Dispatchers.Main[missing]</code>으로 죽었다. 그래서 <code>:shared</code>의 <code>jvmMain</code>이 직접 선언한다</td></tr>
+    <tr><td><code>Dispatchers.Default</code>로 앱 스코프 구성</td><td>버렸다. Swing 이 없는 환경에서도 도는 장점이 있지만, 기기 목록·회전·설정 저장이 도는 스레드가 플랫폼마다 달라진다. iOS 는 UIKit 호출 때문에 메인이어야 해서 어차피 <code>Main</code>이 필요하다</td></tr>
+    <tr><td>호스트 에이전트를 Koin 에서 꺼내기</td><td>버렸다. 에이전트는 <a href="#emulator">에뮬레이터 데이터 소스</a>를 직접 구독한다. 그 데이터 소스는 <code>:feature:emulator:data</code> <code>jvmMain</code>의 프로세스 싱글턴이고, 조립을 거치지 않는다는 기존 결정을 그대로 둔다. 에이전트가 Koin 을 요구하면 시작 순서가 뒤엉킨다(에이전트 → Koin → 데이터 소스 → 에이전트)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>desktopApp/src/main/.../main.kt</code>, <code>shared/src/jvmMain/.../JarvisKoin.jvm.kt</code></dd>
+  <dt>동작</dt><dd><code>startEmulatorHostAgent().use { startJarvisKoin(); application { Window { JarvisApp() } } }</code> 순서다. 에이전트가 먼저 떠서 다른 타깃이 개수를 물어볼 수 있고, Koin 은 첫 화면보다 먼저 선다</dd>
+  <dt>실패</dt><dd>정의가 빠져 있으면 창이 뜨기 전에 예외로 종료된다. 로그는 표준 출력에 남는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>앱 수명 스코프가 <code>Dispatchers.Main</code>이라 기능의 <code>data</code> 모듈을 Swing 없는 JVM 프로그램(예: 헤드리스 CLI)에서 재사용하려면 <code>kotlinx-coroutines-swing</code>을 넣거나 스코프를 직접 넘겨야 한다. 그 모듈들의 테스트는 자기 스코프를 만들어 쓰므로 영향이 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:shared</code>의 <code>jvmTest</code>(<code>JarvisKoinTest</code>)가 네 모듈을 실제로 시작해 정의를 전부 해석하고, 리포지토리가 싱글턴인지와 시작이 두 번 불려도 안전한지를 본다. 이 테스트가 도는 곳이 JVM 뿐이라는 것이 <a href="../common/dependency-injection.html#limits">공통 한계</a>에 적혀 있다.</p>
+</section>
+
+<section class="feature" id="view-model">
+<h2>화면 상태 소유 (ViewModel) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/view-model.html">화면 상태 소유 (ViewModel)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Compose Multiplatform 의 기본 owner</td><td>채택. <code>compose-ui</code>의 skiko 소스셋에 <code>findComposeDefaultViewModelStoreOwner()</code>가 있고 <code>Window { }</code> 컴포지션이 그것을 제공한다. 창마다 store 가 하나다</td></tr>
+    <tr><td><code>viewModelScope</code>의 디스패처</td><td><code>Dispatchers.Main.immediate</code> — 데스크톱에서는 Swing EDT 다. 화면 상태를 만드는 코루틴이 EDT 에서 돌지만, 무거운 일(<code>adb</code> 실행, 파일 읽기)은 기능의 <code>data</code> 모듈이 자기 디스패처로 옮긴다</td></tr>
+    <tr><td>테스트에서 <code>Dispatchers.setMain</code></td><td>채택. <code>:feature:emulator:ui</code>의 <code>jvmTest</code>에서 ViewModel 상태 규칙을 <code>runTest</code>로 검증한다. Wasm 에서는 같은 방법을 쓸 수 없어서 이 테스트가 JVM 에만 있다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. JVM 전용 코드는 없다</dd>
+  <dt>동작</dt><dd>창을 닫으면 컴포지션이 사라지고 <code>ViewModelStore</code>가 비워진다. 그때 <code>ScreenAwakeEffectViewModel</code>의 <code>viewModelScope</code>가 취소되고 <a href="#keep-screen-awake"><code>caffeinate</code></a>도 함께 종료된다</dd>
+  <dt>실패</dt><dd>없다. owner 가 항상 제공된다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>프로세스를 강제로 죽이면(<code>kill -9</code>) <code>onCleared()</code>가 돌지 못해 <code>caffeinate</code> 자식 프로세스가 남는다. <code>LaunchedEffect</code>로 효과를 걸던 예전에도 같았다.</li>
+  <li>창을 여러 개 띄우면 창마다 ViewModel 이 따로 생긴다. 지금 <code>main()</code>은 창을 하나만 만든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:emulator:ui:jvmTest</code>의 <code>EmulatorDevicesViewModelTest</code>와 <code>:app:ui:jvmTest</code>의 skiko UI 테스트(<code>JarvisAppTest</code>)가 함께 본다. 데스크톱은 이 프로젝트에서 UI 테스트가 가장 빠르게 도는 타깃이다.</p>
+</section>
+
+<section class="feature" id="navigation">
+<h2>화면 이동 (Navigation3) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/navigation.html">화면 이동 (Navigation3)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>NavDisplay</code>(JetBrains <code>navigation3-ui</code>의 desktop 변형)</td><td>채택. <code>navigation3-ui-desktop</code>과 androidx 의 <code>navigation3-runtime-desktop</code>이 모두 퍼블리시된다</td></tr>
+    <tr><td>시스템 뒤로</td><td>없다. macOS 창에 "뒤로"라는 입력 자체가 없다. <code>NavDisplay</code>의 <code>onBack</code>은 앱 안의 버튼만 부른다</td></tr>
+    <tr><td>키보드 단축키(Esc, <kbd>⌘</kbd>+<kbd>[</kbd>)로 뒤로</td><td>버렸다. 새 동작이라 공통 스펙의 요구사항에 없다. 붙이려면 네 플랫폼의 키 조합을 같은 스펙에서 정해야 한다</td></tr>
+    <tr><td>백스택 저장·복원</td><td>저장은 되지만 복원 경로가 없다. 데스크톱 앱은 프로세스가 죽으면 컴포지션 저장 상태도 함께 사라진다. 창 크기 변경은 컴포지션을 다시 만들지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. JVM 전용 코드는 없다</dd>
+  <dt>동작</dt><dd>"← 뒤로"가 백스택을 한 칸 줄인다. 홈에서는 버튼이 없다</dd>
+  <dt>실패</dt><dd>없다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>앱을 껐다 켜면 항상 홈에서 시작한다.</li>
+  <li>OS 수준 뒤로가 없어 뒤로 경로가 화면 안의 버튼 하나뿐이다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui:jvmTest</code>의 <code>JarvisAppTest.emulatorCardOpensDeviceList</code>·<code>runningDeviceOpensStreamScreen</code>·<code>backReturnsToListThenGrid</code>가 이동 전체 경로를 본다.</p>
+</section>
+
+<section class="feature" id="retained-state">
+<h2>재생성을 넘기는 상태 (retain) <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/retained-state.html">재생성을 넘기는 상태 (retain)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>retain</code> + 플랫폼이 제공하는 <code>RetainedValuesStore</code></td><td>저장소가 없다. <code>runtime-retain</code>의 desktop 변형은 있지만 skiko 쪽 <code>compose-ui</code>에 Android 의 <code>LifecycleRetainedValuesStore</code>에 해당하는 구현이 없다. 기본값 <code>ForgetfulRetainedValuesStore</code>가 쓰인다</td></tr>
+    <tr><td>재생성 경로 자체</td><td>없다. 창 크기·화면 전환·테마 변경이 컴포지션을 다시 만들지 않는다. 보관할 구간이 없다</td></tr>
+    <tr><td>핫 리로드(<code>compose-hot-reload</code>)</td><td>해당 없음. 이 프로젝트는 핫 리로드 플러그인을 쓰지 않는다. 쓰게 되면 리로드 구간이 <code>retain</code>이 의미를 갖는 첫 데스크톱 경로가 될 수 있다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공용이다. JVM 전용 코드는 없다</dd>
+  <dt>동작</dt><dd><code>retain</code>은 <code>remember</code>와 같게 동작한다</dd>
+  <dt>실패</dt><dd>없다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>보관이 일어나지 않으므로 이 플랫폼에서 <code>retain</code>과 <code>remember</code>의 차이를 관찰할 수 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui:jvmTest</code>의 skiko UI 테스트가 <code>retain</code>으로 들고 있는 프레임으로 제스처 좌표 변환까지 확인한다. 보관 여부는 확인 대상이 아니다.</p>
 </section>
 
 <section class="feature" id="app-info">
@@ -113,7 +243,7 @@
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/jvmMain/.../screen/IdleInhibitor.jvm.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/screen/data/src/jvmMain/.../screen/IdleInhibitor.jvm.kt</code></dd>
   <dt>훅</dt><dd><code>createIdleInhibitor()</code>의 JVM actual만 본문이 있다</dd>
   <dt>동작</dt><dd><code>setKeepScreenAwake(true)</code>면 <code>ProcessBuilder("caffeinate", "-di").start()</code>, <code>false</code>거나 화면이 사라져 <code>ApplyKeepScreenAwakeUseCase</code>가 취소되면 <code>process.destroy()</code></dd>
   <dt>정리</dt><dd>프로세스를 띄울 때 <code>Runtime.addShutdownHook</code>도 함께 건다. 자식 프로세스는 JVM이 죽어도 살아남으므로, 앱이 없는데 화면이 계속 켜져 있는 상태를 막는다. 토글을 끌 때는 훅을 떼고 죽인다</dd>
@@ -176,7 +306,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/jvmMain/.../settings/SettingsStore.jvm.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/screen/data/src/jvmMain/.../settings/SettingsStore.jvm.kt</code></dd>
   <dt>노드</dt><dd><code>Preferences.userRoot().node("io/github/taetae98coding/jarvis")</code></dd>
   <dt>변경 감지</dt><dd><code>addPreferenceChangeListener</code>를 <code>callbackFlow</code>로 감싼다</dd>
 </dl>
@@ -241,7 +371,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/Emulator.jvm.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/Emulator.jvm.kt</code></dd>
   <dt>주기</dt><dd><code>observeByPolling(interval = 5.seconds)</code>. 5초마다 다시 세고 바뀐 결과만 흘려보낸다. <a href="#state-observation">상태 조회 규칙</a> 참고</dd>
   <dt>공유</dt><dd><code>shareIn(WhileSubscribed(), replay = 1)</code>. UI와 에이전트가 같은 값을 본다</dd>
   <dt>스레드</dt><dd><code>withContext(Dispatchers.IO)</code>. UI를 막지 않는다</dd>
@@ -257,7 +387,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h4>로컬 에이전트</h4>
 <p>세어 둔 값을 같은 머신의 다른 타깃에 넘겨준다. 개수를 셀 수 있는 타깃이 여기뿐이라, <a href="../common/emulator-count.html#agent">공통 스펙의 에이전트</a>를 이 문서가 구현한다.</p>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code></dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code></dd>
   <dt>서버</dt><dd>JDK 내장 <code>com.sun.net.httpserver.HttpServer</code>. 의존성을 더하지 않는다</dd>
   <dt>수명</dt><dd><code>startEmulatorHostAgent()</code>를 <code>desktopApp</code>의 <code>main()</code>이 <code>use {}</code>로 감싼다. 창을 닫으면 닫힌다</dd>
   <dt>바인딩</dt><dd><code>InetAddress.getLoopbackAddress()</code>. 에뮬레이터의 <code>10.0.2.2</code>와 <code>adb reverse</code>는 호스트 루프백으로 들어오므로 충분하고, LAN에는 열리지 않는다</dd>
@@ -303,7 +433,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>대체 동작</h3>
 <dl class="meta">
-  <dt>파일</dt><dd>없다. <code>data/src/jvmMain/.../rotation/DeviceRotation.jvm.kt</code>가 <code>UnsupportedDeviceRotationDataSource</code>를 돌려준다</dd>
+  <dt>파일</dt><dd>없다. <code>feature/rotation/data/src/jvmMain/.../rotation/DeviceRotation.jvm.kt</code>가 <code>UnsupportedDeviceRotationDataSource</code>를 돌려준다</dd>
   <dt>동작</dt><dd><code>supported = false</code>, 각도는 <code>null</code>. 카드는 같은 자리에 남고 컨트롤이 전부 잠긴다. 설명에 "이 플랫폼에서는 화면을 돌릴 수 없습니다."가 나온다</dd>
   <dt>실패</dt><dd>해당 없음. 부를 플랫폼 API가 없어 예외가 날 자리도 없다</dd>
 </dl>
@@ -316,7 +446,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 </ul>
 
 <h3>검증</h3>
-<p><code>JarvisAppTest.deviceRotationIsLockedWhereItIsNotSupported</code>가 <code>:ui</code> <code>jvmTest</code>에서 돈다. 이 타깃의 실제 판정(지원하지 않음)과 테스트가 쓰는 가짜 상태의 기본값이 같아서, JVM에서는 이 테스트가 실제 동작을 그대로 검증한다.</p>
+<p><code>JarvisAppTest.deviceRotationIsLockedWhereItIsNotSupported</code>가 <code>:app:ui</code> <code>jvmTest</code>에서 돈다. 이 타깃의 실제 판정(지원하지 않음)과 테스트가 쓰는 가짜 상태의 기본값이 같아서, JVM에서는 이 테스트가 실제 동작을 그대로 검증한다.</p>
 </section>
 
 <section class="feature" id="card-ripple">
@@ -334,7 +464,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
+  <dt>파일</dt><dd><code>core/ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>feature/emulator/ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
   <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
@@ -380,7 +510,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행·파싱), <code>data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행·파싱), <code>feature/emulator/data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
   <dt>목록</dt><dd>AVD 이름 전체 + <code>adb</code> 가 아는 시리얼(에뮬레이터·실물) + 시뮬레이터 + 실물 iOS 기기. 5초마다 다시 읽는다. 실행 중이 아닌 AVD 의 <code>id</code> 는 <code>avd:&lt;이름&gt;</code>, 실물 iOS 기기는 <code>ios:&lt;UDID&gt;</code> 다(<a href="../common/emulator-control.html#identifier">식별자</a>)</dd>
   <dt>능력 플래그</dt><dd><code>adb</code> 시리얼(에뮬레이터·실물 Android)만 <code>canStream</code> 과 <code>canControl</code> 이 함께 참이다. 부팅된 시뮬레이터는 <code>canStream</code> 만, 실물 iOS 기기는 둘 다 거짓이다</dd>
   <dt>프레임</dt><dd><code>id</code> 모양으로 가른다. <code>avd:</code>·<code>ios:</code> 는 찍을 것이 없어 <code>null</code>, 36자 UUID 는 <code>simctl</code>, 나머지는 <code>adb -s … exec-out screencap</code>. 500ms 주기로 요청이 들어온다</dd>
@@ -429,7 +559,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행), <code>.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행), <code>.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
   <dt>동작</dt><dd><code>id</code> 가 <code>avd:&lt;이름&gt;</code> 이면 <code>emulator -avd</code>, 36자 UUID 면 <code>simctl boot</code> + <code>open -a Simulator</code>. 그 밖의 <code>id</code> 는 no-op</dd>
   <dt>실행 방식</dt><dd>에뮬레이터만 기다리지 않고 떼어 놓는다. 출력은 버린다. JVM 이 먼저 끝나도 자식은 살아남는다</dd>
   <dt>실패</dt><dd>바이너리가 없거나 실행이 실패하면 조용히 빠진다. 화면에는 <a href="../common/emulator-launch.html#requirements">R4</a>의 2분 잠금만 보인다</dd>
@@ -469,7 +599,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>우회</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행·파싱), <code>.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행·파싱), <code>.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
   <dt>상태</dt><dd><code>adb</code> 시리얼로 붙은 기기마다 <code>dumpsys deviceidle get screen</code> 을 한 번 돌려 <code>isAsleep</code> 을 채운다. <code>true</code>/<code>false</code> 가 아니면 모르는 것으로 보고 꺼졌다고 표시하지 않는다</dd>
   <dt>깨우기</dt><dd><code>input keyevent KEYCODE_WAKEUP</code>. 제스처와 같은 경로라 <code>adb</code> 시리얼이 아닌 <code>id</code> 는 no-op 이다</dd>
   <dt>실패</dt><dd>명령이 실패하면 조용히 빠진다. 다음 폴링에서 상태를 다시 읽는다</dd>
@@ -495,8 +625,8 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <section class="feature" id="test">
 <h2>테스트 <span class="badge ok">구현</span></h2>
-<pre><code>./gradlew :domain:jvmTest :data:jvmTest :ui:jvmTest</code></pre>
-<p>유스케이스 테스트(<code>:domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>ObserveSystemStateTest</code>·<code>HostAgentTest</code>·<code>EmulatorParsingTest</code>·<code>HostAgentServerTest</code>(<code>:data</code>), <code>JarvisAppTest</code>(<code>:ui</code>, Compose UI)가 돌아간다. <code>runComposeUiTest</code>가 Skiko 네이티브 런타임을 필요로 해서 <code>:ui</code>의 <code>jvmTest</code>에만 <code>compose.desktop.currentOs</code>를 넣는다.</p>
+<pre><code>./gradlew jvmTest</code></pre>
+<p>유스케이스 테스트(기능의 <code>domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>HostAgentTest</code>·<code>EmulatorParsingTest</code>·<code>HostAgentServerTest</code>(기능의 <code>data</code>), <code>ObserveSystemStateTest</code>(<code>:core:data</code>), <code>EmulatorDevicesViewModelTest</code>(<code>:feature:emulator:ui</code>), <code>JarvisAppTest</code>·<code>JarvisAppLaunchLockTest</code>(<code>:app:ui</code>, Compose UI), <code>JarvisKoinTest</code>(<code>:shared</code>)가 돌아간다. <code>runComposeUiTest</code>가 Skiko 네이티브 런타임을 필요로 해서 <code>:app:ui</code>의 <code>jvmTest</code>에만 <code>compose.desktop.currentOs</code>를 넣는다.</p>
 <p>이 플랫폼만 에이전트 HTTP 왕복을 실제로 테스트한다. 서버가 여기 있기 때문이다. <code>caffeinate</code> 실행과 <code>java.util.prefs</code> 왕복은 <span class="badge untested">미검증</span>이다.</p>
 </section>
 

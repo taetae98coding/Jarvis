@@ -110,13 +110,13 @@
   <dt>리포지토리</dt><dd><code>EmulatorRepository.observeDevices()</code>, <code>observeScreen(deviceId)</code>, <code>sendGesture(deviceId, gesture)</code>. 기존 <code>observeStatus()</code>는 그대로 둔다</dd>
   <dt>유스케이스</dt><dd><code>ObserveEmulatorDevicesUseCase</code>, <code>ObserveEmulatorScreenUseCase</code>, <code>SendEmulatorGestureUseCase</code></dd>
   <dt>UI</dt><dd><code>ui/emulator/EmulatorCard.kt</code>(클릭), <code>EmulatorListScreen.kt</code>, <code>EmulatorStreamScreen.kt</code></dd>
-  <dt>상태</dt><dd><code>JarvisAppState.emulatorRoute: StateFlow&lt;EmulatorRoute?&gt;</code> — <code>null</code>(그리드) / <code>Devices</code> / <code>Screen(device)</code></dd>
-  <dt>공급</dt><dd>새 <code>expect</code> 선언 없음. 플랫폼 차이는 <code>:data</code>의 <code>internal expect val emulatorDataSource</code> 하나로 이미 갈라져 있다</dd>
+  <dt>상태</dt><dd>화면 이동은 <a href="navigation.html">Navigation3 의 백스택</a>이 들고, 화면별 상태는 <a href="view-model.html">ViewModel</a>이 소유한다. 라우트는 <code>JarvisRoute.EmulatorDevices</code>와 <code>JarvisRoute.EmulatorScreen(deviceId)</code>다. 예전에는 <code>JarvisAppState.emulatorRoute</code> 하나가 세 화면을 갈랐다</dd>
+  <dt>공급</dt><dd>새 <code>expect</code> 선언 없음. 플랫폼 차이는 <code>data</code>의 <code>internal expect val emulatorDataSource</code> 하나로 이미 갈라져 있다</dd>
 </dl>
 
 <h3>능력 플래그</h3>
 
-<p>기기가 무엇을 받아 줄 수 있는지는 <code>:data</code> 가 정해서 내려보낸다. 실행 중인지와 화면을 볼 수 있는지는 같은 말이 아니다. 실물 iOS 기기는 연결되어 있어도 찍을 수 없고, 꺼진 AVD 는 켤 수는 있어도 찍을 수 없다.</p>
+<p>기기가 무엇을 받아 줄 수 있는지는 <code>data</code> 가 정해서 내려보낸다. 실행 중인지와 화면을 볼 수 있는지는 같은 말이 아니다. 실물 iOS 기기는 연결되어 있어도 찍을 수 없고, 꺼진 AVD 는 켤 수는 있어도 찍을 수 없다.</p>
 
 <table>
   <thead><tr><th>플래그</th><th>뜻</th><th>화면에서</th></tr></thead>
@@ -134,7 +134,7 @@
 
 <h3 id="identifier">기기 식별자</h3>
 
-<p><code>id</code> 는 화면·제스처·실행 요청에 그대로 실린다. 네 종류가 한 목록에 섞이므로 <code>:data</code> 가 모양만 보고 어느 도구를 부를지 가를 수 있어야 한다.</p>
+<p><code>id</code> 는 화면·제스처·실행 요청에 그대로 실린다. 네 종류가 한 목록에 섞이므로 <code>data</code> 가 모양만 보고 어느 도구를 부를지 가를 수 있어야 한다.</p>
 
 <table>
   <thead><tr><th>모양</th><th>무엇</th><th>도구</th></tr></thead>
@@ -150,7 +150,7 @@
 
 <h3>화면 프레임</h3>
 
-<p>프레임은 PNG 한 장이다. 도메인과 데이터는 <code>ByteArray</code>로만 다루고, <code>ImageBitmap</code>으로 푸는 것은 <code>:ui</code>에서 <code>org.jetbrains.compose.resources.decodeToImageBitmap()</code>으로 한다. <code>ImageBitmap</code>은 Compose 타입이라 <code>:domain</code>에 둘 수 없다.</p>
+<p>프레임은 PNG 한 장이다. 도메인과 데이터는 <code>ByteArray</code>로만 다루고, <code>ImageBitmap</code>으로 푸는 것은 <code>ui</code>에서 <code>org.jetbrains.compose.resources.decodeToImageBitmap()</code>으로 한다. <code>ImageBitmap</code>은 Compose 타입이라 <code>domain</code>에 둘 수 없다.</p>
 
 <p><code>observeScreen(deviceId)</code>는 <a href="state-observation.html">상태 조회 규칙</a>의 폴링을 쓴다. 주기는 <strong>500ms</strong>다. 화면을 한 장 찍는 데 걸리는 시간(Android <code>screencap</code> 기준 0.3~1초)이 주기보다 길어서 실제 갱신은 그보다 느리다. 구독이 끊기면 폴링이 멈춘다(R10).</p>
 
