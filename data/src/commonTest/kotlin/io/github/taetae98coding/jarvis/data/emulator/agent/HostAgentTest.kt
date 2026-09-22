@@ -45,7 +45,7 @@ class HostAgentTest {
 
     @Test
     fun devicesSurviveTheWireFormat() {
-        val devices = listOf(RunningDevice, StoppedDevice)
+        val devices = listOf(RunningDevice, StoppedDevice, PhysicalDevice)
 
         assertEquals(devices, decodeEmulatorDevices(encodeEmulatorDevices(devices)))
     }
@@ -134,6 +134,46 @@ class HostAgentTest {
     }
 
     @Test
+    fun launchRequestsAreSentToTheAgent() = runTest {
+        val sent = mutableListOf<Pair<String, String>>()
+        val client = HostAgentClient(fetch = { null }, send = { path, body -> sent += path to body })
+
+        hostAgentEmulatorDataSource(client).launch(StoppedDevice.id)
+
+        assertEquals(HostAgentLaunchPath, sent.single().first)
+        assertEquals(StoppedDevice.id, decodeEmulatorDeviceId(sent.single().second))
+    }
+
+    @Test
+    fun wakeRequestsAreSentToTheAgent() = runTest {
+        val sent = mutableListOf<Pair<String, String>>()
+        val client = HostAgentClient(fetch = { null }, send = { path, body -> sent += path to body })
+
+        hostAgentEmulatorDataSource(client).wake(RunningDevice.id)
+
+        assertEquals(HostAgentWakePath, sent.single().first)
+        assertEquals(RunningDevice.id, decodeEmulatorDeviceId(sent.single().second))
+    }
+
+    @Test
+    fun brokenBodiesAreNotLaunchRequests() {
+        assertNull(decodeEmulatorDeviceId("not json"))
+    }
+
+    // 옛 에이전트는 능력 플래그를 모른다. 할 수 없는 일을 할 수 있다고 읽으면 요청이 기기까지 간다.
+    @Test
+    fun devicesFromAnOlderAgentCanDoNothing() {
+        val body = """{"devices":[{"id":"emulator-5554","name":"Pixel","platform":"android","running":true}]}"""
+
+        val device = decodeEmulatorDevices(body)?.single()
+
+        assertEquals(false, device?.isAsleep)
+        assertEquals(false, device?.canStream)
+        assertEquals(false, device?.canControl)
+        assertEquals(false, device?.canLaunch)
+    }
+
+    @Test
     fun dataSourceFollowsAgentUpdates() = runTest {
         var answer: EmulatorStatus? = null
         val statuses = mutableListOf<EmulatorStatus>()
@@ -163,6 +203,7 @@ class HostAgentTest {
             name = "Pixel_9_API_37",
             platform = EmulatorPlatform.ANDROID,
             isRunning = true,
+            canStream = true,
             canControl = true,
         )
 
@@ -170,6 +211,15 @@ class HostAgentTest {
             id = "avd:Pixel_Tablet_API_36",
             name = "Pixel_Tablet_API_36",
             platform = EmulatorPlatform.ANDROID,
+            canLaunch = true,
+        )
+
+        val PhysicalDevice = EmulatorDevice(
+            id = "ios:00008130-000A1C2E0298001C",
+            name = "Jarvis의 iPhone",
+            platform = EmulatorPlatform.IOS,
+            isPhysical = true,
+            isRunning = true,
         )
     }
 }

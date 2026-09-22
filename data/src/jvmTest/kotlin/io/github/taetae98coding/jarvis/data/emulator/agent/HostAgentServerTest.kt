@@ -138,6 +138,52 @@ class HostAgentServerTest {
         }
     }
 
+    @Test
+    fun forwardsLaunchRequests() {
+        val dataSource = FakeEmulatorDataSource()
+
+        withAgent(dataSource) { port ->
+            val response = request(
+                port = port,
+                path = HostAgentLaunchPath,
+                method = "POST",
+                body = encodeEmulatorDeviceId(StoppedDevice.id),
+            )
+
+            assertEquals(204, response.code)
+            assertEquals(listOf(StoppedDevice.id), dataSource.launched)
+        }
+    }
+
+    @Test
+    fun rejectsLaunchRequestsItCannotRead() {
+        val dataSource = FakeEmulatorDataSource()
+
+        withAgent(dataSource) { port ->
+            val response = request(port, HostAgentLaunchPath, method = "POST", body = "not json")
+
+            assertEquals(400, response.code)
+            assertTrue(dataSource.launched.isEmpty())
+        }
+    }
+
+    @Test
+    fun forwardsWakeRequests() {
+        val dataSource = FakeEmulatorDataSource()
+
+        withAgent(dataSource) { port ->
+            val response = request(
+                port = port,
+                path = HostAgentWakePath,
+                method = "POST",
+                body = encodeEmulatorDeviceId(RunningDevice.id),
+            )
+
+            assertEquals(204, response.code)
+            assertEquals(listOf(RunningDevice.id), dataSource.woken)
+        }
+    }
+
     private fun withAgent(dataSource: EmulatorDataSource, block: (Int) -> Unit) {
         val port = freePort()
 
@@ -203,6 +249,10 @@ class HostAgentServerTest {
     ) : EmulatorDataSource {
         val gestures = mutableListOf<Pair<String, EmulatorGesture>>()
 
+        val launched = mutableListOf<String>()
+
+        val woken = mutableListOf<String>()
+
         override fun observeStatus() = statuses
 
         override fun observeDevices() = devices
@@ -212,6 +262,14 @@ class HostAgentServerTest {
         override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
             gestures += deviceId to gesture
         }
+
+        override suspend fun launch(deviceId: String) {
+            launched += deviceId
+        }
+
+        override suspend fun wake(deviceId: String) {
+            woken += deviceId
+        }
     }
 
     private companion object {
@@ -220,6 +278,7 @@ class HostAgentServerTest {
             name = "Pixel_9_API_37",
             platform = EmulatorPlatform.ANDROID,
             isRunning = true,
+            canStream = true,
             canControl = true,
         )
 
@@ -227,6 +286,7 @@ class HostAgentServerTest {
             id = "avd:Pixel_Tablet_API_36",
             name = "Pixel_Tablet_API_36",
             platform = EmulatorPlatform.ANDROID,
+            canLaunch = true,
         )
     }
 }

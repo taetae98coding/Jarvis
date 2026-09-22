@@ -54,7 +54,9 @@
 │   ├── settings-persistence.html    설정 영구 저장
 │   ├── state-observation.html       상태 조회 규칙
 │   ├── emulator-count.html          에뮬레이터 개수
-│   ├── emulator-control.html        에뮬레이터 목록·화면·제스처
+│   ├── emulator-control.html        기기 목록·화면·제스처 (가상 기기 + 실물 기기)
+│   ├── emulator-launch.html         꺼진 에뮬레이터 실행
+│   ├── emulator-wake.html           꺼진 화면 깨우기
 │   ├── card-ripple.html             카드 물결 효과
 │   └── device-rotation.html         화면 회전
 ├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
@@ -142,11 +144,25 @@
       <td class="center"><a href="platform/web.html#emulator"><span class="badge partial">조건부</span></a></td>
     </tr>
     <tr>
-      <td><a href="common/emulator-control.html">에뮬레이터 목록·화면·제스처</a></td>
+      <td><a href="common/emulator-control.html">기기 목록·화면·제스처</a></td>
       <td class="center"><a href="platform/android.html#emulator-control"><span class="badge workaround">우회</span></a></td>
       <td class="center"><a href="platform/ios.html#emulator-control"><span class="badge partial">조건부</span></a></td>
       <td class="center"><a href="platform/jvm.html#emulator-control"><span class="badge partial">조건부</span></a></td>
       <td class="center"><a href="platform/web.html#emulator-control"><span class="badge partial">조건부</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/emulator-launch.html">꺼진 에뮬레이터 실행</a></td>
+      <td class="center"><a href="platform/android.html#emulator-launch"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/ios.html#emulator-launch"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/jvm.html#emulator-launch"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/web.html#emulator-launch"><span class="badge partial">조건부</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/emulator-wake.html">꺼진 화면 깨우기</a></td>
+      <td class="center"><a href="platform/android.html#emulator-wake"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/ios.html#emulator-wake"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/jvm.html#emulator-wake"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/web.html#emulator-wake"><span class="badge partial">조건부</span></a></td>
     </tr>
     <tr>
       <td><a href="common/card-ripple.html">카드 물결 효과</a></td>
@@ -172,7 +188,7 @@
   </tbody>
 </table>
 
-<p>에뮬레이터 화면과 제스처도 개수와 같은 경로를 탄다. JVM 외에는 같은 머신에서 데스크톱 앱이 떠 있어야 하고, iOS 시뮬레이터에는 어느 타깃에서도 제스처를 보낼 수 없다(<a href="platform/jvm.html#emulator-control">이유</a>).</p>
+<p>기기 목록·화면·제스처와 실행도 개수와 같은 경로를 탄다. JVM 외에는 같은 머신에서 데스크톱 앱이 떠 있어야 하고, iOS 시뮬레이터에는 어느 타깃에서도 제스처를 보낼 수 없다(<a href="platform/jvm.html#emulator-control">이유</a>). 실물 iOS 기기는 목록에만 나오고 화면을 볼 수 없다.</p>
 
 <p>에뮬레이터 개수는 네 타깃 모두 실제 숫자를 내지만, JVM 외에는 같은 머신에서 데스크톱 앱이 떠 있어야 한다. 앱이 종료된 뒤에도 화면을 켜 두는 것은 Android에서만 가능하고 사이드로드를 전제로 한다. 두 조건의 근거는 <a href="common/index.html#limits">공통 한계</a>에 있다.</p>
 
@@ -187,7 +203,9 @@
   <li><a href="common/settings-persistence.html">설정 영구 저장</a><p>토글 값이 앱을 껐다 켜도 남고, 외부 변경도 따라간다</p></li>
   <li><a href="common/state-observation.html">상태 조회 규칙</a><p>콜백이 있으면 콜백으로, 없으면 N초마다 다시 읽는다</p></li>
   <li><a href="common/emulator-count.html">에뮬레이터 개수</a><p>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터를 실행 중/전체로 센다</p></li>
-  <li><a href="common/emulator-control.html">에뮬레이터 목록·화면·제스처</a><p>가상 기기 목록을 보고, 실행 중인 기기의 화면을 보면서 탭·스와이프를 보낸다</p></li>
+  <li><a href="common/emulator-control.html">기기 목록·화면·제스처</a><p>가상 기기와 연결된 실물 기기 목록을 보고, 화면을 보면서 탭·스와이프를 보낸다</p></li>
+  <li><a href="common/emulator-launch.html">꺼진 에뮬레이터 실행</a><p>목록에서 꺼져 있는 AVD·시뮬레이터를 그 자리에서 켠다</p></li>
+  <li><a href="common/emulator-wake.html">꺼진 화면 깨우기</a><p>연결은 됐지만 화면이 꺼진 기기를 목록에서 알아보고 켠다</p></li>
   <li><a href="common/card-ripple.html">카드 물결 효과</a><p>누를 수 있는 카드의 물결이 카드의 둥근 모서리 안에서만 퍼진다</p></li>
   <li><a href="common/device-rotation.html">화면 회전</a><p>화면을 0·90·180·270도로 돌리고 그 각도에 고정한다</p></li>
 </ul>

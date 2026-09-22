@@ -25,6 +25,7 @@ internal val RunningAndroidDevice = EmulatorDevice(
     name = "Pixel_9_API_37",
     platform = EmulatorPlatform.ANDROID,
     isRunning = true,
+    canStream = true,
     canControl = true,
 )
 
@@ -32,6 +33,7 @@ internal val StoppedAndroidDevice = EmulatorDevice(
     id = "avd:Pixel_Tablet_API_36",
     name = "Pixel_Tablet_API_36",
     platform = EmulatorPlatform.ANDROID,
+    canLaunch = true,
 )
 
 // 실행 중이어도 제스처는 받지 못한다. simctl 에 입력을 주입하는 명령이 없다.
@@ -39,5 +41,33 @@ internal val RunningSimulator = EmulatorDevice(
     id = "66C9B671-6289-44B1-9788-DF9528508CD7",
     name = "iPhone 17",
     platform = EmulatorPlatform.IOS,
+    isRunning = true,
+    canStream = true,
+)
+
+// 호스트에 USB 로 꽂힌 기기. 에뮬레이터와 똑같이 화면을 보고 제스처를 보낼 수 있다.
+internal val PhysicalAndroidDevice = EmulatorDevice(
+    id = "39061FDJH00CNS",
+    name = "Pixel 9 Pro",
+    platform = EmulatorPlatform.ANDROID,
+    isPhysical = true,
+    isRunning = true,
+    canStream = true,
+    canControl = true,
+)
+
+// 연결은 됐는데 화면이 꺼져 있다. 화면은 찍히지만 검은 그림만 나온다.
+internal val SleepingAndroidDevice = PhysicalAndroidDevice.copy(
+    id = "adb-R54T202XEHN-Y2yH0N (2)._adb-tls-connect._tcp",
+    name = "SM-X906N",
+    isAsleep = true,
+)
+
+// 연결되어 있어도 화면을 찍는 공개 도구가 없다. 목록에만 나온다.
+internal val PhysicalIosDevice = EmulatorDevice(
+    id = "ios:00008130-000A1C2E0298001C",
+    name = "Jarvis의 iPhone",
+    platform = EmulatorPlatform.IOS,
+    isPhysical = true,
     isRunning = true,
 )

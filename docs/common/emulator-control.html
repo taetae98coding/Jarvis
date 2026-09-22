@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>에뮬레이터 목록·화면·제스처 — 공통 스펙 — Jarvis</title>
+<title>기기 목록·화면·제스처 — 공통 스펙 — Jarvis</title>
 <link rel="stylesheet" href="../assets/spec.css">
 </head>
 <body>
 
-<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>에뮬레이터 목록·화면·제스처</span></nav>
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>기기 목록·화면·제스처</span></nav>
 
 <header>
-  <h1>에뮬레이터 목록·화면·제스처</h1>
-  <p class="lead">에뮬레이터 카드를 누르면 개발자 머신의 가상 기기 목록이 열리고, 실행 중인 기기를 고르면 그 화면을 보면서 탭·스와이프를 보낼 수 있다.</p>
+  <h1>기기 목록·화면·제스처</h1>
+  <p class="lead">에뮬레이터 카드를 누르면 개발자 머신의 가상 기기와 연결된 실물 기기 목록이 열리고, 화면을 볼 수 있는 기기를 고르면 그 화면을 보면서 탭·스와이프를 보낼 수 있다.</p>
 </header>
 
 <nav class="toc">
@@ -36,29 +36,36 @@
   <footer>2026-09-22 대화. 같은 메시지의 앞부분은 <a href="card-ripple.html">카드 물결 효과</a>에 있다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>emulator 같은 경우 emulator뿐만 아니라 연결된 실제 디바이스도 포함시켜줘. 그리고 꺼진 emulator는 실행할 수 있도록 기능도 제공해줘.</p>
+  <footer>2026-09-22 대화. 뒷문장은 <a href="emulator-launch.html">꺼진 에뮬레이터 실행</a>에 있다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 에뮬레이터 카드를 누르면 가상 기기 목록 화면이 열린다. 카드에 보이던 개수는 그대로 남는다.</li>
-  <li><strong>R2.</strong> 목록에는 개발자 머신의 Android 에뮬레이터(AVD)와 iOS 시뮬레이터가 이름·플랫폼·실행 여부와 함께 한 줄씩 나온다.</li>
-  <li><strong>R3.</strong> 실행 중인 항목만 누를 수 있다. 실행 중이 아닌 항목은 비활성으로 보이고 눌러도 아무 일도 일어나지 않는다.</li>
-  <li><strong>R4.</strong> 목록이 비어 있으면(가상 기기가 없거나 물어볼 곳이 없으면) 왜 비었는지 한 줄로 설명한다. 빈 화면만 보여주지 않는다.</li>
-  <li><strong>R5.</strong> 실행 중인 항목을 누르면 그 기기의 화면이 주기적으로 갱신되는 스트리밍 화면이 열린다. 첫 프레임이 오기 전에는 "화면을 가져오는 중…"을 보여준다.</li>
+  <li><strong>R1.</strong> 에뮬레이터 카드를 누르면 기기 목록 화면이 열린다. 카드에 보이던 개수는 그대로 남는다.</li>
+  <li><strong>R2.</strong> 목록에는 개발자 머신의 Android 에뮬레이터(AVD)·iOS 시뮬레이터와, 그 머신에 <strong>연결된 실물 Android·iOS 기기</strong>가 이름·플랫폼·실물 여부·상태와 함께 한 줄씩 나온다.</li>
+  <li><strong>R3.</strong> 화면을 볼 수 있는 항목만 누를 수 있다. 나머지(꺼진 가상 기기, 화면을 찍을 수 없는 실물 기기)는 비활성으로 보이고 눌러도 아무 일도 일어나지 않는다.</li>
+  <li><strong>R4.</strong> 목록이 비어 있으면(기기가 없거나 물어볼 곳이 없으면) 왜 비었는지 한 줄로 설명한다. 빈 화면만 보여주지 않는다.</li>
+  <li><strong>R5.</strong> 누를 수 있는 항목을 누르면 그 기기의 화면이 주기적으로 갱신되는 스트리밍 화면이 열린다. 첫 프레임이 오기 전에는 "화면을 가져오는 중…"을 보여준다.</li>
   <li><strong>R6.</strong> 스트리밍 화면을 탭하면 그 지점이 기기 좌표로 변환되어 기기에 탭으로 전달된다.</li>
   <li><strong>R7.</strong> 스트리밍 화면을 드래그하면 누른 지점에서 뗀 지점까지가 스와이프로 전달된다.</li>
   <li><strong>R8.</strong> 제스처를 보낼 수 없는 기기에서는 화면만 보여주고, 제스처가 왜 안 되는지 화면에 적는다. 탭·드래그는 조용히 무시한다.</li>
   <li><strong>R9.</strong> 스트리밍 화면에서 뒤로 가면 목록으로, 목록에서 뒤로 가면 기능 그리드로 돌아간다.</li>
   <li><strong>R10.</strong> 스트리밍 화면을 벗어나면 프레임 요청이 멈춘다. 보이지 않는 기기의 화면을 계속 찍지 않는다.</li>
   <li><strong>R11.</strong> 프레임을 가져오지 못하면 마지막으로 받은 프레임을 그대로 두고, 한 장도 받지 못했으면 "화면을 가져올 수 없습니다"를 보여준다.</li>
+  <li><strong>R12.</strong> 연결된 실물 Android 기기는 에뮬레이터와 똑같이 화면을 보고 제스처를 보낼 수 있다. 목록에서 실물이라는 것이 보인다.</li>
+  <li><strong>R13.</strong> 화면을 볼 수 없는 실물 기기(실물 iOS)도 목록에는 나오고, 왜 누를 수 없는지 그 줄에 적는다. 목록에서 빼지 않는다.</li>
 </ol>
 
 <aside class="warn">
   <strong>스코프에서 뺀 것</strong>
   <ul>
-    <li>에뮬레이터를 켜고 끄는 것. 목록은 보여주기만 한다.</li>
+    <li>꺼진 에뮬레이터를 켜는 것은 <a href="emulator-launch.html">따로 문서가 있다</a>. 끄는 것은 어느 쪽에도 없다.</li>
     <li>키 입력(텍스트·하드웨어 키), 멀티터치·핀치, 길게 누르기, 화면 회전, 오디오.</li>
-    <li>실물 기기. <a href="emulator-count.html">에뮬레이터 개수</a>와 같은 기준으로 가상 기기만 센다.</li>
-    <li>iOS 시뮬레이터에 제스처를 보내는 것. 어느 플랫폼에서도 불가능해서 뺐다(<a href="#limits">한계</a>).</li>
+    <li>iOS 시뮬레이터에 제스처를 보내는 것, 실물 iOS 기기의 화면을 보는 것. 어느 플랫폼에서도 불가능해서 뺐다(<a href="#limits">한계</a>).</li>
+    <li>USB 로 붙지 않은 기기. <code>adb</code> 와 Xcode 가 이미 알고 있는 기기만 센다. 페어링·인증은 하지 않는다.</li>
   </ul>
 </aside>
 
@@ -68,9 +75,9 @@
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
     <tr><td>카드</td><td>제목 "에뮬레이터". 카드 전체가 클릭 영역이다. 물결은 <a href="card-ripple.html">카드 모양</a>을 따른다</td></tr>
-    <tr><td>목록 화면 제목</td><td>"에뮬레이터 목록"</td></tr>
-    <tr><td>목록 항목</td><td><code>&lt;이름&gt;</code> / 보조 문구 <code>Android · 실행 중</code>, <code>iOS · 꺼짐</code></td></tr>
-    <tr><td>빈 목록</td><td>"가상 기기가 없거나 개발자 머신에 물어볼 수 없습니다."</td></tr>
+    <tr><td>목록 화면 제목</td><td>"기기 목록"</td></tr>
+    <tr><td>목록 항목</td><td><code>&lt;이름&gt;</code> / 보조 문구는 아래 표</td></tr>
+    <tr><td>빈 목록</td><td>"연결된 기기가 없거나 개발자 머신에 물어볼 수 없습니다."</td></tr>
     <tr><td>스트리밍 화면 제목</td><td>선택한 기기 이름</td></tr>
     <tr><td>첫 프레임 전</td><td>"화면을 가져오는 중…"</td></tr>
     <tr><td>프레임 실패</td><td>"화면을 가져올 수 없습니다."</td></tr>
@@ -81,16 +88,65 @@
   </tbody>
 </table>
 
+<p>보조 문구는 <code>·</code> 로 이어 붙인다. 가상 기기인지 실물인지, 지금 무슨 상태인지, 눌리지 않는다면 왜 그런지 순서다.</p>
+
+<table>
+  <thead><tr><th>기기</th><th>보조 문구</th><th>누를 수 있나</th></tr></thead>
+  <tbody>
+    <tr><td>실행 중인 AVD</td><td><code>Android · 실행 중</code></td><td>예</td></tr>
+    <tr><td>꺼진 AVD</td><td><code>Android · 꺼짐</code></td><td>아니오 (<a href="emulator-launch.html">실행 버튼</a>이 붙는다)</td></tr>
+    <tr><td>부팅된 시뮬레이터</td><td><code>iOS · 실행 중</code></td><td>예 (제스처는 못 보낸다)</td></tr>
+    <tr><td>꺼진 시뮬레이터</td><td><code>iOS · 꺼짐</code></td><td>아니오 (<a href="emulator-launch.html">실행 버튼</a>이 붙는다)</td></tr>
+    <tr><td>연결된 실물 Android</td><td><code>Android · 실물 기기 · 연결됨</code></td><td>예</td></tr>
+    <tr><td>화면이 꺼진 실물 Android</td><td><code>Android · 실물 기기 · 연결됨 · 화면 꺼짐</code></td><td>예 (<a href="emulator-wake.html">화면 켜기 버튼</a>이 붙는다)</td></tr>
+    <tr><td>연결된 실물 iOS</td><td><code>iOS · 실물 기기 · 연결됨 · 화면을 볼 수 없음</code></td><td>아니오</td></tr>
+  </tbody>
+</table>
+
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>도메인 모델</dt><dd><code>domain/emulator/EmulatorDevice.kt</code> — <code>EmulatorDevice(id, name, platform, isRunning, canControl)</code>, <code>EmulatorPlatform(ANDROID, IOS)</code>, <code>EmulatorGesture.Tap</code> / <code>EmulatorGesture.Swipe</code></dd>
+  <dt>도메인 모델</dt><dd><code>domain/emulator/EmulatorDevice.kt</code> — <code>EmulatorDevice(id, name, platform, isPhysical, isRunning, canStream, canControl, canLaunch)</code>, <code>EmulatorPlatform(ANDROID, IOS)</code>, <code>EmulatorGesture.Tap</code> / <code>EmulatorGesture.Swipe</code></dd>
   <dt>리포지토리</dt><dd><code>EmulatorRepository.observeDevices()</code>, <code>observeScreen(deviceId)</code>, <code>sendGesture(deviceId, gesture)</code>. 기존 <code>observeStatus()</code>는 그대로 둔다</dd>
   <dt>유스케이스</dt><dd><code>ObserveEmulatorDevicesUseCase</code>, <code>ObserveEmulatorScreenUseCase</code>, <code>SendEmulatorGestureUseCase</code></dd>
   <dt>UI</dt><dd><code>ui/emulator/EmulatorCard.kt</code>(클릭), <code>EmulatorListScreen.kt</code>, <code>EmulatorStreamScreen.kt</code></dd>
-  <dt>상태</dt><dd><code>JarvisAppState.emulatorRoute: StateFlow&lt;EmulatorRoute?&gt;</code> — <code>null</code>(그리드) / <code>List</code> / <code>Stream(device)</code></dd>
+  <dt>상태</dt><dd><code>JarvisAppState.emulatorRoute: StateFlow&lt;EmulatorRoute?&gt;</code> — <code>null</code>(그리드) / <code>Devices</code> / <code>Screen(device)</code></dd>
   <dt>공급</dt><dd>새 <code>expect</code> 선언 없음. 플랫폼 차이는 <code>:data</code>의 <code>internal expect val emulatorDataSource</code> 하나로 이미 갈라져 있다</dd>
 </dl>
+
+<h3>능력 플래그</h3>
+
+<p>기기가 무엇을 받아 줄 수 있는지는 <code>:data</code> 가 정해서 내려보낸다. 실행 중인지와 화면을 볼 수 있는지는 같은 말이 아니다. 실물 iOS 기기는 연결되어 있어도 찍을 수 없고, 꺼진 AVD 는 켤 수는 있어도 찍을 수 없다.</p>
+
+<table>
+  <thead><tr><th>플래그</th><th>뜻</th><th>화면에서</th></tr></thead>
+  <tbody>
+    <tr><td><code>isPhysical</code></td><td>실물 기기다</td><td>보조 문구에 "실물 기기"</td></tr>
+    <tr><td><code>isRunning</code></td><td>부팅되어 있다(실물은 연결되어 있다)</td><td>"실행 중" / "연결됨" / "꺼짐"</td></tr>
+    <tr><td><code>isAsleep</code></td><td>연결되어 있지만 화면이 꺼져 있다</td><td>"화면 꺼짐" 과 <a href="emulator-wake.html">화면 켜기 버튼</a></td></tr>
+    <tr><td><code>canStream</code></td><td>화면을 찍을 수 있다</td><td>줄을 누를 수 있는지 (R3)</td></tr>
+    <tr><td><code>canControl</code></td><td>입력을 주입할 수 있다</td><td>제스처를 보내는지 (R8)</td></tr>
+    <tr><td><code>canLaunch</code></td><td>켤 수 있다</td><td><a href="emulator-launch.html">실행 버튼</a></td></tr>
+  </tbody>
+</table>
+
+<p>화면이 플래그를 직접 읽고, 도메인 유스케이스도 같은 플래그로 한 번 더 막는다. 목록이 5초마다 갱신되므로, 화면이 막기 전에 들어온 요청이 기기까지 가지 않게 하려면 규칙이 두 곳에 있어야 한다.</p>
+
+<h3 id="identifier">기기 식별자</h3>
+
+<p><code>id</code> 는 화면·제스처·실행 요청에 그대로 실린다. 네 종류가 한 목록에 섞이므로 <code>:data</code> 가 모양만 보고 어느 도구를 부를지 가를 수 있어야 한다.</p>
+
+<table>
+  <thead><tr><th>모양</th><th>무엇</th><th>도구</th></tr></thead>
+  <tbody>
+    <tr><td><code>avd:&lt;이름&gt;</code></td><td>꺼져 있는 AVD</td><td><code>emulator -avd</code></td></tr>
+    <tr><td><code>ios:&lt;UDID&gt;</code></td><td>연결된 실물 iOS 기기</td><td>없다. 목록에만 쓴다</td></tr>
+    <tr><td>36자 UUID</td><td>iOS 시뮬레이터</td><td><code>simctl</code></td></tr>
+    <tr><td>그 밖</td><td><code>adb</code> 가 아는 시리얼. <code>emulator-5554</code>, <code>39061FDJH00CNS</code>, <code>192.168.0.10:5555</code>, 무선 디버깅이면 <code>adb-R54T202XEHN-Y2yH0N (2)._adb-tls-connect._tcp</code> 처럼 공백을 품기도 한다</td><td><code>adb -s</code></td></tr>
+  </tbody>
+</table>
+
+<p>실물 iOS 기기에만 접두사를 붙이는 이유는, 그 UDID(<code>00008030-001A2B3C11E8802E</code>)가 Android 시리얼과 모양으로 갈리지 않기 때문이다. 시뮬레이터 UUID 는 36자 형태가 고정이라 접두사 없이도 구분된다.</p>
 
 <h3>화면 프레임</h3>
 
@@ -127,25 +183,32 @@ deviceY = (py - offsetY) / drawnHeight * frameHeight</code></pre>
 </aside>
 
 <aside class="decision">
-  <strong>결정: 목록은 실행 중이 아닌 기기도 보여준다</strong>
-  실행 중인 것만 보여주면 "내 AVD가 왜 없지"라는 질문이 남는다. 대신 실행 중이 아닌 항목은 누를 수 없게 한다(R3). 켜 주는 기능은 <a href="#requirements">스코프</a>에서 뺐다.
+  <strong>결정: 목록은 누를 수 없는 기기도 보여준다</strong>
+  실행 중이고 화면을 찍을 수 있는 것만 보여주면 "내 AVD 가 왜 없지", "USB 로 꽂은 아이폰이 왜 없지" 라는 질문이 남는다. 전부 보여주고 누를 수 없는 것은 비활성으로 두되(R3), 왜 그런지 그 줄에 적는다(R13).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 실물 기기를 별도 목록이나 별도 카드로 나누지 않는다</strong>
+  화면을 보고 제스처를 보내는 쪽에서 보면 실물 Android 기기와 에뮬레이터는 같은 <code>adb</code> 시리얼이고 하는 일이 똑같다. 종류를 나누면 화면도 프로토콜도 두 벌이 되는데, 갈라 두어서 얻는 것은 목록의 제목뿐이다. 대신 <code>isPhysical</code> 플래그로 줄에서 구분하고, 목록은 실행 중인 것이 위로 오도록 정렬한다.
 </aside>
 
 <h2 id="agent">에이전트 프로토콜</h2>
 
-<p>JVM 외의 타깃은 <a href="emulator-count.html#agent">로컬 에이전트</a>에 물어본다. 개수를 주던 엔드포인트 하나에 세 개가 붙는다. 포트(<code>47890</code>)와 루프백 바인딩, 인증이 없다는 점은 그대로다.</p>
+<p>JVM 외의 타깃은 <a href="emulator-count.html#agent">로컬 에이전트</a>에 물어본다. 개수를 주던 엔드포인트 하나에 세 개가 붙는다. 포트(<code>47890</code>)와 루프백 바인딩, 인증이 없다는 점은 그대로다. 실행 엔드포인트는 <a href="emulator-launch.html#agent">꺼진 에뮬레이터 실행</a>에 있다.</p>
 
 <table>
   <thead><tr><th>메서드·경로</th><th>응답</th><th>쓰임</th></tr></thead>
   <tbody>
     <tr><td><code>GET /emulators</code></td><td><code>application/json</code> — 개수</td><td>기존. <a href="emulator-count.html">에뮬레이터 개수</a></td></tr>
-    <tr><td><code>GET /emulators/devices</code></td><td><code>application/json</code> — <code>{"devices":[{"id","name","platform","running","controllable"}]}</code></td><td>목록(R2)</td></tr>
+    <tr><td><code>GET /emulators/devices</code></td><td><code>application/json</code> — <code>{"devices":[{"id","name","platform","physical","running","asleep","streamable","controllable","launchable"}]}</code></td><td>목록(R2)</td></tr>
     <tr><td><code>GET /emulators/screen?id=&lt;id&gt;</code></td><td><code>image/png</code>, 찍지 못하면 <code>503</code></td><td>프레임(R5)</td></tr>
     <tr><td><code>POST /emulators/gesture</code></td><td><code>204</code>. 본문 <code>{"id","type":"tap"|"swipe","x","y","toX","toY","durationMillis"}</code></td><td>제스처(R6, R7)</td></tr>
   </tbody>
 </table>
 
 <p>제스처 요청의 <code>Content-Type</code>은 <code>text/plain</code>이다. 브라우저에서 <code>application/json</code>으로 보내면 CORS 사전 요청(preflight)이 붙는데, 에이전트는 사전 요청도 처리하지만 왕복을 한 번 줄이는 쪽을 택했다. 본문은 어느 쪽이든 JSON 문자열이다.</p>
+
+<p>능력 플래그는 옛 클라이언트에서 <code>false</code> 로 읽힌다. 새 필드를 기본값 있는 <code>Boolean</code> 으로 두었고, 모르는 키는 <a href="emulator-count.html#agent">기존 규칙</a>대로 무시된다. 옛 에이전트에 붙은 새 클라이언트는 모든 기기를 "화면을 볼 수 없음" 으로 보게 되는데, 잘못된 요청을 보내는 것보다 낫다고 봤다.</p>
 
 <h2 id="platforms">플랫폼별 판정</h2>
 
@@ -154,7 +217,7 @@ deviceY = (py - offsetY) / drawnHeight * frameHeight</code></pre>
   <tbody>
     <tr><td>Android</td><td><span class="badge workaround">우회</span></td><td>에이전트에 HTTP. <code>10.0.2.2</code> → <code>127.0.0.1</code></td><td><a href="../platform/android.html#emulator-control">android.html</a></td></tr>
     <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>에이전트에 HTTP. 시뮬레이터에서만 닿는다</td><td><a href="../platform/ios.html#emulator-control">ios.html</a></td></tr>
-    <tr><td>JVM</td><td><span class="badge partial">조건부</span></td><td><code>adb</code>·<code>simctl</code>을 직접 실행. iOS 시뮬레이터는 화면만</td><td><a href="../platform/jvm.html#emulator-control">jvm.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge partial">조건부</span></td><td><code>adb</code>·<code>simctl</code>·<code>xctrace</code>를 직접 실행. iOS 시뮬레이터는 화면만, 실물 iOS 는 목록만</td><td><a href="../platform/jvm.html#emulator-control">jvm.html</a></td></tr>
     <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td><code>fetch</code>로 <code>localhost</code> 에이전트. CORS 헤더가 필요하다</td><td><a href="../platform/web.html#emulator-control">web.html</a></td></tr>
   </tbody>
 </table>
@@ -173,9 +236,11 @@ deviceY = (py - offsetY) / drawnHeight * frameHeight</code></pre>
     <tr><td><code>JarvisAppTest.dragOnStreamIsSentAsSwipe</code></td><td>R7</td><td><code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTest.uncontrollableDeviceSaysSo</code></td><td>R8</td><td><code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTest.backReturnsToListThenGrid</code></td><td>R9</td><td><code>skikoTest</code></td></tr>
-    <tr><td><code>EmulatorParsingTest</code></td><td><code>adb devices</code>·<code>emulator -list-avds</code>·<code>simctl list</code> 출력에서 기기 목록을 뽑는 파싱</td><td><code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.physicalDeviceIsMarkedInTheList</code></td><td>R12</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.deviceWithoutAScreenSaysSoInTheList</code></td><td>R13</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>EmulatorParsingTest</code></td><td><code>adb devices</code>·<code>emulator -list-avds</code>·<code>simctl list</code>·<code>xctrace list devices</code>·<code>getprop</code> 출력에서 기기 목록과 능력 플래그를 뽑는 파싱</td><td><code>jvmTest</code></td></tr>
     <tr><td><code>HostAgentServerTest</code></td><td>목록·프레임·제스처 엔드포인트의 상태 코드와 본문</td><td><code>jvmTest</code></td></tr>
-    <tr><td><code>HostAgentTest</code></td><td>에이전트가 없을 때 목록이 비고 프레임이 <code>null</code>이 되는 것</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentTest</code></td><td>에이전트가 없을 때 목록이 비고 프레임이 <code>null</code>이 되는 것, 능력 플래그의 와이어 왕복</td><td><code>commonTest</code></td></tr>
     <tr><td>수동 확인</td><td>R10, R11과 실제 기기 왕복 <span class="badge untested">미검증</span></td><td>—</td></tr>
   </tbody>
 </table>
@@ -184,17 +249,19 @@ deviceY = (py - offsetY) / drawnHeight * frameHeight</code></pre>
 
 <ul>
   <li><strong>iOS 시뮬레이터에는 제스처를 보낼 수 없다.</strong> <code>simctl</code>에 입력 주입 명령이 없다(<code>simctl help</code> 기준 <code>io</code>·<code>ui</code>·<code>push</code>·<code>pbcopy</code>만 있다). 화면만 보여주고 제스처는 무시한다(R8).</li>
-  <li><strong>프레임률이 낮다.</strong> Android <code>screencap</code> 한 장이 0.3~1초, 1080×2400에서 PNG 400KB 안팎이다. 초당 1~3장 수준이고 애니메이션은 끊겨 보인다.</li>
+  <li><strong>실물 iOS 기기는 목록에만 나온다.</strong> 화면을 찍는 공개 도구가 없다. <code>xctrace</code>·<code>devicectl</code>은 기기를 나열하고 앱을 설치할 뿐 스크린샷을 주지 않고, 그게 되는 <code>libimobiledevice</code>는 따로 설치해야 하는 서드파티다(<a href="../platform/jvm.html#emulator-control">조사</a>). 줄에 "화면을 볼 수 없음"이라고 적고 누를 수 없게 둔다(R13).</li>
+  <li><strong>실물 Android 기기는 <code>adb</code> 인증을 마친 것만 보인다.</strong> <code>unauthorized</code>·<code>offline</code> 상태는 화면을 찍을 수 없어서 목록에서 뺀다. 기기에서 USB 디버깅을 허용하기 전까지는 꽂아도 나타나지 않는다.</li>
+  <li><strong>프레임률이 낮다.</strong> Android <code>screencap</code> 한 장이 0.3~1초, 1080×2400에서 PNG 400KB 안팎이다. 초당 1~3장 수준이고 애니메이션은 끊겨 보인다. 실물 기기는 USB 를 타서 더 느리다.</li>
   <li><strong>JVM 외에는 데스크톱 앱이 같은 머신에 떠 있어야 한다.</strong> 개수 기능과 같은 전제다. 꺼져 있으면 목록이 비고 R4의 문구가 나온다.</li>
   <li><strong>에이전트에 인증이 없다.</strong> 이제 화면 픽셀과 입력까지 오간다. 루프백에만 바인딩하므로 같은 머신의 다른 프로세스는 붙을 수 있다. <a href="emulator-count.html#agent">공통 스펙</a>의 전제를 그대로 따른다.</li>
   <li>실행 중이 아닌 AVD는 <code>id</code>가 시리얼이 아니라 <code>avd:&lt;이름&gt;</code>이다. 켜지면 시리얼로 바뀌므로 목록 항목의 <code>id</code>는 실행 상태에 따라 달라진다.</li>
-  <li>목록은 5초 폴링이라 켜고 끈 것이 최대 5초 늦게 반영된다.</li>
+  <li>목록은 5초 폴링이라 켜고 끄거나 USB 를 꽂고 뽑은 것이 최대 5초 늦게 반영된다. 실물 iOS 기기를 찾는 <code>xctrace</code> 가 느려서 그 주기가 더 늘어질 수 있다(<a href="../platform/jvm.html#emulator-control">JVM 한계</a>).</li>
   <li>에뮬레이터 카드가 눌리게 되면서 카드 안 텍스트들의 시맨틱이 하나로 합쳐졌다. 카드 안의 줄을 개수로 세는
     테스트는 <code>useUnmergedTree = true</code> 로 봐야 한다.</li>
 </ul>
 
 <footer class="page">
-  <a href="index.html">← 공통 스펙</a> · <a href="emulator-count.html">에뮬레이터 개수</a>
+  <a href="index.html">← 공통 스펙</a> · <a href="emulator-launch.html">꺼진 에뮬레이터 실행</a> · <a href="emulator-count.html">에뮬레이터 개수</a>
 </footer>
 
 </body>

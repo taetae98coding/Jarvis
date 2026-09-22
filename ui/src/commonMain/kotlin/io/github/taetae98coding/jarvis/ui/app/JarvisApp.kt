@@ -50,10 +50,14 @@ fun JarvisApp(
 
                     EmulatorRoute.Devices -> {
                         val devices by state.emulatorDevices.collectAsState()
+                        val launching by state.launchingDevices.collectAsState()
 
                         EmulatorListScreen(
                             devices = devices,
+                            launchingIds = launching,
                             onSelect = state::onEmulatorDeviceClick,
+                            onLaunch = state::onEmulatorDeviceLaunch,
+                            onWake = state::onEmulatorDeviceWake,
                             onBack = state::onEmulatorBack,
                         )
                     }

@@ -10,10 +10,12 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
+import io.github.taetae98coding.jarvis.domain.emulator.LaunchEmulatorUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.WakeDeviceUseCase
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationRepository
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.ObserveDeviceRotationStatusUseCase
@@ -61,6 +63,8 @@ internal fun rememberTestJarvisAppState(
             observeEmulatorDevices = ObserveEmulatorDevicesUseCase(emulator),
             observeEmulatorScreen = ObserveEmulatorScreenUseCase(emulator),
             sendEmulatorGesture = SendEmulatorGestureUseCase(emulator),
+            launchEmulator = LaunchEmulatorUseCase(emulator),
+            wakeDevice = WakeDeviceUseCase(emulator),
             observeKeepScreenAwake = ObserveKeepScreenAwakeUseCase(settings),
             observeKeepSystemScreenAwake = ObserveKeepSystemScreenAwakeUseCase(settings),
             observeSystemScreenAwakeStatus = ObserveSystemScreenAwakeStatusUseCase(systemScreenAwake),
@@ -116,6 +120,10 @@ internal class FakeEmulatorRepository(
 
     val gestures = mutableListOf<Pair<String, EmulatorGesture>>()
 
+    val launched = mutableListOf<String>()
+
+    val woken = mutableListOf<String>()
+
     override fun observeStatus() = status
 
     override fun observeDevices() = devices
@@ -124,6 +132,14 @@ internal class FakeEmulatorRepository(
 
     override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
         gestures += deviceId to gesture
+    }
+
+    override suspend fun launch(deviceId: String) {
+        launched += deviceId
+    }
+
+    override suspend fun wake(deviceId: String) {
+        woken += deviceId
     }
 }
 
@@ -136,6 +152,10 @@ internal object SilentEmulatorRepository : EmulatorRepository {
     override fun observeScreen(deviceId: String) = emptyFlow<ByteArray?>()
 
     override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) = Unit
+
+    override suspend fun launch(deviceId: String) = Unit
+
+    override suspend fun wake(deviceId: String) = Unit
 }
 
 // 기본값은 Skiko 로 렌더링하는 세 타깃 중 JVM 의 실제 상태와 같다. 돌릴 화면이 없다.

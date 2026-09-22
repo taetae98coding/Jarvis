@@ -20,6 +20,8 @@ internal const val HostAgentPath: String = "/emulators"
 internal const val HostAgentDevicesPath: String = "$HostAgentPath/devices"
 internal const val HostAgentScreenPath: String = "$HostAgentPath/screen"
 internal const val HostAgentGesturePath: String = "$HostAgentPath/gesture"
+internal const val HostAgentLaunchPath: String = "$HostAgentPath/launch"
+internal const val HostAgentWakePath: String = "$HostAgentPath/wake"
 
 internal fun hostAgentUrl(host: String, path: String = HostAgentPath): String =
     "http://$host:$HostAgentPort$path"
@@ -52,6 +54,14 @@ internal class HostAgentClient(
     suspend fun gesture(deviceId: String, gesture: EmulatorGesture) {
         send(HostAgentGesturePath, encodeEmulatorGesture(deviceId, gesture))
     }
+
+    suspend fun launch(deviceId: String) {
+        send(HostAgentLaunchPath, encodeEmulatorDeviceId(deviceId))
+    }
+
+    suspend fun wake(deviceId: String) {
+        send(HostAgentWakePath, encodeEmulatorDeviceId(deviceId))
+    }
 }
 
 internal fun hostAgentEmulatorDataSource(client: HostAgentClient): EmulatorDataSource =
@@ -68,6 +78,14 @@ internal fun hostAgentEmulatorDataSource(client: HostAgentClient): EmulatorDataS
 
         override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
             client.gesture(deviceId, gesture)
+        }
+
+        override suspend fun launch(deviceId: String) {
+            client.launch(deviceId)
+        }
+
+        override suspend fun wake(deviceId: String) {
+            client.wake(deviceId)
         }
     }
 

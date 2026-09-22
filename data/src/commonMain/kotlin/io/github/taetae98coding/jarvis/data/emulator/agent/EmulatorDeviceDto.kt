@@ -13,8 +13,12 @@ private data class EmulatorDeviceDto(
     val id: String,
     val name: String,
     val platform: String,
+    val physical: Boolean = false,
     val running: Boolean = false,
+    val asleep: Boolean = false,
+    val streamable: Boolean = false,
     val controllable: Boolean = false,
+    val launchable: Boolean = false,
 )
 
 @Serializable
@@ -37,8 +41,12 @@ private fun EmulatorDevice.toDto() =
         id = id,
         name = name,
         platform = platform.wireName,
+        physical = isPhysical,
         running = isRunning,
+        asleep = isAsleep,
+        streamable = canStream,
         controllable = canControl,
+        launchable = canLaunch,
     )
 
 private fun EmulatorDeviceDto.toDomain(): EmulatorDevice? {
@@ -48,8 +56,14 @@ private fun EmulatorDeviceDto.toDomain(): EmulatorDevice? {
         id = id,
         name = name,
         platform = known,
+        isPhysical = physical,
         isRunning = running,
+        isAsleep = asleep,
+        // 옛 에이전트에는 없던 필드다. 없으면 false 로 읽혀서 화면이 요청을 막는다. 할 수 없는 일을
+        // 할 수 있다고 읽는 것보다 낫다.
+        canStream = streamable,
         canControl = controllable,
+        canLaunch = launchable,
     )
 }
 

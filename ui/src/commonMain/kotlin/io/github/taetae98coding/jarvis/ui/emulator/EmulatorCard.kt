@@ -35,8 +35,8 @@ internal fun EmulatorCard(
             )
 
             Text(
-                text = "개발자 머신의 Android 에뮬레이터와 iOS 시뮬레이터. 눌러서 목록을 보고 " +
-                    "실행 중인 기기의 화면을 조작할 수 있다.",
+                text = "개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와 연결된 실물 기기. 눌러서 " +
+                    "목록을 보고, 화면을 조작하거나 꺼진 에뮬레이터를 켤 수 있다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

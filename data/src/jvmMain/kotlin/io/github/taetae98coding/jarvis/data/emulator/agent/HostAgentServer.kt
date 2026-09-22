@@ -121,6 +121,54 @@ internal fun startEmulatorHostAgent(
         }
     }
 
+    server.createContext(HostAgentLaunchPath) { exchange ->
+        exchange.handle {
+            when (exchange.requestMethod) {
+                "OPTIONS" -> exchange.respond(NoContent)
+
+                "POST" -> {
+                    val deviceId = exchange.requestBody.use(InputStream::readBytes)
+                        .decodeToString()
+                        .let(::decodeEmulatorDeviceId)
+
+                    if (deviceId == null) {
+                        exchange.respond(BadRequest)
+                    } else {
+                        // 에뮬레이터가 뜨는 데 걸리는 수십 초를 여기서 기다리면 클라이언트 타임아웃에
+                        // 먼저 걸린다. 데이터 소스도 띄우기만 하고 바로 돌아온다.
+                        runBlocking { dataSource.launch(deviceId) }
+                        exchange.respond(NoContent)
+                    }
+                }
+
+                else -> exchange.respond(MethodNotAllowed)
+            }
+        }
+    }
+
+    server.createContext(HostAgentWakePath) { exchange ->
+        exchange.handle {
+            when (exchange.requestMethod) {
+                "OPTIONS" -> exchange.respond(NoContent)
+
+                "POST" -> {
+                    val deviceId = exchange.requestBody.use(InputStream::readBytes)
+                        .decodeToString()
+                        .let(::decodeEmulatorDeviceId)
+
+                    if (deviceId == null) {
+                        exchange.respond(BadRequest)
+                    } else {
+                        runBlocking { dataSource.wake(deviceId) }
+                        exchange.respond(NoContent)
+                    }
+                }
+
+                else -> exchange.respond(MethodNotAllowed)
+            }
+        }
+    }
+
     server.start()
 
     return AutoCloseable {

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>꺼진 에뮬레이터 실행 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>꺼진 에뮬레이터 실행</span></nav>
+
+<header>
+  <h1>꺼진 에뮬레이터 실행</h1>
+  <p class="lead">기기 목록에서 꺼져 있는 AVD·시뮬레이터를 그 자리에서 켠다. 켜지면 같은 목록에서 화면을 볼 수 있다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#agent">에이전트 프로토콜</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>emulator 같은 경우 emulator뿐만 아니라 연결된 실제 디바이스도 포함시켜줘. 그리고 꺼진 emulator는 실행할 수 있도록 기능도 제공해줘.</p>
+  <footer>2026-09-22 대화. 앞문장은 <a href="emulator-control.html">기기 목록·화면·제스처</a>에 있다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 기기 목록에서 꺼져 있는 가상 기기 줄에 "실행" 버튼이 붙는다. 이미 실행 중인 기기와 실물 기기에는 붙지 않는다.</li>
+  <li><strong>R2.</strong> 버튼을 누르면 그 기기가 켜진다. Android 는 그 AVD 가, iOS 는 그 시뮬레이터가 뜬다.</li>
+  <li><strong>R3.</strong> 누른 뒤 그 기기가 실행 중이 되거나 목록에서 사라질 때까지 버튼은 "켜는 중…" 으로 잠긴다. 같은 기기에 실행 요청이 두 번 나가지 않는다.</li>
+  <li><strong>R4.</strong> 2분 안에 켜지지 않으면 잠금을 풀어 다시 누를 수 있게 한다.</li>
+  <li><strong>R5.</strong> 켜진 기기는 다음 목록 갱신(최대 5초) 때 실행 중으로 바뀌고, 그때부터 <a href="emulator-control.html">화면을 볼 수 있다</a>.</li>
+  <li><strong>R6.</strong> 켤 수 없는 기기에 실행 요청이 들어와도 기기까지 가지 않는다. 화면이 막는 것과 별개로 도메인에서 한 번 더 막는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>끄는 것. 켜는 것만 한다. 에뮬레이터를 끄는 건 되돌리기 어려운 동작이라 지시에 없는 이상 넣지 않는다.</li>
+    <li>부팅 옵션(콜드 부트, 데이터 지우기, 창 없이 띄우기). AVD 에 저장된 설정 그대로 띄운다.</li>
+    <li>AVD·시뮬레이터를 새로 만들거나 지우는 것.</li>
+    <li>실물 기기를 깨우거나 잠금을 푸는 것. 켤 대상이 아니다.</li>
+    <li>실행 실패를 화면에 알리는 것. 아래 <a href="#limits">한계</a> 참고.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>위치</td><td>기기 목록의 각 줄 오른쪽 끝</td></tr>
+    <tr><td>버튼</td><td><code>실행</code> — 꺼져 있는 가상 기기에만</td></tr>
+    <tr><td>누른 뒤</td><td><code>켜는 중…</code> 으로 바뀌고 비활성이 된다</td></tr>
+    <tr><td>끝나는 조건</td><td>그 기기가 실행 중이 되거나 목록에서 사라짐. 또는 2분 경과</td></tr>
+    <tr><td>줄 자체</td><td>꺼져 있는 동안은 계속 비활성이다. 버튼만 누를 수 있다</td></tr>
+    <tr><td>테스트 태그</td><td><code>emulator:launch:&lt;id&gt;</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인 모델</dt><dd><code>EmulatorDevice.canLaunch</code> — <a href="emulator-control.html#implementation">능력 플래그</a> 중 하나. <code>:data</code> 가 정한다</dd>
+  <dt>리포지토리</dt><dd><code>EmulatorRepository.launch(deviceId: String)</code> — <code>suspend</code>, 반환값 없음</dd>
+  <dt>유스케이스</dt><dd><code>LaunchEmulatorUseCase(device)</code> — <code>canLaunch</code> 가 아니면 아무것도 하지 않는다 (R6)</dd>
+  <dt>UI</dt><dd><code>ui/emulator/EmulatorListScreen.kt</code> 의 줄 오른쪽 버튼</dd>
+  <dt>상태</dt><dd><code>JarvisAppState.launchingDevices: StateFlow&lt;Set&lt;String&gt;&gt;</code> — 실행을 눌렀고 아직 뜨지 않은 기기의 <code>id</code>. 요청 집합과 기기 목록을 <code>combine</code> 해서 유도한다</dd>
+</dl>
+
+<p>실행은 요청만 보내고 결과를 기다리지 않는다. 켜졌는지는 <a href="emulator-control.html">목록 폴링</a>이 알려주는 것이 유일한 경로다. 그래서 들고 있는 것은 "요청을 보냈다" 하나뿐이고, 화면에 보이는 잠금은 그것과 목록에서 유도한다.</p>
+
+<pre><code>launchRequests  = 실행을 누른 id 들          (2분 뒤 스스로 빠진다)
+launchingDevices = launchRequests 중에서
+                   목록에 아직 "꺼진 기기" 로 남아 있는 id  ← 버튼이 보는 값 (R3)</code></pre>
+
+<aside class="decision">
+  <strong>결정: 켜지는 것을 기다리지 않고 목록 폴링으로 확인한다</strong>
+  <code>emulator -avd</code> 는 에뮬레이터가 꺼질 때까지 살아 있는 프로세스라 기다릴 수 없고, <code>adb wait-for-device</code> 는 어느 기기를 기다릴지 지정할 수 없다. 이미 5초마다 도는 목록이 "떴다" 를 알려주는 가장 정확한 신호다. 대신 그 신호가 오기 전까지는 버튼을 잠가 둔다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 잠금을 코루틴이 풀지 않고 목록에서 유도한다</strong>
+  처음에는 요청을 보낸 코루틴이 목록에서 그 기기가 사라지기를 기다렸다가(<code>first {}</code>) 집합에서 뺐다. 그 코루틴이 전이를 한 번 놓치면 버튼이 2분 내내 잠긴 채로 남는다. 실제로 Wasm 에서 그 상태를 확인하는 테스트가 세 번에 한 번꼴로 깨졌다. 유도한 값에는 놓칠 전이가 없다 — 목록이 곧 사실이고, 2분 타이머는 뜨지 않는 기기를 영원히 잠가 두지 않기 위한 대비로만 남는다(R4).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 꺼진 AVD 의 <code>id</code> 가 바뀌는 것을 종료 조건에 포함한다</strong>
+  꺼진 AVD 는 <code>avd:&lt;이름&gt;</code>, 켜진 AVD 는 <code>emulator-5554</code> 다(<a href="emulator-control.html#identifier">식별자</a>). 그래서 "그 <code>id</code> 가 실행 중이 되는 것" 만 기다리면 Android 에서는 영원히 끝나지 않는다. 시뮬레이터는 UDID 가 그대로라 실행 중으로 바뀐다. 두 경우를 한 조건으로 적으면 "그 <code>id</code> 가 꺼진 채로 목록에 남아 있지 않다" 가 된다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 실행 요청에 결과를 싣지 않는다</strong>
+  <code>Boolean</code> 을 돌려주면 에이전트를 거치는 세 타깃에서 "요청이 에이전트에 닿았다" 와 "에뮬레이터가 떴다" 가 뒤섞인다. 앞의 것은 사용자에게 쓸모가 없고, 뒤의 것은 에이전트도 모른다. 그래서 반환값을 없애고 목록만 믿는다.
+</aside>
+
+<h2 id="agent">에이전트 프로토콜</h2>
+
+<p><a href="emulator-count.html#agent">로컬 에이전트</a>에 엔드포인트 하나가 더 붙는다. 제스처와 같은 모양이다.</p>
+
+<table>
+  <thead><tr><th>메서드·경로</th><th>본문</th><th>응답</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST /emulators/launch</code></td><td><code>{"id":"avd:Pixel_9_API_37"}</code>, <code>Content-Type: text/plain</code></td><td><code>204</code>. 본문을 읽지 못하면 <code>400</code>, GET 이면 <code>405</code></td></tr>
+  </tbody>
+</table>
+
+<p>에이전트는 요청을 받은 즉시 <code>204</code> 를 준다. 에뮬레이터가 뜨는 데 걸리는 시간(수십 초)을 HTTP 응답으로 기다리면 클라이언트 타임아웃(2초)에 먼저 걸린다.</p>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span></td><td>에이전트에 <code>POST</code>. <code>10.0.2.2</code> → <code>127.0.0.1</code></td><td><a href="../platform/android.html#emulator-launch">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>에이전트에 <code>POST</code>. 시뮬레이터에서만 닿는다</td><td><a href="../platform/ios.html#emulator-launch">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge workaround">우회</span></td><td><code>emulator -avd</code> 를 떼어 놓고 띄우거나 <code>simctl boot</code> + <code>open -a Simulator</code></td><td><a href="../platform/jvm.html#emulator-launch">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td><code>fetch</code> <code>POST</code>. CORS 단순 요청으로 보낸다</td><td><a href="../platform/web.html#emulator-launch">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.stoppedDeviceCanBeLaunched</code></td><td>R1, R2. 꺼진 기기에만 버튼이 있고 누르면 요청이 나간다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.launchingDeviceLocksTheButton</code></td><td>R3. 누른 뒤 버튼이 "켜는 중…" 으로 잠긴다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppStateTest.launchLockClearsWhenTheDeviceStarts</code></td><td>R3. 기기가 목록에 뜨면 잠금이 풀린다. 화면을 그리지 않고 상태만 본다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppStateTest.launchIsNotSentTwiceForTheSameDevice</code></td><td>R3. 같은 기기에 요청이 두 번 나가지 않는다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>LaunchEmulatorUseCaseTest</code></td><td>R6. 켤 수 없는 기기의 요청이 리포지토리까지 가지 않는다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentTest.launchRequestsAreSentToTheAgent</code></td><td>실행 요청의 경로와 본문</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentServerTest.forwardsLaunchRequests</code></td><td>에이전트가 <code>204</code> 로 답하고 데이터 소스에 넘긴다. 본문이 깨지면 <code>400</code></td><td><code>:data</code> <code>jvmTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R2, R4, R5. 실제로 AVD·시뮬레이터가 뜨는 것 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<p>실제로 <code>emulator</code>·<code>simctl</code> 을 띄우는 부분은 테스트하지 않는다. 결과가 머신 환경에 따라 달라지고, 성공하면 테스트가 에뮬레이터를 하나 띄운 채로 끝난다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><strong>실패를 알 수 없다.</strong> AVD 이미지가 깨졌거나 디스크가 없어서 뜨지 않으면 화면에는 2분 동안 "켜는 중…" 만 보이고, 그 뒤 버튼이 다시 살아난다. 이유는 에뮬레이터의 표준 출력에만 있고 그걸 화면까지 가져오는 경로는 만들지 않았다.</li>
+  <li><strong>켜지기까지 수십 초 걸린다.</strong> 콜드 부트면 1분을 넘기기도 한다. R4 의 2분은 그보다 넉넉하게 잡은 값이다.</li>
+  <li><strong>JVM 외에는 데스크톱 앱이 같은 머신에 떠 있어야 한다.</strong> 꺼져 있으면 목록 자체가 비어서 누를 버튼도 없다.</li>
+  <li>실물 기기는 켤 수 없다. 버튼이 붙지 않는다.</li>
+  <li>이미 뜨는 중인 에뮬레이터를 앱 밖에서(Android Studio 등) 켰다면, 목록에는 아직 꺼진 것으로 보여서 실행 버튼이 눌린다. <code>emulator -avd</code> 를 두 번 부르면 두 번째는 "이미 실행 중" 으로 실패하고 아무 일도 일어나지 않는다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a> · <a href="emulator-control.html">기기 목록·화면·제스처</a>
+</footer>
+
+</body>
+</html>

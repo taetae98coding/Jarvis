@@ -12,7 +12,7 @@
 
 <header>
   <h1>에뮬레이터 개수</h1>
-  <p class="lead">개발자 머신의 Android 에뮬레이터와 iOS 시뮬레이터를 "실행 중 / 전체"로 보여준다.</p>
+  <p class="lead">개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와, 그 머신에 연결된 실물 기기를 "실행 중 / 전체"로 보여준다.</p>
 </header>
 
 <nav class="toc">
@@ -42,6 +42,11 @@
 </blockquote>
 
 <blockquote class="instruction">
+  <p>emulator 같은 경우 emulator뿐만 아니라 연결된 실제 디바이스도 포함시켜줘.</p>
+  <footer>2026-09-22 대화. 이 지시로 연결된 실물 기기가 두 숫자에 들어왔다. 같은 메시지의 나머지는 <a href="emulator-control.html">기기 목록</a>과 <a href="emulator-launch.html">꺼진 에뮬레이터 실행</a>에 있다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
   <p>지금 플랫폼 별로 미구현된 기능들 있잖아. 마켓 배포 포기한다면 구현할 수 있는 기능들 있어? … 전부 진행해주고</p>
   <footer>2026-09-22 대화. 이 지시로 "셀 수 없는 타깃"이 <a href="#agent">로컬 에이전트</a>를 통해 실제 숫자를 갖게 됐다.</footer>
 </blockquote>
@@ -50,7 +55,7 @@
 
 <ol>
   <li><strong>R1.</strong> 카드에 Android, iOS 두 줄이 있고 각 줄은 "실행 중 N개 / 전체 M개"다.</li>
-  <li><strong>R2.</strong> "전체"는 설치된 가상 기기 수, "실행 중"은 부팅된 가상 기기 수다. 실물 기기는 세지 않는다.</li>
+  <li><strong>R2.</strong> "전체"는 설치된 가상 기기와 연결된 실물 기기를 더한 수, "실행 중"은 부팅된 가상 기기와 연결된 실물 기기를 더한 수다. 실물 기기는 연결되어 있을 때만 보이므로 두 숫자에 함께 든다.</li>
   <li><strong>R3.</strong> 숫자를 아직 확인하지 못했으면 0이 아니라 "확인 중…"을 보여준다.</li>
   <li><strong>R4.</strong> 앱이 떠 있는 동안 가상 기기 상태가 바뀌면 숫자가 따라 바뀐다.</li>
   <li><strong>R5.</strong> 셀 수 없는 플랫폼에서도 카드는 같은 자리에 있다. 화면 구성이 플랫폼마다 갈라지지 않는다.</li>
@@ -65,7 +70,7 @@
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
     <tr><td>제목</td><td>에뮬레이터</td></tr>
-    <tr><td>설명</td><td>개발자 머신의 Android 에뮬레이터와 iOS 시뮬레이터. 이 머신에서 셀 수 없는 타깃은 데스크탑 앱에 물어본다.</td></tr>
+    <tr><td>설명</td><td>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와 연결된 실물 기기. 눌러서 목록을 보고, 화면을 조작하거나 꺼진 에뮬레이터를 켤 수 있다.</td></tr>
     <tr><td>행</td><td><code>Android</code> / <code>iOS</code></td></tr>
     <tr><td>값 형식</td><td><code>실행 중 {running}개 / 전체 {total}개</code></td></tr>
     <tr><td>응답 전</td><td><code>확인 중…</code></td></tr>
@@ -175,7 +180,9 @@
   <li>R4는 폴링이라 최대 5초 늦게 반영된다. 즉시성이 필요하면 간격을 줄인다.</li>
   <li>JVM에서 SDK는 있는데 개별 명령이 실패하면 0개로 보인다. SDK 디렉터리 자체가 없는 경우만 "셀 수 없음"으로 구분한다.</li>
   <li>JVM에서 iOS 시뮬레이터는 macOS에만 있으므로, 다른 OS에서는 <code>ANDROID_HOME</code>이 잡힐 때 Android 쪽만 동작한다. 데스크톱은 macOS만 지원하므로 별도 처리하지 않는다.</li>
-  <li>실물 Android 기기는 <code>adb reverse tcp:47890 tcp:47890</code>이 필요하고, 실물 iOS 기기는 방법이 없다.</li>
+  <li>실물 Android 기기는 <code>adb reverse tcp:47890 tcp:47890</code>이 필요하고, 실물 iOS 기기는 방법이 없다. 여기서 말하는 것은 "이 앱이 도는 기기" 이고, 세는 대상인 "호스트에 연결된 기기" 와는 다르다.</li>
+  <li>실물 기기 하나는 전체와 실행 중에 동시에 든다. 꽂혀 있지 않은 기기를 셀 방법이 없어서 "설치되어 있지만 꺼져 있음" 에 해당하는 상태가 없다.</li>
+  <li>실물 iOS 기기를 찾는 데 <code>xctrace</code>가 필요하고 느리다. 5초 폴링이 그 시간만큼 늘어질 수 있다(<a href="../platform/jvm.html#emulator-control">JVM 스펙</a>).</li>
 </ul>
 
 <footer class="page">

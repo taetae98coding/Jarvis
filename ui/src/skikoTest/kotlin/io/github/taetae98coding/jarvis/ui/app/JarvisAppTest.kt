@@ -28,6 +28,8 @@ import io.github.taetae98coding.jarvis.ui.emulator.EmulatorListTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorScreenTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorDeviceTestTag
+import io.github.taetae98coding.jarvis.ui.emulator.emulatorLaunchTestTag
+import io.github.taetae98coding.jarvis.ui.emulator.emulatorWakeTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationBackwardTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationForwardTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationLockTestTag
@@ -257,7 +259,86 @@ class JarvisAppTest {
 
         onNodeWithTag(EmulatorTestTag).performClick()
 
-        onNodeWithText("가상 기기가 없거나 개발자 머신에 물어볼 수 없습니다.").assertIsDisplayed()
+        onNodeWithText("연결된 기기가 없거나 개발자 머신에 물어볼 수 없습니다.").assertIsDisplayed()
+    }
+
+    @Test
+    fun physicalDeviceIsMarkedInTheList() = runComposeUiTest {
+        val emulator = FakeEmulatorRepository(devices = listOf(PhysicalAndroidDevice))
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = emulator)) }
+
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithText(PhysicalAndroidDevice.name).assertIsDisplayed()
+        onNodeWithText("Android · 실물 기기 · 연결됨").assertIsDisplayed()
+        onNodeWithTag(emulatorDeviceTestTag(PhysicalAndroidDevice.id)).assertIsEnabled()
+    }
+
+    // 연결됐는데 목록에 없으면 "꽂았는데 왜 없지" 가 된다. 대신 왜 누를 수 없는지 그 줄에 적는다.
+    @Test
+    fun deviceWithoutAScreenSaysSoInTheList() = runComposeUiTest {
+        val emulator = FakeEmulatorRepository(devices = listOf(PhysicalIosDevice))
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = emulator)) }
+
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithText("iOS · 실물 기기 · 연결됨 · 화면을 볼 수 없음").assertIsDisplayed()
+        onNodeWithTag(emulatorDeviceTestTag(PhysicalIosDevice.id)).assertIsNotEnabled()
+    }
+
+    // 화면이 꺼진 기기는 스트리밍을 열어도 검은 화면만 보인다. 목록에서 켤 수 있어야 한다.
+    @Test
+    fun sleepingDeviceCanBeWokenUp() = runComposeUiTest {
+        val emulator = FakeEmulatorRepository(
+            devices = listOf(SleepingAndroidDevice, PhysicalAndroidDevice, StoppedAndroidDevice),
+        )
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = emulator)) }
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithText("Android · 실물 기기 · 연결됨 · 화면 꺼짐").assertIsDisplayed()
+        onNodeWithTag(emulatorWakeTestTag(SleepingAndroidDevice.id)).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.woken.isNotEmpty() }
+        assertEquals(listOf(SleepingAndroidDevice.id), emulator.woken.toList())
+        // 깨어 있는 기기와 입력을 받지 못하는 꺼진 AVD 에는 붙지 않는다.
+        onAllNodesWithTag(emulatorWakeTestTag(PhysicalAndroidDevice.id)).assertCountEquals(0)
+        onAllNodesWithTag(emulatorWakeTestTag(StoppedAndroidDevice.id)).assertCountEquals(0)
+    }
+
+    @Test
+    fun stoppedDeviceCanBeLaunched() = runComposeUiTest {
+        val emulator = FakeEmulatorRepository(
+            devices = listOf(RunningAndroidDevice, StoppedAndroidDevice),
+        )
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = emulator)) }
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithTag(emulatorLaunchTestTag(StoppedAndroidDevice.id)).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.launched.isNotEmpty() }
+        assertEquals(listOf(StoppedAndroidDevice.id), emulator.launched.toList())
+        // 이미 켜져 있는 기기에는 켤 것이 없다.
+        onAllNodesWithTag(emulatorLaunchTestTag(RunningAndroidDevice.id)).assertCountEquals(0)
+    }
+
+    // 뜨는 데 수십 초가 걸린다. 그동안 버튼이 살아 있으면 같은 AVD 에 요청이 여러 번 나간다.
+    // 기기가 뜬 뒤 잠금이 풀리는 것은 JarvisAppStateTest 가 본다. 목록이 바뀌는 것을 화면에서
+    // 기다리면 Wasm 에서 폴링 루프가 이벤트 루프를 잡아 전파가 밀린다.
+    @Test
+    fun launchingDeviceLocksTheButton() = runComposeUiTest {
+        val emulator = FakeEmulatorRepository(devices = listOf(StoppedAndroidDevice))
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = emulator)) }
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithTag(emulatorLaunchTestTag(StoppedAndroidDevice.id)).performClick()
+
+        // 상태가 화면에 반영되는 것까지 기다린다. 리포지토리에 요청이 닿은 시점과 다시 그려지는
+        // 시점이 달라서, 기록만 보고 단언하면 어쩌다 한 번 앞질러 읽는다.
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            onAllNodesWithText("켜는 중…").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(listOf(StoppedAndroidDevice.id), emulator.launched.toList())
+        onNodeWithTag(emulatorLaunchTestTag(StoppedAndroidDevice.id)).assertIsNotEnabled()
     }
 
     @Test

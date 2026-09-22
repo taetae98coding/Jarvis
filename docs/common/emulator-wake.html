@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>꺼진 화면 깨우기 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>꺼진 화면 깨우기</span></nav>
+
+<header>
+  <h1>꺼진 화면 깨우기</h1>
+  <p class="lead">연결은 됐지만 화면이 꺼져 있는 기기를 목록에서 알아보고, 그 자리에서 화면을 켠다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#agent">에이전트 프로토콜</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>연결은 됐지만 화면이 꺼진 케이스 대응해줘. 화면 깨울 수 있도록</p>
+  <footer>2026-09-22 대화. 무선 디버깅으로 붙은 실물 기기 한 대가 <code>Dozing</code> 상태여서 스트리밍 화면이 검게 나온 것에서 나왔다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 연결되어 있지만 화면이 꺼진 기기는 목록 보조 문구에 "화면 꺼짐"이 나온다.</li>
+  <li><strong>R2.</strong> 그 줄에 "화면 켜기" 버튼이 붙고, 누르면 기기 화면이 켜진다.</li>
+  <li><strong>R3.</strong> 켜지면 다음 목록 갱신(최대 5초) 때 문구와 버튼이 사라진다.</li>
+  <li><strong>R4.</strong> 화면을 깨울 수 없는 기기에는 버튼이 붙지 않는다. 입력을 주입할 수 있는 기기만 깨울 수 있다.</li>
+  <li><strong>R5.</strong> 깨울 수 없는 기기에 요청이 들어와도 기기까지 가지 않는다. 화면이 막는 것과 별개로 도메인에서 한 번 더 막는다.</li>
+  <li><strong>R6.</strong> 화면이 꺼져 있어도 줄은 그대로 누를 수 있다. 검은 화면이라도 스트리밍은 열리고, 깨우면 바로 보인다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>잠금 해제. 깨우면 잠금 화면이 보인다. PIN·패턴을 앱이 알 수 없고, 넣는다 해도 저장할 곳이 없다. 잠금 화면을 넘기는 것은 스트리밍 화면에서 스와이프로 할 수 있다.</li>
+    <li>화면 끄기. 켜는 것만 한다. <a href="emulator-launch.html">에뮬레이터 실행</a>과 같은 기준이다.</li>
+    <li>스트리밍 화면에서 깨우기. 그 화면은 들어갈 때의 기기 정보를 들고 있어서 "지금 화면이 꺼졌는지"를 모른다. 아래 <a href="#limits">한계</a> 참고.</li>
+    <li>화면이 꺼진 기기의 프레임을 다르게 다루는 것. <code>screencap</code> 은 오류가 아니라 검은 그림을 주므로 화면은 "가져오는 중"도 "가져올 수 없음"도 아닌 검은 화면을 보여준다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>위치</td><td>기기 목록의 각 줄 오른쪽 끝. <a href="emulator-launch.html">실행 버튼</a>과 같은 자리다</td></tr>
+    <tr><td>보조 문구</td><td><code>Android · 실물 기기 · 연결됨 · 화면 꺼짐</code></td></tr>
+    <tr><td>버튼</td><td><code>화면 켜기</code> — 화면이 꺼져 있고 입력을 받을 수 있는 기기에만</td></tr>
+    <tr><td>누른 뒤</td><td>따로 잠그지 않는다. 다음 갱신 때 문구와 버튼이 사라진다</td></tr>
+    <tr><td>테스트 태그</td><td><code>emulator:wake:&lt;id&gt;</code></td></tr>
+  </tbody>
+</table>
+
+<p>실행 버튼과 한 줄에 함께 나오는 일은 없다. 꺼진 가상 기기는 입력을 받을 수 없어 깨울 대상이 아니고, 깨울 수 있는 기기는 이미 실행 중이라 켤 대상이 아니다.</p>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인 모델</dt><dd><code>EmulatorDevice.isAsleep</code> — 연결되어 있지만 화면이 꺼져 있다. <code>:data</code> 가 정한다</dd>
+  <dt>리포지토리</dt><dd><code>EmulatorRepository.wake(deviceId: String)</code> — <code>suspend</code>, 반환값 없음</dd>
+  <dt>유스케이스</dt><dd><code>WakeDeviceUseCase(device)</code> — <code>canControl</code> 이 아니면 아무것도 하지 않는다 (R5)</dd>
+  <dt>UI</dt><dd><code>ui/emulator/EmulatorListScreen.kt</code> 의 줄 오른쪽 버튼</dd>
+  <dt>상태</dt><dd>없다. 깨우는 것은 즉시 끝나므로 <a href="emulator-launch.html">실행</a>과 달리 진행 중 상태를 들지 않는다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 깨울 수 있는지를 <code>canControl</code> 로 판단한다. 새 능력 플래그를 만들지 않는다</strong>
+  깨우는 것은 <code>input keyevent KEYCODE_WAKEUP</code>, 탭은 <code>input tap</code> 이다. 같은 채널이라 하나가 되면 다른 하나도 된다. 플래그를 따로 두면 두 값이 어긋날 수 있는 자리만 는다. 상태(<code>isAsleep</code>)만 새로 싣는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 화면 상태를 <code>dumpsys deviceidle get screen</code> 으로 읽는다</strong>
+  <ul>
+    <li><strong>채택.</strong> <code>true</code> / <code>false</code> 한 줄만 나온다. 5초마다 기기 수만큼 도는 명령이라 출력이 작은 것이 중요하다. 개발 머신에 연결된 실물 기기 두 대에서 확인했다.</li>
+    <li><code>dumpsys power | grep mWakefulness</code>. 값은 정확하지만(<code>Awake</code>/<code>Asleep</code>/<code>Dozing</code>) 수십 KB 를 떠서 기기 쪽 <code>grep</code> 으로 거른다. 파이프가 일찍 닫혀 <code>Broken pipe</code> 가 stderr 에 남는 것도 확인했다. 버렸다.</li>
+    <li><code>dumpsys power | grep 'Display Power'</code>. 삼성 기기에서는 이 줄에 상태가 없고 객체 주소만 찍힌다(<code>Display Power: com.android…$1@add629b</code>). 제조사마다 다르다. 버렸다.</li>
+    <li><code>dumpsys display</code> 의 <code>mScreenState</code>. 버전마다 키 이름과 위치가 달라진다. 버렸다.</li>
+  </ul>
+  <code>true</code> 도 <code>false</code> 도 아닌 답이 오면 "모른다"로 보고 꺼진 것으로 표시하지 않는다. 잘못된 라벨을 붙이는 것보다 낫다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: <code>KEYCODE_WAKEUP</code> 을 쓴다. <code>KEYCODE_POWER</code> 는 쓰지 않는다</strong>
+  <code>POWER</code> 는 토글이라 이미 켜져 있는 화면을 끈다. 목록이 5초 늦으므로 그 사이에 사용자가 직접 켠 기기의 화면을 우리가 끄는 일이 생긴다. <code>WAKEUP</code> 은 몇 번을 보내도 켜기만 한다.
+</aside>
+
+<h2 id="agent">에이전트 프로토콜</h2>
+
+<p><a href="emulator-count.html#agent">로컬 에이전트</a>에 엔드포인트 하나가 더 붙는다. 본문이 기기 하나를 가리키는 것뿐이라 <a href="emulator-launch.html#agent">실행</a>과 같은 모양을 쓴다.</p>
+
+<table>
+  <thead><tr><th>메서드·경로</th><th>본문</th><th>응답</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST /emulators/wake</code></td><td><code>{"id":"39061FDJH00CNS"}</code>, <code>Content-Type: text/plain</code></td><td><code>204</code>. 본문을 읽지 못하면 <code>400</code>, GET 이면 <code>405</code></td></tr>
+  </tbody>
+</table>
+
+<p>목록 응답에는 <code>asleep</code> 필드가 는다. 옛 에이전트에는 없어서 <code>false</code> 로 읽히고, 그러면 문구도 버튼도 나오지 않는다. 능력 플래그와 같은 규칙이다(<a href="emulator-control.html#agent">기기 목록</a>).</p>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span></td><td>에이전트에 <code>POST</code>. <code>10.0.2.2</code> → <code>127.0.0.1</code></td><td><a href="../platform/android.html#emulator-wake">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>에이전트에 <code>POST</code>. 시뮬레이터에서만 닿는다</td><td><a href="../platform/ios.html#emulator-wake">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge workaround">우회</span></td><td><code>dumpsys deviceidle get screen</code> 으로 읽고 <code>input keyevent KEYCODE_WAKEUP</code> 으로 깨운다</td><td><a href="../platform/jvm.html#emulator-wake">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td><code>fetch</code> <code>POST</code>. CORS 단순 요청으로 보낸다</td><td><a href="../platform/web.html#emulator-wake">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.sleepingDeviceCanBeWokenUp</code></td><td>R1, R2, R4. 꺼진 기기에만 문구와 버튼이 있고 누르면 요청이 나간다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppStateTest.wakingASleepingDeviceReachesTheRepository</code></td><td>R2. 화면의 요청이 리포지토리까지 간다</td><td><code>:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>WakeDeviceUseCaseTest</code></td><td>R5. 입력을 받지 못하는 기기의 요청이 리포지토리까지 가지 않는다</td><td><code>:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>EmulatorParsingTest.readsTheScreenState</code></td><td><code>dumpsys deviceidle get screen</code> 출력 해석. <code>true</code>/<code>false</code> 가 아니면 모르는 것으로 둔다</td><td><code>:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>HostAgentTest.wakeRequestsAreSentToTheAgent</code></td><td>요청의 경로와 본문</td><td><code>:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentServerTest.forwardsWakeRequests</code></td><td>에이전트가 <code>204</code> 로 답하고 데이터 소스에 넘긴다</td><td><code>:data</code> <code>jvmTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R2, R3. 실물 기기에서 <code>dumpsys deviceidle get screen</code> 이 <code>false</code> → <code>KEYCODE_WAKEUP</code> → <code>true</code> 가 되는 것을 개발 머신에 연결된 기기로 확인했다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><strong>깨우면 잠금 화면이 보인다.</strong> 잠금을 푸는 것은 <a href="#requirements">스코프 밖</a>이다. 스트리밍 화면에서 위로 스와이프하면 넘어가지만 PIN·패턴은 직접 눌러야 한다.</li>
+  <li><strong>스트리밍 화면에는 버튼이 없다.</strong> 그 화면은 들어갈 때 고른 기기 정보를 그대로 들고 있어서 화면이 꺼졌는지를 모른다. 목록을 계속 구독하면 알 수 있지만, 그러면 스트리밍 중에도 5초마다 기기 목록 명령이 돌게 된다. 검은 화면을 보면 뒤로 가서 켜는 흐름이다.</li>
+  <li><strong>화면이 꺼진 iOS 기기는 다룰 수 없다.</strong> 실물 iOS 기기는 상태를 읽을 방법도 깨울 방법도 없고, 시뮬레이터에는 꺼진 화면이라는 상태가 없다.</li>
+  <li><strong>상태가 최대 5초 늦다.</strong> 기기에서 직접 화면을 켜거나 꺼도 그다음 폴링에서야 반영된다.</li>
+  <li>기기마다 명령이 한 번 더 돈다. 연결된 기기 수만큼 <code>dumpsys deviceidle get screen</code> 이 5초마다 실행된다. 출력이 한 줄이라 감당 가능한 수준으로 봤다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a> · <a href="emulator-control.html">기기 목록·화면·제스처</a>
+</footer>
+
+</body>
+</html>

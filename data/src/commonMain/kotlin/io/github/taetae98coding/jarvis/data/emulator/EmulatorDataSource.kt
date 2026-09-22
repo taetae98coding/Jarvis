@@ -14,6 +14,10 @@ internal interface EmulatorDataSource {
     fun observeScreen(deviceId: String): Flow<ByteArray?>
 
     suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture)
+
+    suspend fun launch(deviceId: String)
+
+    suspend fun wake(deviceId: String)
 }
 
 /**

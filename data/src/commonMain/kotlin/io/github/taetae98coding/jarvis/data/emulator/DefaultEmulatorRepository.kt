@@ -18,4 +18,12 @@ internal class DefaultEmulatorRepository(
     override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
         dataSource.sendGesture(deviceId, gesture)
     }
+
+    override suspend fun launch(deviceId: String) {
+        dataSource.launch(deviceId)
+    }
+
+    override suspend fun wake(deviceId: String) {
+        dataSource.wake(deviceId)
+    }
 }

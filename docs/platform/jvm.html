@@ -36,7 +36,9 @@
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
     <li><a href="#card-ripple">카드 물결 효과</a></li>
-    <li><a href="#emulator-control">에뮬레이터 목록·화면·제스처</a></li>
+    <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
+    <li><a href="#emulator-launch">꺼진 에뮬레이터 실행</a></li>
+    <li><a href="#emulator-wake">꺼진 화면 깨우기</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -347,8 +349,8 @@ internal actual fun createSystemScreenAwakeDataSource(
 </section>
 
 <section class="feature" id="emulator-control">
-<h2>에뮬레이터 목록·화면·제스처 <span class="badge partial">조건부</span></h2>
-<p>공통 스펙: <a href="../common/emulator-control.html">에뮬레이터 목록·화면·제스처</a></p>
+<h2>기기 목록·화면·제스처 <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/emulator-control.html">기기 목록·화면·제스처</a></p>
 
 <p>SDK 도구를 직접 실행할 수 있는 유일한 타깃이다. 다른 세 타깃이 보는 화면과 제스처는 전부 여기서 나와 <a href="../common/emulator-control.html#agent">에이전트</a>로 흘러간다.</p>
 
@@ -357,7 +359,12 @@ internal actual fun createSystemScreenAwakeDataSource(
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
     <tr><td><code>emulator -list-avds</code></td><td>채택. 꺼져 있는 AVD 까지 포함한 전체 목록. 이름만 한 줄씩 나온다</td></tr>
-    <tr><td><code>adb devices</code></td><td>채택. <code>emulator-5554</code> 형태의 시리얼이 실행 중인 AVD 다. 실물 기기·네트워크 타깃은 시리얼 형태가 달라 걸러진다</td></tr>
+    <tr><td><code>adb devices</code></td><td>채택. <code>emulator-5554</code> 형태의 시리얼이 실행 중인 AVD 이고, 나머지 시리얼(<code>39061FDJH00CNS</code>, <code>192.168.0.10:5555</code>)이 실물 기기다. 상태가 <code>device</code> 인 줄만 쓴다. <code>unauthorized</code>·<code>offline</code> 은 화면을 찍을 수 없다. 줄은 탭으로만 자른다 — 무선 디버깅으로 붙은 기기의 시리얼은 mDNS 이름이라 공백을 품는다(<code>adb-R54T202XEHN-Y2yH0N (2)._adb-tls-connect._tcp</code>)</td></tr>
+    <tr><td><code>adb -s &lt;시리얼&gt; shell getprop ro.product.model</code></td><td>채택. 실물 기기의 표시 이름. 빈 줄이 오면 시리얼을 그대로 이름으로 쓴다. <code>adb devices -l</code> 의 <code>model:</code> 필드도 같은 값을 주지만, 거기서는 공백이 <code>_</code> 로 치환되어 있다</td></tr>
+    <tr><td><code>xcrun xctrace list devices</code></td><td>채택. 연결된 실물 iOS 기기를 나열하는 표준 도구다. <code>== Devices ==</code> 아래에 <code>이름 (OS 버전) (UDID)</code> 로 나오고, 괄호 묶음이 하나뿐인 줄은 이 Mac 자신이라 걸러낸다. 버전에 따라 목록을 stderr 로 내보내므로 두 스트림을 합쳐 읽고, 형태가 맞는 줄만 정규식으로 고른다</td></tr>
+    <tr><td><code>xcrun devicectl list devices</code></td><td>버렸다. Xcode 15+ 의 후속 도구이고 <code>--json-output</code> 로 구조화된 출력을 주지만, 그 옵션이 파일 경로만 받아서 임시 파일을 한 번 더 왕복해야 한다. 기본 출력은 열 너비가 가변인 표라 파싱이 <code>xctrace</code> 보다 나을 것이 없다. 다시 볼 값어치는 있다 — <code>xctrace</code> 가 사라지면 이쪽이다</td></tr>
+    <tr><td>실물 iOS 기기의 화면 캡처</td><td><strong>없다.</strong> <code>simctl io</code> 는 시뮬레이터 전용이고, <code>xctrace</code>·<code>devicectl</code> 에는 스크린샷 하위 명령이 없다. Xcode 의 Devices 창과 QuickTime 은 GUI 로만 찍는다. 아래 대체 동작 참고</td></tr>
+    <tr><td><code>libimobiledevice</code> 의 <code>idevicescreenshot</code></td><td>버렸다. 실물 iOS 기기의 화면을 실제로 찍을 수 있는 유일한 길이지만 <code>brew</code> 로 따로 깔아야 하고, 기기에 개발자 디스크 이미지가 마운트되어 있어야 한다. <code>idb</code> 를 버린 것과 같은 이유로 표준 도구만 쓴다</td></tr>
     <tr><td><code>adb -s &lt;시리얼&gt; emu avd name</code></td><td>채택. 시리얼과 AVD 이름을 잇는 유일한 공개 경로다. 에뮬레이터 콘솔의 인증 토큰은 <code>adb</code> 가 대신 처리한다. 응답 마지막 줄이 <code>OK</code> 라 첫 줄만 쓴다</td></tr>
     <tr><td><code>adb -s &lt;시리얼&gt; exec-out screencap -p</code></td><td>채택. PNG 를 stdout 으로 준다. 개발 머신에서 실제로 확인했다(1080×2400, 약 400KB). <code>exec-out</code> 이라 <code>shell</code> 과 달리 개행 변환이 없어 바이트가 깨지지 않는다</td></tr>
     <tr><td><code>adb -s &lt;시리얼&gt; shell input tap x y</code> / <code>input swipe x1 y1 x2 y2 ms</code></td><td>채택. 기기 디스플레이 픽셀 좌표를 받는다. 스크린샷 해상도와 같은 좌표계라 변환이 한 번으로 끝난다</td></tr>
@@ -374,26 +381,109 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>구현</h3>
 <dl class="meta">
   <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행·파싱), <code>data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
-  <dt>목록</dt><dd>AVD 이름 전체 + 실행 중 시리얼 매핑 + 시뮬레이터 목록. 5초마다 다시 읽는다. 실행 중이 아닌 AVD 의 <code>id</code> 는 <code>avd:&lt;이름&gt;</code></dd>
-  <dt>프레임</dt><dd><code>id</code> 가 <code>emulator-</code> 로 시작하면 <code>screencap</code>, UDID 형태면 <code>simctl</code>. 500ms 주기로 요청이 들어온다</dd>
-  <dt>제스처</dt><dd>Android 만 <code>input tap</code> / <code>input swipe</code>. 스와이프의 지속 시간은 사용자가 실제로 끈 시간을 ms 로 넘긴다</dd>
+  <dt>목록</dt><dd>AVD 이름 전체 + <code>adb</code> 가 아는 시리얼(에뮬레이터·실물) + 시뮬레이터 + 실물 iOS 기기. 5초마다 다시 읽는다. 실행 중이 아닌 AVD 의 <code>id</code> 는 <code>avd:&lt;이름&gt;</code>, 실물 iOS 기기는 <code>ios:&lt;UDID&gt;</code> 다(<a href="../common/emulator-control.html#identifier">식별자</a>)</dd>
+  <dt>능력 플래그</dt><dd><code>adb</code> 시리얼(에뮬레이터·실물 Android)만 <code>canStream</code> 과 <code>canControl</code> 이 함께 참이다. 부팅된 시뮬레이터는 <code>canStream</code> 만, 실물 iOS 기기는 둘 다 거짓이다</dd>
+  <dt>프레임</dt><dd><code>id</code> 모양으로 가른다. <code>avd:</code>·<code>ios:</code> 는 찍을 것이 없어 <code>null</code>, 36자 UUID 는 <code>simctl</code>, 나머지는 <code>adb -s … exec-out screencap</code>. 500ms 주기로 요청이 들어온다</dd>
+  <dt>제스처</dt><dd><code>adb</code> 시리얼에만 <code>input tap</code> / <code>input swipe</code>. 에뮬레이터인지 실물인지는 구분하지 않는다. 스와이프의 지속 시간은 사용자가 실제로 끈 시간을 ms 로 넘긴다</dd>
   <dt>실행 방식</dt><dd>출력을 파이프가 아니라 임시 파일로 받는다. <code>adb</code> 가 stdout 을 물려받는 데몬을 fork 해서 파이프를 읽으면 자식이 끝난 뒤에도 블록된다. 프레임은 같은 파일을 텍스트가 아니라 바이트로 읽는다</dd>
   <dt>타임아웃</dt><dd>명령마다 10초. 넘기면 강제 종료하고 없는 것으로 답한다</dd>
 </dl>
 
 <h3>대체 동작</h3>
 <p>iOS 시뮬레이터 항목은 <code>canControl = false</code> 로 내려간다. 화면은 보이고, 탭·드래그는 화면에서부터 막혀 요청 자체가 나가지 않는다. 사용자에게는 왜 안 되는지 한 줄이 보인다.</p>
+<p>실물 iOS 기기 항목은 <code>canStream</code> 도 <code>false</code> 다. 목록에는 이름과 "화면을 볼 수 없음" 이 보이고 줄을 누를 수 없다. 목록에서 아예 빼면 "USB 로 꽂았는데 왜 없지" 가 되고, 누를 수 있게 두면 빈 화면만 보게 된다.</p>
 
 <h3>한계</h3>
 <ul>
   <li><strong>macOS 만.</strong> Android SDK 경로 탐색과 <code>simctl</code> 경로가 macOS 기준이다. 다른 OS 에서는 목록이 비고 조용히 no-op 이 된다.</li>
   <li><strong>프레임률이 낮다.</strong> <code>screencap</code> 한 장이 0.3~1초다. 500ms 주기로 물어봐도 그보다 빨라지지 않는다.</li>
   <li><strong>시리얼 ↔ AVD 이름 매핑에 명령이 한 번 더 든다.</strong> 실행 중인 에뮬레이터 수만큼 <code>adb emu avd name</code> 이 돈다. 폴링 주기가 5초라 감당 가능한 수준으로 봤다.</li>
-  <li>에뮬레이터를 켜고 끄는 순간에는 목록과 실제가 최대 5초 어긋난다.</li>
+  <li><strong>실물 iOS 기기를 찾는 데 <code>xctrace</code> 가 느리다.</strong> 기기를 스캔하느라 수 초가 걸리고, 그만큼 목록 폴링 한 바퀴가 길어진다. 명령 타임아웃(10초)을 넘기면 그 바퀴에서는 실물 iOS 기기가 없는 것으로 답한다.</li>
+  <li><strong>USB 디버깅을 허용하지 않은 Android 기기는 보이지 않는다.</strong> <code>adb devices</code> 에 <code>unauthorized</code> 로 남는 동안은 목록에서 빠진다. 기기 화면의 확인 대화상자를 누르면 다음 폴링에 나타난다.</li>
+  <li>에뮬레이터를 켜고 끄거나 USB 를 꽂고 뽑는 순간에는 목록과 실제가 최대 5초 어긋난다.</li>
 </ul>
 
 <h3>검증</h3>
-<p><code>EmulatorParsingTest</code> 가 <code>jvmTest</code> 에서 <code>adb devices</code>·<code>emulator -list-avds</code>·<code>simctl list</code> 출력 파싱을 확인하고, <code>HostAgentServerTest</code> 가 새 엔드포인트 세 개의 상태 코드와 본문을 확인한다. SDK 도구를 실제로 돌리는 부분은 에뮬레이터가 떠 있어야 해서 <span class="badge untested">미검증</span>이다. <code>screencap</code> 왕복은 개발 머신에서 <code>adb</code> 로 직접 확인했다.</p>
+<p><code>EmulatorParsingTest</code> 가 <code>jvmTest</code> 에서 <code>adb devices</code>·<code>emulator -list-avds</code>·<code>simctl list</code>·<code>xctrace list devices</code>·<code>getprop</code> 출력 파싱을 확인하고, <code>HostAgentServerTest</code> 가 새 엔드포인트 세 개의 상태 코드와 본문을 확인한다. SDK 도구를 실제로 돌리는 부분은 에뮬레이터가 떠 있어야 해서 <span class="badge untested">미검증</span>이다. <code>screencap</code> 왕복은 개발 머신에서 <code>adb</code> 로 직접 확인했다.</p>
+</section>
+
+<section class="feature" id="emulator-launch">
+<h2>꺼진 에뮬레이터 실행 <span class="badge workaround">우회</span></h2>
+<p>공통 스펙: <a href="../common/emulator-launch.html">꺼진 에뮬레이터 실행</a></p>
+
+<p>실제로 에뮬레이터를 띄우는 것은 여기뿐이다. 다른 세 타깃의 실행 버튼은 <a href="../common/emulator-launch.html#agent">에이전트</a>를 거쳐 이 코드에 닿는다.</p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>$SDK/emulator/emulator -avd &lt;이름&gt;</code></td><td>채택. AVD 이름 하나로 띄운다. 에뮬레이터가 꺼질 때까지 살아 있는 프로세스라 기다리지 않고 떼어 놓는다. 절대 경로로 불러도 자기 위치를 찾아 SDK 를 잡는다(옛 <code>tools/emulator</code> 와 달리 <code>emulator/</code> 안의 바이너리는 <code>ANDROID_SDK_ROOT</code> 가 없어도 된다)</td></tr>
+    <tr><td><code>avdmanager</code></td><td>버렸다. AVD 를 만들고 지우는 도구이고 띄우지는 못한다.</td></tr>
+    <tr><td><code>adb -s emulator-5554 emu kill</code></td><td>조사만 했다. 끄는 명령이고 <a href="../common/emulator-launch.html#requirements">스코프 밖</a>이다. 켜는 것과 달리 되돌릴 수 없어서 지시에 없는 이상 넣지 않는다.</td></tr>
+    <tr><td><code>simctl boot &lt;UDID&gt;</code></td><td>채택. 시뮬레이터를 부팅한다. 바로 반환되고, 창은 뜨지 않는다.</td></tr>
+    <tr><td><code>open -a Simulator</code></td><td>채택. <code>simctl boot</code> 다음에 부른다. 이것만 부르면 마지막으로 쓴 기기가 뜨므로 사용자가 고른 기기와 다를 수 있다. 순서가 뒤집히면 안 된다.</td></tr>
+    <tr><td><code>open -a Simulator --args -CurrentDeviceUDID &lt;UDID&gt;</code></td><td>버렸다. 창까지 한 번에 열리지만 문서화되지 않은 인자이고, 이미 Simulator.app 이 떠 있으면 무시된다. <code>boot</code> + <code>open</code> 두 단계가 어느 경우에도 같게 동작한다.</td></tr>
+    <tr><td>실행 결과를 기다려서 돌려주기</td><td>버렸다. <code>emulator</code> 는 끝나지 않는 프로세스라 종료 코드를 볼 수 없고, <code>adb wait-for-device</code> 는 어느 기기를 기다릴지 지정할 수 없다. 목록 폴링에 맡겼다(<a href="../common/emulator-launch.html#implementation">공통 스펙의 결정</a>).</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행), <code>.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
+  <dt>동작</dt><dd><code>id</code> 가 <code>avd:&lt;이름&gt;</code> 이면 <code>emulator -avd</code>, 36자 UUID 면 <code>simctl boot</code> + <code>open -a Simulator</code>. 그 밖의 <code>id</code> 는 no-op</dd>
+  <dt>실행 방식</dt><dd>에뮬레이터만 기다리지 않고 떼어 놓는다. 출력은 버린다. JVM 이 먼저 끝나도 자식은 살아남는다</dd>
+  <dt>실패</dt><dd>바이너리가 없거나 실행이 실패하면 조용히 빠진다. 화면에는 <a href="../common/emulator-launch.html#requirements">R4</a>의 2분 잠금만 보인다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>macOS 만.</strong> SDK 경로 탐색과 <code>open</code> 명령이 macOS 기준이다. 다른 OS 에서는 목록이 비어서 누를 버튼도 없다.</li>
+  <li><strong>왜 안 떴는지 알 수 없다.</strong> <code>emulator</code> 의 출력을 버리기 때문이다. 살려 두면 실패한 프로세스가 파이프를 물고 남는데, 그걸 관리하는 비용이 얻는 것보다 크다고 봤다.</li>
+  <li>이미 뜨는 중인 AVD 를 다시 실행하면 <code>emulator</code> 가 "이미 실행 중" 으로 끝난다. 목록이 5초 늦으므로 그 사이에 한 번 더 눌릴 수 있다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>HostAgentServerTest.forwardsLaunchRequests</code> 가 엔드포인트가 데이터 소스까지 요청을 넘기는 것을 확인한다. 실제로 <code>emulator</code>·<code>simctl</code> 을 띄우는 부분은 <span class="badge untested">미검증</span>이다. 테스트가 성공하면 에뮬레이터를 하나 띄운 채로 끝나기 때문이다. 손으로 확인하려면 데스크탑 앱을 띄운 뒤 <code>curl -d '{"id":"avd:&lt;이름&gt;"}' http://127.0.0.1:47890/emulators/launch</code> 로 왕복을 본다.</p>
+</section>
+
+<section class="feature" id="emulator-wake">
+<h2>꺼진 화면 깨우기 <span class="badge workaround">우회</span></h2>
+<p>공통 스펙: <a href="../common/emulator-wake.html">꺼진 화면 깨우기</a></p>
+
+<p>화면 상태를 읽고 깨우는 것은 여기뿐이다. 다른 세 타깃은 <a href="../common/emulator-wake.html#agent">에이전트</a>를 거친다.</p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>adb -s &lt;시리얼&gt; shell dumpsys deviceidle get screen</code></td><td>채택. <code>true</code> / <code>false</code> 한 줄이 전부다. 연결된 기기 수만큼 5초마다 도는 명령이라 출력 크기가 곧 비용이다. 개발 머신에 무선 디버깅으로 붙은 실물 기기 두 대에서 깨어 있는 기기는 <code>true</code>, <code>Dozing</code> 인 기기는 <code>false</code> 가 나오는 것을 확인했다</td></tr>
+    <tr><td><code>dumpsys power | grep -m1 mWakefulness</code></td><td>버렸다. 값 자체는 정확하다(<code>Awake</code> / <code>Asleep</code> / <code>Dozing</code>). 다만 수십 KB 를 떠서 기기 쪽 <code>grep</code> 으로 거르는 구조라 <code>dumpsys</code> 가 <code>Failed to write while dumping service power: Broken pipe</code> 를 남긴다. 같은 머신에서 실제로 확인했다</td></tr>
+    <tr><td><code>dumpsys power | grep 'Display Power'</code></td><td>버렸다. 삼성 기기에서는 이 줄에 상태가 없고 객체 주소만 찍힌다(<code>Display Power: com.android.server.power.PowerManagerService$1@add629b</code>). 제조사마다 다르다</td></tr>
+    <tr><td><code>dumpsys display</code> 의 <code>mScreenState</code></td><td>버렸다. 버전마다 키 이름과 위치가 달라지고 출력도 크다</td></tr>
+    <tr><td><code>adb -s &lt;시리얼&gt; shell input keyevent KEYCODE_WAKEUP</code></td><td>채택. 몇 번을 보내도 켜기만 한다. 실물 기기에서 <code>false</code> → 이 명령 → <code>true</code> 가 되는 것을 확인했다</td></tr>
+    <tr><td><code>input keyevent KEYCODE_POWER</code></td><td>버렸다. 토글이라 이미 켜진 화면을 끈다. 목록이 5초 늦는 동안 사용자가 직접 켠 화면을 우리가 끄게 된다</td></tr>
+    <tr><td><code>adb shell svc power stayon true</code></td><td>버렸다. 깨우는 것이 아니라 화면을 계속 켜 두는 설정이고, 기기 설정을 우리가 바꿔 놓은 채로 남는다</td></tr>
+    <tr><td><code>input keyevent 82</code>(MENU)로 잠금 넘기기</td><td>버렸다. 보안 잠금이 걸린 기기에서는 아무 일도 하지 않고, 안 걸린 기기에서만 우연히 동작한다. 잠금 해제는 <a href="../common/emulator-wake.html#requirements">스코프 밖</a>이다</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행·파싱), <code>.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
+  <dt>상태</dt><dd><code>adb</code> 시리얼로 붙은 기기마다 <code>dumpsys deviceidle get screen</code> 을 한 번 돌려 <code>isAsleep</code> 을 채운다. <code>true</code>/<code>false</code> 가 아니면 모르는 것으로 보고 꺼졌다고 표시하지 않는다</dd>
+  <dt>깨우기</dt><dd><code>input keyevent KEYCODE_WAKEUP</code>. 제스처와 같은 경로라 <code>adb</code> 시리얼이 아닌 <code>id</code> 는 no-op 이다</dd>
+  <dt>실패</dt><dd>명령이 실패하면 조용히 빠진다. 다음 폴링에서 상태를 다시 읽는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>기기마다 명령이 한 번 더 돈다.</strong> 이름 조회(<code>getprop</code>)와 마찬가지로 연결된 기기 수에 비례한다. 출력이 한 줄이라 감당 가능한 수준으로 봤다.</li>
+  <li><strong><code>deviceidle</code> 이 없는 기기에서는 상태를 모른다.</strong> 그때는 "화면 꺼짐"도 버튼도 나오지 않고, 스트리밍 화면이 검게 보인다.</li>
+  <li>깨운 뒤에는 잠금 화면이다. 푸는 것은 스코프 밖이다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>EmulatorParsingTest.readsTheScreenState</code> 가 출력 해석을, <code>HostAgentServerTest.forwardsWakeRequests</code> 가 엔드포인트를 확인한다. <code>adb</code> 를 실제로 부르는 부분은 <span class="badge untested">미검증</span>이지만, 위 표의 두 명령은 개발 머신에 연결된 실물 기기에서 직접 돌려 확인했다.</p>
 </section>
 
 <section class="feature" id="build">
