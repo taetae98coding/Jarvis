@@ -14,8 +14,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import io.github.taetae98coding.jarvis.shared.platform.KeepScreenAwake
+import io.github.taetae98coding.jarvis.shared.platform.PlatformIdleInhibitor
 import io.github.taetae98coding.jarvis.shared.platform.SettingsStore
+import io.github.taetae98coding.jarvis.shared.platform.keepScreenAwake
 import io.github.taetae98coding.jarvis.shared.platform.rememberSettingsStore
 import io.github.taetae98coding.jarvis.shared.settings.AppSettings
 import io.github.taetae98coding.jarvis.shared.settings.LocalAppSettings
@@ -34,10 +35,14 @@ internal fun App(store: SettingsStore) {
 
     MaterialTheme {
         CompositionLocalProvider(LocalAppSettings provides settings) {
-            // Applied above the screen content so it outlives any single screen.
-            KeepScreenAwake(settings.keepScreenAwake)
+            PlatformIdleInhibitor(settings.keepScreenAwake)
 
-            Surface(modifier = Modifier.fillMaxSize()) {
+            // Applied to the root surface so the effect outlives any single screen.
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .keepScreenAwake(settings.keepScreenAwake),
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()

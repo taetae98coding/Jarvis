@@ -23,21 +23,15 @@ actual val platformName: String =
 
 ## 화면 꺼짐 방지
 
-`UIApplication.sharedApplication.idleTimerDisabled`를 토글한다.
-
-```kotlin
-DisposableEffect(enabled) {
-    UIApplication.sharedApplication.idleTimerDisabled = enabled
-    onDispose { UIApplication.sharedApplication.idleTimerDisabled = false }
-}
-```
+Compose의 `Modifier.keepScreenOn()`을 쓴다. iOS 구현은 `UIKitIdleTimerManager`가 요청자를 집합으로 들고
+있다가 `UIApplication.sharedApplication.idleTimerDisabled`를 토글하는 것이다.
 
 권한도, Info.plist 항목도 필요 없다.
 
 ### 한계
 
 - **앱이 foreground일 때만 유효하다.** 백그라운드로 가면 시스템이 유휴 타이머를 되살리고, 다시 활성화되면 프로퍼티 값에 따라 재적용된다. 앱 종료 후 화면을 켜 둘 방법은 없다.
-- **프로세스 전역 프로퍼티다.** 앱 다른 곳에서 같은 값을 건드리면 마지막에 쓴 쪽이 이긴다. 지금은 `App()` 한 곳에서만 쓴다.
+- **프로세스 전역 프로퍼티다.** Compose를 거치는 요청끼리는 `UIKitIdleTimerManager`가 조정해 주지만, Compose 밖에서 `idleTimerDisabled`를 직접 쓰면 마지막에 쓴 쪽이 이긴다.
 - 저전력 모드나 OS 정책에 따라 무시될 수 있다.
 
 ## 설정 저장

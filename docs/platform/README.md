@@ -15,17 +15,27 @@ Jarvis가 플랫폼마다 다르게 구현하는 기능과, 각 구현이 가진
 | `expect` | 역할 |
 |---|---|
 | `platformName: String` | 실행 중인 플랫폼 표시용 문자열 |
-| `KeepScreenAwake(enabled: Boolean)` | 켜져 있는 동안 화면 꺼짐을 막는 Composable |
+| `PlatformIdleInhibitor(enabled: Boolean)` | Compose가 커버하지 않는 플랫폼의 화면 꺼짐 방지 (JVM 전용) |
 | `rememberSettingsStore(): SettingsStore` | 설정을 영구 저장하는 키-값 저장소 |
 
-`KeepScreenAwake`는 `App()` 최상단에서 호출된다. 화면 전환은 그 아래에서 일어나므로 어느 화면에 있든 효과가 유지된다.
-상태는 `AppSettings`가 들고 `LocalAppSettings`로 내려간다.
+## 화면 꺼짐 방지
+
+Compose Multiplatform이 `androidx.compose.ui.keepScreenOn()`을 commonMain에 제공하므로 직접 구현하지 않는다.
+`App()`의 루트 `Surface`에 `Modifier.keepScreenAwake(enabled)`로 붙이고, 화면 전환은 그 아래에서 일어나므로
+어느 화면에 있든 효과가 유지된다. 상태는 `AppSettings`가 들고 `LocalAppSettings`로 내려간다.
+
+Compose 구현은 **레퍼런스 카운팅**을 한다. 같은 효과를 요청하는 곳이 여럿이어도 마지막 하나가 사라질 때까지 풀리지 않는다.
+
+예외는 데스크탑뿐이다. CMP 1.12.0의 `PlatformContext.setKeepScreenOnEnabled`는 본문이 비어 있고
+이를 오버라이드하는 Swing/AWT 구현이 없어서 JVM에서는 modifier가 아무 일도 하지 않는다.
+그래서 `PlatformIdleInhibitor` expect/actual을 나란히 두고, JVM actual만 실제 동작을 갖는다.
+CMP가 데스크탑 경로를 구현하면 이 expect/actual은 통째로 걷어낼 수 있다.
 
 ## 지원 현황 요약
 
 | | Android | iOS | JVM | Web |
 |---|---|---|---|---|
-| 화면 꺼짐 방지 | ✅ | ✅ | macOS·Linux ✅ / Windows ❌ | ✅ (브라우저 지원 시) |
+| 화면 꺼짐 방지 | ✅ Compose | ✅ Compose | ✅ 직접 구현 (macOS 전용) | ✅ Compose (브라우저 지원 시) |
 | 설정 영구 저장 | ✅ | ✅ | ✅ | ✅ |
 | 앱 종료 후에도 화면 유지 | ❌ | ❌ | ❌ | ❌ |
 | 자동 UI 테스트 | ❌ (기기 필요) | ✅ | ✅ | ✅ |

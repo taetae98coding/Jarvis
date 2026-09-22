@@ -20,7 +20,7 @@ compose.desktop {
         mainClass = "io.github.taetae98coding.jarvis.desktop.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Dmg)
             packageName = "Jarvis"
             packageVersion = libs.versions.appVersion.get()
         }

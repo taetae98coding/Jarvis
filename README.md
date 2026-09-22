@@ -35,7 +35,7 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 | `.jarvis.shared` | `App.kt` — 첫 화면 |
 | `.jarvis.shared.ui` | `AppInfoCard`, `FeatureGrid`, `ToggleFeatureCard` |
 | `.jarvis.shared.settings` | `AppSettings` — 앱 스코프 설정 상태 |
-| `.jarvis.shared.platform` | `platformName`, `KeepScreenAwake`, `SettingsStore` 등 플랫폼별 expect/actual |
+| `.jarvis.shared.platform` | `platformName`, `PlatformIdleInhibitor`, `SettingsStore` 등 플랫폼별 expect/actual |
 
 `androidApp`만 루트 패키지를 쓰는데, Android의 `applicationId`(= `io.github.taetae98coding.jarvis`)와 맞추기 위해서다.
 
@@ -71,16 +71,16 @@ iOS 번들 버전만 `iosApp/Configuration/Config.xcconfig`에서 따로 관리�
 
 ### 화면 꺼짐 방지
 
-플랫폼마다 유휴 타이머를 막는 방식이 달라 `KeepScreenAwake`를 expect/actual로 나눴다.
+Compose의 `Modifier.keepScreenOn()`을 루트 `Surface`에 붙인다. Compose가 플랫폼별 API를 대신 호출한다.
 
-| 플랫폼 | 구현 |
+| 플랫폼 | `Modifier.keepScreenOn()`이 호출하는 것 |
 |---|---|
 | Android | `View.keepScreenOn` |
 | iOS | `UIApplication.idleTimerDisabled` |
 | Web | Screen Wake Lock API (`navigator.wakeLock`) |
-| JVM (macOS) | `caffeinate -di` 프로세스 |
-| JVM (Linux) | `systemd-inhibit --what=idle` 프로세스 |
-| JVM (Windows) | 미지원 — `SetThreadExecutionState` 호출이 필요해 아직 연결하지 않았다 |
+| JVM (Desktop) | **없음** — `caffeinate -di` 프로세스를 직접 띄운다 (macOS 전용) |
+
+데스크탑만 Compose가 비워 둔 자리라, 그 한 칸을 `PlatformIdleInhibitor` expect/actual이 메운다.
 
 **앱이 종료된 상태에서는 화면을 켜 둘 수 없다.** Android `FLAG_KEEP_SCREEN_ON`은 해당 윈도우가 보이는 동안만,
 iOS `idleTimerDisabled`는 앱이 foreground인 동안만 유효하고 시스템이 회수한다.

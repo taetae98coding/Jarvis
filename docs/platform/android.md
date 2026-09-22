@@ -18,15 +18,8 @@ API 레벨을 그대로 보여준다. 마케팅 버전(예: "Android 17")이 아
 
 ## 화면 꺼짐 방지
 
-`LocalView.current`의 `keepScreenOn`을 켠다. 내부적으로 윈도우에 `FLAG_KEEP_SCREEN_ON`이 붙는다.
-
-```kotlin
-val view = LocalView.current
-DisposableEffect(view, enabled) {
-    view.keepScreenOn = enabled
-    onDispose { view.keepScreenOn = false }
-}
-```
+Compose의 `Modifier.keepScreenOn()`을 쓴다. 안드로이드 구현은 `AndroidComposeView`가 요청 수를 세어
+`View.setKeepScreenOn(count > 0)`을 부르는 것이고, 결국 윈도우에 `FLAG_KEEP_SCREEN_ON`이 붙는다.
 
 권한은 필요 없다. `WAKE_LOCK` 퍼미션도 쓰지 않는다.
 
@@ -35,6 +28,7 @@ DisposableEffect(view, enabled) {
 - **윈도우가 보이는 동안만 유효하다.** 홈으로 나가거나 앱을 종료하면 시스템이 플래그를 무시하고, 화면은 평소대로 꺼진다.
 - **백그라운드에서 화면을 켜 둘 방법이 없다.** `PowerManager.SCREEN_BRIGHT_WAKE_LOCK`은 API 17에서 deprecated된 뒤 실제로 화면을 켜지 못하고, foreground service를 띄워도 마찬가지다. 이건 구현 누락이 아니라 플랫폼 정책이다.
 - 화면 분할·PiP처럼 앱이 부분적으로만 보이는 상태에서의 동작은 OS 재량이라 보장하지 않는다.
+- Compose 밖에서 같은 `View`의 `keepScreenOn`을 직접 건드리면 Compose의 카운트와 어긋난다. 지금은 그런 코드가 없다.
 
 ## 설정 저장
 

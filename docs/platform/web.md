@@ -19,26 +19,24 @@ actual val platformName: String = "Wasm (Kotlin/Wasm)"
 
 ## 화면 꺼짐 방지
 
-[Screen Wake Lock API](https://developer.mozilla.org/docs/Web/API/Screen_Wake_Lock_API)를 `@JsFun` 브릿지로 호출한다.
+Compose의 `Modifier.keepScreenOn()`을 쓴다. Compose 내부의 `WakeLockManager`가
+[Screen Wake Lock API](https://developer.mozilla.org/docs/Web/API/Screen_Wake_Lock_API)를 호출한다.
 
 ```js
 navigator.wakeLock.request('screen')  // → WakeLockSentinel
 sentinel.release()
 ```
 
-해제하려면 request가 돌려준 sentinel 객체가 그대로 필요하다.
-그 Promise를 Kotlin에서 기다리면 `KeepScreenAwake`가 suspend API가 되어 버리므로,
-sentinel을 `globalThis`에 보관하고 Kotlin 쪽은 boolean 하나만 넘긴다.
-
-브라우저는 **탭이 숨겨지면 wake lock을 회수한다.** 그래서 `visibilitychange`를 듣고 탭이 다시 보일 때 재요청한다.
+해제하려면 request가 돌려준 sentinel 객체가 그대로 필요하고, 브라우저는 **탭이 숨겨지면 wake lock을 회수한다.**
+둘 다 Compose가 내부에서 처리한다. 예전에는 이걸 직접 `@JsFun` 브릿지와 `globalThis` 전역 세 개로 들고 있었는데,
+Compose 구현으로 넘기면서 전부 걷어냈다.
 
 ### 한계
 
-- **보안 컨텍스트 필요.** HTTPS 또는 `localhost`에서만 `navigator.wakeLock`이 존재한다. 그 외에는 `undefined`라 토글이 no-op이 된다.
+- **보안 컨텍스트 필요.** HTTPS 또는 `localhost`에서만 `navigator.wakeLock`이 존재한다. 그 외에는 토글이 no-op이 된다.
 - **브라우저 지원 필요.** Chrome/Edge 84+, Safari 16.4+, Firefox 126+. 미지원 브라우저에서는 조용히 아무 일도 일어나지 않는다.
-- **실패가 드러나지 않는다.** request의 `.catch(() => {})`로 에러를 삼키기 때문에, 배터리 절약 모드처럼 브라우저가 거부하는 상황에서도 UI는 켜진 상태로 보인다.
+- **실패가 드러나지 않는다.** 배터리 절약 모드처럼 브라우저가 wake lock을 거부해도 UI는 켜진 상태로 보인다.
 - **탭을 닫으면 끝.** 다른 플랫폼과 마찬가지로 페이지가 살아 있는 동안만 유효하다.
-- `globalThis.__jarvisWakeLock` / `__jarvisWakeLockEnabled` / `__jarvisWakeLockListener` 세 개의 전역을 쓴다. 같은 페이지에 다른 wake lock 사용자가 있으면 서로 방해할 수 있다.
 
 ## 설정 저장
 
