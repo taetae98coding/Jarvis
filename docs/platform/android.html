@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Android — 플랫폼 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">플랫폼 스펙</a></span><span>Android</span></nav>
+
+<header>
+  <h1>Android</h1>
+  <p class="lead">기기 샌드박스 안에서 돌아가는 앱. 화면 꺼짐 방지와 설정 저장은 정식 API로 되고, 호스트 머신을 들여다보는 기능은 되지 않는다.</p>
+</header>
+
+<dl class="meta">
+  <dt>모듈</dt><dd><code>:androidApp</code> (앱, <code>com.android.application</code>) + <code>:shared</code> (<code>com.android.kotlin.multiplatform.library</code>)</dd>
+  <dt><code>applicationId</code></dt><dd><code>io.github.taetae98coding.jarvis</code></dd>
+  <dt>compileSdk / targetSdk / minSdk</dt><dd>37 / 37 / 24</dd>
+  <dt>진입점</dt><dd><code>MainActivity</code> — <code>enableEdgeToEdge()</code> 후 <code>setContent { App() }</code></dd>
+  <dt>권한</dt><dd>없음. <code>WAKE_LOCK</code>도 쓰지 않는다</dd>
+</dl>
+
+<aside class="note">
+  <strong>왜 앱 모듈이 분리되어 있나</strong>
+  AGP 9부터 <code>com.android.application</code>과 <code>org.jetbrains.kotlin.multiplatform</code>을 같은 모듈에 적용할 수 없다. 공유 코드는 <code>com.android.kotlin.multiplatform.library</code>를 쓰는 <code>:shared</code>에 두고, Android 앱은 AGP 9의 내장 Kotlin 지원을 쓰는 별도 모듈로 분리했다. <code>kotlin-android</code> 플러그인은 따로 적용하지 않는다.
+</aside>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#app-info">앱 정보</a></li>
+    <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
+    <li><a href="#settings">설정 영구 저장</a></li>
+    <li><a href="#emulator">에뮬레이터 개수</a></li>
+    <li><a href="#build">빌드·실행</a></li>
+    <li><a href="#test">테스트</a></li>
+  </ol>
+</nav>
+
+<section class="feature" id="app-info">
+<h2>앱 정보 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/app-info.html">앱 정보 카드</a></p>
+
+<h3>기술 조사</h3>
+<p><code>android.os.Build.VERSION</code>이 <code>SDK_INT</code>(API 레벨 정수)와 <code>RELEASE</code>(예: <code>"17"</code>)를 제공한다. 마케팅 이름은 시스템이 주지 않는다.</p>
+
+<h3>구현</h3>
+<pre><code>actual val platformName: String = "Android ${Build.VERSION.SDK_INT}"</code></pre>
+<p>API 레벨을 그대로 보여준다. 마케팅 버전이 아니라 <code>37</code> 같은 정수다. 앱 버전은 <code>versionName = libs.versions.appVersion</code>으로 공용 원본을 읽는다.</p>
+
+<h3>한계</h3>
+<p>해당 없음.</p>
+
+<h3>검증</h3>
+<p><code>PlatformTest</code>가 <code>testAndroidHostTest</code>에서 돈다. 화면 표시(<code>AppTest</code>)는 <a href="#test">Android UI 테스트가 없어</a> 검증하지 않는다.</p>
+</section>
+
+<section class="feature" id="keep-screen-awake">
+<h2>화면 꺼짐 방지 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/keep-screen-awake.html">화면 꺼짐 방지</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>View.keepScreenOn</code> / 윈도우 <code>FLAG_KEEP_SCREEN_ON</code></td><td>권한 불필요. 윈도우가 보이는 동안만 유효하다. 정식 권장 경로</td></tr>
+    <tr><td><code>PowerManager.SCREEN_BRIGHT_WAKE_LOCK</code></td><td>API 17에서 deprecated된 뒤 실제로 화면을 켜 두지 못한다. <code>WAKE_LOCK</code> 권한도 필요하다</td></tr>
+    <tr><td>foreground service + wake lock</td><td>CPU는 깨워 두지만 화면은 켜 두지 못한다. 백그라운드 화면 유지는 플랫폼 정책상 불가</td></tr>
+    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td>CMP 1.12.0 Android 구현은 <code>AndroidComposeView</code>가 요청 수를 세어 <code>View.setKeepScreenOn(count &gt; 0)</code>을 부른다. 첫 후보를 그대로 쓴다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙이고, Compose가 <code>View.keepScreenOn</code>을 부른다. Android 전용 코드는 없다. <code>PlatformIdleInhibitor</code>의 Android actual은 <code>= Unit</code>이다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>윈도우가 보이는 동안만 유효하다.</strong> 홈으로 나가거나 앱을 종료하면 시스템이 플래그를 무시하고 화면은 평소대로 꺼진다.</li>
+  <li><strong>백그라운드에서 화면을 켜 둘 방법이 없다.</strong> 위 조사대로 구현 누락이 아니라 플랫폼 정책이다.</li>
+  <li>화면 분할·PiP처럼 앱이 부분적으로만 보이는 상태의 동작은 OS 재량이라 보장하지 않는다.</li>
+  <li>Compose 밖에서 같은 <code>View</code>의 <code>keepScreenOn</code>을 직접 건드리면 Compose의 카운트와 어긋난다. 지금은 그런 코드가 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>Android에서 돌아가는 UI 테스트가 없다. 토글·저장 로직은 <code>skikoTest</code>가 다른 타깃에서 검증하고, Android에서는 컴파일로만 보장된다.</p>
+</section>
+
+<section class="feature" id="settings">
+<h2>설정 영구 저장 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/settings-persistence.html">설정 영구 저장</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>SharedPreferences</code></td><td>동기 읽기, <code>apply()</code>로 비동기 쓰기, <code>OnSharedPreferenceChangeListener</code>로 변경 알림. boolean 몇 개에 충분하다</td></tr>
+    <tr><td><code>androidx.datastore</code></td><td>비동기·트랜잭션·Flow 지원. KMP 변형이 있지만 Web 쪽 Storage 구현을 직접 넣어야 해서 <a href="../common/index.html#limit-sync-store">지금은 채택하지 않았다</a></td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>shared/src/androidMain/.../SettingsStore.android.kt</code></dd>
+  <dt>저장소</dt><dd><code>context.getSharedPreferences("jarvis.settings", MODE_PRIVATE)</code></dd>
+  <dt>컨텍스트</dt><dd><code>LocalContext.current.applicationContext</code>. Activity 재생성과 무관하게 같은 파일을 본다</dd>
+  <dt>쓰기</dt><dd><code>edit().putBoolean(key, value).apply()</code></dd>
+  <dt>변경 감지</dt><dd><code>callbackFlow</code> + <code>registerOnSharedPreferenceChangeListener</code></dd>
+</dl>
+<aside class="warn">
+  <strong>리스너는 약한 참조로만 잡힌다</strong>
+  <code>SharedPreferences</code>는 리스너를 <code>WeakHashMap</code>에 보관한다. <code>awaitClose { unregister(listener) }</code> 람다가 리스너를 붙들고 있어야 수집 중에 GC로 사라지지 않는다. 람다를 없애면 알림이 어느 순간 조용히 끊긴다.
+</aside>
+
+<h3>한계</h3>
+<ul>
+  <li>첫 접근 시 <code>getSharedPreferences</code>가 디스크를 읽는다. boolean 하나라 무시할 수준이지만 값이 늘면 프레임을 막을 수 있다.</li>
+  <li><code>apply()</code>는 커밋을 보장하지 않는다. 쓰기 직후 프로세스가 강제 종료되면 마지막 값이 유실될 수 있다.</li>
+  <li>백업 대상이다(<code>android:allowBackup="true"</code>). 기기 이전 시 설정이 따라간다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>AppSettingsTest</code>가 <code>testAndroidHostTest</code>에서 <code>InMemorySettingsStore</code>로 돈다. <code>SharedPreferences</code> 왕복 자체는 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="emulator">
+<h2>에뮬레이터 개수 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/emulator-count.html">에뮬레이터 개수</a></p>
+
+<h3>기술 조사</h3>
+<ul>
+  <li>에뮬레이터 목록을 아는 도구(<code>emulator</code>, <code>adb</code>, <code>simctl</code>)는 개발자 머신에 있다. 앱은 기기 샌드박스 안에 있다.</li>
+  <li><code>Runtime.exec</code>는 쓸 수 있지만 기기 안의 바이너리만 실행할 수 있고, 호스트의 SDK에는 닿지 않는다.</li>
+  <li>앱이 돌고 있는 기기가 세려는 에뮬레이터 자신일 수도 있다. 그 경우에도 게스트에서 호스트를 들여다보는 API는 없다.</li>
+  <li>호스트에 짝이 되는 서버를 두고 네트워크로 물어보는 방법은 있지만, 이 앱의 범위 밖이다.</li>
+</ul>
+
+<h3>대체 동작</h3>
+<pre><code>internal actual val emulatorProbe: EmulatorProbe = EmulatorProbe { flowOf(EmulatorStatus()) }</code></pre>
+<p>항상 0개를 즉시 낸다. 카드는 다른 플랫폼과 같은 자리에 같은 모양으로 남는다.</p>
+
+<h3>한계</h3>
+<p>"0개"가 "셀 수 없음"을 뜻한다. <a href="../common/index.html#limit-zero">공통 한계</a> 참고.</p>
+
+<h3>검증</h3>
+<p><code>AppTest.showsZeroEmulatorsWhenThePlatformCannotCountThem</code>이 0개 프로브의 표시를 검증하지만 Android에서는 돌지 않는다.</p>
+</section>
+
+<section class="feature" id="build">
+<h2>빌드·실행</h2>
+<pre><code>./gradlew :androidApp:assembleDebug     # APK 빌드
+./gradlew :androidApp:installDebug      # 기기/에뮬레이터 설치</code></pre>
+<p><code>MainActivity</code>는 <code>configChanges</code>를 넓게 선언해 회전·다크모드 전환 시 Activity가 재생성되지 않는다. Compose가 직접 변경을 처리한다.</p>
+</section>
+
+<section class="feature" id="test">
+<h2>테스트 <span class="badge no">UI 테스트 불가</span></h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>실행</th></tr></thead>
+  <tbody>
+    <tr><td><code>PlatformTest</code>, <code>AppSettingsTest</code></td><td><code>./gradlew :shared:testAndroidHostTest</code> (호스트 JVM)</td></tr>
+    <tr><td>Compose UI 테스트 (<code>AppTest</code>)</td><td><strong>없음</strong></td></tr>
+  </tbody>
+</table>
+
+<h3>기술 조사</h3>
+<p>Compose UI 테스트는 Skiko로 렌더링하는 타깃에서만 돌고 Android는 빠져 있다. 호스트 JVM에는 렌더링할 Android 런타임이 없다. 두 가지 대안을 조사했고 둘 다 지금은 막혀 있다.</p>
+<table>
+  <thead><tr><th>대안</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Robolectric</td><td>4.17 + JDK 25 조합에서 <code>FileDescriptor</code> 내부 접근이 깨져 부팅하지 못했다</td></tr>
+    <tr><td>계측 테스트 (<code>withDeviceTest</code>)</td><td>Compose Gradle 플러그인 1.12.0과 AGP KMP <code>withDeviceTest</code>를 함께 쓰면 <code>copyAndroidDeviceTestComposeResourcesToAndroidAssets</code> 태스크의 <code>outputDirectory</code>가 설정되지 않아 빌드가 깨진다</td></tr>
+  </tbody>
+</table>
+<p>둘 중 하나가 풀리면 Android도 UI 테스트에 넣을 수 있다. 그때까지 Android의 화면 동작은 컴파일과 수동 확인으로 보장된다.</p>
+</section>
+
+<footer class="page">
+  <a href="index.html">← 플랫폼 스펙</a> · <a href="ios.html">iOS →</a>
+</footer>
+
+</body>
+</html>

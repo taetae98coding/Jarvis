@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>설정 영구 저장 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>설정 영구 저장</span></nav>
+
+<header>
+  <h1>설정 영구 저장</h1>
+  <p class="lead">토글 값이 앱을 완전히 껐다 켜도 남고, 앱 밖에서 바뀐 값도 화면이 따라간다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>토글 상태는 앱을 완전히 껐다 켜도 복원되어야 한다.</p>
+  <footer>커밋 <code>503bff1</code>에서 복원.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>설정과 에뮬레이터 상태를 Flow로 관찰하게 바꿔라. 앱 밖에서 값이 바뀌면 UI가 따라가야 한다.</p>
+  <footer>커밋 <code>c49ff47</code> "Observe settings and emulator status through Flows"에서 복원.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> boolean 설정을 키로 읽고 쓸 수 있다. 키가 없으면 호출자가 준 기본값을 돌려준다.</li>
+  <li><strong>R2.</strong> 값은 프로세스 종료 후에도 남는다. 다음 실행의 첫 프레임부터 저장된 값이 보인다.</li>
+  <li><strong>R3.</strong> 저장소가 바뀌면(이 앱이 썼든, 밖에서 썼든) 화면이 따라간다.</li>
+  <li><strong>R4.</strong> 플랫폼별 저장소의 차이는 <code>SettingsStore</code> 뒤에 숨긴다. 공용 코드는 어떤 저장소인지 모른다.</li>
+</ol>
+
+<h2 id="behavior">동작</h2>
+
+<ul>
+  <li>토글을 바꾸면 즉시 저장소에 쓴다. 쓰기가 성공했는지 화면에 알리지는 않는다.</li>
+  <li>화면은 저장소의 변경 알림을 구독한다. 이 앱이 쓴 값도 그 경로로 되돌아와 화면에 반영된다. 즉 화면 상태의 원본은 메모리가 아니라 저장소다.</li>
+  <li>앱 시작 시 저장소를 동기로 한 번 읽어 초기값을 잡는다. Flow의 첫 방출은 컴포지션이 한 번 끝난 뒤에야 도착하므로, 그것만 기다리면 첫 프레임에 기본값이 깜빡인다.</li>
+</ul>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>인터페이스</dt><dd><code>shared/platform/SettingsStore.kt</code></dd>
+  <dt>상태</dt><dd><code>shared/settings/AppSettings.kt</code></dd>
+  <dt>공급</dt><dd><code>@Composable expect fun rememberSettingsStore(): SettingsStore</code></dd>
+</dl>
+
+<pre><code>internal interface SettingsStore {
+    fun getBoolean(key: String, defaultValue: Boolean): Boolean
+    fun putBoolean(key: String, value: Boolean)
+    val changes: Flow&lt;Unit&gt;
+
+    fun observeBoolean(key: String, defaultValue: Boolean): Flow&lt;Boolean&gt; =
+        changes.conflate().onStart { emit(Unit) }
+            .map { getBoolean(key, defaultValue) }
+            .distinctUntilChanged()
+}</code></pre>
+
+<aside class="decision">
+  <strong>결정: <code>changes</code>는 어떤 키가 바뀌었는지 담지 않는다</strong>
+  iOS의 <code>NSUserDefaultsDidChangeNotification</code>이 바뀐 키를 알려주지 않는다. 네 플랫폼에 같은 계약을 주기 위해 키별 필터링 대신 "무언가 바뀌었다" 신호만 받고, 값을 다시 읽어 <code>distinctUntilChanged</code>로 걸러낸다. <code>conflate()</code>는 알림이 몰릴 때 읽기를 한 번으로 합친다.
+</aside>
+
+<p><code>AppSettings</code>는 <code>observeBoolean</code>을 <code>stateIn(scope, SharingStarted.Eagerly, store.getBoolean(...))</code>으로 <code>StateFlow</code>로 바꾼다. 초기값을 동기로 읽는 이유가 R2의 "첫 프레임부터"다. 쓰기는 <code>store.putBoolean</code>에 위임만 하고 메모리 상태를 직접 바꾸지 않는다.</p>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>저장소</th><th>변경 감지</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>SharedPreferences</code> <code>jarvis.settings</code></td><td><code>OnSharedPreferenceChangeListener</code></td><td><a href="../platform/android.html#settings">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td><code>NSUserDefaults.standardUserDefaults</code></td><td><code>NSUserDefaultsDidChangeNotification</code></td><td><a href="../platform/ios.html#settings">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td><code>java.util.prefs.Preferences</code> 노드 <code>io/github/taetae98coding/jarvis</code></td><td><code>PreferenceChangeListener</code></td><td><a href="../platform/jvm.html#settings">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td><code>localStorage</code>, 키 <code>jarvis.settings.&lt;key&gt;</code></td><td><code>storage</code> 이벤트 + 자체 발신 (같은 문서의 쓰기는 이벤트가 없다)</td><td><a href="../platform/web.html#settings">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>AppSettingsTest.keepScreenAwakeDefaultsToOff</code></td><td>R1. 키가 없으면 기본값</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>AppSettingsTest.keepScreenAwakeReadsStoredValue</code></td><td>R2. 생성 직후 저장된 값이 <code>value</code>에 있다</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>AppSettingsTest.keepScreenAwakeWritesThroughToStore</code></td><td>R1. 쓰기가 저장소에 닿는다</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>AppSettingsTest.keepScreenAwakeFollowsChangesMadeOutsideTheApp</code></td><td>R3. 저장소를 직접 바꾸면 상태가 따라간다</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>AppTest.keepScreenAwakeIsPersisted</code> / <code>IsRestoredOnRelaunch</code> / <code>FollowsChangesMadeOutsideTheApp</code></td><td>R2, R3을 화면 레벨에서</td><td><code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>전부 <code>InMemorySettingsStore</code>를 쓴다. 플랫폼 저장소 구현은 <a href="index.html#limit-store-untested">자동 테스트가 없다</a>.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><a href="index.html#limit-sync-store">동기 API다.</a> 값이 늘면 DataStore로 갈아끼운다.</li>
+  <li>쓰기 실패를 알리지 않는다. Web의 시크릿 모드처럼 저장소 접근이 예외를 던지는 경우 지금은 잡지 않는다.</li>
+  <li>boolean만 지원한다. 다른 타입이 필요하면 인터페이스에 메서드를 추가하고 네 <code>actual</code>을 함께 늘린다.</li>
+</ul>
+
+<footer class="page">
+  <a href="keep-screen-awake.html">← 화면 꺼짐 방지</a> · <a href="emulator-count.html">에뮬레이터 개수 →</a>
+</footer>
+
+</body>
+</html>

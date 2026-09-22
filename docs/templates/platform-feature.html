@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>플랫폼 스펙 기능 섹션 템플릿 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span>템플릿</span><span>플랫폼 스펙 기능 섹션</span></nav>
+
+<header>
+  <h1>플랫폼 스펙 기능 섹션 템플릿</h1>
+  <p class="lead">아래 <code>&lt;section class="feature"&gt;</code>를 <code>docs/platform/android.html</code>, <code>ios.html</code>, <code>jvm.html</code>, <code>web.html</code> 네 문서에 각각 붙인다. 문서 하나가 아니라 섹션 하나가 단위다.</p>
+</header>
+
+<aside class="note">
+  <strong>규칙</strong>
+  <ul>
+    <li><code>id</code>는 네 문서에서 같아야 한다. 공통 스펙이 <code>android.html#feature-id</code>처럼 바로 가리킨다.</li>
+    <li>소제목 다섯 개(기술 조사 → 판정은 h2 배지 → 구현/우회/대체 동작 → 한계 → 검증)는 순서와 이름을 바꾸지 않는다.</li>
+    <li>채울 내용이 없으면 지우지 말고 "해당 없음"이라고 적는다. 조사를 안 한 것과 조사했는데 없는 것을 구분해야 한다.</li>
+    <li>판정을 정하면 각 문서의 차례(<code>nav.toc</code>)와 <code>docs/index.html</code> 지원 현황 표에도 한 줄 추가한다.</li>
+  </ul>
+</aside>
+
+<h2>붙일 섹션</h2>
+
+<pre><code>&lt;section class="feature" id="feature-id"&gt;
+&lt;!-- 판정 배지: ok=구현 / workaround=우회 / partial=조건부 / no=불가. 자동 테스트가 없으면 untested=미검증 을 덧붙인다. --&gt;
+&lt;h2&gt;기능 이름 &lt;span class="badge ok"&gt;구현&lt;/span&gt;&lt;/h2&gt;
+&lt;p&gt;공통 스펙: &lt;a href="../common/feature.html"&gt;기능 이름&lt;/a&gt;&lt;/p&gt;
+
+&lt;h3&gt;기술 조사&lt;/h3&gt;
+&lt;!--
+  이 플랫폼이 제공하는 API 후보를 전부 적고, 각각의 전제 조건과 제약, 채택 여부를 적는다.
+  Compose Multiplatform 이 대신 불러 주는 것이 있으면 그 내부 구현이 어떤 플랫폼 API 를 부르는지까지 적는다.
+  버린 후보도 남긴다. 다음 사람이 같은 조사를 반복하지 않게.
+--&gt;
+&lt;table&gt;
+  &lt;thead&gt;&lt;tr&gt;&lt;th&gt;후보&lt;/th&gt;&lt;th&gt;결과&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;&lt;td&gt;&lt;code&gt;API&lt;/code&gt;&lt;/td&gt;&lt;td&gt;전제 조건, 제약, 채택 여부&lt;/td&gt;&lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;!-- 판정에 따라 소제목을 고른다. 구현 / 우회 / 대체 동작 중 하나. --&gt;
+&lt;h3&gt;구현&lt;/h3&gt;
+&lt;!--
+  구현: 어떤 API 로 어떻게. 파일 경로, 핵심 호출, 실패 처리.
+  우회: 무엇이 막혔고(버전·이슈 번호와 함께) 어디로 돌아갔는지. 언제 걷어낼 수 있는지.
+  불가: 왜 원리적으로 안 되는지와, 대신 어떤 동작을 하는지(0개, no-op 등).
+--&gt;
+&lt;dl class="meta"&gt;
+  &lt;dt&gt;파일&lt;/dt&gt;&lt;dd&gt;&lt;code&gt;shared/src/&amp;lt;target&amp;gt;Main/.../….kt&lt;/code&gt;&lt;/dd&gt;
+  &lt;dt&gt;동작&lt;/dt&gt;&lt;dd&gt;&lt;/dd&gt;
+  &lt;dt&gt;실패&lt;/dt&gt;&lt;dd&gt;&lt;/dd&gt;
+&lt;/dl&gt;
+
+&lt;h3&gt;한계&lt;/h3&gt;
+&lt;!-- 이 구현이 동작하지 않는 조건과 그때의 증상. 사용자가 무엇을 보게 되는지. --&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;검증&lt;/h3&gt;
+&lt;!-- 이 플랫폼에서 이 기능을 확인하는 테스트와 실행 태스크. 없으면 왜 없는지, 수동으로는 어떻게 확인하는지. --&gt;
+&lt;p&gt;&lt;/p&gt;
+&lt;/section&gt;</code></pre>
+
+<footer class="page">
+  <a href="../index.html">← 스펙 진입점</a> · <a href="common-feature.html">공통 스펙 템플릿</a>
+</footer>
+
+</body>
+</html>

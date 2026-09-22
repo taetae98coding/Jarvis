@@ -82,7 +82,7 @@ Emulator 카드가 이 머신의 Android 에뮬레이터와 iOS 시뮬레이터�
 
 Android SDK는 `ANDROID_HOME` → `ANDROID_SDK_ROOT` → `~/Library/Android/sdk` 순으로 찾는다.
 
-값은 카드가 화면에 들어올 때 한 번만 읽는다. **에뮬레이터를 켜고 꺼도 앱을 다시 띄우기 전에는 숫자가 그대로다.**
+JVM 프로브는 5초마다 다시 세고 바뀐 결과만 흘려보낸다. 프로브가 답하기 전까지 카드는 "확인 중…"을 보여준다.
 
 ### 화면 꺼짐 방지
 
@@ -144,7 +144,10 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
 
 ## 문서
 
-플랫폼별 구현 방식과 한계는 [`docs/platform`](docs/platform/README.md)에 정리했다.
+스펙은 [`docs/index.html`](docs/index.html)에서 시작한다. 코드를 구현하기 전에 스펙을 먼저 완성한다(`CLAUDE.md` 참고).
+
+- [`docs/common`](docs/common/index.html) — 공통 스펙. 기능마다 사용자 지시, 요구사항, 공통 구현, 검증
+- [`docs/platform`](docs/platform/index.html) — 플랫폼 스펙. 플랫폼마다 기술 조사, 구현 가능 여부, 우회 방법, 한계
 
 ## 플랫폼별 코드 추가하기
 
@@ -152,4 +155,4 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
 현재는 `platformName`(`Platform.kt`)이 그 예시다.
 
 한 타깃에서만 가능한 기능이라면 나머지 `actual`을 빈 값으로 두는 쪽을 택했다.
-`emulatorProbe`가 그렇게 구현되어 있고, 이유는 [`docs/platform/README.md`](docs/platform/README.md)에 적어 뒀다.
+`emulatorProbe`가 그렇게 구현되어 있고, 이유는 [공통 스펙](docs/common/index.html#limit-zero)에 적어 뒀다.

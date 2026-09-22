@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>에뮬레이터 개수 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>에뮬레이터 개수</span></nav>
+
+<header>
+  <h1>에뮬레이터 개수</h1>
+  <p class="lead">이 머신에 설치된 Android 에뮬레이터와 iOS 시뮬레이터를 "실행 중 / 전체"로 보여준다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>Android 에뮬레이터와 iOS 시뮬레이터가 몇 개 있고 몇 개 켜져 있는지 보여주는 카드를 추가하라.</p>
+  <footer>커밋 <code>4c40d5e</code> "Add emulator card showing Android and iOS device counts"에서 복원.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>에뮬레이터를 켜고 끄면 앱을 다시 띄우지 않아도 숫자가 바뀌어야 한다.</p>
+  <footer>커밋 <code>c49ff47</code>에서 복원.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 카드에 Android, iOS 두 줄이 있고 각 줄은 "실행 중 N개 / 전체 M개"다.</li>
+  <li><strong>R2.</strong> "전체"는 설치된 가상 기기 수, "실행 중"은 부팅된 가상 기기 수다. 실물 기기는 세지 않는다.</li>
+  <li><strong>R3.</strong> 숫자를 아직 확인하지 못했으면 0이 아니라 "확인 중…"을 보여준다.</li>
+  <li><strong>R4.</strong> 앱이 떠 있는 동안 가상 기기 상태가 바뀌면 숫자가 따라 바뀐다.</li>
+  <li><strong>R5.</strong> 셀 수 없는 플랫폼에서도 카드는 같은 자리에 있다. 화면 구성이 플랫폼마다 갈라지지 않는다.</li>
+  <li><strong>R6.</strong> 세는 작업이 UI를 막지 않는다.</li>
+</ol>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>에뮬레이터</td></tr>
+    <tr><td>설명</td><td>이 머신에 설치된 Android 에뮬레이터와 iOS 시뮬레이터.</td></tr>
+    <tr><td>행</td><td><code>Android</code> / <code>iOS</code></td></tr>
+    <tr><td>값 형식</td><td><code>실행 중 {running}개 / 전체 {total}개</code></td></tr>
+    <tr><td>응답 전</td><td><code>확인 중…</code></td></tr>
+    <tr><td>테스트 태그</td><td><code>feature:emulator</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>UI</dt><dd><code>shared/ui/EmulatorCard.kt</code></dd>
+  <dt>모델</dt><dd><code>EmulatorSummary(total, running)</code>, <code>EmulatorStatus(android, ios)</code></dd>
+  <dt>프로브</dt><dd><code>fun interface EmulatorProbe { fun observe(): Flow&lt;EmulatorStatus&gt; }</code></dd>
+  <dt>공급</dt><dd><code>internal expect val emulatorProbe: EmulatorProbe</code> (<code>shared/platform/Emulator.kt</code>)</dd>
+</dl>
+
+<p>카드는 <code>probe.observe().collectAsState(initial = null)</code>로 구독한다. 초기값이 <code>null</code>인 것이 R3이다. 빈 <code>EmulatorStatus()</code>로 시작하면 SDK 도구를 아직 실행하는 중인데도 "0개"를 사실인 것처럼 보여주게 된다.</p>
+
+<p><code>emulatorProbe</code>는 <code>App()</code>이 <code>FeatureGrid</code>에 넘겨 <code>EmulatorCard</code>가 쓴다. 테스트는 여기에 <code>FakeEmulatorProbe</code>를 끼운다.</p>
+
+<aside class="decision">
+  <strong>결정: 셀 수 없는 플랫폼은 카드를 숨기지 않고 0개를 낸다</strong>
+  가상 기기를 세려면 Android SDK와 Xcode 커맨드라인 도구를 실행해야 해서, 개발자 머신에서 프로세스를 띄울 수 있는 JVM 타깃만 실제 숫자를 낸다. 나머지 타깃은 <code>flowOf(EmulatorStatus())</code>로 즉시 0개를 답한다. R5가 이 결정에서 나왔다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>기기 샌드박스 안에서 호스트의 SDK 도구를 볼 수 없다. 항상 0개</td><td><a href="../platform/android.html#emulator">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>서드파티 앱에 프로세스 실행 API가 없다. 항상 0개</td><td><a href="../platform/ios.html#emulator">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge workaround">우회</span></td><td>변경 이벤트가 없어 <code>emulator</code>·<code>adb</code>·<code>simctl</code>을 5초마다 자식 프로세스로 띄워 출력을 파싱한다 (macOS 전제)</td><td><a href="../platform/jvm.html#emulator">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>브라우저 샌드박스에는 파일 시스템도 프로세스 실행도 없다. 항상 0개</td><td><a href="../platform/web.html#emulator">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>AppTest.showsEmulatorCounts</code></td><td>R1. 두 줄의 형식과 값</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>AppTest.showsZeroEmulatorsWhenThePlatformCannotCountThem</code></td><td>R5. 0개 프로브에서 두 줄 모두 "실행 중 0개 / 전체 0개"</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>AppTest.showsPlaceholderUntilTheProbeAnswers</code></td><td>R3. 응답 전 "확인 중…"</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>AppTest.emulatorCountsFollowProbeUpdates</code></td><td>R4. 프로브가 새 값을 내면 화면이 바뀐다</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>EmulatorParsingTest</code> (7개)</td><td>R2. 각 명령 출력의 파싱과 폴링 프로브의 주기·중복 제거</td><td><code>jvmTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>실제로 명령을 띄우는 부분은 테스트하지 않는다. 결과가 머신에 SDK가 깔려 있는지에 따라 달라진다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><a href="index.html#limit-zero">"0개"와 "셀 수 없음"이 화면에서 같아 보인다.</a> JVM에서도 SDK를 못 찾거나 명령이 실패하면 0개다.</li>
+  <li>R4는 폴링이라 최대 5초 늦게 반영된다. 즉시성이 필요하면 JVM 프로브의 <code>interval</code>을 줄인다.</li>
+  <li>JVM에서 iOS 시뮬레이터는 macOS에만 있으므로, 다른 OS에서는 <code>ANDROID_HOME</code>이 잡힐 때 Android 쪽만 동작한다. 데스크톱은 macOS만 지원하므로 별도 처리하지 않는다.</li>
+</ul>
+
+<footer class="page">
+  <a href="settings-persistence.html">← 설정 영구 저장</a> · <a href="index.html">공통 스펙 →</a>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>앱 정보 카드 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>앱 정보 카드</span></nav>
+
+<header>
+  <h1>앱 정보 카드</h1>
+  <p class="lead">홈 화면 맨 위 카드. 앱 이름, 버전, 지금 실행 중인 플랫폼을 보여준다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>홈 화면을 만들어라. 상단 카드에 앱 버전과 실행 중인 플랫폼을 보여주고, 그 아래 그리드에 기능 아이템을 나열한다. 첫 기능은 화면 꺼짐 방지 토글이다.</p>
+  <footer>커밋 <code>503bff1</code> "Add home screen with app info card and keep-screen-awake toggle"에서 복원. 원문 지시는 기록되지 않아 커밋 본문 기준으로 옮겼다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 카드에 앱 이름 "Jarvis", 앱 버전, 플랫폼 이름을 보여준다.</li>
+  <li><strong>R2.</strong> 앱 버전은 원본이 하나다. 화면, Android <code>versionName</code>, 데스크톱 <code>packageVersion</code>이 같은 값을 읽는다.</li>
+  <li><strong>R3.</strong> 플랫폼 이름은 어느 타깃에서도 비어 있지 않다.</li>
+  <li><strong>R4.</strong> 카드 아래에는 기능 그리드가 오고, 그리드는 창 너비에 따라 열 수가 바뀐다.</li>
+</ol>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>라벨</th><th>값</th><th>출처</th></tr></thead>
+  <tbody>
+    <tr><td>(제목)</td><td>Jarvis</td><td>고정 문자열</td></tr>
+    <tr><td>앱 버전</td><td>예: <code>1.0.0</code></td><td><code>APP_VERSION</code> 상수</td></tr>
+    <tr><td>플랫폼</td><td>예: <code>Android 37</code>, <code>iOS 18.0</code>, <code>JVM 21.0.2</code>, <code>Wasm (Kotlin/Wasm)</code></td><td><code>platformName</code> expect</td></tr>
+  </tbody>
+</table>
+
+<p>정적인 정보라 사용자 입력은 없다.</p>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>UI</dt><dd><code>shared/ui/AppInfoCard.kt</code></dd>
+  <dt>버전 원본</dt><dd><code>gradle/libs.versions.toml</code>의 <code>appVersion</code></dd>
+  <dt>버전 생성</dt><dd><code>:shared</code>의 <code>generateAppVersion</code> 태스크가 <code>AppVersion.kt</code>에 <code>internal const val APP_VERSION</code>을 써 넣는다</dd>
+  <dt>플랫폼 이름</dt><dd><code>expect val platformName: String</code> (<code>shared/platform/Platform.kt</code>)</dd>
+</dl>
+
+<p>iOS 번들 버전(<code>MARKETING_VERSION</code>)만 Gradle과 연동되지 않는다. 화면에 보이는 값은 공용 <code>APP_VERSION</code>이고, 번들 버전은 <code>iosApp/Configuration/Config.xcconfig</code>에서 따로 관리한다. 자세한 내용은 <a href="../platform/ios.html#build">iOS 빌드</a>에 있다.</p>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th><code>platformName</code></th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>"Android ${Build.VERSION.SDK_INT}"</code></td><td><a href="../platform/android.html#app-info">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td><code>UIDevice.systemName + " " + systemVersion</code></td><td><a href="../platform/ios.html#app-info">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td><code>"JVM ${System.getProperty("java.version")}"</code></td><td><a href="../platform/jvm.html#app-info">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td><code>"Wasm (Kotlin/Wasm)"</code> 고정</td><td><a href="../platform/web.html#app-info">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>PlatformTest.platformNameIsNotBlank</code></td><td>R3. 모든 타깃에서 이름이 비어 있지 않다</td><td><code>commonTest</code> (Android host 포함 전 타깃)</td></tr>
+    <tr><td><code>AppTest.showsAppVersion</code></td><td>R1. <code>APP_VERSION</code>이 화면에 보인다</td><td><code>skikoTest</code> (jvm / wasmJs / ios)</td></tr>
+    <tr><td><code>AppTest.showsCurrentPlatformName</code></td><td>R1. <code>platformName</code>이 화면에 보인다</td><td><code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>Android는 마케팅 버전이 아니라 API 레벨 정수를 보여준다. 마케팅 버전은 시스템이 제공하지 않는다.</li>
+  <li>Web은 브라우저 종류나 OS를 넣지 않는다. 필요하면 <code>navigator.userAgent</code>를 붙일 수 있다.</li>
+  <li>Android UI 테스트가 없어 R1은 Android에서 컴파일로만 보장된다. 이유는 <a href="../platform/android.html#test">Android 테스트</a>에 있다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a> · <a href="keep-screen-awake.html">화면 꺼짐 방지 →</a>
+</footer>
+
+</body>
+</html>
