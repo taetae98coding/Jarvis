@@ -47,6 +47,7 @@
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
     <li><a href="#card-ripple">카드 물결 효과</a></li>
+    <li><a href="#home-staggered-grid">홈 그리드 세로 배치</a></li>
     <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
     <li><a href="#emulator-launch">꺼진 에뮬레이터 실행</a></li>
     <li><a href="#emulator-wake">꺼진 화면 깨우기</a></li>
@@ -475,6 +476,36 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 <h3>검증</h3>
 <p><code>JarvisAppTest</code> 가 <code>iosSimulatorArm64Test</code> 에서 돌며 클립을 넣은 뒤에도 카드 전체가 눌리는 것을 확인한다. 모양 자체는 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="home-staggered-grid">
+<h2>홈 그리드 세로 배치 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/home-staggered-grid.html">홈 그리드 세로 배치</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>LazyVerticalStaggeredGrid</code></td><td>채택. 배치 계산이 전부 Compose 안에 있어 <code>UIKit</code> 에 내려가는 것이 없다. Skiko 가 그리는 한 장의 표면 위에서 끝난다</td></tr>
+    <tr><td><code>UICollectionViewCompositionalLayout</code></td><td>해당 없음. 홈은 Compose 화면이고 <code>UIKitView</code> 로 컬렉션 뷰를 끼울 이유가 없다. iOS 에서 같은 배치를 만드는 정식 경로가 이것이라는 것만 남긴다</td></tr>
+    <tr><td>스크롤 감속·바운스</td><td>Compose 의 <code>ScrollableDefaults</code> 가 iOS 플랫폼 값을 쓴다. 그리드 종류를 바꿔도 같은 값을 그대로 받는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>app/ui/src/commonMain/.../ui/app/FeatureGrid.kt</code></dd>
+  <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>없다. 배치를 확인하는 자동 테스트만 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>iOS 에는 UI 테스트가 없다(<a href="#test">테스트</a>). 카드 표시·동작은 같은 공통 코드가 도는 Skiko 타깃의 <code>JarvisAppTest</code> 가 확인하고, 배치는 <span class="badge untested">미검증</span>으로 시뮬레이터에서 수동 확인한다.</p>
 </section>
 
 <section class="feature" id="emulator-control">

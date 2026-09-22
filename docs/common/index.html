@@ -45,6 +45,7 @@
   <li><a href="emulator-wake.html">꺼진 화면 깨우기</a><p>연결은 됐지만 화면이 꺼진 기기를 목록에서 알아보고 켠다</p></li>
   <li><a href="card-ripple.html">카드 물결 효과</a><p>누를 수 있는 카드의 물결이 카드의 둥근 모서리 안에서만 퍼진다</p></li>
   <li><a href="device-rotation.html">화면 회전</a><p>화면을 0·90·180·270도로 돌리고 그 각도에 고정한다</p></li>
+  <li><a href="home-staggered-grid.html">홈 그리드 세로 배치</a><p>높이가 제각각인 기능 카드를 행으로 묶지 않고 가장 짧은 열에 이어 붙인다</p></li>
 </ul>
 
 <h2 id="modules">모듈</h2>
@@ -83,7 +84,7 @@
 
 <h2 id="structure">앱 구조</h2>
 
-<p>화면은 셋이다. 홈은 상단 Card에 앱 버전과 플랫폼을 보여주고 하단 Grid에 기능 아이템을 나열한다. Grid는 <code>GridCells.Adaptive(minSize = 220.dp)</code>라 창 너비에 따라 열 수가 늘어난다. 나머지 둘은 에뮬레이터 카드에서 들어가는 기기 목록과 기기 화면이고, 셋 사이의 이동은 <a href="navigation.html">Navigation3 의 백스택</a>이 맡는다.</p>
+<p>화면은 셋이다. 홈은 상단 Card에 앱 버전과 플랫폼을 보여주고 하단 Grid에 기능 아이템을 나열한다. Grid는 <code>StaggeredGridCells.Adaptive(minSize = 220.dp)</code>라 창 너비에 따라 열 수가 늘어나고, 카드 높이가 제각각이라 행으로 묶지 않고 <a href="home-staggered-grid.html">가장 짧은 열에 이어 붙인다</a>. 나머지 둘은 에뮬레이터 카드에서 들어가는 기기 목록과 기기 화면이고, 셋 사이의 이동은 <a href="navigation.html">Navigation3 의 백스택</a>이 맡는다.</p>
 
 <pre><code>App()                                    ← :shared. JarvisApp() 을 부르는 것이 전부
 └─ JarvisApp()                           ← :app:ui

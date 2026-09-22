@@ -44,6 +44,7 @@
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
     <li><a href="#card-ripple">카드 물결 효과</a></li>
+    <li><a href="#home-staggered-grid">홈 그리드 세로 배치</a></li>
     <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
     <li><a href="#emulator-launch">꺼진 에뮬레이터 실행</a></li>
     <li><a href="#emulator-wake">꺼진 화면 깨우기</a></li>
@@ -487,6 +488,36 @@
 
 <h3>검증</h3>
 <p>Android 에는 Compose UI 테스트가 없다(<a href="#test">테스트</a>). 토글 동작은 Skiko 타깃의 <code>JarvisAppTest</code> 가 같은 공통 코드로 확인하고, 물결 모양은 <span class="badge untested">미검증</span>으로 남아 기기에서 수동 확인한다.</p>
+</section>
+
+<section class="feature" id="home-staggered-grid">
+<h2>홈 그리드 세로 배치 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/home-staggered-grid.html">홈 그리드 세로 배치</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>LazyVerticalStaggeredGrid</code></td><td>채택. <code>androidx.compose.foundation.lazy.staggeredgrid</code> 의 정식 API 다. foundation 1.6 에서 실험 딱지를 떼서 <code>@OptIn</code> 이 필요 없다. 항목 높이를 측정한 뒤 가장 짧은 열에 붙이는 계산을 Compose 가 하고, 뷰 시스템에 내려가지 않는다</td></tr>
+    <tr><td><code>StaggeredGridCells.Adaptive(minSize)</code></td><td>채택. <code>GridCells.Adaptive</code> 와 계산이 같아 220dp 기준의 열 수가 그대로 유지된다</td></tr>
+    <tr><td><code>androidx.recyclerview.widget.StaggeredGridLayoutManager</code></td><td>해당 없음. 뷰 시스템의 것이라 Compose 화면에 걸 자리가 없다. 이름이 비슷해 찾아오기 쉬워 남긴다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>app/ui/src/commonMain/.../ui/app/FeatureGrid.kt</code></dd>
+  <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>없다. 배치를 확인하는 자동 테스트만 없다(<a href="#test">테스트</a>).</li>
+</ul>
+
+<h3>검증</h3>
+<p>Android 에는 Compose UI 테스트가 없다(<a href="#test">테스트</a>). 카드가 보이고 눌리는 것은 Skiko 타깃의 <code>JarvisAppTest</code> 가 같은 공통 코드로 확인한다. 배치는 <span class="badge untested">미검증</span>으로 남아 기기에서 세로·가로를 돌려가며 수동 확인한다.</p>
 </section>
 
 <section class="feature" id="emulator-control">
