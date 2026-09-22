@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Android — 플랫폼 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">플랫폼 스펙</a></span><span>Android</span></nav>
+
+<header>
+  <h1>Android</h1>
+  <p class="lead">기기 샌드박스 안에서 돌아가는 앱. 화면 꺼짐 방지와 설정 저장은 정식 API로 되고, 호스트 머신을 들여다보는 기능은 되지 않는다.</p>
+</header>
+
+<dl class="meta">
+  <dt>모듈</dt><dd><code>:androidApp</code> (앱, <code>com.android.application</code>) + <code>:shared</code> (<code>com.android.kotlin.multiplatform.library</code>)</dd>
+  <dt><code>applicationId</code></dt><dd><code>io.github.taetae98coding.jarvis</code></dd>
+  <dt>compileSdk / targetSdk / minSdk</dt><dd>37 / 37 / 24</dd>
+  <dt>진입점</dt><dd><code>MainActivity</code> — <code>enableEdgeToEdge()</code> 후 <code>setContent { App() }</code></dd>
+  <dt>권한</dt><dd><code>INTERNET</code> (<a href="#emulator">에뮬레이터 개수</a>), <code>WRITE_SETTINGS</code> (<a href="#system-keep-screen-awake">시스템 전역 화면 유지</a>). <code>WAKE_LOCK</code>은 쓰지 않는다</dd>
+</dl>
+
+<aside class="note">
+  <strong>왜 앱 모듈이 분리되어 있나</strong>
+  AGP 9부터 <code>com.android.application</code>과 <code>org.jetbrains.kotlin.multiplatform</code>을 같은 모듈에 적용할 수 없다. 공유 코드는 <code>com.android.kotlin.multiplatform.library</code>를 쓰는 <code>:shared</code>에 두고, Android 앱은 AGP 9의 내장 Kotlin 지원을 쓰는 별도 모듈로 분리했다. <code>kotlin-android</code> 플러그인은 따로 적용하지 않는다.
+</aside>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#app-info">앱 정보</a></li>
+    <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
+    <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
+    <li><a href="#settings">설정 영구 저장</a></li>
+    <li><a href="#state-observation">상태 조회 규칙</a></li>
+    <li><a href="#emulator">에뮬레이터 개수</a></li>
+    <li><a href="#build">빌드·실행</a></li>
+    <li><a href="#test">테스트</a></li>
+  </ol>
+</nav>
+
+<section class="feature" id="app-info">
+<h2>앱 정보 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/app-info.html">앱 정보 카드</a></p>
+
+<h3>기술 조사</h3>
+<p><code>android.os.Build.VERSION</code>이 <code>SDK_INT</code>(API 레벨 정수)와 <code>RELEASE</code>(예: <code>"17"</code>)를 제공한다. 마케팅 이름은 시스템이 주지 않는다.</p>
+
+<h3>구현</h3>
+<pre><code>actual val platformName: String = "Android ${Build.VERSION.SDK_INT}"</code></pre>
+<p>API 레벨을 그대로 보여준다. 마케팅 버전이 아니라 <code>37</code> 같은 정수다. 앱 버전은 <code>versionName = libs.versions.appVersion</code>으로 공용 원본을 읽는다.</p>
+
+<h3>한계</h3>
+<p>해당 없음.</p>
+
+<h3>검증</h3>
+<p><code>PlatformTest</code>가 <code>testAndroidHostTest</code>에서 돈다. 화면 표시(<code>AppTest</code>)는 <a href="#test">Android UI 테스트가 없어</a> 검증하지 않는다.</p>
+</section>
+
+<section class="feature" id="keep-screen-awake">
+<h2>화면 꺼짐 방지 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/keep-screen-awake.html">화면 꺼짐 방지</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>View.keepScreenOn</code> / 윈도우 <code>FLAG_KEEP_SCREEN_ON</code></td><td>권한 불필요. 윈도우가 보이는 동안만 유효하다. 정식 권장 경로</td></tr>
+    <tr><td><code>PowerManager.SCREEN_BRIGHT_WAKE_LOCK</code></td><td>API 17에서 deprecated된 뒤 실제로 화면을 켜 두지 못한다. <code>WAKE_LOCK</code> 권한도 필요하다</td></tr>
+    <tr><td>foreground service + wake lock</td><td>CPU는 깨워 두지만 화면은 켜 두지 못한다. 앱 권한으로 백그라운드 화면을 유지하는 길은 없고, 시스템 설정을 바꾸는 <a href="#system-keep-screen-awake">별도 기능</a>으로 돌아갔다</td></tr>
+    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td>CMP 1.12.0 Android 구현은 <code>AndroidComposeView</code>가 요청 수를 세어 <code>View.setKeepScreenOn(count &gt; 0)</code>을 부른다. 첫 후보를 그대로 쓴다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙이고, Compose가 <code>View.keepScreenOn</code>을 부른다. Android 전용 코드는 없다. <code>PlatformIdleInhibitor</code>의 Android actual은 <code>= Unit</code>이다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>윈도우가 보이는 동안만 유효하다.</strong> 홈으로 나가거나 앱을 종료하면 시스템이 플래그를 무시하고 화면은 평소대로 꺼진다.</li>
+  <li><strong>이 기능만으로는 백그라운드에서 화면을 켜 둘 수 없다.</strong> 앱에 주어지는 권한으로는 길이 없다. 시스템 전역 설정을 바꾸는 <a href="#system-keep-screen-awake">시스템 전역 토글</a>이 그 자리를 맡는다.</li>
+  <li>화면 분할·PiP처럼 앱이 부분적으로만 보이는 상태의 동작은 OS 재량이라 보장하지 않는다.</li>
+  <li>Compose 밖에서 같은 <code>View</code>의 <code>keepScreenOn</code>을 직접 건드리면 Compose의 카운트와 어긋난다. 지금은 그런 코드가 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>Android에서 돌아가는 UI 테스트가 없다. 토글·저장 로직은 <code>skikoTest</code>가 다른 타깃에서 검증하고, Android에서는 컴파일로만 보장된다.</p>
+</section>
+
+<section class="feature" id="system-keep-screen-awake">
+<h2>화면 꺼짐 방지 (시스템 전역) <span class="badge workaround">우회</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a></p>
+
+<h3>기술 조사</h3>
+<p>앱에 주어지는 권한으로는 앱이 물러난 뒤의 화면을 지킬 수 없다. 마켓 배포를 포기하면 네 가지 길이 열리고, 전부 마켓 심사와는 양립하지 않는다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>WRITE_SETTINGS</code> + <code>Settings.System.SCREEN_OFF_TIMEOUT</code></td><td><strong>채택.</strong> 사용자가 설정 화면에서 직접 허용하고 언제든 회수할 수 있는 appop이다. 시스템 전역 값이라 앱이 없어도 유지된다. 남의 설정을 바꾸므로 되돌릴 책임이 생긴다</td></tr>
+    <tr><td><code>SYSTEM_ALERT_WINDOW</code> 오버레이 + foreground service</td><td>1×1 오버레이 윈도우에 <code>FLAG_KEEP_SCREEN_ON</code>을 걸면 다른 앱이 떠 있어도 유효하다. 전역 설정을 건드리지 않아 깔끔하지만 프로세스가 계속 살아 있어야 하고 알림이 상주한다</td></tr>
+    <tr><td>DeviceOwner (<code>DevicePolicyManager.setMaximumTimeToLock</code>, lock task)</td><td>가장 확실하다. 다만 <code>adb shell dpm set-device-owner</code>로 공장초기화 상태에서만 프로비저닝되어, 설치만으로는 켤 수 없다</td></tr>
+    <tr><td><code>WRITE_SECURE_SETTINGS</code> + <code>Settings.Global.STAY_ON_WHILE_PLUGGED_IN</code></td><td>서명 권한이라 <code>adb shell pm grant</code>로만 부여된다. 앱 안에서 사용자가 허용할 방법이 없다</td></tr>
+    <tr><td><code>PowerManager.SCREEN_BRIGHT_WAKE_LOCK</code></td><td>API 17에서 deprecated된 뒤 화면을 켜 두지 못한다. <a href="#keep-screen-awake">앱 수명 내 기능</a>의 조사와 같은 결론</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>shared/src/androidMain/.../SystemScreenAwake.android.kt</code></dd>
+  <dt>동작</dt><dd>토글이 켜지면 현재 <code>SCREEN_OFF_TIMEOUT</code>을 저장한 뒤 <code>Int.MAX_VALUE</code>(약 24.8일)로 덮어쓴다. 꺼지면 저장값으로 되돌린다</dd>
+  <dt>권한</dt><dd><code>Settings.System.canWrite(context)</code>로 읽고, 없으면 <code>ACTION_MANAGE_WRITE_SETTINGS</code> 화면을 연다. 애플리케이션 컨텍스트로 띄우므로 <code>FLAG_ACTIVITY_NEW_TASK</code>가 필요하다</dd>
+  <dt>되돌릴 값</dt><dd><code>jarvis.screen_off_timeout</code> SharedPreferences 파일. boolean만 다루는 <code>SettingsStore</code>에 Int를 넣을 수 없고, 사용자 설정이 아니라 내부 기록이라 <code>jarvis.settings</code>와도 섞지 않았다</dd>
+  <dt>실패</dt><dd><code>canWrite</code>를 확인한 뒤에도 그 사이 권한이 회수되면 <code>putInt</code>가 <code>SecurityException</code>을 던진다. <code>runCatching</code>으로 삼켜 no-op이 된다</dd>
+</dl>
+
+<aside class="warn">
+  <strong>재적용이 원본을 덮어쓰지 않아야 한다</strong>
+  앱을 껐다 켜면 저장된 토글 값에 따라 효과가 다시 적용된다. 그때 이미 늘려 둔 <code>Int.MAX_VALUE</code>를 "원래 값"으로 저장해 버리면 되돌릴 곳을 영구히 잃는다. 그래서 저장값이 있으면 쓰지 않는다.
+</aside>
+
+<p>권한 상태와 현재 타임아웃은 <a href="#state-observation">상태 조회 규칙</a>을 따라 관찰한다. 권한은 콜백이 없어 폴링, 타임아웃 값은 <code>ContentObserver</code>다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>권한을 잃으면 되돌릴 수 없다.</strong> 사용자가 설정에서 권한을 끈 뒤 토글을 끄면 늘려 둔 값이 남는다. 저장값은 지우지 않으므로 권한이 돌아오면 복원된다.</li>
+  <li><strong>앱을 삭제하면 늘려 둔 값이 남는다.</strong> 삭제 시점에 실행되는 훅이 없다. 토글을 끄고 지워야 한다.</li>
+  <li><strong>제조사 ROM이 값을 줄일 수 있다.</strong> 전력 관리 정책이 자체적으로 개입하는 경우까지는 막지 못한다.</li>
+  <li><strong>소유권을 다투지 않는다.</strong> 설정 앱이나 다른 앱이 같은 값을 바꾸면 마지막에 쓴 쪽이 이긴다. <code>ContentObserver</code>로 변화를 보고 화면에만 반영한다.</li>
+  <li>권한이 없는 동안 토글은 켜진 채로 남는다. 설명이 "권한이 필요합니다"로 바뀌지만 스위치만 보면 동작 중인 것처럼 보인다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동 테스트가 없다. 시스템 설정을 실제로 바꾸고 권한 화면을 여는 경로는 기기에서만 돌고, <a href="#test">Android에는 UI 테스트가 없다</a>. 설정값과 카드 표시는 <code>commonTest</code>·<code>skikoTest</code>가 다른 타깃에서 검증한다. <code>SCREEN_OFF_TIMEOUT</code> 왕복은 개발 기기에서 수동으로 확인한다.</p>
+</section>
+
+<section class="feature" id="settings">
+<h2>설정 영구 저장 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/settings-persistence.html">설정 영구 저장</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>SharedPreferences</code></td><td>동기 읽기, <code>apply()</code>로 비동기 쓰기, <code>OnSharedPreferenceChangeListener</code>로 변경 알림. boolean 몇 개에 충분하다</td></tr>
+    <tr><td><code>androidx.datastore</code></td><td>비동기·트랜잭션·Flow 지원. KMP 변형이 있지만 Web 쪽 Storage 구현을 직접 넣어야 해서 <a href="../common/index.html#limit-sync-store">지금은 채택하지 않았다</a></td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>shared/src/androidMain/.../SettingsStore.android.kt</code></dd>
+  <dt>저장소</dt><dd><code>context.getSharedPreferences("jarvis.settings", MODE_PRIVATE)</code></dd>
+  <dt>컨텍스트</dt><dd><code>LocalContext.current.applicationContext</code>. Activity 재생성과 무관하게 같은 파일을 본다</dd>
+  <dt>쓰기</dt><dd><code>edit().putBoolean(key, value).apply()</code></dd>
+  <dt>변경 감지</dt><dd><code>callbackFlow</code> + <code>registerOnSharedPreferenceChangeListener</code></dd>
+</dl>
+<aside class="warn">
+  <strong>리스너는 약한 참조로만 잡힌다</strong>
+  <code>SharedPreferences</code>는 리스너를 <code>WeakHashMap</code>에 보관한다. <code>awaitClose { unregister(listener) }</code> 람다가 리스너를 붙들고 있어야 수집 중에 GC로 사라지지 않는다. 람다를 없애면 알림이 어느 순간 조용히 끊긴다.
+</aside>
+
+<h3>한계</h3>
+<ul>
+  <li>첫 접근 시 <code>getSharedPreferences</code>가 디스크를 읽는다. boolean 하나라 무시할 수준이지만 값이 늘면 프레임을 막을 수 있다.</li>
+  <li><code>apply()</code>는 커밋을 보장하지 않는다. 쓰기 직후 프로세스가 강제 종료되면 마지막 값이 유실될 수 있다.</li>
+  <li>백업 대상이다(<code>android:allowBackup="true"</code>). 기기 이전 시 설정이 따라간다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>AppSettingsTest</code>가 <code>testAndroidHostTest</code>에서 <code>InMemorySettingsStore</code>로 돈다. <code>SharedPreferences</code> 왕복 자체는 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="state-observation">
+<h2>상태 조회 규칙 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/state-observation.html">상태 조회 규칙</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>상태</th><th>콜백</th></tr></thead>
+  <tbody>
+    <tr><td>설정값</td><td><code>OnSharedPreferenceChangeListener</code>. 있다</td></tr>
+    <tr><td><code>Settings.System.SCREEN_OFF_TIMEOUT</code></td><td><code>ContentObserver</code> + <code>Settings.System.getUriFor(…)</code>. 있다. 바뀐 값은 주지 않고 URI만 준다</td></tr>
+    <tr><td><code>WRITE_SETTINGS</code> 권한</td><td><strong>없다.</strong> appop 변경을 알려주는 공개 API가 없다. <code>AppOpsManager.startWatchingMode</code>는 자기 앱의 <code>WRITE_SETTINGS</code>를 감시하는 용도로 보장되지 않는다</td></tr>
+    <tr><td>에뮬레이터 개수</td><td><strong>없다.</strong> 로컬 에이전트에 HTTP로 묻는 값이다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>콜백</dt><dd>설정값과 화면 꺼짐 시간은 <code>callbackFlow</code>로 감싸 <code>observeOnSignals</code>에 넘긴다</dd>
+  <dt>폴링</dt><dd>권한 상태는 <code>observeByPolling(2.seconds)</code>, 에뮬레이터 개수는 <code>observeByPolling(5.seconds)</code></dd>
+  <dt>합성</dt><dd>권한(폴링)과 타임아웃(콜백)을 <code>combine</code>으로 묶어 카드가 한 번에 읽는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>권한을 허용하고 돌아온 것을 최대 2초 늦게 알아챈다. 그 사이 토글은 켜져 있지만 효과는 걸리지 않았다.</li>
+  <li><code>ContentObserver</code>의 <code>Handler</code>를 null로 두어 콜백이 바인더 스레드에서 온다. <code>trySend</code>만 부르므로 문제가 없지만, 여기서 다른 일을 하면 안 된다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>ObserveSystemStateTest</code>가 <code>testAndroidHostTest</code>에서 돈다. Android 콜백을 실제로 받는 부분(<code>ContentObserver</code>, 권한 폴링)은 기기가 필요해 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="emulator">
+<h2>에뮬레이터 개수 <span class="badge workaround">우회</span></h2>
+<p>공통 스펙: <a href="../common/emulator-count.html">에뮬레이터 개수</a></p>
+
+<h3>기술 조사</h3>
+<ul>
+  <li>에뮬레이터 목록을 아는 도구(<code>emulator</code>, <code>adb</code>, <code>simctl</code>)는 개발자 머신에 있다. 앱은 기기 샌드박스 안에 있다.</li>
+  <li><code>Runtime.exec</code>는 쓸 수 있지만 기기 안의 바이너리만 실행할 수 있고, 호스트의 SDK에는 닿지 않는다.</li>
+  <li>앱이 돌고 있는 기기가 세려는 에뮬레이터 자신일 수도 있다. 그 경우에도 게스트에서 호스트를 들여다보는 API는 없다.</li>
+  <li><strong>네트워크는 닿는다.</strong> 에뮬레이터에서 <code>10.0.2.2</code>는 호스트 머신의 루프백이다. 호스트에 짝이 되는 서버가 있으면 물어볼 수 있다. 이 경로를 택했다.</li>
+</ul>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>shared/src/androidMain/.../HostAgent.android.kt</code></dd>
+  <dt>동작</dt><dd><code>HttpURLConnection</code>으로 <a href="../common/emulator-count.html#agent">로컬 에이전트</a>에 GET. <code>Dispatchers.IO</code>에서 돈다</dd>
+  <dt>주소</dt><dd><code>10.0.2.2</code> → <code>127.0.0.1</code> 순서로 시도해 처음 응답한 쪽을 쓴다. 뒤쪽은 실물 기기에서 <code>adb reverse tcp:47890 tcp:47890</code>을 걸었을 때의 경로다</dd>
+  <dt>타임아웃</dt><dd>연결·읽기 각 1초. 에이전트는 미리 세 둔 값을 주므로 그보다 오래 걸리면 없는 것으로 본다</dd>
+  <dt>실패</dt><dd>예외와 200 이외의 응답을 모두 <code>null</code>로 묶는다. 카드는 "셀 수 없음"을 보여준다</dd>
+</dl>
+
+<p>평문 HTTP라 <code>res/xml/network_security_config.xml</code>에서 이 두 주소에만 cleartext를 허용한다. 개발자 머신마다 TLS 인증서를 심을 수 없어 암호화를 포기하는 대신, 예외 범위를 호스트 루프백으로 좁혔다. <code>INTERNET</code> 권한도 이 요청 때문에 필요하다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>데스크톱 앱이 떠 있어야 한다.</strong> 꺼져 있으면 연결이 거절되고 "셀 수 없음"이 된다.</li>
+  <li><strong>실물 기기는 <code>adb reverse</code>가 필요하다.</strong> 매번 수동으로 걸어야 하고 USB를 뽑으면 끊긴다.</li>
+  <li>5초 폴링이라 최대 5초 늦는다.</li>
+  <li>에이전트에 인증이 없다. <a href="../common/emulator-count.html#agent">공통 스펙</a> 참고.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>HostAgentTest</code>가 <code>testAndroidHostTest</code>에서 가짜 조회 함수로 폴링과 "셀 수 없음" 처리를 검증한다. <code>HttpURLConnection</code>으로 실제 요청을 보내는 부분은 에뮬레이터와 데스크톱 앱이 함께 있어야 해서 <span class="badge untested">미검증</span>이다. 개발 머신에서 <code>curl</code>로 에이전트 왕복을 확인했다.</p>
+</section>
+
+<section class="feature" id="build">
+<h2>빌드·실행</h2>
+<pre><code>./gradlew :androidApp:assembleDebug     # APK 빌드
+./gradlew :androidApp:installDebug      # 기기/에뮬레이터 설치
+
+adb reverse tcp:47890 tcp:47890         # 실물 기기에서 에뮬레이터 개수를 보려면</code></pre>
+<p>Android SDK 위치는 <code>local.properties</code>의 <code>sdk.dir</code> 또는 <code>ANDROID_HOME</code>으로 알려줘야 한다.</p>
+<p><code>MainActivity</code>는 <code>configChanges</code>를 넓게 선언해 회전·다크모드 전환 시 Activity가 재생성되지 않는다. Compose가 직접 변경을 처리한다.</p>
+</section>
+
+<section class="feature" id="test">
+<h2>테스트 <span class="badge no">UI 테스트 불가</span></h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>실행</th></tr></thead>
+  <tbody>
+    <tr><td><code>PlatformTest</code>, <code>AppSettingsTest</code>, <code>ObserveSystemStateTest</code>, <code>HostAgentTest</code></td><td><code>./gradlew :shared:testAndroidHostTest</code> (호스트 JVM)</td></tr>
+    <tr><td>Compose UI 테스트 (<code>AppTest</code>)</td><td><strong>없음</strong></td></tr>
+  </tbody>
+</table>
+
+<h3>기술 조사</h3>
+<p>Compose UI 테스트는 Skiko로 렌더링하는 타깃에서만 돌고 Android는 빠져 있다. 호스트 JVM에는 렌더링할 Android 런타임이 없다. 두 가지 대안을 조사했고 둘 다 지금은 막혀 있다.</p>
+<table>
+  <thead><tr><th>대안</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Robolectric</td><td>4.17 + JDK 25 조합에서 <code>FileDescriptor</code> 내부 접근이 깨져 부팅하지 못했다</td></tr>
+    <tr><td>계측 테스트 (<code>withDeviceTest</code>)</td><td>Compose Gradle 플러그인 1.12.0과 AGP KMP <code>withDeviceTest</code>를 함께 쓰면 <code>copyAndroidDeviceTestComposeResourcesToAndroidAssets</code> 태스크의 <code>outputDirectory</code>가 설정되지 않아 빌드가 깨진다</td></tr>
+  </tbody>
+</table>
+<p>둘 중 하나가 풀리면 Android도 UI 테스트에 넣을 수 있다. 그때까지 Android의 화면 동작은 컴파일과 수동 확인으로 보장된다.</p>
+
+<p>이 문서에서 <span class="badge untested">미검증</span>으로 남는 경로는 셋이다. <code>SharedPreferences</code> 왕복, <code>WRITE_SETTINGS</code>로 시스템 설정을 바꾸는 경로, 그리고 <code>10.0.2.2</code>로 에이전트에 요청하는 경로. 전부 기기가 필요하다.</p>
+</section>
+
+<footer class="page">
+  <a href="index.html">← 플랫폼 스펙</a> · <a href="ios.html">iOS →</a>
+</footer>
+
+</body>
+</html>

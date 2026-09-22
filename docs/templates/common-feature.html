@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 제목은 "<기능 이름> — 공통 스펙 — Jarvis" 형식을 지킨다. -->
+<title>기능 이름 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<!--
+  공통 스펙 템플릿.
+  docs/common/<기능>.html 로 복사한 뒤 아래 주석이 붙은 자리를 채운다.
+  섹션 순서와 id 는 바꾸지 않는다. 다른 문서가 #requirements, #platforms 같은 id 로 링크한다.
+  채울 내용이 없는 섹션은 지우지 말고 "해당 없음" 이라고 적는다.
+  다 채우면 docs/common/index.html 과 docs/index.html 의 목록·지원 현황 표에 한 줄씩 추가한다.
+-->
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>기능 이름</span></nav>
+
+<header>
+  <h1>기능 이름</h1>
+  <!-- 한 문장. 이 기능이 사용자에게 무엇을 해 주는지. -->
+  <p class="lead">한 문장 요약.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<!--
+  사용자가 요청한 문장을 원문 그대로 옮긴다. 요약하거나 다듬지 않는다.
+  지시가 여러 번에 걸쳐 왔으면 blockquote 를 여러 개 두고 footer 에 출처(날짜, 커밋, 대화)를 적는다.
+-->
+<blockquote class="instruction">
+  <p>사용자 지시 원문.</p>
+  <footer>출처. 예: 2026-09-22 대화, 또는 커밋 <code>abcdef0</code>.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<!--
+  지시에서 뽑아낸, 검증 가능한 문장. 번호를 붙여서 아래 검증 표와 플랫폼 스펙이 R1, R2 로 가리킬 수 있게 한다.
+  "빠르게", "잘" 같은 말은 쓰지 않는다. 테스트로 참·거짓을 가릴 수 있어야 한다.
+-->
+<ol>
+  <li><strong>R1.</strong> </li>
+  <li><strong>R2.</strong> </li>
+</ol>
+
+<!-- 지시에서 명시적으로 뺀 것, 또는 조사 결과 어느 플랫폼도 지원하지 않아 스코프에서 뺀 것. -->
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  해당 없음.
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<!-- 화면에 보이는 문구, 컨트롤 종류, 상태 변화, 테스트 태그. 사용자 입력이 없는 기능이면 그렇게 적는다. -->
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td></td></tr>
+    <tr><td>설명</td><td></td></tr>
+    <tr><td>컨트롤</td><td></td></tr>
+    <tr><td>테스트 태그</td><td><code>feature:…</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<!--
+  commonMain 에 들어갈 것: UI 파일, 상태 모델, expect 선언.
+  플랫폼별 코드는 여기 쓰지 않는다. expect 시그니처만 적고 actual 은 플랫폼 스펙에 맡긴다.
+  설계 결정이 있으면 aside.decision 으로 무엇을 택하고 무엇을 버렸는지 적는다.
+-->
+<dl class="meta">
+  <dt>UI</dt><dd><code>shared/ui/….kt</code></dd>
+  <dt>상태</dt><dd></dd>
+  <dt>공급</dt><dd><code>internal expect …</code></dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: </strong>
+  무엇을 택했고 무엇을 버렸는지, 그 이유.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<!--
+  네 플랫폼 문서의 같은 기능 섹션을 가리킨다. 판정 배지는 docs/index.html#legend 의 다섯 가지 중 하나.
+  플랫폼 스펙을 다 쓴 뒤에 채운다. 판정이 갈리면 docs/index.html 의 지원 현황 표도 함께 고친다.
+-->
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td></td><td><a href="../platform/android.html#feature-id">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td></td><td><a href="../platform/ios.html#feature-id">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge workaround">우회</span></td><td></td><td><a href="../platform/jvm.html#feature-id">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td></td><td><a href="../platform/web.html#feature-id">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<!-- 요구사항 번호마다 어떤 테스트가 확인하는지. 자동으로 못 확인하는 요구사항은 왜 못 하는지 적는다. -->
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>AppTest.…</code></td><td>R1. </td><td><code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<!-- 요구사항을 충족하지 못하는 조건과 그때의 증상. 플랫폼 하나에만 해당하면 플랫폼 스펙에 적고 여기서는 링크만 한다. -->
+<ul>
+  <li></li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

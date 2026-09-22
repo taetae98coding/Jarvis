@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iOS — 플랫폼 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">플랫폼 스펙</a></span><span>iOS</span></nav>
+
+<header>
+  <h1>iOS</h1>
+  <p class="lead">SwiftUI가 <code>Shared</code> 프레임워크의 Compose 뷰 컨트롤러를 감싼다. 화면 꺼짐 방지와 설정 저장은 정식 API로 되고, 프로세스 실행이 필요한 기능은 되지 않는다.</p>
+</header>
+
+<dl class="meta">
+  <dt>모듈</dt><dd><code>iosApp</code> (Xcode 프로젝트) + <code>:shared</code></dd>
+  <dt>Kotlin 타깃</dt><dd><code>iosArm64</code>, <code>iosSimulatorArm64</code></dd>
+  <dt>프레임워크</dt><dd><code>Shared</code> (static)</dd>
+  <dt>Deployment target</dt><dd>iOS 16.0</dd>
+  <dt>Device family</dt><dd>iPhone + iPad (<code>1,2</code>)</dd>
+  <dt>Bundle ID</dt><dd><code>iosApp/Configuration/Config.xcconfig</code>의 <code>BUNDLE_ID</code></dd>
+  <dt>진입점</dt><dd><code>iOSApp.swift</code> → <code>ContentView</code> → <code>MainViewControllerKt.MainViewController()</code></dd>
+  <dt>Info.plist</dt><dd><code>NSAppTransportSecurity</code> → <code>NSAllowsLocalNetworking</code> (<a href="#emulator">에뮬레이터 개수</a>)</dd>
+</dl>
+
+<aside class="note">
+  <strong>iosX64가 없는 이유</strong>
+  Compose Multiplatform 1.12부터 iosX64(Intel 시뮬레이터) 아티팩트를 더 이상 배포하지 않는다. Apple Silicon 시뮬레이터만 지원한다.
+</aside>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#app-info">앱 정보</a></li>
+    <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
+    <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
+    <li><a href="#settings">설정 영구 저장</a></li>
+    <li><a href="#state-observation">상태 조회 규칙</a></li>
+    <li><a href="#emulator">에뮬레이터 개수</a></li>
+    <li><a href="#build">빌드·실행</a></li>
+    <li><a href="#test">테스트</a></li>
+  </ol>
+</nav>
+
+<section class="feature" id="app-info">
+<h2>앱 정보 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/app-info.html">앱 정보 카드</a></p>
+
+<h3>기술 조사</h3>
+<p><code>UIDevice.currentDevice</code>가 <code>systemName</code>(<code>"iOS"</code> 또는 <code>"iPadOS"</code>)과 <code>systemVersion</code>(<code>"18.0"</code>)을 제공한다.</p>
+
+<h3>구현</h3>
+<pre><code>actual val platformName: String =
+    UIDevice.currentDevice.systemName() + " " + UIDevice.currentDevice.systemVersion</code></pre>
+<p>예: <code>iOS 18.0</code>.</p>
+
+<h3>한계</h3>
+<p>앱 버전(<code>MARKETING_VERSION</code>)은 Gradle의 <code>appVersion</code>과 자동으로 연동되지 않는다. 화면에 보이는 값은 공용 <code>APP_VERSION</code>이고, 번들 버전은 xcconfig에서 따로 관리한다. 릴리스 때 둘을 맞춰야 한다.</p>
+
+<h3>검증</h3>
+<p><code>PlatformTest</code>, <code>AppTest.showsAppVersion</code>, <code>AppTest.showsCurrentPlatformName</code>이 <code>iosSimulatorArm64Test</code>에서 돈다.</p>
+</section>
+
+<section class="feature" id="keep-screen-awake">
+<h2>화면 꺼짐 방지 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/keep-screen-awake.html">화면 꺼짐 방지</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>UIApplication.sharedApplication.idleTimerDisabled</code></td><td>유일한 정식 API. 프로세스 전역 boolean이고, 앱이 foreground일 때만 시스템이 존중한다. 권한도 Info.plist 항목도 필요 없다</td></tr>
+    <tr><td>백그라운드에서 화면 유지</td><td>해당 API 자체가 없다. 백그라운드 모드(오디오, 위치 등)도 화면을 켜 두지는 않는다</td></tr>
+    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td>CMP 1.12.0 iOS 구현은 <code>UIKitIdleTimerManager</code>가 요청자를 집합으로 들고 있다가 비어 있는지에 따라 <code>idleTimerDisabled</code>를 토글한다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<p>공통 코드의 <code>Modifier.keepScreenAwake(enabled)</code>가 Compose의 <code>keepScreenOn()</code>을 붙인다. iOS 전용 코드는 없다. <code>PlatformIdleInhibitor</code>의 iOS actual은 <code>= Unit</code>이다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>앱이 foreground일 때만 유효하다.</strong> 백그라운드로 가면 시스템이 유휴 타이머를 되살리고, 다시 활성화되면 프로퍼티 값에 따라 재적용된다. 앱 종료 후 화면을 켜 둘 방법은 없다.</li>
+  <li><strong>프로세스 전역 프로퍼티다.</strong> Compose를 거치는 요청끼리는 <code>UIKitIdleTimerManager</code>가 조정해 주지만, Compose 밖에서 <code>idleTimerDisabled</code>를 직접 쓰면 마지막에 쓴 쪽이 이긴다.</li>
+  <li>저전력 모드나 OS 정책에 따라 무시될 수 있다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>AppTest</code>의 토글·저장 테스트 4개가 <code>iosSimulatorArm64Test</code>에서 돈다. 유휴 타이머가 실제로 멈추는지는 자동으로 확인하지 않는다.</p>
+</section>
+
+<section class="feature" id="system-keep-screen-awake">
+<h2>화면 꺼짐 방지 (시스템 전역) <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>UIApplication.idleTimerDisabled</code></td><td>포그라운드 앱에만 주어진다. 백그라운드로 가면 시스템이 유휴 타이머를 되살린다. <a href="#keep-screen-awake">앱 수명 내 기능</a>이 이미 쓰고 있다</td></tr>
+    <tr><td>자동 잠금 시간 설정 API</td><td><strong>없다.</strong> 사용자의 자동 잠금 시간을 읽는 공개 API도, 쓰는 공개 API도 iOS SDK에 없다</td></tr>
+    <tr><td><code>UIBackgroundModes: audio</code> + 무음 재생</td><td>프로세스는 살아남지만 화면은 그대로 꺼진다. <code>idleTimerDisabled</code>는 여전히 포그라운드 전용이다</td></tr>
+    <tr><td>SpringBoardServices 계열 비공개 API</td><td>시스템 권한(entitlement)이 필요하다. Apple이 서명해 주지 않으므로 사이드로드나 개발자 서명으로도 열리지 않는다</td></tr>
+  </tbody>
+</table>
+
+<p>중요한 점은 <strong>이 판정이 배포 방식과 무관</strong>하다는 것이다. 앱스토어 배포를 포기하고 ad-hoc이나 개발자 서명으로 설치해도 앱은 같은 샌드박스에 들어간다. Android와 달리 사이드로드가 새 길을 열어 주지 않는다.</p>
+
+<h3>대체 동작</h3>
+<pre><code>@Composable
+internal actual fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwakeState =
+    UnsupportedSystemScreenAwake</code></pre>
+<p>카드는 같은 자리에 남고 잠긴 상태로 "이 플랫폼에서는 앱이 없는 동안의 화면 꺼짐을 막을 수 없습니다"를 보여준다. 토글을 눌러도 값이 바뀌지 않는다.</p>
+
+<h3>한계</h3>
+<p>해당 없음. 기능 자체가 없다.</p>
+
+<h3>검증</h3>
+<p><code>AppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code>와 <code>systemScreenAwakeExplainsWhyItIsUnavailable</code>이 <code>iosSimulatorArm64Test</code>에서 잠긴 카드와 설명을 검증한다.</p>
+</section>
+
+<section class="feature" id="settings">
+<h2>설정 영구 저장 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/settings-persistence.html">설정 영구 저장</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>NSUserDefaults.standardUserDefaults</code></td><td>앱 샌드박스 단위 키-값 저장소. 별도 네임스페이스가 필요 없다. 변경은 <code>NSUserDefaultsDidChangeNotification</code>으로 알린다</td></tr>
+    <tr><td><code>NSUbiquitousKeyValueStore</code></td><td>iCloud 동기화. 기기 간 동기화가 요구사항에 없어 채택하지 않았다</td></tr>
+  </tbody>
+</table>
+<p>조사 중 두 가지 함정을 확인했다.</p>
+<ul>
+  <li><code>boolForKey</code>는 키가 없을 때도 <code>false</code>를 돌려준다. 기본값을 지키려면 <code>objectForKey</code>로 존재 여부를 먼저 봐야 한다.</li>
+  <li><code>NSUserDefaultsDidChangeNotification</code>은 어떤 키가 바뀌었는지 알려주지 않는다. 이 제약이 공통 <code>SettingsStore.changes</code>를 <code>Flow&lt;Unit&gt;</code>으로 설계하게 만들었다.</li>
+</ul>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>shared/src/iosMain/.../SettingsStore.ios.kt</code></dd>
+  <dt>읽기</dt><dd><code>if (defaults.objectForKey(key) == null) defaultValue else defaults.boolForKey(key)</code></dd>
+  <dt>쓰기</dt><dd><code>defaults.setBool(value, key)</code></dd>
+  <dt>변경 감지</dt><dd><code>NSNotificationCenter.defaultCenter.addObserverForName(NSUserDefaultsDidChangeNotification, object = defaults)</code>를 <code>callbackFlow</code>로 감싼다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>앱 삭제 시 함께 지워진다. iCloud 동기화는 하지 않는다.</li>
+  <li>쓰기는 즉시 디스크에 동기화되지 않는다. 시스템이 알아서 flush 한다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>AppSettingsTest</code>와 <code>AppTest</code>의 저장 테스트가 <code>InMemorySettingsStore</code>로 돈다. <code>NSUserDefaults</code> 왕복 자체는 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="state-observation">
+<h2>상태 조회 규칙 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/state-observation.html">상태 조회 규칙</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>상태</th><th>콜백</th></tr></thead>
+  <tbody>
+    <tr><td>설정값</td><td><code>NSUserDefaultsDidChangeNotification</code>. 있다. 다만 <strong>바뀐 키를 알려주지 않는다</strong></td></tr>
+    <tr><td>에뮬레이터 개수</td><td><strong>없다.</strong> 로컬 에이전트에 HTTP로 묻는 값이다</td></tr>
+  </tbody>
+</table>
+<p>바뀐 키를 주지 않는 이 알림이 <code>SettingsStore.changes</code>를 <code>Flow&lt;Unit&gt;</code>으로 설계한 이유다. 네 플랫폼 중 가장 정보가 적은 쪽에 계약을 맞췄다.</p>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>콜백</dt><dd><code>NSNotificationCenter.addObserverForName</code>을 <code>callbackFlow</code>로 감싸 <code>observeOnSignals</code>에 넘긴다</dd>
+  <dt>폴링</dt><dd>에뮬레이터 개수는 <code>observeByPolling(5.seconds)</code></dd>
+</dl>
+
+<h3>한계</h3>
+<p>알림이 프로세스 전역이라 이 앱이 쓴 변경과 밖에서 온 변경을 구분하지 않는다. 값을 다시 읽고 중복을 걸러내므로 결과는 같다.</p>
+
+<h3>검증</h3>
+<p><code>ObserveSystemStateTest</code>가 <code>iosSimulatorArm64Test</code>에서 돈다. <code>NSUserDefaults</code> 알림을 실제로 받는 부분은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="emulator">
+<h2>에뮬레이터 개수 <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/emulator-count.html">에뮬레이터 개수</a></p>
+
+<h3>기술 조사</h3>
+<ul>
+  <li><code>NSTask</code>(<code>Process</code>)는 macOS 전용이다. iOS SDK에는 서드파티 앱이 쓸 수 있는 프로세스 실행 API가 없다.</li>
+  <li>앱이 Mac의 시뮬레이터 안에서 돌고 있어도 마찬가지다. 시뮬레이터 프로세스는 호스트 macOS에서 돌지만 앱은 iOS 샌드박스 규칙을 따르고, <code>simctl</code>과 <code>adb</code>에 닿을 수 없다.</li>
+  <li><strong>시뮬레이터에서는 네트워크가 호스트와 같다.</strong> <code>127.0.0.1</code>이 시뮬레이터를 띄운 Mac이므로, 그 Mac에서 도는 <a href="../common/emulator-count.html#agent">로컬 에이전트</a>에 물어볼 수 있다. 이 경로를 택했다.</li>
+  <li>실물 기기에서 <code>127.0.0.1</code>은 기기 자신이다. Mac의 LAN 주소를 쓰려면 에이전트를 루프백 밖으로 열어야 해서 하지 않았다.</li>
+</ul>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>shared/src/iosMain/.../HostAgent.ios.kt</code></dd>
+  <dt>동작</dt><dd><code>NSURLSession.sharedSession.dataTaskWithURL</code>을 <code>suspendCancellableCoroutine</code>으로 감싼다. 코루틴이 취소되면 <code>task.cancel()</code></dd>
+  <dt>본문 디코딩</dt><dd><code>NSData</code>의 바이트를 <code>readBytes</code>로 읽어 UTF-8로 디코딩한다. <code>NSString</code>으로 감싼 뒤 <code>String</code>으로 캐스팅하는 관용구는 정적 타입이 이어지지 않아 컴파일러가 경고한다</dd>
+  <dt>ATS</dt><dd>평문 HTTP라 <code>NSAllowsLocalNetworking</code>으로 예외를 연다. 루프백과 로컬 네트워크에만 적용되고 <code>NSAllowsArbitraryLoads</code>처럼 전체를 열지는 않는다</dd>
+  <dt>실패</dt><dd>200 이외의 응답, 오류, 깨진 본문을 모두 <code>null</code>로 묶는다. 카드는 "셀 수 없음"을 보여준다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>실물 기기에서는 항상 "셀 수 없음"이다.</strong> 호스트가 없다.</li>
+  <li><strong>시뮬레이터에서도 데스크톱 앱이 떠 있어야 한다.</strong></li>
+  <li>5초 폴링이라 최대 5초 늦는다.</li>
+  <li><code>sharedSession</code>을 쓰므로 타임아웃이 기본값(60초)이다. 루프백 연결은 거절이 즉시 오므로 실제로는 문제가 되지 않는다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>HostAgentTest</code>가 <code>iosSimulatorArm64Test</code>에서 가짜 조회 함수로 폴링과 "셀 수 없음" 처리를 검증한다. <code>NSURLSession</code>으로 실제 요청을 보내는 부분은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="build">
+<h2>빌드·실행</h2>
+<pre><code>open iosApp/iosApp.xcodeproj</code></pre>
+<p>Xcode 빌드 시 <code>Compile Kotlin Framework</code> 스크립트 단계가 <code>:shared:embedAndSignAppleFrameworkForXcode</code>를 호출해 프레임워크를 만들고 앱에 임베드한다. 서명 팀은 <code>Config.xcconfig</code>의 <code>TEAM_ID</code>에 넣는다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>Xcode 정식 설치가 필요하다.</strong> Command Line Tools만 있으면 Kotlin 컴파일은 되지만 프레임워크 링크 단계에서 <code>xcrun</code>이 실패한다.</li>
+  <li><code>xcode-select</code>가 Command Line Tools를 가리키는 머신에서는 Gradle 태스크에 <code>DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer</code>를 넘겨야 iOS 타깃이 컴파일된다. 머신 전역 설정을 바꾸지 않아도 된다.</li>
+  <li><code>MARKETING_VERSION</code>은 Gradle과 연동되지 않는다. <a href="#app-info">앱 정보</a> 참고.</li>
+</ul>
+</section>
+
+<section class="feature" id="test">
+<h2>테스트 <span class="badge ok">구현</span></h2>
+<pre><code>DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  ./gradlew :shared:iosSimulatorArm64Test</code></pre>
+<p><code>PlatformTest</code>, <code>AppSettingsTest</code>, <code>ObserveSystemStateTest</code>, <code>HostAgentTest</code>, <code>AppTest</code>(Compose UI) 전부 돌아간다. <code>skikoTest</code> 소스셋에 속하므로 JVM·Web과 같은 UI 테스트를 공유한다. 단, 위와 같은 이유로 Xcode가 있어야 한다.</p>
+<p>플랫폼 API를 실제로 부르는 경로(<code>NSUserDefaults</code> 왕복, <code>NSURLSession</code> 요청)는 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<footer class="page">
+  <a href="android.html">← Android</a> · <a href="jvm.html">JVM →</a>
+</footer>
+
+</body>
+</html>

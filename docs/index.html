@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jarvis 스펙</title>
+<link rel="stylesheet" href="assets/spec.css">
+</head>
+<body>
+
+<header>
+  <h1>Jarvis 스펙</h1>
+  <p class="lead">코드보다 먼저 쓰는 문서. 기능이 무엇을 해야 하는지(공통 스펙)와 각 플랫폼에서 그것이 가능한지·어떻게 구현했는지(플랫폼 스펙)를 계층으로 나눠 기록한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#workflow">스펙 우선 규칙</a></li>
+    <li><a href="#structure">문서 구조</a></li>
+    <li><a href="#legend">판정 범례</a></li>
+    <li><a href="#matrix">지원 현황</a></li>
+    <li><a href="#common">공통 스펙</a></li>
+    <li><a href="#platform">플랫폼 스펙</a></li>
+    <li><a href="#templates">템플릿</a></li>
+  </ol>
+</nav>
+
+<h2 id="workflow">스펙 우선 규칙</h2>
+
+<p>코드를 구현하기 전에 항상 스펙 문서를 먼저 완성한다. 순서는 다음과 같다.</p>
+
+<ol>
+  <li><strong>공통 스펙</strong>을 쓴다. 사용자 지시를 원문 그대로 옮기고, 거기서 요구사항을 뽑는다. 플랫폼에 상관없이 성립해야 하는 화면·동작·상태를 적는다.</li>
+  <li><strong>플랫폼 스펙</strong>을 쓴다. Android / iOS / JVM / Web 각각에 대해 기술 조사를 하고, 구현 가능한지 판정한다. 기술 한계로 그대로 구현할 수 없으면 어떻게 우회했는지, 우회도 안 되면 어떤 대체 동작을 하는지 적는다.</li>
+  <li>그다음 코드를 구현한다. 구현하다 스펙과 어긋나는 것을 발견하면 코드가 아니라 스펙부터 고친다.</li>
+</ol>
+
+<aside class="note">
+  <strong>플랫폼 지원 범위</strong>
+  Android / iOS / Web은 기능을 전부 구현한다. 데스크톱(JVM)은 macOS만 구현한다. Linux·Windows 분기는 만들지 않고, 호출되면 조용히 no-op으로 빠진다.
+</aside>
+
+<h2 id="structure">문서 구조</h2>
+
+<pre class="tree"><code>docs/
+├── index.html                    ← 이 문서. 진입점, 범례, 지원 현황
+├── common/                       ← 공통 스펙: 기능 하나에 문서 하나
+│   ├── index.html                   공통 규약과 모든 플랫폼에 공통인 한계
+│   ├── app-info.html                앱 정보 카드
+│   ├── keep-screen-awake.html       화면 꺼짐 방지
+│   ├── system-keep-screen-awake.html   화면 꺼짐 방지 (시스템 전역)
+│   ├── settings-persistence.html    설정 영구 저장
+│   ├── state-observation.html       상태 조회 규칙
+│   └── emulator-count.html          에뮬레이터 개수
+├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
+│   ├── index.html                   플랫폼 스펙 읽는 법과 공통 판정 기준
+│   ├── android.html
+│   ├── ios.html
+│   ├── jvm.html
+│   └── web.html
+├── templates/                    ← 새 기능을 추가할 때 복사하는 뼈대
+│   ├── common-feature.html
+│   └── platform-feature.html
+└── assets/spec.css</code></pre>
+
+<p>공통 스펙 문서 하나는 플랫폼 스펙 네 문서의 같은 기능 섹션을 가리키고, 플랫폼 스펙의 기능 섹션은 자기 공통 스펙을 가리킨다. 기능 관점으로 읽으려면 <code>common/</code>에서, 플랫폼 관점으로 읽으려면 <code>platform/</code>에서 시작한다.</p>
+
+<h2 id="legend">판정 범례</h2>
+
+<p>플랫폼 스펙의 기능 섹션은 반드시 다음 중 하나로 판정한다.</p>
+
+<table>
+  <thead><tr><th>판정</th><th>뜻</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge ok">구현</span></td><td>플랫폼이 제공하는 정식 API로 요구사항을 그대로 구현했다.</td></tr>
+    <tr><td><span class="badge workaround">우회</span></td><td>정식 경로가 없거나 막혀 있어 다른 방법으로 구현했다. 무엇이 막혔고 어떻게 돌아갔는지 적는다.</td></tr>
+    <tr><td><span class="badge partial">조건부</span></td><td>구현했지만 환경 조건(브라우저, 보안 컨텍스트, OS 설정 등)에 따라 동작하지 않을 수 있다.</td></tr>
+    <tr><td><span class="badge no">불가</span></td><td>기술 한계로 구현하지 않았다. 대신 어떤 대체 동작(예: 0개 표시, no-op)을 하는지 적는다.</td></tr>
+    <tr><td><span class="badge untested">미검증</span></td><td>구현은 했지만 자동 테스트가 없다. 컴파일 또는 수동 확인으로만 보장된다.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="matrix">지원 현황</h2>
+
+<table>
+  <thead>
+    <tr><th>기능</th><th class="center">Android</th><th class="center">iOS</th><th class="center">JVM (macOS)</th><th class="center">Web</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="common/app-info.html">앱 정보 카드</a></td>
+      <td class="center"><a href="platform/android.html#app-info"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#app-info"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#app-info"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#app-info"><span class="badge ok">구현</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/keep-screen-awake.html">화면 꺼짐 방지</a></td>
+      <td class="center"><a href="platform/android.html#keep-screen-awake"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#keep-screen-awake"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#keep-screen-awake"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/web.html#keep-screen-awake"><span class="badge partial">조건부</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a></td>
+      <td class="center"><a href="platform/android.html#system-keep-screen-awake"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/ios.html#system-keep-screen-awake"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#system-keep-screen-awake"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/web.html#system-keep-screen-awake"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/settings-persistence.html">설정 영구 저장</a></td>
+      <td class="center"><a href="platform/android.html#settings"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#settings"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#settings"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#settings"><span class="badge ok">구현</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/state-observation.html">상태 조회 규칙</a></td>
+      <td class="center"><a href="platform/android.html#state-observation"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#state-observation"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#state-observation"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#state-observation"><span class="badge ok">구현</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/emulator-count.html">에뮬레이터 개수</a></td>
+      <td class="center"><a href="platform/android.html#emulator"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/ios.html#emulator"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/jvm.html#emulator"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/web.html#emulator"><span class="badge partial">조건부</span></a></td>
+    </tr>
+    <tr>
+      <td>Compose UI 자동 테스트</td>
+      <td class="center"><a href="platform/android.html#test"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/ios.html#test"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#test"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#test"><span class="badge ok">구현</span></a></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>에뮬레이터 개수는 네 타깃 모두 실제 숫자를 내지만, JVM 외에는 같은 머신에서 데스크톱 앱이 떠 있어야 한다. 앱이 종료된 뒤에도 화면을 켜 두는 것은 Android에서만 가능하고 사이드로드를 전제로 한다. 두 조건의 근거는 <a href="common/index.html#limits">공통 한계</a>에 있다.</p>
+
+<h2 id="common">공통 스펙</h2>
+
+<ul class="cards">
+  <li><a href="common/index.html">공통 규약과 한계</a><p>expect/actual 목록, 앱 구조, 모든 플랫폼에 공통인 한계</p></li>
+  <li><a href="common/app-info.html">앱 정보 카드</a><p>앱 버전과 실행 중인 플랫폼을 보여준다</p></li>
+  <li><a href="common/keep-screen-awake.html">화면 꺼짐 방지</a><p>토글이 켜져 있는 동안 화면이 꺼지지 않게 한다</p></li>
+  <li><a href="common/system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a><p>앱이 없는 동안에도 화면이 꺼지지 않게 한다. Android만 가능하다</p></li>
+  <li><a href="common/settings-persistence.html">설정 영구 저장</a><p>토글 값이 앱을 껐다 켜도 남고, 외부 변경도 따라간다</p></li>
+  <li><a href="common/state-observation.html">상태 조회 규칙</a><p>콜백이 있으면 콜백으로, 없으면 N초마다 다시 읽는다</p></li>
+  <li><a href="common/emulator-count.html">에뮬레이터 개수</a><p>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터를 실행 중/전체로 센다</p></li>
+</ul>
+
+<h2 id="platform">플랫폼 스펙</h2>
+
+<ul class="cards">
+  <li><a href="platform/index.html">플랫폼 스펙 읽는 법</a><p>섹션 구성과 판정 기준</p></li>
+  <li><a href="platform/android.html">Android</a><p><code>:androidApp</code> + <code>:shared</code>, minSdk 24</p></li>
+  <li><a href="platform/ios.html">iOS</a><p><code>iosApp</code> Xcode 프로젝트 + <code>Shared</code> 프레임워크, iOS 16.0+</p></li>
+  <li><a href="platform/jvm.html">JVM (Desktop, macOS)</a><p><code>:desktopApp</code> + <code>:shared</code>, Java 21</p></li>
+  <li><a href="platform/web.html">Web (Wasm)</a><p><code>:webApp</code> + <code>:shared</code>, Kotlin/Wasm</p></li>
+</ul>
+
+<h2 id="templates">템플릿</h2>
+
+<p>새 기능은 아래 두 뼈대를 복사해서 시작한다. 채워야 할 자리는 HTML 주석으로 표시되어 있다.</p>
+
+<ul>
+  <li><a href="templates/common-feature.html">공통 스펙 템플릿</a> — <code>docs/common/&lt;기능&gt;.html</code>로 복사</li>
+  <li><a href="templates/platform-feature.html">플랫폼 스펙 섹션 템플릿</a> — 네 플랫폼 문서 각각에 <code>&lt;section class="feature"&gt;</code>로 붙인다</li>
+</ul>
+
+<footer class="page">
+  코드를 고칠 때 스펙도 함께 고친다. 코드와 어긋난 스펙은 없느니만 못하다.
+</footer>
+
+</body>
+</html>

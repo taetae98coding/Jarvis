@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화면 꺼짐 방지 (시스템 전역) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>화면 꺼짐 방지 (시스템 전역)</span></nav>
+
+<header>
+  <h1>화면 꺼짐 방지 (시스템 전역)</h1>
+  <p class="lead">앱이 화면에서 내려가거나 종료된 뒤에도 기기 화면이 꺼지지 않게 한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>지금 플랫폼 별로 미구현된 기능들 있잖아. 마켓 배포 포기한다면 구현할 수 있는 기능들 있어?</p>
+  <footer>2026-09-22 대화.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>전부 진행해주고 Flow 형식 조회도 System에서 callback을 주면 callback을 받아서 상태 업데이트, callback을 주지 않으면 N초마다 새로 조회해서 상태 업데이트 하는 방식으로 문제 해결해줘.</p>
+  <footer>2026-09-22 대화. Flow 조회 방식은 <a href="state-observation.html">상태 조회 규칙</a>으로 분리했다.</footer>
+</blockquote>
+
+<p><a href="keep-screen-awake.html#limits">화면 꺼짐 방지</a>가 앱 수명 밖을 덮지 못하는 것은 플랫폼 정책이었고, 그 정책의 정체를 다시 조사한 결과가 이 기능이다. Android에서는 <strong>마켓 심사</strong>가 막고 있었을 뿐 플랫폼은 길을 열어 두고 있었다. 사이드로드를 전제로 하면 구현할 수 있다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 기능 그리드에 "화면 꺼짐 방지 (시스템 전역)" 토글 카드가 있다. 기본값은 꺼짐이다.</li>
+  <li><strong>R2.</strong> 토글이 켜져 있으면 앱이 포그라운드가 아니거나 종료된 뒤에도 화면이 꺼지지 않는다.</li>
+  <li><strong>R3.</strong> 특별 권한이 필요한 플랫폼에서 토글을 켜면 권한 설정 화면이 열리고, 허용 여부가 카드 설명에 보인다.</li>
+  <li><strong>R4.</strong> 권한을 허용하고 앱으로 돌아오면 앱을 다시 띄우지 않아도 효과가 걸린다.</li>
+  <li><strong>R5.</strong> 토글을 끄면 이 기능을 켜기 전의 시스템 설정으로 되돌린다.</li>
+  <li><strong>R6.</strong> 지원하지 않는 플랫폼에서도 카드는 같은 자리에 있고, 잠긴 채로 왜 불가능한지 보여준다.</li>
+  <li><strong>R7.</strong> 토글 값은 <a href="settings-persistence.html">설정 영구 저장</a>을 통해 복원되고, 복원된 값이 켜짐이면 효과를 다시 적용한다.</li>
+  <li><strong>R8.</strong> 효과는 카드나 화면의 수명에 묶이지 않는다. 카드가 스크롤 밖으로 나가도 유지된다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  iOS·JVM·Web에서의 R2. 조사 결과 배포 방식을 포기해도 열리지 않는다. 세 플랫폼은 R6으로 처리한다.
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>화면 꺼짐 방지 (시스템 전역)</td></tr>
+    <tr><td>설명 (지원 안 함)</td><td>이 플랫폼에서는 앱이 없는 동안의 화면 꺼짐을 막을 수 없습니다.</td></tr>
+    <tr><td>설명 (권한 없음)</td><td>시스템 설정 변경 권한이 필요합니다. 켜면 권한 설정 화면이 열립니다.</td></tr>
+    <tr><td>설명 (허용됨)</td><td>앱을 닫아도 화면이 꺼지지 않습니다. 현재 시스템 설정은 {시간}입니다.</td></tr>
+    <tr><td>컨트롤</td><td><code>ToggleFeatureCard(enabled = supported)</code>. 지원하지 않으면 카드와 스위치가 잠긴다</td></tr>
+    <tr><td>켤 때</td><td>설정값을 먼저 쓰고, 권한이 없으면 권한 설정 화면을 연다</td></tr>
+    <tr><td>테스트 태그</td><td><code>feature:keepSystemScreenAwake</code></td></tr>
+  </tbody>
+</table>
+
+<p>시간 표기는 큰 단위 하나로 줄인다(<code>24일</code>, <code>30분</code>). 이 기능이 설정하는 값은 24일이 넘어서 초 단위까지 보여줄 이유가 없다.</p>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>UI</dt><dd><code>shared/ui/SystemScreenAwakeCard.kt</code></dd>
+  <dt>상태</dt><dd><code>AppSettings.keepSystemScreenAwake: StateFlow&lt;Boolean&gt;</code>, 키 <code>keep_system_screen_awake</code></dd>
+  <dt>공급</dt><dd><code>shared/platform/SystemScreenAwake.kt</code></dd>
+</dl>
+
+<pre><code>internal interface SystemScreenAwakeState {
+    val supported: Boolean
+    val permitted: Boolean
+    val screenOffTimeout: Duration?
+    fun requestPermission()
+}
+
+internal data object UnsupportedSystemScreenAwake : SystemScreenAwakeState { … }
+
+@Composable
+internal expect fun rememberSystemScreenAwake(enabled: Boolean): SystemScreenAwakeState</code></pre>
+
+<aside class="decision">
+  <strong>결정: 적용과 상태 읽기를 한 함수에 둔다</strong>
+  둘 다 화면 수명보다 오래 살아야 한다. 효과는 카드가 스크롤 밖으로 나가도 유지되어야 하고(R8), 권한 상태를 보는 <a href="state-observation.html">폴링</a>도 한 곳에서만 돌아야 한다. 그래서 <code>App()</code>이 루트에서 한 번 부르고 상태를 <code>FeatureGrid</code>로 내려보낸다. <code>PlatformIdleInhibitor</code>처럼 적용만 하는 훅과 카드가 따로 상태를 읽는 구조로 두면 폴링이 두 벌 돌고, 카드가 사라질 때 효과도 흔들린다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 컴포지션이 사라져도 효과를 풀지 않는다</strong>
+  <a href="keep-screen-awake.html">앱 수명 내 화면 꺼짐 방지</a>는 <code>onDispose</code>에서 효과를 푼다. 이 기능은 반대다. 앱이 없는 동안 화면을 켜 두는 것이 목적이라서, 되돌리는 시점은 사용자가 토글을 끌 때뿐이다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 권한이 없어도 설정값은 켜 둔다</strong>
+  토글을 켰는데 권한이 없으면 설정값을 <code>true</code>로 쓰고 권한 화면을 연다. 여기서 토글을 되돌리면 사용자는 왜 꺼졌는지 알 수 없고, 허용하고 돌아왔을 때 다시 켜야 한다. 값을 유지해 두면 권한이 들어오는 순간 R4가 저절로 성립한다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span> <span class="badge untested">미검증</span></td><td>앱 권한 경로가 전부 막혀서 <code>WRITE_SETTINGS</code>로 시스템 <code>SCREEN_OFF_TIMEOUT</code>을 늘린다</td><td><a href="../platform/android.html#system-keep-screen-awake">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>자동 잠금 시간을 읽거나 쓰는 공개 API가 없다. 사이드로드 앱도 같은 샌드박스다</td><td><a href="../platform/ios.html#system-keep-screen-awake">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge no">불가</span></td><td><code>pmset</code>이 root를 요구한다. <code>caffeinate</code>는 프로세스가 살아 있는 동안만 유효하다</td><td><a href="../platform/jvm.html#system-keep-screen-awake">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>브라우저가 OS 전원 설정에 닿지 못한다</td><td><a href="../platform/web.html#system-keep-screen-awake">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>AppSettingsTest.keepSystemScreenAwakeDefaultsToOff</code></td><td>R1. 기본값 꺼짐</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>AppSettingsTest.keepSystemScreenAwakeIsStoredUnderItsOwnKey</code></td><td>R7. 앱 수명 내 토글과 키가 섞이지 않는다</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>AppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code></td><td>R6. 카드가 잠기고 눌러도 켜지지 않는다</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>AppTest.systemScreenAwakeExplainsWhyItIsUnavailable</code></td><td>R6. 불가능한 이유가 화면에 보인다</td><td><code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>R2~R5는 <span class="badge untested">미검증</span>이다. 실제로 시스템 설정을 바꾸고 권한 화면을 여는 경로는 Android 기기에서만 돌고, <a href="../platform/android.html#test">Android에는 UI 테스트가 없다</a>. 개발 기기에서 수동으로 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><strong>Android 외에는 동작하지 않는다.</strong> 세 플랫폼은 카드가 잠긴 채로 이유를 보여준다. <a href="index.html#limit-background">공통 한계</a> 참고.</li>
+  <li><strong>마켓 배포와 양립하지 않는다.</strong> <code>WRITE_SETTINGS</code>는 심사를 통과하기 어렵다. 이 기능은 사이드로드 전제다.</li>
+  <li><strong>권한을 잃으면 되돌릴 수 없다.</strong> 사용자가 권한을 회수한 뒤 토글을 끄면 늘려 둔 값이 남는다. 저장해 둔 원래 값은 지우지 않으므로 권한이 돌아오면 복원된다.</li>
+  <li><strong>앱을 삭제하면 늘려 둔 값이 남는다.</strong> 삭제 시점에 실행되는 훅이 없다.</li>
+</ul>
+
+<footer class="page">
+  <a href="keep-screen-awake.html">← 화면 꺼짐 방지</a> · <a href="settings-persistence.html">설정 영구 저장 →</a>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>플랫폼 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span>플랫폼 스펙</span></nav>
+
+<header>
+  <h1>플랫폼 스펙</h1>
+  <p class="lead">공통 스펙의 각 기능이 이 플랫폼에서 가능한지 조사하고, 어떻게 구현했거나 왜 못 했는지 기록한다. 플랫폼 하나에 문서 하나다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#platforms">플랫폼 목록</a></li>
+    <li><a href="#sections">기능 섹션 구성</a></li>
+    <li><a href="#criteria">판정 기준</a></li>
+  </ol>
+</nav>
+
+<h2 id="platforms">플랫폼 목록</h2>
+
+<ul class="cards">
+  <li><a href="android.html">Android</a><p><code>:androidApp</code> + <code>:shared</code>. compileSdk 37, minSdk 24</p></li>
+  <li><a href="ios.html">iOS</a><p><code>iosApp</code> Xcode 프로젝트 + <code>Shared</code> static framework. iOS 16.0+, arm64 전용</p></li>
+  <li><a href="jvm.html">JVM (Desktop)</a><p><code>:desktopApp</code> + <code>:shared</code>. Java 21, macOS만 지원</p></li>
+  <li><a href="web.html">Web (Wasm)</a><p><code>:webApp</code> + <code>:shared</code>. Kotlin/Wasm, WasmGC 브라우저 필요</p></li>
+</ul>
+
+<h2 id="sections">기능 섹션 구성</h2>
+
+<p>각 플랫폼 문서는 개요 표 다음에 공통 스펙과 같은 순서로 기능 섹션을 갖고, 끝에 빌드·실행과 테스트가 온다. 기능 섹션의 <code>id</code>는 네 문서에서 같아서 공통 스펙이 <code>android.html#settings</code>처럼 바로 가리킨다.</p>
+
+<table>
+  <thead><tr><th><code>id</code></th><th>섹션</th><th>공통 스펙</th></tr></thead>
+  <tbody>
+    <tr><td><code>app-info</code></td><td>앱 정보</td><td><a href="../common/app-info.html">app-info.html</a></td></tr>
+    <tr><td><code>keep-screen-awake</code></td><td>화면 꺼짐 방지</td><td><a href="../common/keep-screen-awake.html">keep-screen-awake.html</a></td></tr>
+    <tr><td><code>system-keep-screen-awake</code></td><td>화면 꺼짐 방지 (시스템 전역)</td><td><a href="../common/system-keep-screen-awake.html">system-keep-screen-awake.html</a></td></tr>
+    <tr><td><code>settings</code></td><td>설정 영구 저장</td><td><a href="../common/settings-persistence.html">settings-persistence.html</a></td></tr>
+    <tr><td><code>state-observation</code></td><td>상태 조회 규칙</td><td><a href="../common/state-observation.html">state-observation.html</a></td></tr>
+    <tr><td><code>emulator</code></td><td>에뮬레이터 개수</td><td><a href="../common/emulator-count.html">emulator-count.html</a></td></tr>
+    <tr><td><code>build</code></td><td>빌드·실행</td><td>—</td></tr>
+    <tr><td><code>test</code></td><td>테스트</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<p>기능 섹션 하나는 다음 소제목을 순서대로 갖는다. 비어 있는 소제목은 지우지 말고 "해당 없음"이라고 적는다. 다음 사람이 조사를 안 한 것인지 조사했는데 없는 것인지 구분할 수 있어야 한다.</p>
+
+<ol>
+  <li><strong>기술 조사</strong> — 이 플랫폼이 제공하는 API, 그 API의 전제 조건과 제약. Compose Multiplatform이 대신 부르는 것이 있으면 그것도 적는다.</li>
+  <li><strong>판정</strong> — <a href="../index.html#legend">범례</a>의 다섯 가지 중 하나.</li>
+  <li><strong>구현</strong> 또는 <strong>우회</strong> — 무엇을 어떻게 했는지. 우회라면 무엇이 막혔고 어디로 돌아갔는지. 불가라면 어떤 대체 동작을 하는지.</li>
+  <li><strong>한계</strong> — 이 구현이 동작하지 않는 조건과 그때의 증상.</li>
+  <li><strong>검증</strong> — 어떤 테스트가 이 플랫폼에서 이 기능을 확인하는지. 없으면 왜 없는지.</li>
+</ol>
+
+<h2 id="criteria">판정 기준</h2>
+
+<p>판정은 "지금 코드가 어떻게 되어 있나"가 아니라 "요구사항을 이 플랫폼에서 충족하는가"에 대한 답이다.</p>
+
+<ul>
+  <li>정식 API로 요구사항을 그대로 채웠으면 <span class="badge ok">구현</span>. Compose가 대신 불러 주는 경우도 여기 든다.</li>
+  <li>정식 경로가 없거나 비어 있어 다른 길로 갔으면 <span class="badge workaround">우회</span>. JVM의 <code>caffeinate</code> 자식 프로세스, SDK 도구 폴링이 그렇다.</li>
+  <li>구현은 했지만 실행 환경이 조건을 만족해야 동작하면 <span class="badge partial">조건부</span>. Web의 Screen Wake Lock이 그렇다.</li>
+  <li>플랫폼이 원리적으로 막고 있어 구현하지 않았으면 <span class="badge no">불가</span>. 반드시 대체 동작을 적는다.</li>
+  <li>구현했지만 자동 테스트가 없으면 판정 옆에 <span class="badge untested">미검증</span>을 덧붙인다.</li>
+</ul>
+
+<footer class="page">
+  <a href="../index.html">← 스펙 진입점</a> · <a href="../common/index.html">공통 스펙</a>
+</footer>
+
+</body>
+</html>

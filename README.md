@@ -79,7 +79,7 @@ iOS 번들 버전만 `iosApp/Configuration/Config.xcconfig`에서 따로 관리�
 
 `ObserveSystemState.kt`의 `observeOnSignals` / `observeByPolling` / `observeSystemState` 세 함수가 그 규칙이고,
 설정값·Android 권한·에뮬레이터 개수가 모두 이 위에 올라가 있다.
-어느 상태가 어느 방식인지는 [`docs/platform/README.md`](docs/platform/README.md#상태-조회-규칙)에 표로 있다.
+어느 상태가 어느 방식인지는 [상태 조회 규칙 스펙](docs/common/state-observation.html)에 표로 있다.
 
 ### 에뮬레이터 개수
 
@@ -97,7 +97,8 @@ Emulator 카드가 개발자 머신의 Android 에뮬레이터와 iOS 시뮬레�
 
 Android SDK는 `ANDROID_HOME` → `ANDROID_SDK_ROOT` → `~/Library/Android/sdk` 순으로 찾는다.
 
-값은 5초마다 다시 센다. **에뮬레이터를 켜고 끄면 몇 초 안에 숫자가 따라온다.**
+값은 5초마다 다시 세고 바뀐 결과만 흘려보낸다. **에뮬레이터를 켜고 끄면 몇 초 안에 숫자가 따라온다.**
+프로브가 답하기 전까지 카드는 "확인 중…"을 보여준다.
 
 셀 방법이 없을 때는 0개가 아니라 "셀 수 없음"으로 보여준다. SDK를 못 찾은 경우와 데스크탑 앱이 꺼져 있는
 경우가 그렇다. 화면에 0이 보이면 정말 0개라는 뜻이다.
@@ -172,7 +173,10 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 
 ## 문서
 
-플랫폼별 구현 방식과 한계는 [`docs/platform`](docs/platform/README.md)에 정리했다.
+스펙은 [`docs/index.html`](docs/index.html)에서 시작한다. 코드를 구현하기 전에 스펙을 먼저 완성한다(`CLAUDE.md` 참고).
+
+- [`docs/common`](docs/common/index.html) — 공통 스펙. 기능마다 사용자 지시, 요구사항, 공통 구현, 검증
+- [`docs/platform`](docs/platform/index.html) — 플랫폼 스펙. 플랫폼마다 기술 조사, 구현 가능 여부, 우회 방법, 한계
 
 ## 플랫폼별 코드 추가하기
 
@@ -181,4 +185,4 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 
 한 타깃에서만 가능한 기능이라면 나머지 `actual`을 "지원하지 않음"으로 두는 쪽을 택했다.
 `rememberSystemScreenAwake`가 그렇게 구현되어 있고, 화면에서 카드를 감추는 대신 잠긴 채로 이유를 보여준다.
-이유는 [`docs/platform/README.md`](docs/platform/README.md)에 적어 뒀다.
+이유는 [공통 스펙](docs/common/index.html#contract)에 적어 뒀다.
