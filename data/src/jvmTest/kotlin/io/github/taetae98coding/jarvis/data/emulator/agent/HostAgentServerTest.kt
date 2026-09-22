@@ -1,16 +1,23 @@
 package io.github.taetae98coding.jarvis.data.emulator.agent
 
+import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
-import java.io.BufferedReader
+import kotlinx.coroutines.flow.flowOf
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.ServerSocket
 import java.net.URI
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.fail
 
 class HostAgentServerTest {
@@ -18,80 +25,161 @@ class HostAgentServerTest {
     fun servesTheLatestCountOverHttp() {
         val status = EmulatorStatus(android = EmulatorSummary(total = 5, running = 2), ios = null)
 
-        withAgent(MutableStateFlow(status)) { port ->
-            assertEquals(status, decodeEmulatorStatus(awaitBody(port)))
+        withAgent(FakeEmulatorDataSource(statuses = MutableStateFlow(status))) { port ->
+            assertEquals(status, decodeEmulatorStatus(awaitBody(port, HostAgentPath)))
         }
     }
 
     @Test
     fun answersServiceUnavailableBeforeTheFirstCount() {
         // 아직 세지 못한 상태를 0개로 답하면 클라이언트가 "셀 수 없음" 과 구분할 수 없다.
-        withAgent(emptyFlow()) { port ->
-            assertEquals(503, request(port, "GET").code)
+        withAgent(FakeEmulatorDataSource()) { port ->
+            assertEquals(503, request(port, HostAgentPath).code)
         }
     }
 
     @Test
     fun rejectsOtherMethods() {
-        withAgent(MutableStateFlow(EmulatorStatus())) { port ->
-            assertEquals(405, request(port, "POST").code)
+        withAgent(FakeEmulatorDataSource(statuses = MutableStateFlow(EmulatorStatus()))) { port ->
+            assertEquals(405, request(port, HostAgentPath, method = "POST").code)
         }
     }
 
     @Test
     fun letsBrowserOriginsReadTheResponse() {
         // webApp 은 다른 포트에서 서빙되므로 CORS 헤더가 없으면 브라우저가 응답을 읽지 못한다.
-        withAgent(MutableStateFlow(EmulatorStatus())) { port ->
-            awaitBody(port)
+        withAgent(FakeEmulatorDataSource(statuses = MutableStateFlow(EmulatorStatus()))) { port ->
+            awaitBody(port, HostAgentPath)
 
-            assertEquals("*", request(port, "GET").corsOrigin)
+            assertEquals("*", request(port, HostAgentPath).corsOrigin)
         }
     }
 
     @Test
     fun staysSilentWhenThePortIsTaken() {
         val port = freePort()
+        val dataSource = FakeEmulatorDataSource(statuses = MutableStateFlow(EmulatorStatus()))
 
-        startEmulatorHostAgent(port, MutableStateFlow(EmulatorStatus())).use {
+        startEmulatorHostAgent(port, dataSource).use {
             // 두 번째 에이전트는 예외를 던지지 않고 아무것도 하지 않는다.
-            startEmulatorHostAgent(port, MutableStateFlow(EmulatorStatus())).close()
+            startEmulatorHostAgent(port, dataSource).close()
 
-            assertEquals(200, request(port, "GET").code)
+            assertEquals(200, request(port, HostAgentPath).code)
         }
     }
 
-    private fun withAgent(statuses: Flow<EmulatorStatus>, block: (Int) -> Unit) {
-        val port = freePort()
+    @Test
+    fun servesTheDeviceList() {
+        val devices = listOf(RunningDevice, StoppedDevice)
 
-        startEmulatorHostAgent(port, statuses).use { block(port) }
+        withAgent(FakeEmulatorDataSource(devices = MutableStateFlow(devices))) { port ->
+            assertEquals(devices, decodeEmulatorDevices(awaitBody(port, HostAgentDevicesPath)))
+        }
     }
 
-    // 에이전트는 개수를 백그라운드에서 받아 두므로 첫 요청이 503 일 수 있다.
-    private fun awaitBody(port: Int): String {
-        repeat(20) {
-            val response = request(port, "GET")
+    @Test
+    fun servesAFrameAsPng() {
+        val frame = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte())
 
-            if (response.code == 200 && response.body != null) return response.body
+        withAgent(FakeEmulatorDataSource(frames = mapOf(RunningDevice.id to frame))) { port ->
+            val response = request(port, hostAgentScreenPath(RunningDevice.id))
+
+            assertEquals(200, response.code)
+            assertEquals("image/png", response.contentType)
+            assertContentEquals(frame, response.bytes)
+        }
+    }
+
+    // 꺼져 있는 기기는 찍을 화면이 없다. 빈 본문을 200 으로 주면 클라이언트가 깨진 PNG 로 받는다.
+    @Test
+    fun answersServiceUnavailableWhenThereIsNoFrame() {
+        withAgent(FakeEmulatorDataSource()) { port ->
+            assertEquals(503, request(port, hostAgentScreenPath(StoppedDevice.id)).code)
+        }
+    }
+
+    // 꺼진 AVD 의 id 에는 콜론이 들어간다. 질의 문자열에서 되살아나야 기기를 찾을 수 있다.
+    @Test
+    fun keepsIdentifiersIntactThroughTheQueryString() {
+        val frame = byteArrayOf(1, 2, 3)
+
+        withAgent(FakeEmulatorDataSource(frames = mapOf(StoppedDevice.id to frame))) { port ->
+            assertContentEquals(frame, request(port, hostAgentScreenPath(StoppedDevice.id)).bytes)
+        }
+    }
+
+    @Test
+    fun forwardsGestures() {
+        val dataSource = FakeEmulatorDataSource()
+
+        withAgent(dataSource) { port ->
+            val gesture: EmulatorGesture = EmulatorGesture.Swipe(fromX = 1, fromY = 2, toX = 3, toY = 4, durationMillis = 120)
+            val response = request(
+                port = port,
+                path = HostAgentGesturePath,
+                method = "POST",
+                body = encodeEmulatorGesture(RunningDevice.id, gesture),
+            )
+
+            assertEquals(204, response.code)
+            assertEquals(listOf(RunningDevice.id to gesture), dataSource.gestures)
+        }
+    }
+
+    @Test
+    fun rejectsGesturesItCannotRead() {
+        val dataSource = FakeEmulatorDataSource()
+
+        withAgent(dataSource) { port ->
+            val response = request(port, HostAgentGesturePath, method = "POST", body = "not json")
+
+            assertEquals(400, response.code)
+            assertTrue(dataSource.gestures.isEmpty())
+        }
+    }
+
+    private fun withAgent(dataSource: EmulatorDataSource, block: (Int) -> Unit) {
+        val port = freePort()
+
+        startEmulatorHostAgent(port, dataSource).use { block(port) }
+    }
+
+    // 에이전트는 개수와 목록을 백그라운드에서 받아 두므로 첫 요청이 503 일 수 있다.
+    private fun awaitBody(port: Int, path: String): String {
+        repeat(20) {
+            val response = request(port, path)
+
+            if (response.code == 200 && response.bytes != null) return response.bytes.decodeToString()
 
             Thread.sleep(50)
         }
 
-        fail("에이전트가 개수를 응답하지 않았다")
+        fail("에이전트가 $path 에 응답하지 않았다")
     }
 
-    private fun request(port: Int, method: String): AgentResponse {
-        val url = URI("http://127.0.0.1:$port$HostAgentPath").toURL()
-        val connection = (url.openConnection() as HttpURLConnection).apply { requestMethod = method }
+    private fun request(
+        port: Int,
+        path: String,
+        method: String = "GET",
+        body: String? = null,
+    ): AgentResponse {
+        val url = URI("http://127.0.0.1:$port$path").toURL()
+        val connection = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            doOutput = body != null
+        }
 
         try {
-            val code = connection.responseCode
-            val body = if (code == 200) {
-                connection.inputStream.bufferedReader().use(BufferedReader::readText)
-            } else {
-                null
-            }
+            body?.let { connection.outputStream.use { stream -> stream.write(it.encodeToByteArray()) } }
 
-            return AgentResponse(code, body, connection.getHeaderField("Access-Control-Allow-Origin"))
+            val code = connection.responseCode
+
+            return AgentResponse(
+                code = code,
+                bytes = if (code == 200) connection.inputStream.use(InputStream::readBytes) else null,
+                corsOrigin = connection.getHeaderField("Access-Control-Allow-Origin"),
+                contentType = connection.getHeaderField("Content-Type"),
+            )
         } finally {
             connection.disconnect()
         }
@@ -103,7 +191,42 @@ class HostAgentServerTest {
 
     private class AgentResponse(
         val code: Int,
-        val body: String?,
+        val bytes: ByteArray?,
         val corsOrigin: String?,
+        val contentType: String?,
     )
+
+    private class FakeEmulatorDataSource(
+        private val statuses: Flow<EmulatorStatus> = emptyFlow(),
+        private val devices: Flow<List<EmulatorDevice>> = emptyFlow(),
+        private val frames: Map<String, ByteArray> = emptyMap(),
+    ) : EmulatorDataSource {
+        val gestures = mutableListOf<Pair<String, EmulatorGesture>>()
+
+        override fun observeStatus() = statuses
+
+        override fun observeDevices() = devices
+
+        override fun observeScreen(deviceId: String) = flowOf(frames[deviceId])
+
+        override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
+            gestures += deviceId to gesture
+        }
+    }
+
+    private companion object {
+        val RunningDevice = EmulatorDevice(
+            id = "emulator-5554",
+            name = "Pixel_9_API_37",
+            platform = EmulatorPlatform.ANDROID,
+            isRunning = true,
+            canControl = true,
+        )
+
+        val StoppedDevice = EmulatorDevice(
+            id = "avd:Pixel_Tablet_API_36",
+            name = "Pixel_Tablet_API_36",
+            platform = EmulatorPlatform.ANDROID,
+        )
+    }
 }

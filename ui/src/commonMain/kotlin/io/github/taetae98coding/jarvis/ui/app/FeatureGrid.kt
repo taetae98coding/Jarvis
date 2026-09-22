@@ -52,6 +52,7 @@ internal fun FeatureGrid(
         item {
             EmulatorCard(
                 status = emulatorStatus,
+                onClick = state::onEmulatorCardClick,
                 modifier = Modifier.testTag(EmulatorTestTag),
             )
         }

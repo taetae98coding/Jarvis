@@ -3,7 +3,10 @@ package io.github.taetae98coding.jarvis.shared
 import io.github.taetae98coding.jarvis.data.DataModule
 import io.github.taetae98coding.jarvis.data.PlatformContext
 import io.github.taetae98coding.jarvis.domain.appinfo.GetAppInfoUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplyKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplySystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveKeepScreenAwakeUseCase
@@ -30,6 +33,9 @@ internal class JarvisContainer(
         scope = scope,
         getAppInfo = GetAppInfoUseCase(data.appInfoRepository),
         observeEmulatorStatus = ObserveEmulatorStatusUseCase(data.emulatorRepository),
+        observeEmulatorDevices = ObserveEmulatorDevicesUseCase(data.emulatorRepository),
+        observeEmulatorScreen = ObserveEmulatorScreenUseCase(data.emulatorRepository),
+        sendEmulatorGesture = SendEmulatorGestureUseCase(data.emulatorRepository),
         observeKeepScreenAwake = ObserveKeepScreenAwakeUseCase(data.screenAwakeSettingsRepository),
         observeKeepSystemScreenAwake = ObserveKeepSystemScreenAwakeUseCase(data.screenAwakeSettingsRepository),
         observeSystemScreenAwakeStatus = ObserveSystemScreenAwakeStatusUseCase(data.systemScreenAwakeRepository),

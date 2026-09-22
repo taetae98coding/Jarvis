@@ -38,6 +38,8 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
+    <li><a href="#card-ripple">카드 물결 효과</a></li>
+    <li><a href="#emulator-control">에뮬레이터 목록·화면·제스처</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -273,6 +275,70 @@
 
 <h3>검증</h3>
 <p><code>HostAgentTest</code>가 <code>testAndroidHostTest</code>에서 가짜 조회 함수로 폴링과 "셀 수 없음" 처리를 검증한다. <code>HttpURLConnection</code>으로 실제 요청을 보내는 부분은 에뮬레이터와 데스크톱 앱이 함께 있어야 해서 <span class="badge untested">미검증</span>이다. 개발 머신에서 <code>curl</code>로 에이전트 왕복을 확인했다.</p>
+</section>
+
+<section class="feature" id="card-ripple">
+<h2>카드 물결 효과 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/card-ripple.html">카드 물결 효과</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Compose 의 <code>Indication</code></td><td>채택. Material 3 의 물결은 안드로이드 뷰의 <code>RippleDrawable</code> 이 아니라 Compose 가 <code>IndicationNodeFactory</code> 로 직접 그린다. 그리는 자리가 modifier 체인 안이라, 앞에 <code>Modifier.clip</code> 이 있으면 그 모양으로 잘린다</td></tr>
+    <tr><td><code>Modifier.clip(CardDefaults.shape)</code></td><td>채택. <code>graphicsLayer</code> 의 클립으로 내려가고, Android 에서는 <code>RenderNode.setClipToOutline</code> 에 해당하는 경로라 추가 레이어 비용이 사실상 없다</td></tr>
+    <tr><td>테마의 <code>android:selectableItemBackground</code></td><td>해당 없음. 뷰 시스템 속성이라 Compose 카드에 닿지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
+  <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>없다. 다만 물결 모양을 확인하는 자동 테스트가 없다(<a href="#test">테스트</a>).</li>
+</ul>
+
+<h3>검증</h3>
+<p>Android 에는 Compose UI 테스트가 없다(<a href="#test">테스트</a>). 토글 동작은 Skiko 타깃의 <code>JarvisAppTest</code> 가 같은 공통 코드로 확인하고, 물결 모양은 <span class="badge untested">미검증</span>으로 남아 기기에서 수동 확인한다.</p>
+</section>
+
+<section class="feature" id="emulator-control">
+<h2>에뮬레이터 목록·화면·제스처 <span class="badge workaround">우회</span></h2>
+<p>공통 스펙: <a href="../common/emulator-control.html">에뮬레이터 목록·화면·제스처</a></p>
+
+<h3>기술 조사</h3>
+<ul>
+  <li>개수를 셀 때와 전제가 같다. <code>adb</code> 도 <code>simctl</code> 도 호스트 머신에 있고 앱은 기기 샌드박스 안이다(<a href="#emulator">에뮬레이터 개수</a>).</li>
+  <li>화면 픽셀과 입력은 개수보다 무거울 뿐 성질이 같다. 이미 뚫려 있는 <code>10.0.2.2</code> HTTP 경로에 엔드포인트를 더하는 것으로 끝난다.</li>
+  <li><code>HttpURLConnection</code> 은 바이너리 응답도 그대로 준다. PNG 는 <code>inputStream.readBytes()</code> 로 받는다.</li>
+  <li>제스처는 <code>POST</code> 다. 본문을 <code>text/plain</code> 으로 보내 브라우저 클라이언트와 같은 형식을 쓴다(Android 에서는 사전 요청이 없어 형식이 자유롭지만, 에이전트 쪽 분기를 하나로 두려고 맞췄다).</li>
+</ul>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/androidMain/.../emulator/agent/HostAgent.android.kt</code></dd>
+  <dt>동작</dt><dd><code>GET /emulators/devices</code>, <code>GET /emulators/screen?id=…</code>, <code>POST /emulators/gesture</code>. 전부 <code>Dispatchers.IO</code></dd>
+  <dt>주소</dt><dd>개수와 같다. <code>10.0.2.2</code> → <code>127.0.0.1</code> 순서로 시도한다</dd>
+  <dt>타임아웃</dt><dd>목록·제스처는 2초. 프레임은 호스트가 화면을 찍는 시간을 기다려야 해서 5초</dd>
+  <dt>실패</dt><dd>목록은 빈 목록, 프레임은 <code>null</code>, 제스처는 조용히 버린다. 화면에는 공통 스펙의 문구가 나온다</dd>
+</dl>
+
+<p>평문 HTTP 라 <code>network_security_config.xml</code> 의 cleartext 예외를 그대로 쓴다. 호스트가 두 개뿐이라 파일은 고치지 않는다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>데스크톱 앱이 떠 있어야 한다.</strong> 꺼져 있으면 목록이 빈다.</li>
+  <li><strong>실물 기기는 <code>adb reverse tcp:47890 tcp:47890</code> 이 필요하다.</strong> 이때 프레임(400KB 안팎)이 USB 포워딩을 타서 에뮬레이터에서보다 눈에 띄게 느리다.</li>
+  <li>기기 화면 위에서 다른 기기 화면을 보는 구조라, 프레임 크기가 화면보다 크면 축소되어 글자가 작아진다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>HostAgentTest</code> 가 <code>testAndroidHostTest</code> 에서 가짜 전송 함수로 목록·프레임·제스처의 실패 처리를 확인한다. 실제 <code>10.0.2.2</code> 왕복은 에뮬레이터와 데스크톱 앱이 함께 있어야 해서 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="build">

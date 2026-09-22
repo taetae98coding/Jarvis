@@ -36,6 +36,8 @@
   <li><a href="settings-persistence.html">설정 영구 저장</a><p>토글 값이 앱을 껐다 켜도 남고, 외부 변경도 따라간다</p></li>
   <li><a href="state-observation.html">상태 조회 규칙</a><p>콜백이 있으면 콜백으로, 없으면 N초마다 다시 읽는다</p></li>
   <li><a href="emulator-count.html">에뮬레이터 개수</a><p>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터를 실행 중/전체로 센다</p></li>
+  <li><a href="emulator-control.html">에뮬레이터 목록·화면·제스처</a><p>가상 기기 목록을 보고, 실행 중인 기기의 화면을 보면서 탭·스와이프를 보낸다</p></li>
+  <li><a href="card-ripple.html">카드 물결 효과</a><p>누를 수 있는 카드의 물결이 카드의 둥근 모서리 안에서만 퍼진다</p></li>
 </ul>
 
 <h2 id="modules">모듈</h2>
@@ -58,7 +60,7 @@
     <tr><td><code>createIdleInhibitor(): IdleInhibitor</code></td><td><code>data.screen</code></td><td>Compose가 커버하지 않는 플랫폼의 화면 꺼짐 방지. JVM만 본문이 있다</td><td><a href="keep-screen-awake.html">화면 꺼짐 방지</a></td></tr>
     <tr><td><code>createSystemScreenAwakeDataSource(context): SystemScreenAwakeDataSource</code></td><td><code>data.screen</code></td><td>앱이 없는 동안의 화면 유지. 상태를 읽고 효과를 적용한다. Android만 본문이 있다</td><td><a href="system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a></td></tr>
     <tr><td><code>createSettingsStore(context): SettingsStore</code></td><td><code>data.settings</code></td><td>설정을 영구 저장하고 변경을 알리는 키-값 저장소</td><td><a href="settings-persistence.html">설정 영구 저장</a></td></tr>
-    <tr><td><code>emulatorDataSource: EmulatorDataSource</code></td><td><code>data.emulator</code></td><td>Android 에뮬레이터·iOS 시뮬레이터 개수를 흘려보내는 데이터 소스. JVM은 직접 세고 나머지는 로컬 에이전트에 묻는다</td><td><a href="emulator-count.html">에뮬레이터 개수</a></td></tr>
+    <tr><td><code>emulatorDataSource: EmulatorDataSource</code></td><td><code>data.emulator</code></td><td>Android 에뮬레이터·iOS 시뮬레이터의 개수·목록·화면을 흘려보내고 제스처를 전달하는 데이터 소스. JVM은 SDK 도구를 직접 실행하고 나머지는 로컬 에이전트에 묻는다</td><td><a href="emulator-count.html">에뮬레이터 개수</a>, <a href="emulator-control.html">목록·화면·제스처</a></td></tr>
     <tr><td><code>class PlatformContext</code></td><td><code>data</code></td><td>플랫폼 핸들 상자. Android만 <code>Context</code>를 담고 나머지는 빈 클래스다</td><td><a href="module-architecture.html#context">모듈 구조</a></td></tr>
     <tr><td><code>rememberPlatformContext(): PlatformContext</code></td><td><code>shared</code></td><td>Compose 트리에서만 얻을 수 있는 <code>Context</code>를 <code>:data</code>에 넘기기 위한 유일한 예외</td><td><a href="module-architecture.html#exceptions">모듈 구조</a></td></tr>
   </tbody>

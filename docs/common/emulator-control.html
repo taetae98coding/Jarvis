@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>에뮬레이터 목록·화면·제스처 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>에뮬레이터 목록·화면·제스처</span></nav>
+
+<header>
+  <h1>에뮬레이터 목록·화면·제스처</h1>
+  <p class="lead">에뮬레이터 카드를 누르면 개발자 머신의 가상 기기 목록이 열리고, 실행 중인 기기를 고르면 그 화면을 보면서 탭·스와이프를 보낼 수 있다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#agent">에이전트 프로토콜</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>그리고 emulator card 클릭 시 emulator list 노출하도록 하고 각각 emulator 클릭 시 스트리밍화면 및 클릭 스와이프 같은 제스쳐 적용할 수 있도록 해줘.</p>
+  <footer>2026-09-22 대화. 같은 메시지의 앞부분은 <a href="card-ripple.html">카드 물결 효과</a>에 있다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 에뮬레이터 카드를 누르면 가상 기기 목록 화면이 열린다. 카드에 보이던 개수는 그대로 남는다.</li>
+  <li><strong>R2.</strong> 목록에는 개발자 머신의 Android 에뮬레이터(AVD)와 iOS 시뮬레이터가 이름·플랫폼·실행 여부와 함께 한 줄씩 나온다.</li>
+  <li><strong>R3.</strong> 실행 중인 항목만 누를 수 있다. 실행 중이 아닌 항목은 비활성으로 보이고 눌러도 아무 일도 일어나지 않는다.</li>
+  <li><strong>R4.</strong> 목록이 비어 있으면(가상 기기가 없거나 물어볼 곳이 없으면) 왜 비었는지 한 줄로 설명한다. 빈 화면만 보여주지 않는다.</li>
+  <li><strong>R5.</strong> 실행 중인 항목을 누르면 그 기기의 화면이 주기적으로 갱신되는 스트리밍 화면이 열린다. 첫 프레임이 오기 전에는 "화면을 가져오는 중…"을 보여준다.</li>
+  <li><strong>R6.</strong> 스트리밍 화면을 탭하면 그 지점이 기기 좌표로 변환되어 기기에 탭으로 전달된다.</li>
+  <li><strong>R7.</strong> 스트리밍 화면을 드래그하면 누른 지점에서 뗀 지점까지가 스와이프로 전달된다.</li>
+  <li><strong>R8.</strong> 제스처를 보낼 수 없는 기기에서는 화면만 보여주고, 제스처가 왜 안 되는지 화면에 적는다. 탭·드래그는 조용히 무시한다.</li>
+  <li><strong>R9.</strong> 스트리밍 화면에서 뒤로 가면 목록으로, 목록에서 뒤로 가면 기능 그리드로 돌아간다.</li>
+  <li><strong>R10.</strong> 스트리밍 화면을 벗어나면 프레임 요청이 멈춘다. 보이지 않는 기기의 화면을 계속 찍지 않는다.</li>
+  <li><strong>R11.</strong> 프레임을 가져오지 못하면 마지막으로 받은 프레임을 그대로 두고, 한 장도 받지 못했으면 "화면을 가져올 수 없습니다"를 보여준다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>에뮬레이터를 켜고 끄는 것. 목록은 보여주기만 한다.</li>
+    <li>키 입력(텍스트·하드웨어 키), 멀티터치·핀치, 길게 누르기, 화면 회전, 오디오.</li>
+    <li>실물 기기. <a href="emulator-count.html">에뮬레이터 개수</a>와 같은 기준으로 가상 기기만 센다.</li>
+    <li>iOS 시뮬레이터에 제스처를 보내는 것. 어느 플랫폼에서도 불가능해서 뺐다(<a href="#limits">한계</a>).</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>카드</td><td>제목 "에뮬레이터". 카드 전체가 클릭 영역이다. 물결은 <a href="card-ripple.html">카드 모양</a>을 따른다</td></tr>
+    <tr><td>목록 화면 제목</td><td>"에뮬레이터 목록"</td></tr>
+    <tr><td>목록 항목</td><td><code>&lt;이름&gt;</code> / 보조 문구 <code>Android · 실행 중</code>, <code>iOS · 꺼짐</code></td></tr>
+    <tr><td>빈 목록</td><td>"가상 기기가 없거나 개발자 머신에 물어볼 수 없습니다."</td></tr>
+    <tr><td>스트리밍 화면 제목</td><td>선택한 기기 이름</td></tr>
+    <tr><td>첫 프레임 전</td><td>"화면을 가져오는 중…"</td></tr>
+    <tr><td>프레임 실패</td><td>"화면을 가져올 수 없습니다."</td></tr>
+    <tr><td>제스처 불가</td><td>"이 기기에는 제스처를 보낼 수 없습니다. 화면만 볼 수 있습니다."</td></tr>
+    <tr><td>뒤로</td><td>두 화면 모두 왼쪽 위 "← 뒤로" 버튼</td></tr>
+    <tr><td>제스처</td><td>탭 = 누른 지점. 드래그 = 누른 지점 → 뗀 지점, 실제 걸린 시간을 지속 시간으로 보낸다</td></tr>
+    <tr><td>테스트 태그</td><td><code>feature:emulator</code>(카드), <code>emulator:list</code>(목록), <code>emulator:device:&lt;id&gt;</code>(항목), <code>emulator:screen</code>(스트리밍)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인 모델</dt><dd><code>domain/emulator/EmulatorDevice.kt</code> — <code>EmulatorDevice(id, name, platform, isRunning, canControl)</code>, <code>EmulatorPlatform(ANDROID, IOS)</code>, <code>EmulatorGesture.Tap</code> / <code>EmulatorGesture.Swipe</code></dd>
+  <dt>리포지토리</dt><dd><code>EmulatorRepository.observeDevices()</code>, <code>observeScreen(deviceId)</code>, <code>sendGesture(deviceId, gesture)</code>. 기존 <code>observeStatus()</code>는 그대로 둔다</dd>
+  <dt>유스케이스</dt><dd><code>ObserveEmulatorDevicesUseCase</code>, <code>ObserveEmulatorScreenUseCase</code>, <code>SendEmulatorGestureUseCase</code></dd>
+  <dt>UI</dt><dd><code>ui/emulator/EmulatorCard.kt</code>(클릭), <code>EmulatorListScreen.kt</code>, <code>EmulatorStreamScreen.kt</code></dd>
+  <dt>상태</dt><dd><code>JarvisAppState.emulatorRoute: StateFlow&lt;EmulatorRoute?&gt;</code> — <code>null</code>(그리드) / <code>List</code> / <code>Stream(device)</code></dd>
+  <dt>공급</dt><dd>새 <code>expect</code> 선언 없음. 플랫폼 차이는 <code>:data</code>의 <code>internal expect val emulatorDataSource</code> 하나로 이미 갈라져 있다</dd>
+</dl>
+
+<h3>화면 프레임</h3>
+
+<p>프레임은 PNG 한 장이다. 도메인과 데이터는 <code>ByteArray</code>로만 다루고, <code>ImageBitmap</code>으로 푸는 것은 <code>:ui</code>에서 <code>org.jetbrains.compose.resources.decodeToImageBitmap()</code>으로 한다. <code>ImageBitmap</code>은 Compose 타입이라 <code>:domain</code>에 둘 수 없다.</p>
+
+<p><code>observeScreen(deviceId)</code>는 <a href="state-observation.html">상태 조회 규칙</a>의 폴링을 쓴다. 주기는 <strong>500ms</strong>다. 화면을 한 장 찍는 데 걸리는 시간(Android <code>screencap</code> 기준 0.3~1초)이 주기보다 길어서 실제 갱신은 그보다 느리다. 구독이 끊기면 폴링이 멈춘다(R10).</p>
+
+<h3>좌표 변환</h3>
+
+<p>화면은 <code>ContentScale.Fit</code>으로 그린다. 탭 지점 <code>(px, py)</code>는 그려진 이미지 영역 기준으로 다음과 같이 기기 좌표가 된다.</p>
+
+<pre><code>deviceX = (px - offsetX) / drawnWidth  * frameWidth
+deviceY = (py - offsetY) / drawnHeight * frameHeight</code></pre>
+
+<p>제스처는 <code>detectDragGestures</code> 대신 <code>awaitEachGesture</code> + <code>awaitFirstDown</code> 으로 직접 푼다.
+<code>detectDragGestures</code> 의 <code>onDragStart</code> 는 터치 슬롭을 넘은 지점을 주기 때문에, 스와이프가 손가락을 댄 자리보다
+몇 픽셀 뒤에서 시작한다. 슬롭 판정은 그대로 두되(그래야 탭과 갈린다) 시작점은 처음 누른 위치를 쓴다.</p>
+
+<p>프레임을 <code>ImageBitmap</code> 으로 푸는 일은 프레임이 도착한 그 자리에서 한다. 다른 디스패처로 넘기면 Wasm 에서
+디코딩이 끝나지 않는다. 스레드가 하나뿐이라 <code>Dispatchers.Default</code> 도 같은 이벤트 루프인데, Compose UI 테스트가
+그 루프를 잡고 있는 동안 이어지는 코드가 실행되지 못한다. 초당 두 장이라 그대로 두었다.</p>
+
+<p>프레임의 픽셀 크기가 곧 기기의 디스플레이 해상도다. <code>screencap</code>도 <code>simctl io screenshot</code>도 축소하지 않은 원본을 준다. 그래서 별도의 해상도 조회 없이 프레임 하나로 변환이 닫힌다. 이미지 바깥(레터박스)을 누르면 아무것도 보내지 않는다.</p>
+
+<aside class="decision">
+  <strong>결정: 영상 스트림이 아니라 프레임 폴링</strong>
+  <ul>
+    <li><strong>채택.</strong> 500ms마다 PNG 한 장. 에이전트가 JDK 내장 <code>HttpServer</code>라 요청 하나에 응답 하나가 가장 단순하고, 클라이언트 세 종류(<code>HttpURLConnection</code>, <code>NSURLSession</code>, <code>fetch</code>)가 추가 라이브러리 없이 바이트 배열을 받는다.</li>
+    <li><code>scrcpy</code>류의 H.264 스트림. 초당 수십 프레임이 나오지만 클라이언트마다 디코더를 붙여야 하고 Wasm 타깃에는 쓸 수 있는 디코더가 없다. 버렸다.</li>
+    <li>MJPEG(<code>multipart/x-mixed-replace</code>). 디코더는 필요 없지만 세 클라이언트 모두 멀티파트 경계를 손으로 파싱해야 하고, 브라우저에서는 <code>&lt;img&gt;</code> 태그로만 쉽게 받을 수 있는데 Compose Canvas 안에는 그 태그를 넣을 수 없다. 버렸다.</li>
+    <li>WebSocket. 에이전트가 JDK <code>HttpServer</code>라 핸드셰이크를 직접 구현해야 하고, 얻는 것은 폴링 대비 지연 몇백 ms다. 버렸다.</li>
+  </ul>
+  프레임률이 문제가 되면 첫 후보로 옮기는 것이 맞다. 그때는 에이전트가 <code>scrcpy-server</code>를 띄우고 클라이언트별 디코더를 붙이는 일이 된다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 목록은 실행 중이 아닌 기기도 보여준다</strong>
+  실행 중인 것만 보여주면 "내 AVD가 왜 없지"라는 질문이 남는다. 대신 실행 중이 아닌 항목은 누를 수 없게 한다(R3). 켜 주는 기능은 <a href="#requirements">스코프</a>에서 뺐다.
+</aside>
+
+<h2 id="agent">에이전트 프로토콜</h2>
+
+<p>JVM 외의 타깃은 <a href="emulator-count.html#agent">로컬 에이전트</a>에 물어본다. 개수를 주던 엔드포인트 하나에 세 개가 붙는다. 포트(<code>47890</code>)와 루프백 바인딩, 인증이 없다는 점은 그대로다.</p>
+
+<table>
+  <thead><tr><th>메서드·경로</th><th>응답</th><th>쓰임</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /emulators</code></td><td><code>application/json</code> — 개수</td><td>기존. <a href="emulator-count.html">에뮬레이터 개수</a></td></tr>
+    <tr><td><code>GET /emulators/devices</code></td><td><code>application/json</code> — <code>{"devices":[{"id","name","platform","running","controllable"}]}</code></td><td>목록(R2)</td></tr>
+    <tr><td><code>GET /emulators/screen?id=&lt;id&gt;</code></td><td><code>image/png</code>, 찍지 못하면 <code>503</code></td><td>프레임(R5)</td></tr>
+    <tr><td><code>POST /emulators/gesture</code></td><td><code>204</code>. 본문 <code>{"id","type":"tap"|"swipe","x","y","toX","toY","durationMillis"}</code></td><td>제스처(R6, R7)</td></tr>
+  </tbody>
+</table>
+
+<p>제스처 요청의 <code>Content-Type</code>은 <code>text/plain</code>이다. 브라우저에서 <code>application/json</code>으로 보내면 CORS 사전 요청(preflight)이 붙는데, 에이전트는 사전 요청도 처리하지만 왕복을 한 번 줄이는 쪽을 택했다. 본문은 어느 쪽이든 JSON 문자열이다.</p>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span></td><td>에이전트에 HTTP. <code>10.0.2.2</code> → <code>127.0.0.1</code></td><td><a href="../platform/android.html#emulator-control">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>에이전트에 HTTP. 시뮬레이터에서만 닿는다</td><td><a href="../platform/ios.html#emulator-control">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge partial">조건부</span></td><td><code>adb</code>·<code>simctl</code>을 직접 실행. iOS 시뮬레이터는 화면만</td><td><a href="../platform/jvm.html#emulator-control">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td><code>fetch</code>로 <code>localhost</code> 에이전트. CORS 헤더가 필요하다</td><td><a href="../platform/web.html#emulator-control">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.emulatorCardOpensDeviceList</code></td><td>R1</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.deviceListShowsNameAndState</code></td><td>R2</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.stoppedDeviceCannotBeOpened</code></td><td>R3</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.emptyDeviceListExplainsWhy</code></td><td>R4</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.runningDeviceOpensStreamScreen</code></td><td>R5</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.tapOnStreamIsSentInDeviceCoordinates</code></td><td>R6</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.dragOnStreamIsSentAsSwipe</code></td><td>R7</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.uncontrollableDeviceSaysSo</code></td><td>R8</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.backReturnsToListThenGrid</code></td><td>R9</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>EmulatorParsingTest</code></td><td><code>adb devices</code>·<code>emulator -list-avds</code>·<code>simctl list</code> 출력에서 기기 목록을 뽑는 파싱</td><td><code>jvmTest</code></td></tr>
+    <tr><td><code>HostAgentServerTest</code></td><td>목록·프레임·제스처 엔드포인트의 상태 코드와 본문</td><td><code>jvmTest</code></td></tr>
+    <tr><td><code>HostAgentTest</code></td><td>에이전트가 없을 때 목록이 비고 프레임이 <code>null</code>이 되는 것</td><td><code>commonTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R10, R11과 실제 기기 왕복 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><strong>iOS 시뮬레이터에는 제스처를 보낼 수 없다.</strong> <code>simctl</code>에 입력 주입 명령이 없다(<code>simctl help</code> 기준 <code>io</code>·<code>ui</code>·<code>push</code>·<code>pbcopy</code>만 있다). 화면만 보여주고 제스처는 무시한다(R8).</li>
+  <li><strong>프레임률이 낮다.</strong> Android <code>screencap</code> 한 장이 0.3~1초, 1080×2400에서 PNG 400KB 안팎이다. 초당 1~3장 수준이고 애니메이션은 끊겨 보인다.</li>
+  <li><strong>JVM 외에는 데스크톱 앱이 같은 머신에 떠 있어야 한다.</strong> 개수 기능과 같은 전제다. 꺼져 있으면 목록이 비고 R4의 문구가 나온다.</li>
+  <li><strong>에이전트에 인증이 없다.</strong> 이제 화면 픽셀과 입력까지 오간다. 루프백에만 바인딩하므로 같은 머신의 다른 프로세스는 붙을 수 있다. <a href="emulator-count.html#agent">공통 스펙</a>의 전제를 그대로 따른다.</li>
+  <li>실행 중이 아닌 AVD는 <code>id</code>가 시리얼이 아니라 <code>avd:&lt;이름&gt;</code>이다. 켜지면 시리얼로 바뀌므로 목록 항목의 <code>id</code>는 실행 상태에 따라 달라진다.</li>
+  <li>목록은 5초 폴링이라 켜고 끈 것이 최대 5초 늦게 반영된다.</li>
+  <li>에뮬레이터 카드가 눌리게 되면서 카드 안 텍스트들의 시맨틱이 하나로 합쳐졌다. 카드 안의 줄을 개수로 세는
+    테스트는 <code>useUnmergedTree = true</code> 로 봐야 한다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a> · <a href="emulator-count.html">에뮬레이터 개수</a>
+</footer>
+
+</body>
+</html>

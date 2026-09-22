@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
@@ -25,12 +27,17 @@ internal fun ToggleFeatureCard(
     enabled: Boolean = true,
 ) {
     Card(
-        modifier = modifier.toggleable(
-            value = checked,
-            enabled = enabled,
-            role = Role.Switch,
-            onValueChange = onCheckedChange,
-        ),
+        // toggleable 이 그리는 물결은 Card 안쪽 Surface 의 클립보다 바깥에서 그려져서, 그냥 두면
+        // 카드의 둥근 모서리를 넘어 사각형으로 퍼진다. 같은 shape 로 미리 잘라 둔다. 카드의 기본
+        // 그림자가 0dp 라 클립으로 잃는 것은 없다.
+        modifier = modifier
+            .clip(CardDefaults.shape)
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            ),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),

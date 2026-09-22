@@ -3,8 +3,13 @@ package io.github.taetae98coding.jarvis.ui.app
 import androidx.compose.runtime.Stable
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.GetAppInfoUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
+import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplyKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplySystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveKeepScreenAwakeUseCase
@@ -13,10 +18,14 @@ import io.github.taetae98coding.jarvis.domain.screen.ObserveSystemScreenAwakeSta
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepSystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
+import io.github.taetae98coding.jarvis.ui.emulator.EmulatorRoute
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -28,9 +37,12 @@ import kotlinx.coroutines.launch
  */
 @Stable
 class JarvisAppState(
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
     getAppInfo: GetAppInfoUseCase,
     observeEmulatorStatus: ObserveEmulatorStatusUseCase,
+    observeEmulatorDevices: ObserveEmulatorDevicesUseCase,
+    private val observeEmulatorScreen: ObserveEmulatorScreenUseCase,
+    private val sendEmulatorGesture: SendEmulatorGestureUseCase,
     observeKeepScreenAwake: ObserveKeepScreenAwakeUseCase,
     observeKeepSystemScreenAwake: ObserveKeepSystemScreenAwakeUseCase,
     observeSystemScreenAwakeStatus: ObserveSystemScreenAwakeStatusUseCase,
@@ -46,11 +58,41 @@ class JarvisAppState(
     val emulatorStatus: StateFlow<EmulatorStatus?> =
         observeEmulatorStatus().stateIn(scope, SharingStarted.Eagerly, null)
 
+    // 목록은 화면이 열려 있는 동안에만 센다. 개수와 달리 실행 중인 에뮬레이터 수만큼 명령이 더
+    // 도는 조회라, 아무도 보지 않을 때까지 5초마다 돌릴 이유가 없다.
+    val emulatorDevices: StateFlow<List<EmulatorDevice>> =
+        observeEmulatorDevices().stateIn(scope, SharingStarted.WhileSubscribed(), emptyList())
+
     val keepScreenAwake: StateFlow<Boolean> = observeKeepScreenAwake()
 
     val keepSystemScreenAwake: StateFlow<Boolean> = observeKeepSystemScreenAwake()
 
     val systemScreenAwake: StateFlow<SystemScreenAwakeStatus> = observeSystemScreenAwakeStatus()
+
+    private val route = MutableStateFlow<EmulatorRoute?>(null)
+
+    internal val emulatorRoute: StateFlow<EmulatorRoute?> = route.asStateFlow()
+
+    internal fun onEmulatorCardClick() {
+        route.value = EmulatorRoute.Devices
+    }
+
+    internal fun onEmulatorDeviceClick(device: EmulatorDevice) {
+        if (!device.isRunning) return
+
+        route.value = EmulatorRoute.Screen(device)
+    }
+
+    internal fun onEmulatorBack() {
+        route.value = if (route.value is EmulatorRoute.Screen) EmulatorRoute.Devices else null
+    }
+
+    /** 수집하는 동안에만 기기 화면을 찍는다. 화면을 벗어나면 촬영도 멈춘다. */
+    internal fun emulatorScreen(deviceId: String): Flow<ByteArray?> = observeEmulatorScreen(deviceId)
+
+    internal fun onEmulatorGesture(device: EmulatorDevice, gesture: EmulatorGesture) {
+        scope.launch { sendEmulatorGesture(device, gesture) }
+    }
 
     fun onKeepScreenAwakeChange(value: Boolean) {
         setKeepScreenAwake(value)

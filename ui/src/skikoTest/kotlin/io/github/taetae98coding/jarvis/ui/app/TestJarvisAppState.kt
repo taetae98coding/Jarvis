@@ -5,10 +5,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.GetAppInfoUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
+import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplyKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplySystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveKeepScreenAwakeUseCase
@@ -20,7 +25,9 @@ import io.github.taetae98coding.jarvis.domain.screen.SetKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepSystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeRepository
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 // 화면 테스트는 저장소도 플랫폼도 모른다. 도메인 인터페이스만 가짜로 끼우면 되는 것이 :ui 가
 // :data 를 보지 않는다는 증거다.
@@ -41,6 +48,9 @@ internal fun rememberTestJarvisAppState(
             scope = scope,
             getAppInfo = GetAppInfoUseCase { appInfo },
             observeEmulatorStatus = ObserveEmulatorStatusUseCase(emulator),
+            observeEmulatorDevices = ObserveEmulatorDevicesUseCase(emulator),
+            observeEmulatorScreen = ObserveEmulatorScreenUseCase(emulator),
+            sendEmulatorGesture = SendEmulatorGestureUseCase(emulator),
             observeKeepScreenAwake = ObserveKeepScreenAwakeUseCase(settings),
             observeKeepSystemScreenAwake = ObserveKeepSystemScreenAwakeUseCase(settings),
             observeSystemScreenAwakeStatus = ObserveSystemScreenAwakeStatusUseCase(systemScreenAwake),
@@ -79,12 +89,37 @@ internal class FakeSystemScreenAwakeRepository(
     override fun requestPermission() = Unit
 }
 
-// 기본값은 "셀 수 없음" 이다. 개수를 세지 못하는 타깃이 답하는 값과 같다.
+// 기본값은 "셀 수 없음" 과 빈 목록이다. 개수를 세지 못하는 타깃이 답하는 값과 같다.
 internal class FakeEmulatorRepository(
     android: EmulatorSummary? = null,
     ios: EmulatorSummary? = null,
+    devices: List<EmulatorDevice> = emptyList(),
+    private val frames: Flow<ByteArray?> = emptyFlow(),
 ) : EmulatorRepository {
     val status = MutableStateFlow(EmulatorStatus(android = android, ios = ios))
 
+    val devices = MutableStateFlow(devices)
+
+    val gestures = mutableListOf<Pair<String, EmulatorGesture>>()
+
     override fun observeStatus() = status
+
+    override fun observeDevices() = devices
+
+    override fun observeScreen(deviceId: String) = frames
+
+    override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
+        gestures += deviceId to gesture
+    }
+}
+
+// 아직 아무 답도 하지 않은 저장소. 화면은 "확인 중…" 과 빈 목록을 보여줘야 한다.
+internal object SilentEmulatorRepository : EmulatorRepository {
+    override fun observeStatus() = emptyFlow<EmulatorStatus>()
+
+    override fun observeDevices() = emptyFlow<List<EmulatorDevice>>()
+
+    override fun observeScreen(deviceId: String) = emptyFlow<ByteArray?>()
+
+    override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) = Unit
 }

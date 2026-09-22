@@ -3,23 +3,36 @@ package io.github.taetae98coding.jarvis.ui.app
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
-import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
+import io.github.taetae98coding.jarvis.ui.emulator.EmulatorFrameTestTag
+import io.github.taetae98coding.jarvis.ui.emulator.EmulatorListTestTag
+import io.github.taetae98coding.jarvis.ui.emulator.EmulatorScreenTestTag
+import io.github.taetae98coding.jarvis.ui.emulator.EmulatorTestTag
+import io.github.taetae98coding.jarvis.ui.emulator.emulatorDeviceTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeTestTag
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
@@ -153,14 +166,14 @@ class JarvisAppTest {
     fun showsUncountableWhenNothingCanCount() = runComposeUiTest {
         setContent { JarvisApp(rememberTestJarvisAppState()) }
 
-        onAllNodesWithText("셀 수 없음").assertCountEquals(2)
+        onAllNodesWithText("셀 수 없음", useUnmergedTree = true).assertCountEquals(2)
     }
 
     @Test
     fun showsPlaceholderUntilTheRepositoryAnswers() = runComposeUiTest {
-        setContent { JarvisApp(rememberTestJarvisAppState(emulator = EmulatorRepository { emptyFlow() })) }
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = SilentEmulatorRepository)) }
 
-        onAllNodesWithText("확인 중…").assertCountEquals(2)
+        onAllNodesWithText("확인 중…", useUnmergedTree = true).assertCountEquals(2)
     }
 
     @Test
@@ -172,5 +185,187 @@ class JarvisAppTest {
         emulator.status.value = EmulatorStatus(android = EmulatorSummary(total = 3, running = 1))
 
         onNodeWithText("실행 중 1개 / 전체 3개").assertIsDisplayed()
+    }
+
+    @Test
+    fun emulatorCardOpensDeviceList() = runComposeUiTest {
+        setContent {
+            JarvisApp(
+                rememberTestJarvisAppState(
+                    emulator = FakeEmulatorRepository(devices = listOf(RunningAndroidDevice)),
+                ),
+            )
+        }
+
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithTag(EmulatorListTestTag).assertIsDisplayed()
+    }
+
+    @Test
+    fun deviceListShowsNameAndState() = runComposeUiTest {
+        setContent {
+            JarvisApp(
+                rememberTestJarvisAppState(
+                    emulator = FakeEmulatorRepository(
+                        devices = listOf(RunningAndroidDevice, StoppedAndroidDevice, RunningSimulator),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithText(RunningAndroidDevice.name).assertIsDisplayed()
+        onNodeWithText("Android · 실행 중").assertIsDisplayed()
+        onNodeWithText("Android · 꺼짐").assertIsDisplayed()
+        onNodeWithText("iOS · 실행 중").assertIsDisplayed()
+    }
+
+    // 꺼져 있는 기기에는 찍을 화면이 없다. 눌러도 되는 것처럼 보이면 빈 화면만 보게 된다.
+    @Test
+    fun stoppedDeviceCannotBeOpened() = runComposeUiTest {
+        setContent {
+            JarvisApp(
+                rememberTestJarvisAppState(
+                    emulator = FakeEmulatorRepository(
+                        devices = listOf(RunningAndroidDevice, StoppedAndroidDevice),
+                    ),
+                ),
+            )
+        }
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithTag(emulatorDeviceTestTag(StoppedAndroidDevice.id))
+            .assertIsNotEnabled()
+            .performClick()
+
+        onNodeWithTag(EmulatorListTestTag).assertIsDisplayed()
+        onNodeWithTag(emulatorDeviceTestTag(RunningAndroidDevice.id)).assertIsEnabled()
+    }
+
+    @Test
+    fun emptyDeviceListExplainsWhy() = runComposeUiTest {
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = FakeEmulatorRepository())) }
+
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithText("가상 기기가 없거나 개발자 머신에 물어볼 수 없습니다.").assertIsDisplayed()
+    }
+
+    @Test
+    fun runningDeviceOpensStreamScreen() = runComposeUiTest {
+        setContent {
+            JarvisApp(
+                rememberTestJarvisAppState(
+                    emulator = FakeEmulatorRepository(devices = listOf(RunningAndroidDevice)),
+                ),
+            )
+        }
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNodeWithTag(emulatorDeviceTestTag(RunningAndroidDevice.id)).performClick()
+
+        onNodeWithTag(EmulatorScreenTestTag).assertIsDisplayed()
+        // 아직 프레임이 오지 않은 상태와 가져오지 못한 상태는 다르다.
+        onNodeWithText("화면을 가져오는 중…").assertIsDisplayed()
+    }
+
+    @Test
+    fun tapOnStreamIsSentInDeviceCoordinates() = runComposeUiTest {
+        val emulator = streamingEmulator()
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = emulator)) }
+        openStream()
+
+        onNodeWithTag(EmulatorFrameTestTag).performTouchInput { click(center) }
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.gestures.isNotEmpty() }
+        assertEquals(
+            listOf(
+                RunningAndroidDevice.id to EmulatorGesture.Tap(
+                    x = TestFrameWidth / 2,
+                    y = TestFrameHeight / 2,
+                ),
+            ),
+            emulator.gestures.toList(),
+        )
+    }
+
+    @Test
+    fun dragOnStreamIsSentAsSwipe() = runComposeUiTest {
+        val emulator = streamingEmulator()
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = emulator)) }
+        openStream()
+
+        onNodeWithTag(EmulatorFrameTestTag).performTouchInput { swipe(start = centerLeft, end = centerRight) }
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.gestures.isNotEmpty() }
+        val swipe = assertIs<EmulatorGesture.Swipe>(emulator.gestures.single().second)
+        assertEquals(0, swipe.fromX)
+        assertEquals(TestFrameWidth - 1, swipe.toX)
+        assertEquals(TestFrameHeight / 2, swipe.fromY)
+        assertEquals(TestFrameHeight / 2, swipe.toY)
+        // 0ms 스와이프는 기기가 플릭으로 받아 화면이 튕긴다.
+        assertTrue(swipe.durationMillis >= 50)
+    }
+
+    // iOS 시뮬레이터에는 입력을 주입하는 도구가 없다. 화면은 보이되 왜 안 되는지 말해야 한다.
+    @Test
+    fun uncontrollableDeviceSaysSo() = runComposeUiTest {
+        val emulator = FakeEmulatorRepository(
+            devices = listOf(RunningSimulator),
+            frames = MutableStateFlow(TestFrame),
+        )
+        setContent { JarvisApp(rememberTestJarvisAppState(emulator = emulator)) }
+        onNodeWithTag(EmulatorTestTag).performClick()
+        onNodeWithTag(emulatorDeviceTestTag(RunningSimulator.id)).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            onAllNodesWithTag(EmulatorFrameTestTag).fetchSemanticsNodes().isNotEmpty()
+        }
+        onNodeWithTag(EmulatorFrameTestTag).performTouchInput { click(center) }
+
+        onNodeWithText("이 기기에는 제스처를 보낼 수 없습니다. 화면만 볼 수 있습니다.").assertIsDisplayed()
+        assertTrue(emulator.gestures.isEmpty())
+    }
+
+    @Test
+    fun backReturnsToListThenGrid() = runComposeUiTest {
+        setContent {
+            JarvisApp(
+                rememberTestJarvisAppState(
+                    emulator = FakeEmulatorRepository(devices = listOf(RunningAndroidDevice)),
+                ),
+            )
+        }
+        onNodeWithTag(EmulatorTestTag).performClick()
+        onNodeWithTag(emulatorDeviceTestTag(RunningAndroidDevice.id)).performClick()
+
+        onNodeWithText("← 뒤로").performClick()
+        onNodeWithTag(EmulatorListTestTag).assertIsDisplayed()
+
+        onNodeWithText("← 뒤로").performClick()
+        onNodeWithTag(EmulatorTestTag).assertIsDisplayed()
+    }
+
+    private fun streamingEmulator() = FakeEmulatorRepository(
+        devices = listOf(RunningAndroidDevice),
+        frames = MutableStateFlow(TestFrame),
+    )
+
+    private fun ComposeUiTest.openStream() {
+        onNodeWithTag(EmulatorTestTag).performClick()
+        onNodeWithTag(emulatorDeviceTestTag(RunningAndroidDevice.id)).performClick()
+
+        // 프레임이 그려지기 전에 누르면 좌표를 맞출 기준이 없다.
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            onAllNodesWithTag(EmulatorFrameTestTag).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private companion object {
+        // 첫 프레임은 Flow 를 한 바퀴 돌고 디코딩까지 끝나야 그려진다. 브라우저에서는 그게 기본
+        // 1초를 넘길 때가 있다.
+        const val FrameTimeoutMillis = 10_000L
     }
 }

@@ -53,7 +53,9 @@
 │   ├── system-keep-screen-awake.html   화면 꺼짐 방지 (시스템 전역)
 │   ├── settings-persistence.html    설정 영구 저장
 │   ├── state-observation.html       상태 조회 규칙
-│   └── emulator-count.html          에뮬레이터 개수
+│   ├── emulator-count.html          에뮬레이터 개수
+│   ├── emulator-control.html        에뮬레이터 목록·화면·제스처
+│   └── card-ripple.html             카드 물결 효과
 ├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
 │   ├── index.html                   플랫폼 스펙 읽는 법과 공통 판정 기준
 │   ├── android.html
@@ -139,6 +141,20 @@
       <td class="center"><a href="platform/web.html#emulator"><span class="badge partial">조건부</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/emulator-control.html">에뮬레이터 목록·화면·제스처</a></td>
+      <td class="center"><a href="platform/android.html#emulator-control"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/ios.html#emulator-control"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/jvm.html#emulator-control"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/web.html#emulator-control"><span class="badge partial">조건부</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/card-ripple.html">카드 물결 효과</a></td>
+      <td class="center"><a href="platform/android.html#card-ripple"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#card-ripple"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#card-ripple"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#card-ripple"><span class="badge ok">구현</span></a></td>
+    </tr>
+    <tr>
       <td>Compose UI 자동 테스트</td>
       <td class="center"><a href="platform/android.html#test"><span class="badge no">불가</span></a></td>
       <td class="center"><a href="platform/ios.html#test"><span class="badge ok">구현</span></a></td>
@@ -147,6 +163,8 @@
     </tr>
   </tbody>
 </table>
+
+<p>에뮬레이터 화면과 제스처도 개수와 같은 경로를 탄다. JVM 외에는 같은 머신에서 데스크톱 앱이 떠 있어야 하고, iOS 시뮬레이터에는 어느 타깃에서도 제스처를 보낼 수 없다(<a href="platform/jvm.html#emulator-control">이유</a>).</p>
 
 <p>에뮬레이터 개수는 네 타깃 모두 실제 숫자를 내지만, JVM 외에는 같은 머신에서 데스크톱 앱이 떠 있어야 한다. 앱이 종료된 뒤에도 화면을 켜 두는 것은 Android에서만 가능하고 사이드로드를 전제로 한다. 두 조건의 근거는 <a href="common/index.html#limits">공통 한계</a>에 있다.</p>
 
@@ -161,6 +179,8 @@
   <li><a href="common/settings-persistence.html">설정 영구 저장</a><p>토글 값이 앱을 껐다 켜도 남고, 외부 변경도 따라간다</p></li>
   <li><a href="common/state-observation.html">상태 조회 규칙</a><p>콜백이 있으면 콜백으로, 없으면 N초마다 다시 읽는다</p></li>
   <li><a href="common/emulator-count.html">에뮬레이터 개수</a><p>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터를 실행 중/전체로 센다</p></li>
+  <li><a href="common/emulator-control.html">에뮬레이터 목록·화면·제스처</a><p>가상 기기 목록을 보고, 실행 중인 기기의 화면을 보면서 탭·스와이프를 보낸다</p></li>
+  <li><a href="common/card-ripple.html">카드 물결 효과</a><p>누를 수 있는 카드의 물결이 카드의 둥근 모서리 안에서만 퍼진다</p></li>
 </ul>
 
 <h2 id="platform">플랫폼 스펙</h2>

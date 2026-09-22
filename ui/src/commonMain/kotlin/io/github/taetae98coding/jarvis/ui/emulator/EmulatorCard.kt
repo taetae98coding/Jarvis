@@ -19,9 +19,12 @@ internal const val EmulatorTestTag = "feature:emulator"
 @Composable
 internal fun EmulatorCard(
     status: EmulatorStatus?,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier = modifier) {
+    // 클릭을 Card 에 넘기면 물결이 카드 안쪽 Surface 에서 그려져 카드 모양대로 잘린다. 바깥에
+    // Modifier.clickable 을 붙이면 사각형이 된다.
+    Card(onClick = onClick, modifier = modifier) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -32,8 +35,8 @@ internal fun EmulatorCard(
             )
 
             Text(
-                text = "개발자 머신의 Android 에뮬레이터와 iOS 시뮬레이터. 이 머신에서 셀 수 없는 " +
-                    "타깃은 데스크탑 앱에 물어본다.",
+                text = "개발자 머신의 Android 에뮬레이터와 iOS 시뮬레이터. 눌러서 목록을 보고 " +
+                    "실행 중인 기기의 화면을 조작할 수 있다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

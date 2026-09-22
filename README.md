@@ -50,6 +50,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 |---|---|---|---|
 | 앱 정보 | `AppInfo`, `GetAppInfoUseCase` | `platformName`, `APP_VERSION` | `AppInfoCard` |
 | 에뮬레이터 개수 | `EmulatorStatus`, `EmulatorRepository` | `EmulatorDataSource`, 호스트 에이전트 | `EmulatorCard` |
+| 에뮬레이터 목록·화면·제스처 | `EmulatorDevice`, `EmulatorGesture`, 유스케이스 3개 | `EmulatorDataSource`, 호스트 에이전트 | `EmulatorListScreen`, `EmulatorStreamScreen` |
 | 화면 꺼짐 방지 | `ScreenAwakeSettingsRepository`, 유스케이스 7개 | `SettingsStore`, `IdleInhibitor`, `SystemScreenAwakeDataSource` | `ScreenAwakeCard`, `SystemScreenAwakeCard` |
 
 `androidApp`만 루트 패키지를 쓰는데, Android의 `applicationId`(= `io.github.taetae98coding.jarvis`)와 맞추기 위해서다.
@@ -65,7 +66,8 @@ Android 앱 모듈은 AGP 9의 내장 Kotlin 지원을 쓰므로 `kotlin-android
 Grid는 `GridCells.Adaptive`라 창 너비에 따라 열 수가 늘어난다.
 아이템을 추가하려면 `FeatureGrid`에 `item { ... }`을 더하면 된다.
 
-지금 있는 아이템은 화면 꺼짐 방지, 화면 꺼짐 방지(시스템 전역), 에뮬레이터 개수 세 개다.
+지금 있는 아이템은 화면 꺼짐 방지, 화면 꺼짐 방지(시스템 전역), 에뮬레이터 세 개다.
+에뮬레이터 카드를 누르면 그리드 대신 기기 목록이, 기기를 고르면 그 기기의 화면이 그 자리를 채운다.
 
 ### 앱 버전
 
@@ -120,6 +122,26 @@ Android SDK는 `ANDROID_HOME` → `ANDROID_SDK_ROOT` → `~/Library/Android/sdk`
 셀 방법이 없을 때는 0개가 아니라 "셀 수 없음"으로 보여준다. SDK를 못 찾은 경우와 데스크탑 앱이 꺼져 있는
 경우가 그렇다. 화면에 0이 보이면 정말 0개라는 뜻이다.
 
+### 에뮬레이터 화면과 제스처
+
+에뮬레이터 카드를 누르면 가상 기기 목록이 열리고, **실행 중인 기기를 고르면 그 화면을 보면서 탭과 스와이프를 보낼 수 있다.**
+꺼져 있는 기기는 찍을 화면이 없어서 목록에서 잠겨 있다.
+
+| 플랫폼 | 화면 | 제스처 |
+|---|---|---|
+| Android 에뮬레이터 | `adb -s <시리얼> exec-out screencap -p` | `adb shell input tap` / `input swipe` |
+| iOS 시뮬레이터 | `simctl io <UDID> screenshot --type=png -` | **없다.** `simctl`에 입력을 주입하는 명령이 없다 |
+
+프레임은 500ms마다 PNG 한 장을 받는 폴링이다. 영상 스트림이 아니다.
+`screencap` 한 장이 0.3~1초 걸려서 실제로는 초당 한두 장이고, 그 이유와 버린 후보(scrcpy, MJPEG, WebSocket)는
+[공통 스펙](docs/common/emulator-control.html#implementation)에 있다.
+
+탭 좌표는 프레임 해상도를 기준으로 기기 픽셀로 바꿔서 보낸다. 프레임의 픽셀 크기가 곧 기기 디스플레이
+해상도라 별도 조회가 필요 없다. 제스처를 받지 못하는 기기에서는 화면만 보이고 그 이유가 화면에 뜬다.
+
+개수와 같은 에이전트를 쓴다. JVM 외의 타깃은 `GET /emulators/devices`, `GET /emulators/screen?id=…`,
+`POST /emulators/gesture` 세 엔드포인트로 데스크탑 앱에 물어본다.
+
 ### 화면 꺼짐 방지
 
 두 개의 토글이 있다. 앱이 떠 있는 동안만 막는 것과, 앱이 없어도 막는 것이다.
@@ -166,7 +188,7 @@ Android SDK 위치는 `local.properties`의 `sdk.dir` 또는 `ANDROID_HOME`으�
 Xcode 빌드 시 `Compile Kotlin Framework` 스크립트 단계가 `:shared:embedAndSignAppleFrameworkForXcode`를 호출해
 Kotlin 프레임워크를 만들어 앱에 임베드한다. 서명 팀은 `iosApp/Configuration/Config.xcconfig`의 `TEAM_ID`에 넣는다.
 
-Android·iOS·Web에서 에뮬레이터 개수를 보려면 데스크탑 앱을 함께 띄워 둬야 한다.
+Android·iOS·Web에서 에뮬레이터 개수·목록·화면을 보려면 데스크탑 앱을 함께 띄워 둬야 한다.
 실물 Android 기기라면 `adb reverse tcp:47890 tcp:47890`도 필요하다.
 
 ## 테스트
@@ -175,8 +197,8 @@ Android·iOS·Web에서 에뮬레이터 개수를 보려면 데스크탑 앱을 
 |---|---|---|
 | `domain/src/commonTest` | 유스케이스 — 화면 유지 적용 규칙, 권한 요청 규칙 | 전 타깃 (Android host 포함) |
 | `data/src/commonTest` | `PlatformNameTest`, `ScreenAwakeSettingsRepositoryTest`, `ObserveSystemStateTest`, `HostAgentTest` | 전 타깃 (Android host 포함) |
-| `data/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복 | jvm |
-| `ui/src/skikoTest` | `JarvisAppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 반영, 에뮬레이터 개수 표시 | jvm / wasmJs / ios |
+| `data/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복(개수·목록·화면·제스처) | jvm |
+| `ui/src/skikoTest` | `JarvisAppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 반영, 에뮬레이터 개수·목록·화면·제스처 | jvm / wasmJs / ios |
 
 `skikoTest`는 `ui`가 `applyDefaultHierarchyTemplate`으로 정의한 중간 소스셋이라 jvm/wasmJs/ios가 함께 쓴다.
 Android는 호스트에 렌더링할 Android 런타임이 없어 이 그룹에서 빠진다.

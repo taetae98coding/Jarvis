@@ -41,6 +41,8 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
+    <li><a href="#card-ripple">카드 물결 효과</a></li>
+    <li><a href="#emulator-control">에뮬레이터 목록·화면·제스처</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -251,6 +253,67 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>HostAgentTest</code>가 <code>iosSimulatorArm64Test</code>에서 가짜 조회 함수로 폴링과 "셀 수 없음" 처리를 검증한다. <code>NSURLSession</code>으로 실제 요청을 보내는 부분은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="card-ripple">
+<h2>카드 물결 효과 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/card-ripple.html">카드 물결 효과</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Compose 의 <code>Indication</code> + Skiko</td><td>채택. 물결은 UIKit 이 아니라 Skiko 캔버스에 그려진다. <code>Modifier.clip</code> 이 Skia 의 <code>clipRRect</code> 로 내려가 모서리 둥글기를 그대로 따른다</td></tr>
+    <tr><td>UIKit 의 기본 눌림 효과</td><td>해당 없음. Compose 화면은 <code>UIView</code> 하나에 전부 그려지므로 UIKit 컨트롤이 관여하지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
+  <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>없다. 물결 모양을 확인하는 자동 테스트만 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>JarvisAppTest</code> 가 <code>iosSimulatorArm64Test</code> 에서 돌며 클립을 넣은 뒤에도 카드 전체가 눌리는 것을 확인한다. 모양 자체는 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="emulator-control">
+<h2>에뮬레이터 목록·화면·제스처 <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/emulator-control.html">에뮬레이터 목록·화면·제스처</a></p>
+
+<h3>기술 조사</h3>
+<ul>
+  <li>iOS 는 서드파티 앱에 프로세스 실행 API 를 주지 않는다. <code>adb</code> 도 <code>simctl</code> 도 부를 수 없다(<a href="#emulator">에뮬레이터 개수</a>와 같은 이유).</li>
+  <li>시뮬레이터에서는 <code>127.0.0.1</code> 이 이 Mac 이라 데스크톱 앱의 에이전트에 닿는다. 실물 기기에서는 자기 자신이라 닿지 않는다.</li>
+  <li><code>NSURLSession.dataTaskWithURL</code> 이 주는 <code>NSData</code> 를 <code>readBytes</code> 로 읽으면 PNG 바이트가 그대로 나온다. 개수 응답에서 UTF-8 로 디코딩하던 것과 같은 경로이고, 프레임은 디코딩만 건너뛴다.</li>
+  <li>제스처는 <code>NSMutableURLRequest</code> 에 <code>HTTPMethod = "POST"</code>, <code>HTTPBody</code> 를 실어 <code>dataTaskWithRequest</code> 로 보낸다.</li>
+</ul>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>data/src/iosMain/.../emulator/agent/HostAgent.ios.kt</code></dd>
+  <dt>동작</dt><dd><code>127.0.0.1:47890</code> 의 목록·프레임·제스처 엔드포인트. 취소되면 <code>NSURLSessionTask.cancel</code> 로 요청도 끊는다</dd>
+  <dt>실패</dt><dd>연결 실패와 200 이외 응답을 모두 없는 것으로 본다. 목록은 비고 프레임은 <code>null</code> 이 된다</dd>
+</dl>
+
+<p><code>Info.plist</code> 의 <code>NSAllowsLocalNetworking</code> 예외를 개수 기능과 함께 쓴다. 엔드포인트가 늘어도 호스트와 포트가 같아 새로 추가할 예외가 없다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>실물 기기에서는 목록이 항상 비어 있다.</strong> 같은 머신이라는 전제가 깨진다.</li>
+  <li><strong>시뮬레이터 안에서 시뮬레이터 화면을 본다.</strong> 자기 자신을 고르면 화면 안에 화면이 겹쳐 보이고, 거기에 보낸 제스처는 <a href="#emulator-control">아래</a>대로 iOS 쪽이라 무시된다.</li>
+  <li>iOS 시뮬레이터 항목은 제스처를 받지 못한다. 이유는 <a href="jvm.html#emulator-control">JVM 스펙</a>에 있다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>HostAgentTest</code> 가 <code>iosSimulatorArm64Test</code> 에서 가짜 전송 함수로 실패 처리를 확인한다. <code>NSURLSession</code> 으로 실제 왕복하는 부분은 데스크톱 앱이 함께 떠 있어야 해서 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="build">
