@@ -25,8 +25,8 @@ internal fun FeatureGrid(
     ) {
         item {
             ToggleFeatureCard(
-                title = "Keep screen awake",
-                description = "Stops the screen from turning off while Jarvis is in the foreground.",
+                title = "화면 꺼짐 방지",
+                description = "Jarvis 가 화면에 떠 있는 동안 화면이 꺼지지 않게 합니다.",
                 checked = settings.keepScreenAwake,
                 onCheckedChange = { settings.keepScreenAwake = it },
                 modifier = Modifier.testTag(KeepScreenAwakeTestTag),

@@ -10,7 +10,7 @@ private object UserDefaultsSettingsStore : SettingsStore {
     private val defaults = NSUserDefaults.standardUserDefaults
 
     override fun getBoolean(key: String, defaultValue: Boolean): Boolean =
-        // boolForKey returns false for a missing key, so the default needs an explicit check.
+        // boolForKey 는 키가 없을 때도 false 를 반환하므로, 기본값은 따로 확인해야 한다.
         if (defaults.objectForKey(key) == null) defaultValue else defaults.boolForKey(key)
 
     override fun putBoolean(key: String, value: Boolean) {

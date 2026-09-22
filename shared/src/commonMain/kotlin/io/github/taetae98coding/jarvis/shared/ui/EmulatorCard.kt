@@ -22,8 +22,8 @@ internal fun EmulatorCard(
     probe: EmulatorProbe,
     modifier: Modifier = Modifier,
 ) {
-    // Null until the probe answers. Starting from an empty status instead would state "0 devices"
-    // as a fact while the SDK tools are still being shelled out to.
+    // 프로브가 답하기 전까지는 null 이다. 빈 상태로 시작하면 SDK 도구를 아직 실행하는 중인데도
+    // "0개" 를 사실인 것처럼 보여주게 된다.
     val status by produceState<EmulatorStatus?>(initialValue = null, probe) {
         value = probe.probe()
     }
@@ -34,12 +34,12 @@ internal fun EmulatorCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "Emulator",
+                text = "에뮬레이터",
                 style = MaterialTheme.typography.titleMedium,
             )
 
             Text(
-                text = "Android emulators and iOS simulators installed on this machine.",
+                text = "이 머신에 설치된 Android 에뮬레이터와 iOS 시뮬레이터.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -65,7 +65,7 @@ private fun SummaryRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = summary?.let { "${it.running} running / ${it.total} total" } ?: "Checking…",
+            text = summary?.let { "실행 중 ${it.running}개 / 전체 ${it.total}개" } ?: "확인 중…",
             style = MaterialTheme.typography.bodyMedium,
         )
     }

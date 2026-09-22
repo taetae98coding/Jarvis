@@ -35,8 +35,8 @@ val generateAppVersion = tasks.register("generateAppVersion") {
 kotlin {
     jvmToolchain(21)
 
-    // Compose UI renders through Skiko on every target except Android, so those targets get a
-    // shared source set for UI tests that need a Skiko surface.
+    // Android을 제외한 모든 타깃은 Compose UI를 Skiko로 렌더링한다. Skiko 화면이 필요한 UI
+    // 테스트를 위해 그 타깃들을 하나의 소스 세트로 묶는다.
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     applyDefaultHierarchyTemplate {
         common {
@@ -58,7 +58,7 @@ kotlin {
 
     jvm()
 
-    // Compose Multiplatform 1.12+ no longer publishes iosX64 (Intel simulator) artifacts.
+    // Compose Multiplatform 1.12+ 부터 iosX64(Intel 시뮬레이터) 아티팩트를 더 이상 배포하지 않는다.
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
@@ -72,7 +72,7 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
-        // Required so that Compose UI tests can load the Skiko runtime in the browser.
+        // 브라우저에서 Compose UI 테스트가 Skiko 런타임을 불러오려면 필요하다.
         binaries.executable()
     }
 
@@ -96,7 +96,7 @@ kotlin {
         }
 
         jvmTest.dependencies {
-            // Skiko native runtime for the current host, required by runComposeUiTest on the JVM.
+            // JVM 에서 runComposeUiTest 가 요구하는 현재 호스트용 Skiko 네이티브 런타임.
             implementation(compose.desktop.currentOs)
         }
     }

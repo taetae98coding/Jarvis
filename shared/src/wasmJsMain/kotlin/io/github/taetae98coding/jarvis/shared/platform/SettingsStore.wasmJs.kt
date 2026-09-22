@@ -14,7 +14,7 @@ private object LocalStorageSettingsStore : SettingsStore {
         localStorage.setItem(key.namespaced(), value.toString())
     }
 
-    // localStorage is shared by every page on the origin, unlike the per-app stores the other
-    // targets get, so keys carry the same namespace those stores have built in.
+    // localStorage 는 같은 오리진의 모든 페이지가 공유한다. 다른 타깃이 쓰는 앱별 저장소와 달라서,
+    // 그 저장소들이 기본으로 갖는 네임스페이스를 키에 직접 붙인다.
     private fun String.namespaced(): String = "jarvis.settings.$this"
 }

@@ -30,11 +30,11 @@ private fun iosSummary(): EmulatorSummary {
     return parseSimulatorSummary(output)
 }
 
-// `emulator -list-avds` prints one AVD name per line and nothing else; diagnostics go to stderr.
+// `emulator -list-avds` 는 AVD 이름만 한 줄에 하나씩 출력한다. 진단 메시지는 stderr 로 간다.
 internal fun parseAvdCount(output: String): Int = output.lineSequence().count { it.isNotBlank() }
 
-// A booted AVD shows up in `adb devices` as a serial like `emulator-5554`. Physical devices and
-// network targets use other serial shapes, so the prefix is what separates emulators from hardware.
+// 부팅된 AVD 는 `adb devices` 에 `emulator-5554` 같은 시리얼로 나온다. 실제 기기와 네트워크 타깃은
+// 시리얼 형태가 달라서, 이 접두사가 에뮬레이터와 하드웨어를 가른다.
 internal fun parseRunningEmulatorCount(output: String): Int =
     output.lineSequence().count { it.startsWith("emulator-") }
 
@@ -44,25 +44,24 @@ internal fun parseSimulatorSummary(output: String): EmulatorSummary {
     return EmulatorSummary(total = states.size, running = states.count { it == "Booted" })
 }
 
-// A device line looks like `    iPhone 17 (66C9B671-...-DF9528508CD7) (Shutdown)`. Anchoring on the
-// UDID keeps runtime headers and device names — which may themselves contain parentheses, e.g.
-// `iPad mini (A17 Pro)` — from matching.
+// 기기 줄은 `    iPhone 17 (66C9B671-...-DF9528508CD7) (Shutdown)` 형태다. UDID 를 기준으로 잡아야
+// 런타임 헤더와, 괄호를 품을 수 있는 기기 이름(예: `iPad mini (A17 Pro)`)이 함께 걸리지 않는다.
 private val SimulatorLine = Regex("""\([0-9A-F-]{36}\) \((\w+)\)""")
 
 private fun androidSdkDirectory(): File? =
     sequenceOf(
         System.getenv("ANDROID_HOME"),
         System.getenv("ANDROID_SDK_ROOT"),
-        // Android Studio's default location on macOS, which is the only OS this app targets.
+        // macOS 의 Android Studio 기본 경로. 데스크탑은 macOS 만 지원한다.
         System.getProperty("user.home")?.let { "$it/Library/Android/sdk" },
     ).filterNotNull()
         .map(::File)
         .firstOrNull(File::isDirectory)
 
 private fun simctlCommand(): List<String>? {
-    // `xcrun` only finds simctl when xcode-select points at a full Xcode install. A machine left on
-    // the Command Line Tools still has the simulator tooling inside Xcode.app, so fall back to the
-    // default install path before reporting no simulators.
+    // `xcrun` 은 xcode-select 가 정식 Xcode 를 가리킬 때만 simctl 을 찾는다. Command Line Tools 만
+    // 선택된 머신에도 Xcode.app 안에는 시뮬레이터 도구가 있으므로, 시뮬레이터가 없다고 답하기 전에
+    // 기본 설치 경로를 한 번 더 본다.
     if (runCommand(listOf("xcrun", "--find", "simctl")) != null) return listOf("xcrun", "simctl")
 
     val bundled = File("/Applications/Xcode.app/Contents/Developer/usr/bin/simctl")
@@ -74,8 +73,8 @@ private const val CommandTimeoutSeconds = 10L
 
 private fun runCommand(command: List<String>): String? =
     runCatching {
-        // Output goes to a file rather than a pipe: `adb` forks a daemon that inherits stdout, and a
-        // pipe reader would block past the child's exit, outliving the timeout below.
+        // 출력을 파이프가 아니라 파일로 받는다. `adb` 는 stdout 을 물려받는 데몬을 fork 하므로, 파이프를
+        // 읽으면 자식이 끝난 뒤에도 블록되어 아래 타임아웃을 넘겨 버린다.
         val output = File.createTempFile("jarvis-emulator", ".out")
 
         try {

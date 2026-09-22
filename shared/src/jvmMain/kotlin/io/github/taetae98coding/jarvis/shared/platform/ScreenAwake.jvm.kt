@@ -11,9 +11,9 @@ internal actual fun PlatformIdleInhibitor(enabled: Boolean) {
     }
 }
 
-// The JVM has no portable idle-inhibit API, so this delegates to the tool that owns the idle
-// timer. Desktop support is macOS-only by decision; the Linux (systemd-inhibit) and Windows
-// (SetThreadExecutionState via JNA) paths were dropped rather than left half-wired.
-// On any other OS `caffeinate` is absent, so the launch fails and the toggle is a no-op.
+// JVM 에는 이식 가능한 idle-inhibit API 가 없어서, 유휴 타이머를 관리하는 OS 도구에 위임한다.
+// 데스크탑은 macOS 만 지원하기로 했으므로 Linux(systemd-inhibit)와 Windows(JNA 를 통한
+// SetThreadExecutionState) 경로는 반쯤 걸쳐 두는 대신 걷어냈다.
+// 다른 OS 에는 `caffeinate` 가 없어서 실행이 실패하고 토글은 no-op 이 된다.
 private fun startIdleInhibitor(): Process? =
     runCatching { ProcessBuilder("caffeinate", "-di").start() }.getOrNull()

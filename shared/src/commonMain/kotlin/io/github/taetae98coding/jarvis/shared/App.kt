@@ -42,7 +42,7 @@ internal fun App(
         CompositionLocalProvider(LocalAppSettings provides settings) {
             PlatformIdleInhibitor(settings.keepScreenAwake)
 
-            // Applied to the root surface so the effect outlives any single screen.
+            // 루트 Surface 에 붙여서 특정 화면의 수명과 무관하게 효과가 유지되도록 한다.
             Surface(
                 modifier = Modifier
                     .fillMaxSize()

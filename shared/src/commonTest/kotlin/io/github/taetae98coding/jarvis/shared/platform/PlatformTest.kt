@@ -6,6 +6,6 @@ import kotlin.test.assertTrue
 class PlatformTest {
     @Test
     fun platformNameIsNotBlank() {
-        assertTrue(platformName.isNotBlank(), "platformName must be provided by every target")
+        assertTrue(platformName.isNotBlank(), "모든 타깃은 platformName 을 제공해야 한다")
     }
 }

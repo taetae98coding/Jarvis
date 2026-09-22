@@ -26,8 +26,8 @@ internal fun AppInfoCard(modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.headlineSmall,
             )
 
-            InfoRow(label = "App version", value = APP_VERSION)
-            InfoRow(label = "Platform", value = platformName)
+            InfoRow(label = "앱 버전", value = APP_VERSION)
+            InfoRow(label = "플랫폼", value = platformName)
         }
     }
 }

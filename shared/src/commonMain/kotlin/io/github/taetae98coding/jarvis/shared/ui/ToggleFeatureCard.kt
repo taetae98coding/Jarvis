@@ -43,7 +43,7 @@ internal fun ToggleFeatureCard(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                // The card owns the toggleable semantics, so the switch stays presentational.
+                // toggleable 시맨틱은 카드가 갖고 있으므로, 스위치는 표시 역할만 한다.
                 Switch(checked = checked, onCheckedChange = null)
             }
 

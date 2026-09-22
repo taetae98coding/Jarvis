@@ -85,7 +85,7 @@ Command Line Tools만 선택된 머신에서는 `xcrun: error: unable to find ut
 ## 설정 저장
 
 `java.util.prefs.Preferences.userRoot().node("io/github/taetae98coding/jarvis")`를 쓴다.
-OS별 백엔드는 macOS `~/Library/Preferences`, Linux `~/.java/.userPrefs`, Windows 레지스트리다.
+macOS 백엔드는 `~/Library/Preferences`다.
 
 ### 한계
 

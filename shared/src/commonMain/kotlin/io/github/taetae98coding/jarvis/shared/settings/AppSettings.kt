@@ -6,8 +6,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import io.github.taetae98coding.jarvis.shared.platform.SettingsStore
 
 /**
- * App scoped settings. Lives above every screen so a toggle keeps its effect while the user moves
- * around, and is backed by [SettingsStore] so it survives a cold start.
+ * 앱 범위 설정. 모든 화면보다 위에 존재하므로 사용자가 화면을 옮겨도 토글 효과가 유지되고,
+ * [SettingsStore] 가 값을 보관하므로 앱을 껐다 켜도 남는다.
  */
 @Stable
 internal class AppSettings(private val store: SettingsStore) {
@@ -26,5 +26,5 @@ internal class AppSettings(private val store: SettingsStore) {
 }
 
 internal val LocalAppSettings = staticCompositionLocalOf<AppSettings> {
-    error("LocalAppSettings was not provided. Wrap the screen in App().")
+    error("LocalAppSettings 가 제공되지 않았습니다. 화면을 App() 으로 감싸세요.")
 }

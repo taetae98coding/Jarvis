@@ -81,14 +81,14 @@ class AppTest {
             )
         }
 
-        onNodeWithText("2 running / 5 total").assertIsDisplayed()
-        onNodeWithText("0 running / 11 total").assertIsDisplayed()
+        onNodeWithText("실행 중 2개 / 전체 5개").assertIsDisplayed()
+        onNodeWithText("실행 중 0개 / 전체 11개").assertIsDisplayed()
     }
 
     @Test
     fun showsZeroEmulatorsWhenThePlatformCannotCountThem() = runComposeUiTest {
         setContent { App(InMemorySettingsStore(), fakeEmulatorProbe()) }
 
-        onAllNodesWithText("0 running / 0 total").assertCountEquals(2)
+        onAllNodesWithText("실행 중 0개 / 전체 0개").assertCountEquals(2)
     }
 }
