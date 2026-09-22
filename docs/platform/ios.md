@@ -34,6 +34,11 @@ Compose의 `Modifier.keepScreenOn()`을 쓴다. iOS 구현은 `UIKitIdleTimerMan
 - **프로세스 전역 프로퍼티다.** Compose를 거치는 요청끼리는 `UIKitIdleTimerManager`가 조정해 주지만, Compose 밖에서 `idleTimerDisabled`를 직접 쓰면 마지막에 쓴 쪽이 이긴다.
 - 저전력 모드나 OS 정책에 따라 무시될 수 있다.
 
+## 에뮬레이터 개수
+
+항상 0개다. iOS에는 서드파티 앱이 쓸 수 있는 프로세스 실행 API가 없어 `simctl`도 `adb`도 부를 수 없다.
+Mac의 시뮬레이터 안에서 돌고 있을 때도 마찬가지다.
+
 ## 설정 저장
 
 `NSUserDefaults.standardUserDefaults`를 쓴다. 앱 샌드박스 단위라 별도 네임스페이스가 필요 없다.

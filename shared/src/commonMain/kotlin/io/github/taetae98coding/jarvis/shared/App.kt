@@ -14,8 +14,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import io.github.taetae98coding.jarvis.shared.platform.EmulatorProbe
 import io.github.taetae98coding.jarvis.shared.platform.PlatformIdleInhibitor
 import io.github.taetae98coding.jarvis.shared.platform.SettingsStore
+import io.github.taetae98coding.jarvis.shared.platform.emulatorProbe
 import io.github.taetae98coding.jarvis.shared.platform.keepScreenAwake
 import io.github.taetae98coding.jarvis.shared.platform.rememberSettingsStore
 import io.github.taetae98coding.jarvis.shared.settings.AppSettings
@@ -30,7 +32,10 @@ fun App() {
 }
 
 @Composable
-internal fun App(store: SettingsStore) {
+internal fun App(
+    store: SettingsStore,
+    probe: EmulatorProbe = emulatorProbe,
+) {
     val settings = remember(store) { AppSettings(store) }
 
     MaterialTheme {
@@ -52,7 +57,10 @@ internal fun App(store: SettingsStore) {
                 ) {
                     AppInfoCard(modifier = Modifier.fillMaxWidth())
 
-                    FeatureGrid(modifier = Modifier.fillMaxWidth())
+                    FeatureGrid(
+                        emulatorProbe = probe,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }

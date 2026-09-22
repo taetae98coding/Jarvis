@@ -17,6 +17,9 @@ Jarvis가 플랫폼마다 다르게 구현하는 기능과, 각 구현이 가진
 | `platformName: String` | 실행 중인 플랫폼 표시용 문자열 |
 | `PlatformIdleInhibitor(enabled: Boolean)` | Compose가 커버하지 않는 플랫폼의 화면 꺼짐 방지 (JVM 전용) |
 | `rememberSettingsStore(): SettingsStore` | 설정을 영구 저장하는 키-값 저장소 |
+| `emulatorProbe: EmulatorProbe` | Android 에뮬레이터·iOS 시뮬레이터 개수를 세는 프로브 |
+
+`emulatorProbe`는 `App()`이 `FeatureGrid`에 넘겨 `EmulatorCard`가 쓴다. 테스트는 여기에 가짜 프로브를 끼운다.
 
 ## 화면 꺼짐 방지
 
@@ -36,6 +39,7 @@ CMP가 데스크탑 경로를 구현하면 이 expect/actual은 통째로 걷어
 | | Android | iOS | JVM | Web |
 |---|---|---|---|---|
 | 화면 꺼짐 방지 | ✅ Compose | ✅ Compose | ✅ 직접 구현 (macOS 전용) | ✅ Compose (브라우저 지원 시) |
+| 에뮬레이터 개수 | ❌ (항상 0) | ❌ (항상 0) | macOS ✅ | ❌ (항상 0) |
 | 설정 영구 저장 | ✅ | ✅ | ✅ | ✅ |
 | 앱 종료 후에도 화면 유지 | ❌ | ❌ | ❌ | ❌ |
 | 자동 UI 테스트 | ❌ (기기 필요) | ✅ | ✅ | ✅ |
@@ -65,3 +69,11 @@ boolean 하나뿐인 현 시점에는 채택하지 않았다.
 테스트는 `InMemorySettingsStore`를 주입해 `AppSettings`의 읽기·쓰기 계약만 검증한다.
 실제 `SharedPreferences` / `NSUserDefaults` / `Preferences` / `localStorage` 왕복은 컴파일로만 보장된다.
 `java.util.prefs`만 개발 머신에서 직접 왕복 확인했다.
+
+### 셀 수 없는 것은 숨기지 않고 0으로 보여준다
+
+에뮬레이터 개수는 개발자 머신의 SDK 도구를 실행해야 알 수 있어서 JVM 타깃만 실제 숫자를 낸다.
+나머지 타깃에서 Emulator 카드를 감추는 대신 0개로 두었다. 화면 구성이 플랫폼마다 갈라지지 않는 쪽을 택한 것이다.
+
+대신 **"0개"와 "셀 수 없음"이 화면에서 같아 보인다.** JVM에서도 SDK를 못 찾거나 명령이 실패하면 0개로 나온다.
+구분이 필요해지면 `EmulatorStatus`에 지원 여부를 담아 카드에서 갈라야 한다.
