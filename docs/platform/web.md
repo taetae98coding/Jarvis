@@ -40,6 +40,11 @@ sentinel을 `globalThis`에 보관하고 Kotlin 쪽은 boolean 하나만 넘긴�
 - **탭을 닫으면 끝.** 다른 플랫폼과 마찬가지로 페이지가 살아 있는 동안만 유효하다.
 - `globalThis.__jarvisWakeLock` / `__jarvisWakeLockEnabled` / `__jarvisWakeLockListener` 세 개의 전역을 쓴다. 같은 페이지에 다른 wake lock 사용자가 있으면 서로 방해할 수 있다.
 
+## 에뮬레이터 개수
+
+항상 0개다. 브라우저 샌드박스에는 파일 시스템도 프로세스 실행도 없다.
+호스트의 SDK를 읽으려면 별도 서버가 필요한데, 이 앱에는 없다.
+
 ## 설정 저장
 
 `localStorage`에 `jarvis.settings.<key>` 형태로 저장한다.

@@ -33,9 +33,9 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 | 패키지 | 내용 |
 |---|---|
 | `.jarvis.shared` | `App.kt` — 첫 화면 |
-| `.jarvis.shared.ui` | `AppInfoCard`, `FeatureGrid`, `ToggleFeatureCard` |
+| `.jarvis.shared.ui` | `AppInfoCard`, `FeatureGrid`, `ToggleFeatureCard`, `EmulatorCard` |
 | `.jarvis.shared.settings` | `AppSettings` — 앱 스코프 설정 상태 |
-| `.jarvis.shared.platform` | `platformName`, `KeepScreenAwake`, `SettingsStore` 등 플랫폼별 expect/actual |
+| `.jarvis.shared.platform` | `platformName`, `KeepScreenAwake`, `SettingsStore`, `emulatorProbe` 등 플랫폼별 expect/actual |
 
 `androidApp`만 루트 패키지를 쓰는데, Android의 `applicationId`(= `io.github.taetae98coding.jarvis`)와 맞추기 위해서다.
 
@@ -68,6 +68,21 @@ iOS 번들 버전만 `iosApp/Configuration/Config.xcconfig`에서 따로 관리�
 | iOS | `NSUserDefaults` |
 | JVM | `java.util.prefs.Preferences` |
 | Web | `localStorage` |
+
+### 에뮬레이터 개수
+
+Emulator 카드가 이 머신의 Android 에뮬레이터와 iOS 시뮬레이터를 "실행 중 / 전체"로 보여준다.
+
+개수를 세려면 개발자 머신에서 SDK 커맨드라인 도구를 실행해야 해서, 실제 숫자가 나오는 건 JVM 타깃뿐이다.
+
+| 플랫폼 | 구현 |
+|---|---|
+| JVM (macOS) | `emulator -list-avds` + `adb devices` + `xcrun simctl list devices` |
+| Android / iOS / Web | 항상 0개 — 샌드박스 밖의 프로세스를 띄울 수 없다 |
+
+Android SDK는 `ANDROID_HOME` → `ANDROID_SDK_ROOT` → `~/Library/Android/sdk` 순으로 찾는다.
+
+값은 카드가 화면에 들어올 때 한 번만 읽는다. **에뮬레이터를 켜고 꺼도 앱을 다시 띄우기 전에는 숫자가 그대로다.**
 
 ### 화면 꺼짐 방지
 
@@ -113,7 +128,8 @@ Kotlin 프레임워크를 만들어 앱에 임베드한다. 서명 팀은 `iosAp
 | 소스셋 | 내용 | 실행 타깃 |
 |---|---|---|
 | `shared/src/commonTest` | `PlatformTest`, `AppSettingsTest` — expect/actual 구현과 설정 읽기·쓰기 검증 | 전 타깃 (Android host 포함) |
-| `shared/src/skikoTest` | `AppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 저장·복원 검증 | jvm / wasmJs / ios |
+| `shared/src/skikoTest` | `AppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 저장·복원, 에뮬레이터 개수 표시 검증 | jvm / wasmJs / ios |
+| `shared/src/jvmTest` | `EmulatorParsingTest` — `emulator`·`adb`·`simctl` 출력 파싱 검증 | jvm |
 
 `skikoTest`는 `applyDefaultHierarchyTemplate`으로 정의한 중간 소스셋이라 jvm/wasmJs/ios가 함께 쓴다.
 Android는 호스트에 렌더링할 Android 런타임이 없어 이 그룹에서 빠진다.
@@ -134,3 +150,6 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
 
 `shared/src/commonMain`에 `expect`를 선언하고 각 `<target>Main`에 `actual`을 구현한다.
 현재는 `platformName`(`Platform.kt`)이 그 예시다.
+
+한 타깃에서만 가능한 기능이라면 나머지 `actual`을 빈 값으로 두는 쪽을 택했다.
+`emulatorProbe`가 그렇게 구현되어 있고, 이유는 [`docs/platform/README.md`](docs/platform/README.md)에 적어 뒀다.

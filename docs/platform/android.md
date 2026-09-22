@@ -36,6 +36,11 @@ DisposableEffect(view, enabled) {
 - **백그라운드에서 화면을 켜 둘 방법이 없다.** `PowerManager.SCREEN_BRIGHT_WAKE_LOCK`은 API 17에서 deprecated된 뒤 실제로 화면을 켜지 못하고, foreground service를 띄워도 마찬가지다. 이건 구현 누락이 아니라 플랫폼 정책이다.
 - 화면 분할·PiP처럼 앱이 부분적으로만 보이는 상태에서의 동작은 OS 재량이라 보장하지 않는다.
 
+## 에뮬레이터 개수
+
+항상 0개다. 앱은 기기 샌드박스 안에 있고, 에뮬레이터 목록을 아는 SDK 도구는 개발자 머신에 있다.
+기기가 그 에뮬레이터 자신일 수도 있지만, 그 경우에도 호스트를 들여다볼 방법은 없다.
+
 ## 설정 저장
 
 `SharedPreferences` 파일 하나(`jarvis.settings`, `MODE_PRIVATE`)를 쓴다.

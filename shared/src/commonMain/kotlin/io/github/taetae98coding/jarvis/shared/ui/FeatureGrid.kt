@@ -7,10 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import io.github.taetae98coding.jarvis.shared.platform.EmulatorProbe
 import io.github.taetae98coding.jarvis.shared.settings.LocalAppSettings
 
 @Composable
-internal fun FeatureGrid(modifier: Modifier = Modifier) {
+internal fun FeatureGrid(
+    emulatorProbe: EmulatorProbe,
+    modifier: Modifier = Modifier,
+) {
     val settings = LocalAppSettings.current
 
     LazyVerticalGrid(
@@ -28,7 +32,15 @@ internal fun FeatureGrid(modifier: Modifier = Modifier) {
                 modifier = Modifier.testTag(KeepScreenAwakeTestTag),
             )
         }
+
+        item {
+            EmulatorCard(
+                probe = emulatorProbe,
+                modifier = Modifier.testTag(EmulatorTestTag),
+            )
+        }
     }
 }
 
 internal const val KeepScreenAwakeTestTag = "feature:keepScreenAwake"
+internal const val EmulatorTestTag = "feature:emulator"
