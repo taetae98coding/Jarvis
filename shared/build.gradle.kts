@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.androidKotlinMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 val generateAppVersion = tasks.register("generateAppVersion") {
@@ -88,6 +89,7 @@ kotlin {
                 api(libs.compose.components.resources)
                 api(libs.compose.ui.toolingPreview)
                 api(libs.kotlinx.coroutines.core)
+                implementation(libs.kotlinx.serialization.json)
             }
         }
 

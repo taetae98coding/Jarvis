@@ -22,10 +22,12 @@ internal fun ToggleFeatureCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Card(
         modifier = modifier.toggleable(
             value = checked,
+            enabled = enabled,
             role = Role.Switch,
             onValueChange = onCheckedChange,
         ),
@@ -44,7 +46,7 @@ internal fun ToggleFeatureCard(
                     modifier = Modifier.weight(1f),
                 )
                 // toggleable 시맨틱은 카드가 갖고 있으므로, 스위치는 표시 역할만 한다.
-                Switch(checked = checked, onCheckedChange = null)
+                Switch(checked = checked, onCheckedChange = null, enabled = enabled)
             }
 
             Text(

@@ -1,37 +1,38 @@
 package io.github.taetae98coding.jarvis.shared.platform
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.TimeUnit
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-internal actual val emulatorProbe: EmulatorProbe = pollingEmulatorProbe(interval = 5.seconds) {
+// 에뮬레이터는 이 앱 밖에서 켜지고 지워지는데 그걸 알려주는 이벤트가 없다(`adb track-devices` 는
+// 있지만 `simctl` 에는 대응물이 없다). 그래서 주기적으로 다시 센다.
+private val PollInterval = 5.seconds
+
+private val emulatorScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+// 데스크탑 UI 와 로컬 에이전트가 같은 값을 보게 묶는다. 구독자가 둘이어도 SDK 도구는 한 번만 띄우고,
+// replay 덕분에 나중에 붙는 구독자는 다음 폴링을 기다리지 않는다.
+private val emulatorStatuses: SharedFlow<EmulatorStatus> =
+    observeByPolling(interval = PollInterval, read = ::countEmulators)
+        .shareIn(emulatorScope, SharingStarted.WhileSubscribed(), replay = 1)
+
+internal actual val emulatorProbe: EmulatorProbe = EmulatorProbe { emulatorStatuses }
+
+private suspend fun countEmulators(): EmulatorStatus =
     withContext(Dispatchers.IO) {
         EmulatorStatus(android = androidSummary(), ios = iosSummary())
     }
-}
 
-// 에뮬레이터는 이 앱 밖에서 켜지고 지워지는데 그걸 알려주는 이벤트가 없다(`adb track-devices` 는
-// 있지만 `simctl` 에는 대응물이 없다). 그래서 주기적으로 다시 세고, 바뀐 결과만 흘려보낸다.
-internal fun pollingEmulatorProbe(
-    interval: Duration,
-    count: suspend () -> EmulatorStatus,
-): EmulatorProbe = EmulatorProbe {
-    flow {
-        while (true) {
-            emit(count())
-            delay(interval)
-        }
-    }.distinctUntilChanged()
-}
-
-private fun androidSummary(): EmulatorSummary {
-    val sdk = androidSdkDirectory() ?: return EmulatorSummary()
+// SDK 가 없으면 0개가 아니라 "셀 수 없음" 이다. SDK 는 있는데 개별 명령이 실패한 경우는 0개로 둔다.
+private fun androidSummary(): EmulatorSummary? {
+    val sdk = androidSdkDirectory() ?: return null
 
     val avds = runCommand(listOf(File(sdk, "emulator/emulator").path, "-list-avds"))
     val devices = runCommand(listOf(File(sdk, "platform-tools/adb").path, "devices"))
@@ -42,9 +43,9 @@ private fun androidSummary(): EmulatorSummary {
     )
 }
 
-private fun iosSummary(): EmulatorSummary {
-    val simctl = simctlCommand() ?: return EmulatorSummary()
-    val output = runCommand(simctl + listOf("list", "devices", "available")) ?: return EmulatorSummary()
+private fun iosSummary(): EmulatorSummary? {
+    val simctl = simctlCommand() ?: return null
+    val output = runCommand(simctl + listOf("list", "devices", "available")) ?: return null
 
     return parseSimulatorSummary(output)
 }

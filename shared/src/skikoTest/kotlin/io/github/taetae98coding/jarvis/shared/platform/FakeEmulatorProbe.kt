@@ -9,7 +9,8 @@ internal class FakeEmulatorProbe(initial: EmulatorStatus = EmulatorStatus()) : E
     override fun observe(): Flow<EmulatorStatus> = status
 }
 
+// 기본값은 "셀 수 없음" 이다. 개수를 세지 못하는 타깃이 답하는 값과 같다.
 internal fun fakeEmulatorProbe(
-    android: EmulatorSummary = EmulatorSummary(),
-    ios: EmulatorSummary = EmulatorSummary(),
+    android: EmulatorSummary? = null,
+    ios: EmulatorSummary? = null,
 ): FakeEmulatorProbe = FakeEmulatorProbe(EmulatorStatus(android = android, ios = ios))

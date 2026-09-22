@@ -33,9 +33,9 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 | 패키지 | 내용 |
 |---|---|
 | `.jarvis.shared` | `App.kt` — 첫 화면 |
-| `.jarvis.shared.ui` | `AppInfoCard`, `FeatureGrid`, `ToggleFeatureCard`, `EmulatorCard` |
+| `.jarvis.shared.ui` | `AppInfoCard`, `FeatureGrid`, `ToggleFeatureCard`, `SystemScreenAwakeCard`, `EmulatorCard` |
 | `.jarvis.shared.settings` | `AppSettings` — 앱 스코프 설정 상태 |
-| `.jarvis.shared.platform` | `platformName`, `PlatformIdleInhibitor`, `SettingsStore`, `emulatorProbe` 등 플랫폼별 expect/actual |
+| `.jarvis.shared.platform` | `platformName`, `SettingsStore`, `PlatformIdleInhibitor`, `rememberSystemScreenAwake`, `emulatorProbe` 등 플랫폼별 expect/actual |
 
 `androidApp`만 루트 패키지를 쓰는데, Android의 `applicationId`(= `io.github.taetae98coding.jarvis`)와 맞추기 위해서다.
 
@@ -48,6 +48,8 @@ Android 앱 모듈은 AGP 9의 내장 Kotlin 지원을 쓰므로 `kotlin-android
 상단 Card에 앱 버전과 실행 중인 플랫폼을 보여주고, 하단 Grid에 기능 아이템을 나열한다.
 Grid는 `GridCells.Adaptive`라 창 너비에 따라 열 수가 늘어난다.
 아이템을 추가하려면 `FeatureGrid`에 `item { ... }`을 더하면 된다.
+
+지금 있는 아이템은 화면 꺼짐 방지, 화면 꺼짐 방지(시스템 전역), 에뮬레이터 개수 세 개다.
 
 ### 앱 버전
 
@@ -62,31 +64,50 @@ iOS 번들 버전만 `iosApp/Configuration/Config.xcconfig`에서 따로 관리�
 
 값은 `SettingsStore`에 저장되어 앱을 완전히 껐다 켜도 복원된다.
 
-| 플랫폼 | 저장소 |
-|---|---|
-| Android | `SharedPreferences` |
-| iOS | `NSUserDefaults` |
-| JVM | `java.util.prefs.Preferences` |
-| Web | `localStorage` |
+| 플랫폼 | 저장소 | 변경 알림 |
+|---|---|---|
+| Android | `SharedPreferences` | `OnSharedPreferenceChangeListener` |
+| iOS | `NSUserDefaults` | `NSUserDefaultsDidChangeNotification` |
+| JVM | `java.util.prefs.Preferences` | `PreferenceChangeListener` |
+| Web | `localStorage` | `storage` 이벤트 + 자기 쓰기 신호 |
+
+### 상태 조회 규칙
+
+플랫폼 상태를 `Flow`로 노출할 때는 한 가지 규칙을 따른다.
+**시스템이 변경 콜백을 주면 콜백으로, 주지 않으면 N초마다 다시 읽는다.**
+어느 쪽이든 첫 값은 구독 즉시 읽고, 값이 그대로인 방출은 걸러낸다.
+
+`ObserveSystemState.kt`의 `observeOnSignals` / `observeByPolling` / `observeSystemState` 세 함수가 그 규칙이고,
+설정값·Android 권한·에뮬레이터 개수가 모두 이 위에 올라가 있다.
+어느 상태가 어느 방식인지는 [`docs/platform/README.md`](docs/platform/README.md#상태-조회-규칙)에 표로 있다.
 
 ### 에뮬레이터 개수
 
-Emulator 카드가 이 머신의 Android 에뮬레이터와 iOS 시뮬레이터를 "실행 중 / 전체"로 보여준다.
+Emulator 카드가 개발자 머신의 Android 에뮬레이터와 iOS 시뮬레이터를 "실행 중 / 전체"로 보여준다.
 
-개수를 세려면 개발자 머신에서 SDK 커맨드라인 도구를 실행해야 해서, 실제 숫자가 나오는 건 JVM 타깃뿐이다.
+개수를 세려면 SDK 커맨드라인 도구를 실행해야 하고, 그게 가능한 건 개발자 머신에서 도는 JVM 타깃뿐이다.
+그래서 **데스크탑 앱이 개수를 세어 로컬 HTTP로 넘겨주고, 나머지 타깃은 그걸 읽는다.**
 
 | 플랫폼 | 구현 |
 |---|---|
 | JVM (macOS) | `emulator -list-avds` + `adb devices` + `xcrun simctl list devices` |
-| Android / iOS / Web | 항상 0개 — 샌드박스 밖의 프로세스를 띄울 수 없다 |
+| Android | `http://10.0.2.2:47890` (실물 기기는 `adb reverse` 후 `127.0.0.1`) |
+| iOS | `http://127.0.0.1:47890` (시뮬레이터만) |
+| Web | `http://localhost:47890` + CORS |
 
 Android SDK는 `ANDROID_HOME` → `ANDROID_SDK_ROOT` → `~/Library/Android/sdk` 순으로 찾는다.
 
-값은 카드가 화면에 들어올 때 한 번만 읽는다. **에뮬레이터를 켜고 꺼도 앱을 다시 띄우기 전에는 숫자가 그대로다.**
+값은 5초마다 다시 센다. **에뮬레이터를 켜고 끄면 몇 초 안에 숫자가 따라온다.**
+
+셀 방법이 없을 때는 0개가 아니라 "셀 수 없음"으로 보여준다. SDK를 못 찾은 경우와 데스크탑 앱이 꺼져 있는
+경우가 그렇다. 화면에 0이 보이면 정말 0개라는 뜻이다.
 
 ### 화면 꺼짐 방지
 
-Compose의 `Modifier.keepScreenOn()`을 루트 `Surface`에 붙인다. Compose가 플랫폼별 API를 대신 호출한다.
+두 개의 토글이 있다. 앱이 떠 있는 동안만 막는 것과, 앱이 없어도 막는 것이다.
+
+**앱이 떠 있는 동안**은 Compose의 `Modifier.keepScreenOn()`을 루트 `Surface`에 붙인다.
+Compose가 플랫폼별 API를 대신 호출한다.
 
 | 플랫폼 | `Modifier.keepScreenOn()`이 호출하는 것 |
 |---|---|
@@ -97,17 +118,18 @@ Compose의 `Modifier.keepScreenOn()`을 루트 `Surface`에 붙인다. Compose�
 
 데스크탑만 Compose가 비워 둔 자리라, 그 한 칸을 `PlatformIdleInhibitor` expect/actual이 메운다.
 
-**앱이 종료된 상태에서는 화면을 켜 둘 수 없다.** Android `FLAG_KEEP_SCREEN_ON`은 해당 윈도우가 보이는 동안만,
-iOS `idleTimerDisabled`는 앱이 foreground인 동안만 유효하고 시스템이 회수한다.
-Android의 `SCREEN_BRIGHT_WAKE_LOCK`은 API 17에서 deprecated된 뒤 화면을 켜 두지 못하며 foreground service로도 우회할 수 없고, iOS에는 해당 API 자체가 없다.
-따라서 유지되는 것은 **설정값**이고, 화면 꺼짐 방지는 앱이 떠 있는 동안 다시 적용된다.
+**앱이 없는 동안**은 `rememberSystemScreenAwake`가 담당하고 **Android만 구현이 있다.**
+시스템 전역 `SCREEN_OFF_TIMEOUT`을 직접 늘리는 방식이라 사용자가 따로 허용하는 `WRITE_SETTINGS`가 필요하고,
+마켓 심사를 통과하기 어려운 권한이어서 사이드로드를 전제로 둔 기능이다.
+원래 값은 앱이 보관해 두고 토글을 끌 때 되돌린다.
 
-Web은 탭이 숨겨지면 브라우저가 wake lock을 회수하므로 `visibilitychange`에서 다시 요청한다.
+iOS·Web·JVM은 배포 방식을 포기해도 열리지 않는다. iOS는 시스템 권한이 필요하고, 브라우저는 OS 전원
+설정에 닿지 못하며, macOS의 `pmset`은 root를 요구한다. 이 타깃에서는 카드가 잠긴 채로 이유를 보여준다.
 
 ## 실행
 
 ```bash
-# Desktop (JVM)
+# Desktop (JVM) — 에뮬레이터 개수 에이전트도 같이 뜬다
 ./gradlew :desktopApp:run
 
 # Web (Wasm) — http://localhost:8080
@@ -116,30 +138,36 @@ Web은 탭이 숨겨지면 브라우저가 wake lock을 회수하므로 `visibil
 # Android — 디바이스/에뮬레이터 연결 후
 ./gradlew :androidApp:installDebug
 
-# iOS — Xcode 정식 설치 필요 (Command Line Tools만으로는 프레임워크 링크 불가)
+# iOS — Xcode 정식 설치 필요 (Command Line Tools만으로는 iOS SDK가 없다)
 open iosApp/iosApp.xcodeproj
 ```
 
+Android SDK 위치는 `local.properties`의 `sdk.dir` 또는 `ANDROID_HOME`으로 알려줘야 한다.
+
 Xcode 빌드 시 `Compile Kotlin Framework` 스크립트 단계가 `:shared:embedAndSignAppleFrameworkForXcode`를 호출해
 Kotlin 프레임워크를 만들어 앱에 임베드한다. 서명 팀은 `iosApp/Configuration/Config.xcconfig`의 `TEAM_ID`에 넣는다.
+
+Android·iOS·Web에서 에뮬레이터 개수를 보려면 데스크탑 앱을 함께 띄워 둬야 한다.
+실물 Android 기기라면 `adb reverse tcp:47890 tcp:47890`도 필요하다.
 
 ## 테스트
 
 | 소스셋 | 내용 | 실행 타깃 |
 |---|---|---|
-| `shared/src/commonTest` | `PlatformTest`, `AppSettingsTest` — expect/actual 구현과 설정 읽기·쓰기 검증 | 전 타깃 (Android host 포함) |
-| `shared/src/skikoTest` | `AppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 저장·복원, 에뮬레이터 개수 표시 검증 | jvm / wasmJs / ios |
-| `shared/src/jvmTest` | `EmulatorParsingTest` — `emulator`·`adb`·`simctl` 출력 파싱 검증 | jvm |
+| `shared/src/commonTest` | `PlatformTest`, `AppSettingsTest`, `ObserveSystemStateTest`, `HostAgentTest` | 전 타깃 (Android host 포함) |
+| `shared/src/skikoTest` | `AppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 저장·복원, 에뮬레이터 개수 표시 | jvm / wasmJs / ios |
+| `shared/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복 | jvm |
 
 `skikoTest`는 `applyDefaultHierarchyTemplate`으로 정의한 중간 소스셋이라 jvm/wasmJs/ios가 함께 쓴다.
 Android는 호스트에 렌더링할 Android 런타임이 없어 이 그룹에서 빠진다.
 
 ```bash
 ./gradlew :shared:jvmTest                              # JVM
-./gradlew :shared:testAndroidHostTest                  # Android host (PlatformTest)
+./gradlew :shared:testAndroidHostTest                  # Android host
 CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   ./gradlew :shared:wasmJsBrowserTest                  # Wasm (헤드리스 Chrome 필요)
-./gradlew :shared:iosSimulatorArm64Test                # iOS (Xcode 필요)
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  ./gradlew :shared:iosSimulatorArm64Test              # iOS (Xcode 필요)
 ```
 
 ## 문서
@@ -151,5 +179,6 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
 `shared/src/commonMain`에 `expect`를 선언하고 각 `<target>Main`에 `actual`을 구현한다.
 현재는 `platformName`(`Platform.kt`)이 그 예시다.
 
-한 타깃에서만 가능한 기능이라면 나머지 `actual`을 빈 값으로 두는 쪽을 택했다.
-`emulatorProbe`가 그렇게 구현되어 있고, 이유는 [`docs/platform/README.md`](docs/platform/README.md)에 적어 뒀다.
+한 타깃에서만 가능한 기능이라면 나머지 `actual`을 "지원하지 않음"으로 두는 쪽을 택했다.
+`rememberSystemScreenAwake`가 그렇게 구현되어 있고, 화면에서 카드를 감추는 대신 잠긴 채로 이유를 보여준다.
+이유는 [`docs/platform/README.md`](docs/platform/README.md)에 적어 뒀다.

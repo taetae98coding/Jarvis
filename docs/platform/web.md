@@ -38,10 +38,33 @@ Compose 구현으로 넘기면서 전부 걷어냈다.
 - **실패가 드러나지 않는다.** 배터리 절약 모드처럼 브라우저가 wake lock을 거부해도 UI는 켜진 상태로 보인다.
 - **탭을 닫으면 끝.** 다른 플랫폼과 마찬가지로 페이지가 살아 있는 동안만 유효하다.
 
+## 앱이 없는 동안의 화면 꺼짐 방지
+
+**없다.** `rememberSystemScreenAwake`의 wasmJs actual은 `UnsupportedSystemScreenAwake`를 돌려주고 카드는 잠긴다.
+
+브라우저는 OS의 전원 설정에 닿을 수 없다. Screen Wake Lock은 페이지가 살아 있는 동안만 유효하고,
+그 바깥을 건드리는 API 자체가 없다.
+
 ## 에뮬레이터 개수
 
-항상 0개다. 브라우저 샌드박스에는 파일 시스템도 프로세스 실행도 없다.
-호스트의 SDK를 읽으려면 별도 서버가 필요한데, 이 앱에는 없다.
+브라우저 샌드박스에는 파일시스템도 프로세스 접근도 없다. 호스트의 SDK에 닿으려면 짝이 되는 서버가
+필요해서, 데스크탑 앱이 띄운 에이전트를 그 서버로 쓴다.
+구조는 [공통 문서](README.md#에뮬레이터-개수와-로컬-에이전트)에 있다.
+
+```kotlin
+val response = window.fetch(hostAgentUrl("localhost")).await<Response>()
+```
+
+`await`의 타입 인자를 적어 주는 이유는 `Promise`가 out 변성이어서 반환 타입만으로는 추론되지 않기 때문이다.
+
+에이전트는 개발 서버(`:8080`)와 포트가 달라 **교차 출처**가 된다. 단순 GET이라 preflight는 없고,
+에이전트가 붙이는 `Access-Control-Allow-Origin: *` 하나로 응답을 읽을 수 있다.
+
+### 한계
+
+- **페이지가 평문 HTTP여야 한다.** 페이지를 HTTPS로 서빙하면 `http://localhost:47890` 요청이 mixed content로 막힌다. 개발 서버(`wasmJsBrowserDevelopmentRun`)는 HTTP라 문제가 없지만, 배포된 HTTPS 페이지에서는 개수가 항상 "셀 수 없음"이다.
+- **에이전트가 브라우저와 같은 머신에 있어야 한다.** `localhost`는 페이지를 띄운 머신이다.
+- 데스크탑 앱이 꺼져 있으면 `fetch`가 `TypeError`로 거절되고 "셀 수 없음"이 된다. 연결 실패와 잘못된 응답을 가릴 필요가 없어서 둘 다 null로 묶었다.
 
 ## 설정 저장
 
@@ -49,6 +72,9 @@ Compose 구현으로 넘기면서 전부 걷어냈다.
 
 `localStorage`는 오리진 전체가 공유하므로, 다른 플랫폼 저장소가 기본으로 갖는 앱 단위 격리가 없다.
 그래서 키에 직접 네임스페이스를 붙인다.
+
+변경 신호는 두 갈래를 합친다. `storage` 이벤트는 같은 오리진의 **다른** 문서가 쓴 변경만 알려주므로,
+이 문서 자신이 쓴 변경은 `putBoolean`에서 직접 신호를 낸다.
 
 ### 한계
 
@@ -77,8 +103,10 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   ./gradlew :shared:wasmJsBrowserTest
 ```
 
-`PlatformTest`, `AppSettingsTest`, `AppTest`(Compose UI)가 헤드리스 Chrome에서 돈다.
-`CHROME_BIN`을 지정하지 않으면 Karma가 브라우저를 찾지 못한다.
+`PlatformTest`, `AppSettingsTest`, `ObserveSystemStateTest`, `HostAgentTest`, `AppTest`(Compose UI)가
+헤드리스 Chrome에서 돈다. `CHROME_BIN`을 지정하지 않으면 Karma가 브라우저를 찾지 못한다.
 
 `:shared`의 `wasmJs` 타깃에 `binaries.executable()`이 있는 이유도 이 테스트 때문이다.
 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 UI 테스트가 렌더링하지 못한다.
+
+`fetch`로 실제 요청을 보내는 부분은 테스트하지 않는다. 에이전트가 떠 있는지에 결과가 달라지기 때문이다.

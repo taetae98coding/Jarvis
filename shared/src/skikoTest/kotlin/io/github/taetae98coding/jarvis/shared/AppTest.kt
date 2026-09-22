@@ -3,6 +3,7 @@ package io.github.taetae98coding.jarvis.shared
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.onAllNodesWithText
@@ -18,8 +19,10 @@ import io.github.taetae98coding.jarvis.shared.platform.fakeEmulatorProbe
 import io.github.taetae98coding.jarvis.shared.platform.platformName
 import io.github.taetae98coding.jarvis.shared.settings.AppSettings
 import io.github.taetae98coding.jarvis.shared.ui.KeepScreenAwakeTestTag
+import io.github.taetae98coding.jarvis.shared.ui.KeepSystemScreenAwakeTestTag
 import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
@@ -82,6 +85,27 @@ class AppTest {
         onNodeWithTag(KeepScreenAwakeTestTag).assertIsOn()
     }
 
+    // 전역 화면 유지는 Android 만 지원한다. Skiko 로 렌더링하는 타깃에서는 토글이 잠겨 있어야 한다.
+    @Test
+    fun systemScreenAwakeIsLockedWhereItIsNotSupported() = runComposeUiTest {
+        val store = InMemorySettingsStore()
+        setContent { App(store, fakeEmulatorProbe()) }
+
+        onNodeWithTag(KeepSystemScreenAwakeTestTag)
+            .assertIsNotEnabled()
+            .performClick()
+            .assertIsOff()
+
+        assertFalse(store.getBoolean(AppSettings.KeepSystemScreenAwakeKey, false))
+    }
+
+    @Test
+    fun systemScreenAwakeExplainsWhyItIsUnavailable() = runComposeUiTest {
+        setContent { App(InMemorySettingsStore(), fakeEmulatorProbe()) }
+
+        onNodeWithText("이 플랫폼에서는 앱이 없는 동안의 화면 꺼짐을 막을 수 없습니다.").assertIsDisplayed()
+    }
+
     @Test
     fun showsEmulatorCounts() = runComposeUiTest {
         setContent {
@@ -99,10 +123,23 @@ class AppTest {
     }
 
     @Test
-    fun showsZeroEmulatorsWhenThePlatformCannotCountThem() = runComposeUiTest {
+    fun tellsZeroApartFromUncountable() = runComposeUiTest {
+        setContent {
+            App(
+                store = InMemorySettingsStore(),
+                probe = fakeEmulatorProbe(android = EmulatorSummary(total = 0, running = 0), ios = null),
+            )
+        }
+
+        onNodeWithText("실행 중 0개 / 전체 0개").assertIsDisplayed()
+        onNodeWithText("셀 수 없음").assertIsDisplayed()
+    }
+
+    @Test
+    fun showsUncountableWhenNothingCanCount() = runComposeUiTest {
         setContent { App(InMemorySettingsStore(), fakeEmulatorProbe()) }
 
-        onAllNodesWithText("실행 중 0개 / 전체 0개").assertCountEquals(2)
+        onAllNodesWithText("셀 수 없음").assertCountEquals(2)
     }
 
     @Test

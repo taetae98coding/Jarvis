@@ -1,9 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 에뮬레이터 개수를 데스크탑 앱의 로컬 에이전트에 물어보기 위해서다. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        앱이 없는 동안에도 화면을 켜 두려면 시스템 전역 화면 꺼짐 시간을 바꿔야 한다.
+        사용자가 설정 화면에서 직접 허용하는 권한이고, 마켓 심사를 통과하기 어려워 사이드로드를
+        전제로 둔 기능이다. lint 는 시스템 앱 전용 권한으로 보고 경고하지만 appop 으로 부여된다.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 

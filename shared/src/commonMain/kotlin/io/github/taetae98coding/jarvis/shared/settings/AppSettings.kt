@@ -15,20 +15,29 @@ import kotlinx.coroutines.flow.stateIn
 @Stable
 internal class AppSettings(
     private val store: SettingsStore,
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
 ) {
-    // 초기값을 스토어에서 동기로 읽어 두어야 첫 프레임부터 저장된 값이 보인다. Flow 의 첫 방출은
-    // 컴포지션이 한 번 끝난 뒤에야 도착한다.
-    val keepScreenAwake: StateFlow<Boolean> =
-        store.observeBoolean(KeepScreenAwakeKey, false)
-            .stateIn(scope, SharingStarted.Eagerly, store.getBoolean(KeepScreenAwakeKey, false))
+    val keepScreenAwake: StateFlow<Boolean> = booleanSetting(KeepScreenAwakeKey)
+
+    val keepSystemScreenAwake: StateFlow<Boolean> = booleanSetting(KeepSystemScreenAwakeKey)
 
     fun setKeepScreenAwake(value: Boolean) {
         store.putBoolean(KeepScreenAwakeKey, value)
     }
 
+    fun setKeepSystemScreenAwake(value: Boolean) {
+        store.putBoolean(KeepSystemScreenAwakeKey, value)
+    }
+
+    // 초기값을 스토어에서 동기로 읽어 두어야 첫 프레임부터 저장된 값이 보인다. Flow 의 첫 방출은
+    // 컴포지션이 한 번 끝난 뒤에야 도착한다.
+    private fun booleanSetting(key: String): StateFlow<Boolean> =
+        store.observeBoolean(key, false)
+            .stateIn(scope, SharingStarted.Eagerly, store.getBoolean(key, false))
+
     internal companion object {
         const val KeepScreenAwakeKey = "keep_screen_awake"
+        const val KeepSystemScreenAwakeKey = "keep_system_screen_awake"
     }
 }
 

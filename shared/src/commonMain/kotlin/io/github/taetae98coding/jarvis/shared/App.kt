@@ -23,6 +23,7 @@ import io.github.taetae98coding.jarvis.shared.platform.SettingsStore
 import io.github.taetae98coding.jarvis.shared.platform.emulatorProbe
 import io.github.taetae98coding.jarvis.shared.platform.keepScreenAwake
 import io.github.taetae98coding.jarvis.shared.platform.rememberSettingsStore
+import io.github.taetae98coding.jarvis.shared.platform.rememberSystemScreenAwake
 import io.github.taetae98coding.jarvis.shared.settings.AppSettings
 import io.github.taetae98coding.jarvis.shared.settings.LocalAppSettings
 import io.github.taetae98coding.jarvis.shared.ui.AppInfoCard
@@ -42,6 +43,10 @@ internal fun App(
     val scope = rememberCoroutineScope()
     val settings = remember(store) { AppSettings(store, scope) }
     val keepScreenAwake by settings.keepScreenAwake.collectAsState()
+    val keepSystemScreenAwake by settings.keepSystemScreenAwake.collectAsState()
+
+    // 전역 화면 유지는 화면 수명보다 오래 사는 효과라 여기서 한 번만 걸고 상태를 아래로 내려보낸다.
+    val systemScreenAwake = rememberSystemScreenAwake(keepSystemScreenAwake)
 
     MaterialTheme {
         CompositionLocalProvider(LocalAppSettings provides settings) {
@@ -64,6 +69,7 @@ internal fun App(
 
                     FeatureGrid(
                         emulatorProbe = probe,
+                        systemScreenAwake = systemScreenAwake,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

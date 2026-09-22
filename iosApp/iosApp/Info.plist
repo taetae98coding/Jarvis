@@ -18,6 +18,15 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<!--
+		에뮬레이터 개수를 물어보는 로컬 에이전트는 평문 HTTP 다. ATS 는 기본적으로 평문을 막지만
+		NSAllowsLocalNetworking 은 루프백과 로컬 네트워크에만 예외를 열어 준다.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchScreen</key>
