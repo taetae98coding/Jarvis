@@ -75,7 +75,13 @@ internal data class ClaudeJob(
 }
 
 /** 창 sessionId 와 Claude 가 정한 실제 세션을 잇는 이름. Claude 입력창에도 보인다. */
-internal fun claudeJobName(sessionId: String): String = "jarvis-$sessionId"
+internal fun claudeJobName(sessionId: String): String = "$ClaudeJobNamePrefix$sessionId"
+
+/** [claudeJobName] 을 거꾸로. Jarvis 가 만든 세션이 아니면 null 이다. */
+internal fun claudeTabSessionId(jobName: String): String? =
+    jobName.takeIf { it.startsWith(ClaudeJobNamePrefix) }?.removePrefix(ClaudeJobNamePrefix)?.takeIf { it.isNotEmpty() }
+
+private const val ClaudeJobNamePrefix = "jarvis-"
 
 /**
  * `--bg` 는 `--session-id` 를 무시하고, 처음 보는 uuid 를 `--resume` 에 주면 세션이 곧 죽는다
@@ -135,11 +141,11 @@ internal fun parseBackgroundedId(output: String): String? =
  * Claude Code 는 대화를 `<설정 디렉터리>/projects/<cwd 를 바꾼 이름>/<sessionId>.jsonl` 에 쓴다. cwd 를
  * 이름으로 바꾸는 규칙을 따라 하지 않고 모든 프로젝트 디렉터리를 본다.
  */
-private fun hasClaudeTranscript(sessionId: String): Boolean {
-    val config = System.getenv("CLAUDE_CONFIG_DIR")?.let(::File) ?: File(System.getProperty("user.home"), ".claude")
+private fun hasClaudeTranscript(sessionId: String): Boolean =
+    File(claudeConfigDirectory(), "projects").listFiles().orEmpty().any { File(it, "$sessionId.jsonl").isFile }
 
-    return File(config, "projects").listFiles().orEmpty().any { File(it, "$sessionId.jsonl").isFile }
-}
+internal fun claudeConfigDirectory(): File =
+    System.getenv("CLAUDE_CONFIG_DIR")?.let(::File) ?: File(System.getProperty("user.home"), ".claude")
 
 /**
  * 출력은 파이프가 아니라 파일로 받는다. `claude --bg` 가 처음 띄우는 백그라운드 서비스가 표준 출력을

@@ -155,6 +155,7 @@
     <tr><td>Android·iOS·Web</td><td>폴링</td><td><code>HostAgentPollInterval</code> 5초. HTTP 는 에이전트가 먼저 말할 수 없다</td></tr>
     <tr><td>에뮬레이터 화면</td><td>전부</td><td>폴링</td><td><code>EmulatorScreenPollInterval</code> 500ms. 화면을 찍는 명령이 한 장씩만 준다</td></tr>
     <tr><td>페어링 대기 기기</td><td>전부</td><td>폴링</td><td><code>PairingServicePollInterval</code> 1초. <code>adb mdns services</code> 는 한 번 답하고 끝난다</td></tr>
+    <tr><td>Claude 세션 상태</td><td>JVM</td><td>폴링</td><td><code>ClaudeStatusPollInterval</code> 1초. 백그라운드 서비스가 쓰는 <code>state.json</code> 에 변경 알림이 없고, macOS 의 <code>WatchService</code> 도 폴링이다(<a href="claude-notification.html">Claude 턴 알림</a>). 나머지는 지원하지 않아 빈 지도 하나</td></tr>
   </tbody>
 </table>
 
@@ -168,6 +169,7 @@
     <tr><td>카드와 화면 (<code>collectAsStateWithLifecycle</code>)</td><td>화면을 떠나거나 앱이 백그라운드로 갈 때</td><td>R13, R14</td></tr>
     <tr><td>기기 화면 프레임 (<code>EmulatorStreamScreen</code>)</td><td>같음</td><td><code>repeatOnLifecycle(STARTED)</code> 안에서 수집한다</td></tr>
     <tr><td><code>ScreenAwakeEffectViewModel</code></td><td>앱 루트가 사라질 때</td><td>화면 꺼짐 방지 효과는 어느 화면보다 오래 살아야 한다. 설정과 권한 리스너가 그동안 붙어 있다</td></tr>
+    <tr><td><code>ClaudeNotificationEffectViewModel</code></td><td>앱 루트가 사라질 때</td><td>창을 최소화하거나 다른 화면에 있어도 Claude 턴이 끝나면 알려야 한다(<a href="claude-notification.html#implementation">Claude 턴 알림</a>). 그동안 세션 상태 폴링이 돈다</td></tr>
     <tr><td><code>WifiPairingViewModel.qrState</code> (<code>Eagerly</code>)</td><td>페어링 화면이 백스택에서 빠질 때</td><td>탭을 오가도 QR 세션이 이어져야 한다(<a href="wireless-pairing.html">무선 페어링</a>)</td></tr>
     <tr><td>터미널 창 (<code>TerminalPaneHost</code>)</td><td>사용자가 창을 닫거나 셸이 끝날 때</td><td>상태 구독이 아니라 사용자가 띄운 셸 프로세스다. 화면을 벗어나도 셸과 화면이 이어져야 한다(<a href="terminal-panels.html#implementation">터미널 패널</a>)</td></tr>
     <tr><td>로컬 에이전트 (<code>startEmulatorHostAgent</code>)</td><td>데스크톱 앱이 끝날 때</td><td>다른 프로세스의 요청에 즉시 답하려고 미리 센다. 아래 한계 참고</td></tr>

@@ -37,4 +37,13 @@ interface TerminalRepository {
 
     /** 앱 밖에서 도는 Claude 백그라운드 세션을 멈춘다. 대화 기록은 남는다. 없는 세션이면 아무 일도 없다. */
     suspend fun stopClaude(sessionId: String)
+
+    /**
+     * 작업 공간의 Claude 탭 세션마다 지금 상태. 키는 [TerminalTab.claudeSessionId] 다. 수집하는 동안만 읽는다(cold).
+     * Claude 탭을 열 수 없는 플랫폼에서는 빈 지도 하나다.
+     */
+    fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>>
+
+    /** 운영체제 알림을 하나 보낸다. 보낼 수 없는 환경이면 아무 일도 없다. */
+    suspend fun showNotification(notification: ClaudeNotification)
 }

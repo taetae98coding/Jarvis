@@ -13,6 +13,8 @@ internal class RecordingTerminalRepository(
 ) : TerminalRepository {
     val opened = mutableListOf<TerminalTab>()
     val stopped = mutableListOf<String>()
+    val claudeStatuses = MutableStateFlow<Map<String, ClaudeStatus>>(emptyMap())
+    val notifications = mutableListOf<ClaudeNotification>()
 
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession {
         opened += tab
@@ -21,6 +23,12 @@ internal class RecordingTerminalRepository(
 
     override suspend fun stopClaude(sessionId: String) {
         stopped += sessionId
+    }
+
+    override fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>> = claudeStatuses
+
+    override suspend fun showNotification(notification: ClaudeNotification) {
+        notifications += notification
     }
 
     override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = flowOf(emptyList())

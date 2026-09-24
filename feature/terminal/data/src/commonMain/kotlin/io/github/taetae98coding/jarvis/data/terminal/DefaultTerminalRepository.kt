@@ -2,6 +2,8 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeNotification
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
@@ -22,6 +24,11 @@ internal class DefaultTerminalRepository(
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? = dataSource.open(size, tab)
 
     override suspend fun stopClaude(sessionId: String) = dataSource.stopClaude(sessionId)
+
+    override fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>> = dataSource.observeClaudeStatuses()
+
+    override suspend fun showNotification(notification: ClaudeNotification) =
+        dataSource.showNotification(notification.title, notification.message)
 
     override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = dataSource.observeChromeProfiles()
 

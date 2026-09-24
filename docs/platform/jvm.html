@@ -58,6 +58,7 @@
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
     <li><a href="#terminal-tab-label">탭 종류 표시와 이름 바꾸기</a></li>
+    <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
@@ -350,13 +351,14 @@ internal actual fun createSystemScreenAwakeDataSource(
     <tr><td>에뮬레이터 개수·목록</td><td><strong>없다.</strong> <code>adb track-devices</code>는 있지만 <code>simctl</code>·<code>xctrace</code>에 대응물이 없어서 합친 상태를 볼 방법이 없다</td></tr>
     <tr><td>에뮬레이터 화면</td><td><strong>없다.</strong> <code>adb exec-out screencap</code>·<code>simctl io screenshot</code> 은 한 장을 찍고 끝난다</td></tr>
     <tr><td>페어링 대기 기기</td><td><strong>없다.</strong> <code>adb mdns services</code> 는 지금 보이는 목록을 한 번 답하고 끝난다. JmDNS 같은 라이브러리로 mDNS 를 직접 들으면 콜백을 받을 수 있지만, 기기를 찾는 것도 페어링하는 것도 <code>adb</code> 서버라서 둘이 보는 목록이 어긋날 수 있다. 버렸다</td></tr>
+    <tr><td>Claude 세션 상태</td><td><strong>없다.</strong> 백그라운드 서비스는 <code>state.json</code> 을 고쳐 쓸 뿐 알려 주지 않는다. <code>WatchService</code> 는 macOS 에서 폴링 구현이고, FSEvents 는 JNA 비용에 비해 얻는 것이 적어 버렸다(<a href="#claude-notification">Claude 턴 알림</a>)</td></tr>
   </tbody>
 </table>
 
 <h3>구현</h3>
 <dl class="meta">
   <dt>콜백</dt><dd><code>PreferenceChangeListener</code>를 <code>callbackFlow</code>로 감싸 <code>observeOnSignals</code>에 넘긴다</dd>
-  <dt>폴링</dt><dd>에뮬레이터 개수는 <code>observeByPolling(5.seconds)</code></dd>
+  <dt>폴링</dt><dd>에뮬레이터 개수는 <code>observeByPolling(5.seconds)</code>, Claude 세션 상태는 <code>observeByPolling(ClaudeStatusPollInterval)</code>(1초)</dd>
   <dt>공유</dt><dd>에뮬레이터 프로브만 <code>shareIn(WhileSubscribed(replayExpirationMillis = 0), replay = 1)</code>으로 묶는다(공통 스펙 R12의 예외). UI와 <a href="#emulator">로컬 에이전트</a>가 같은 값을 보고 SDK 도구는 한 번만 돈다. 타입은 <code>Flow</code> 로 내보낸다</dd>
   <dt>해제</dt><dd>마지막 구독자가 떠나면 폴링 루프가 멈추고 replay 도 비운다</dd>
 </dl>
@@ -1207,6 +1209,66 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p>파싱·epoch 변환·복호화 왕복은 <code>ChromeCookieReaderTest</code>(jvmTest)가 확인한다. 실제 키체인·웹뷰·로그인 유지는 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다. 키체인 창과 네이티브 웹뷰는 테스트 화면에 붙지 않아 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="claude-notification">
+<h2>Claude 턴 알림 <span class="badge workaround">우회</span></h2>
+<p>공통 스펙: <a href="../common/claude-notification.html">Claude 턴 알림</a></p>
+
+<h3>기술 조사 — 세션 상태</h3>
+<p>Claude 탭은 Claude Code 백그라운드 서비스의 세션에 <code>claude attach</code> 로 붙어 있다(<a href="#terminal-panels">패널과 세션 유지</a>). 서비스는 세션마다 <code>~/.claude/jobs/&lt;짧은 id&gt;/state.json</code> 을 두고 상태가 바뀔 때마다 고쳐 쓴다(2.1.282 에서 직접 확인). 쓰는 키는 다음과 같다.</p>
+<table>
+  <thead><tr><th>키</th><th>값</th><th>쓰는 곳</th></tr></thead>
+  <tbody>
+    <tr><td><code>name</code></td><td><code>jarvis-&lt;탭 claudeSessionId&gt;</code>(<code>claude --bg --name</code> 로 붙인 이름)</td><td>어느 탭의 세션인지</td></tr>
+    <tr><td><code>state</code></td><td><code>working</code> · <code>blocked</code> · <code>done</code> · <code>stopped</code> · <code>failed</code></td><td><code>working</code> → <code>Working</code>, <code>blocked</code> → <code>WaitingForInput</code>, <code>done</code> → <code>Finished</code>, 나머지 → <code>Idle</code></td></tr>
+    <tr><td><code>tempo</code></td><td><code>active</code> · <code>blocked</code> · <code>idle</code></td><td><code>blocked</code> 면 <code>state</code> 와 무관하게 <code>WaitingForInput</code>. 턴 도중 선택을 기다리거나 새 세션이 첫 프롬프트를 기다릴 때 <code>state</code> 는 <code>working</code> 그대로이고 이 값만 <code>blocked</code> 다(<code>needs</code> 에 무엇을 기다리는지)</td></tr>
+    <tr><td><code>detail</code></td><td>Claude 가 남긴 한 줄 요약. 턴이 끝날 때 "merged to local main; tests green" 같은 글</td><td>알림 본문의 요약(R2)</td></tr>
+    <tr><td><code>updatedAt</code></td><td>ISO-8601 시각</td><td>같은 이름의 세션이 여럿이면(다시 만든 세션) 최근 것</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>state.json</code> 을 <code>observeByPolling(1.seconds)</code> 로 다시 읽기</td><td>채택. 파일 몇십 개의 <code>lastModified</code> 를 보고 바뀐 것만 다시 읽으므로 가볍다. 수집하는 동안만 돈다</td></tr>
+    <tr><td><code>java.nio.file.WatchService</code></td><td>버렸다. macOS JDK 의 구현은 <code>sun.nio.fs.PollingWatchService</code>(JDK 25.0.4 에서 확인)라 내부가 같은 폴링이고 기본 간격이 10초다. 하위 디렉터리도 따로 등록해야 한다</td></tr>
+    <tr><td>FSEvents(<code>FSEventStreamCreate</code>)를 JNA 로</td><td>버렸다. 유일하게 진짜 콜백을 주는 길이지만 디스패치 큐·네이티브 콜백 수명을 직접 다뤄야 하고, 얻는 것은 1초 이하의 늦음을 없애는 것뿐이다. 폴링이 문제가 되면 다시 본다</td></tr>
+    <tr><td>Claude Code 훅(<code>--settings</code> 로 <code>Stop</code>·<code>Notification</code> 훅을 붙이기)</td><td>버렸다. 훅은 세션을 만들 때만 붙어서 이미 돌고 있는 세션에는 없고, 훅 명령이 앱에 알릴 통로(로컬 포트 등)를 따로 열어야 한다. 앱이 꺼져 있으면 보낼 곳도 없다</td></tr>
+    <tr><td><code>claude agents --json --all</code> 의 <code>state</code></td><td>버렸다. 같은 값이지만 부를 때마다 로그인 셸을 띄워 수 초가 걸린다(<a href="#terminal-panels">패널</a>). 1초 간격에 쓸 수 없다</td></tr>
+    <tr><td>pty 출력의 벨(<code>\a</code>)·OSC 9 알림</td><td>버렸다. 창이 열려 있는(한 번이라도 보인) 탭에서만 받을 수 있고, Claude Code 는 턴이 끝날 때가 아니라 60초 넘게 입력을 기다릴 때 보낸다</td></tr>
+  </tbody>
+</table>
+
+<h3>기술 조사 — 알림 보내기</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>AWT <code>SystemTray</code> + <code>TrayIcon.displayMessage</code></td><td>채택. macOS JDK 의 <code>CTrayIcon</code> 이 <code>NSUserNotificationCenter</code> 로 보낸다. <code>./gradlew run</code> 으로 띄우면 번들 id 가 <code>net.java.openjdk.java</code>, 패키지한 앱은 Jarvis 의 번들 id 로 알림 센터에 들어간다(알림 DB 로 확인). 트레이 아이콘을 붙인 직후에 떼면 전달되지 않아서, 보낸 뒤 10초(<code>TrayIconLinger</code>) 동안 붙여 두었다가 뗀다. 아이콘은 1×1 투명 이미지라 메뉴 막대에 보이지 않는다</td></tr>
+    <tr><td>Compose <code>Tray</code> + <code>TrayState.sendNotification</code></td><td>버렸다. 안에서 같은 <code>TrayIcon.displayMessage</code> 를 부른다. <code>application { }</code> 안의 컴포저블이라 data 가 아니라 진입점이 알림을 보내야 하고, 메뉴 막대 아이콘이 늘 떠 있어야 한다</td></tr>
+    <tr><td><code>osascript -e 'display notification …'</code></td><td>버렸다. 전달은 되지만 알림이 "스크립트 편집기" 의 것으로 뜨고, 누르면 스크립트 편집기가 열린다</td></tr>
+    <tr><td><code>UNUserNotificationCenter</code> 를 JNA 로</td><td>버렸다. 서명된 앱 번들 안에서만 권한을 받을 수 있어 <code>./gradlew run</code> 으로는 쓸 수 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/…/ClaudeJobs.kt</code>(상태), <code>TrayNotifier.kt</code>(알림). <code>PtyTerminalDataSource</code> 가 둘을 잇는다</dd>
+  <dt>동작</dt><dd><code>$CLAUDE_CONFIG_DIR</code>(없으면 <code>~/.claude</code>)의 <code>jobs/*/state.json</code> 중 이름이 <code>jarvis-</code> 로 시작하는 것만 읽어 탭 <code>claudeSessionId</code> → <code>ClaudeStatus</code> 지도로 흘린다. 알림은 <code>Dispatchers.IO</code> 에서 트레이 아이콘을 (없으면) 붙이고 <code>displayMessage(title, message, MessageType.NONE)</code> 을 부른다</dd>
+  <dt>실패</dt><dd>디렉터리가 없으면 빈 지도다. 서비스가 쓰는 도중이라 JSON 이 깨져 있으면 앞 값을 두고 다음 번에 다시 읽는다. 헤드리스이거나 <code>SystemTray.isSupported()</code> 가 거짓이면 알림은 no-op 이고, AWT 예외도 삼킨다(R7). OS 로 나누는 분기는 두지 않는다 — Linux·Windows 에서는 JDK 의 트레이가 되는 만큼만 되고, 확인하지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><code>state.json</code> 은 Claude Code 의 공개 API 가 아니다. 키 이름이 바뀌면 상태를 읽지 못해 알림이 오지 않는다. 2.1.282 기준이다.</li>
+  <li><code>NSUserNotificationCenter</code> 는 macOS 11 부터 deprecated 다. JDK 가 <code>CTrayIcon</code> 을 바꾸기 전까지는 이 경로를 쓴다.</li>
+  <li>알림을 누르면 macOS 가 보낸 앱(Jarvis)을 앞으로 가져온다. 어느 탭인지는 옮겨 가지 않는다. 알림 누름이 <code>TrayIcon</code> 의 <code>ActionListener</code> 로 오는지는 확인하지 않았다(미검증).</li>
+  <li>알림을 보낸 뒤 10초 동안 메뉴 막대에 보이지 않는 칸이 하나 생긴다.</li>
+  <li>공통 스펙의 <a href="../common/claude-notification.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>ClaudeJobStatusTest</code> 가 임시 디렉터리의 <code>state.json</code> 으로 읽기 규칙을 확인한다. 알림 전달은 개발 머신에서 <code>TrayIcon.displayMessage</code> 를 불러 <code>~/Library/Group Containers/group.com.apple.usernoted/db2/db</code> 에 기록이 생기는 것으로 확인했다. 배너가 실제로 뜨는지는 방해 금지·알림 설정에 따라 달라 손으로 본다.</p>
 </section>
 
 <section class="feature" id="device-mirroring">

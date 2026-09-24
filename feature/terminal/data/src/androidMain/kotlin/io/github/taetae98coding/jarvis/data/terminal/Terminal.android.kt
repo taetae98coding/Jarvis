@@ -3,6 +3,7 @@ package io.github.taetae98coding.jarvis.data.terminal
 import io.github.taetae98coding.jarvis.data.PlatformContext
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
@@ -42,6 +43,11 @@ private class PipeTerminalDataSource(
     }
 
     override suspend fun stopClaude(sessionId: String) = Unit
+
+    // Claude 탭이 없으니 알릴 턴도 없다. 알림 채널을 만들거나 권한을 묻지 않는다.
+    override fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>> = flowOf(emptyMap())
+
+    override suspend fun showNotification(title: String, message: String) = Unit
 
     override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = flowOf(emptyList())
 

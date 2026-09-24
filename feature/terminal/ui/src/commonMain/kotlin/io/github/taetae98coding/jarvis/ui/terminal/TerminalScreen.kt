@@ -46,6 +46,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -99,6 +100,14 @@ internal fun TerminalScreen(
     // Koin 을 다시 세우면(테스트) 닫힌 것을 돌려주므로, 닫히면 다시 찾는 currentKoinScope() 로 받는다.
     val scope = currentKoinScope()
     val devices = remember(scope) { scope.getOrNull<DeviceScreens>() }
+
+    // 창에 포커스가 있을 때 선택된 패널에 보이는 Claude 탭만 "보고 있음" 이다(docs/common/claude-notification.html R4).
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    val watched = workspace?.takeIf { windowFocused }?.visibleTabs?.mapNotNullTo(mutableSetOf()) { it.claudeSessionId }.orEmpty()
+    DisposableEffect(viewModel, watched) {
+        viewModel.watchClaude(watched)
+        onDispose { viewModel.watchClaude(emptySet()) }
+    }
 
     Box(
         modifier = modifier

@@ -16,4 +16,5 @@ val terminalDomainModule = module {
     factoryOf(::ObserveGitWorktreeUseCase)
     factoryOf(::AddWorktreePanelUseCase)
     factoryOf(::CloseWorktreePanelUseCase)
+    factoryOf(::NotifyClaudeTurnEndsUseCase)
 }
