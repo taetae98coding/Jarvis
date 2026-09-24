@@ -149,9 +149,7 @@
     <tr><td>Web</td><td>콜백</td><td><code>storage</code> 이벤트 + 자체 발신. 콜백 없는 저장소를 위한 대체 간격 <code>SettingsPollInterval</code> 2초는 지금 쓰이지 않는다</td></tr>
     <tr><td>시스템 화면 꺼짐 시간</td><td>Android</td><td>콜백</td><td><code>ContentObserver</code>(<code>SCREEN_OFF_TIMEOUT</code>). 나머지는 지원하지 않아 고정값 하나</td></tr>
     <tr><td><code>WRITE_SETTINGS</code> 권한</td><td>Android</td><td>콜백</td><td><code>AppOpsManager.startWatchingMode</code> + <code>ActivityLifecycleCallbacks.onActivityResumed</code></td></tr>
-    <tr><td rowspan="3">화면 회전 각도·잠금</td><td>Android</td><td>콜백</td><td><code>DisplayManager.DisplayListener</code> + <code>ContentObserver</code>(<code>ACCELEROMETER_ROTATION</code>)</td></tr>
-    <tr><td>iOS</td><td>콜백</td><td><code>UIDeviceOrientationDidChangeNotification</code> + 자체 발신</td></tr>
-    <tr><td>Web</td><td>콜백</td><td><code>orientationchange</code> + 자체 발신(<code>lock()</code> 거절). JVM 은 지원하지 않아 고정값 하나</td></tr>
+    <tr><td>화면 회전 각도·잠금</td><td>Android</td><td>콜백</td><td><code>DisplayManager.DisplayListener</code> + <code>ContentObserver</code>(<code>ACCELEROMETER_ROTATION</code>). 나머지는 지원하지 않아 고정값 하나</td></tr>
     <tr><td rowspan="2">에뮬레이터 개수·목록</td><td>JVM</td><td>폴링</td><td><code>PollInterval</code> 5초. <code>simctl</code>·<code>xctrace</code> 에 변경 알림이 없다</td></tr>
     <tr><td>Android·iOS·Web</td><td>폴링</td><td><code>HostAgentPollInterval</code> 5초. HTTP 는 에이전트가 먼저 말할 수 없다</td></tr>
     <tr><td>에뮬레이터 화면</td><td>전부</td><td>폴링</td><td><code>EmulatorScreenPollInterval</code> 500ms. 화면을 찍는 명령이 한 장씩만 준다</td></tr>
@@ -181,9 +179,9 @@
   <thead><tr><th>플랫폼</th><th>판정</th><th>콜백을 주는 상태</th><th>문서</th></tr></thead>
   <tbody>
     <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>설정(<code>OnSharedPreferenceChangeListener</code>), 시스템 화면 꺼짐 시간(<code>ContentObserver</code>), <code>WRITE_SETTINGS</code> 권한(<code>AppOpsManager.startWatchingMode</code> + Activity resume), 회전. 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/android.html#state-observation">android.html</a></td></tr>
-    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>설정(<code>NSUserDefaultsDidChangeNotification</code>), 회전. 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/ios.html#state-observation">ios.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>설정(<code>NSUserDefaultsDidChangeNotification</code>). 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/ios.html#state-observation">ios.html</a></td></tr>
     <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>설정(<code>PreferenceChangeListener</code>). 에뮬레이터 개수는 <code>simctl</code>에 알림이 없어 폴링</td><td><a href="../platform/jvm.html#state-observation">jvm.html</a></td></tr>
-    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>설정(<code>storage</code> 이벤트 + 자체 발신), 회전. 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/web.html#state-observation">web.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>설정(<code>storage</code> 이벤트 + 자체 발신). 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/web.html#state-observation">web.html</a></td></tr>
   </tbody>
 </table>
 

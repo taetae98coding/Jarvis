@@ -41,6 +41,12 @@
   <footer>2026-09-22 대화. 360도는 0도와 같은 방향이라 버튼이 겹친다. 대신 빠져 있던 180도를 넣어 네 방향을 모두 덮는다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>iOS에서는 설정을 수정하는게 아니야??</p>
+  <p>내가 원한건 Android 같은 방식이야. 다른 플랫폼도 android처럼 수정하고 불가능하면 지원 안함으로 수정해줘.</p>
+  <footer>2026-09-24 대화. 첫 구현은 iOS 가 앱 창 방향을, Web 이 브라우저 탭 방향을 돌렸다. 사용자가 원한 것은 Android 처럼 시스템 회전 설정을 바꿔 기기 자체가 돌아가는 것이다. 그렇게 할 수 없는 플랫폼은 "지원 안 함"으로 둔다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
@@ -52,6 +58,7 @@
   <li><strong>R6.</strong> 현재 각도와 잠금 여부는 앱 밖에서 바뀌어도 카드에 반영된다(<a href="state-observation.html">상태 조회 규칙</a>).</li>
   <li><strong>R7.</strong> 특별 권한이 필요한 플랫폼에서 버튼이나 토글을 누르면 권한 설정 화면이 열리고, 허용 여부가 카드 설명에 보인다.</li>
   <li><strong>R8.</strong> 지원하지 않는 플랫폼에서도 카드는 같은 자리에 있고, 잠긴 채로 왜 불가능한지 보여준다.</li>
+  <li><strong>R9.</strong> 돌아가는 것은 앱 창이 아니라 <strong>기기</strong>다. Android 처럼 시스템 회전 설정을 바꿔 홈 화면과 다른 앱도 함께 돌아야 한다. 시스템 설정을 바꿀 수 없는 플랫폼은 우회하지 않고 R8 을 따른다.</li>
 </ol>
 
 <aside class="warn">
@@ -59,25 +66,26 @@
   <ul>
     <li><strong>360°</strong>. 0°와 같은 방향이라 버튼이 하나 더 있어도 구분되는 동작이 없다. 대신 지시에서 빠져 있던 180°를 넣었다.</li>
     <li><strong>설정 영구 저장.</strong> 회전 각도와 잠금은 앱의 설정이 아니라 지금 기기가 어떤 상태인지다. 앱이 죽은 뒤에도 시스템(또는 브라우저 세션)에 그대로 남으므로 <a href="settings-persistence.html">우리 저장소</a>에 따로 적지 않는다. 카드는 항상 시스템에서 읽은 값을 보여준다.</li>
-    <li><strong>JVM에서의 R2~R5.</strong> 데스크톱 디스플레이 회전은 공개 API가 없다. R8로 처리한다.</li>
+    <li><strong>앱 창만 돌리기.</strong> iOS 의 <code>requestGeometryUpdate</code> 나 Web 의 <code>screen.orientation.lock()</code> 은 우리 창·탭만 돌리고 시스템 회전잠금은 건드리지 않는다. 2026-09-22 구현이 이 길을 택했지만 R9 에 어긋나 걷어냈다. 조사 내용은 각 플랫폼 문서의 버린 후보에 남겼다.</li>
+    <li><strong>iOS·JVM·Web에서의 R2~R5.</strong> 세 플랫폼 모두 시스템 회전 설정을 바꾸는 공개 API가 없다. R8로 처리한다.</li>
   </ul>
 </aside>
 
 <h2 id="angle">각도 기준</h2>
 
-<p>각도는 <strong>기기의 natural 방향에서 화면이 반시계로 돌아간 양</strong>이다. Android <code>Surface.ROTATION_*</code>와 Web <code>ScreenOrientation.angle</code>이 이미 같은 기준을 쓰고, iOS만 방향 상수로 옮겨야 한다. 방향이 헷갈리기 쉬워서 표로 못박는다.</p>
+<p>각도는 <strong>기기의 natural 방향에서 화면이 반시계로 돌아간 양</strong>이다. Android <code>Surface.ROTATION_*</code>가 같은 기준을 쓴다. 방향이 헷갈리기 쉬워서 표로 못박는다.</p>
 
 <table>
-  <thead><tr><th>각도</th><th>기기 자세 (natural이 세로일 때)</th><th>Android</th><th>iOS</th><th>Web</th></tr></thead>
+  <thead><tr><th>각도</th><th>기기 자세 (natural이 세로일 때)</th><th>Android</th></tr></thead>
   <tbody>
-    <tr><td>0°</td><td>똑바로</td><td><code>ROTATION_0</code></td><td><code>Portrait</code></td><td><code>portrait-primary</code></td></tr>
-    <tr><td>90°</td><td>반시계 90° (홈 버튼이 오른쪽)</td><td><code>ROTATION_90</code></td><td><code>LandscapeLeft</code></td><td><code>landscape-primary</code></td></tr>
-    <tr><td>180°</td><td>거꾸로</td><td><code>ROTATION_180</code></td><td><code>PortraitUpsideDown</code></td><td><code>portrait-secondary</code></td></tr>
-    <tr><td>270°</td><td>시계 90° (홈 버튼이 왼쪽)</td><td><code>ROTATION_270</code></td><td><code>LandscapeRight</code></td><td><code>landscape-secondary</code></td></tr>
+    <tr><td>0°</td><td>똑바로</td><td><code>ROTATION_0</code></td></tr>
+    <tr><td>90°</td><td>반시계 90° (홈 버튼이 오른쪽)</td><td><code>ROTATION_90</code></td></tr>
+    <tr><td>180°</td><td>거꾸로</td><td><code>ROTATION_180</code></td></tr>
+    <tr><td>270°</td><td>시계 90° (홈 버튼이 왼쪽)</td><td><code>ROTATION_270</code></td></tr>
   </tbody>
 </table>
 
-<p><code>+90°</code>는 이 표에서 아래로 한 칸, <code>-90°</code>는 위로 한 칸이다. natural이 가로인 기기(일부 태블릿)에서도 각도의 뜻은 같지만, Web은 각도가 아니라 <code>portrait</code>/<code>landscape</code> 이름으로만 잠글 수 있어 대응이 어긋날 수 있다(<a href="../platform/web.html#device-rotation">web.html</a>).</p>
+<p><code>+90°</code>는 이 표에서 아래로 한 칸, <code>-90°</code>는 위로 한 칸이다. natural이 가로인 기기(일부 태블릿)에서도 각도의 뜻은 같다. 걷어낸 iOS(<code>UIInterfaceOrientation</code>)·Web(<code>OrientationType</code>) 대응은 각 플랫폼 문서의 버린 후보에 남겨 두었다.</p>
 
 <h2 id="behavior">화면·동작</h2>
 
@@ -104,7 +112,7 @@
 <dl class="meta">
   <dt>UI</dt><dd><code>ui/rotation/DeviceRotationCard.kt</code></dd>
   <dt>모델</dt><dd><code>RotationAngle</code>, <code>DeviceRotationStatus</code> (<code>domain/rotation</code>)</dd>
-  <dt>규칙</dt><dd><code>SetDeviceRotationAngleUseCase</code>, <code>RotateDeviceUseCase</code>, <code>SetDeviceRotationLockUseCase</code>, <code>ObserveDeviceRotationStatusUseCase</code></dd>
+  <dt>규칙</dt><dd><code>SetDeviceRotationAngleUseCase</code>, <code>RotateDeviceUseCase</code>, <code>SetDeviceRotationLockUseCase</code>, <code>ObserveDeviceRotationStatusUseCase</code>. Android <a href="home-screen-widget.html">홈 화면 위젯</a>도 같은 셋을 부른다</dd>
   <dt>공급</dt><dd><code>data/rotation/DeviceRotationDataSource.kt</code></dd>
 </dl>
 
@@ -133,7 +141,7 @@ internal expect fun createDeviceRotationDataSource(
 
 <aside class="decision">
   <strong>결정: "각도를 고르면 잠근다"는 규칙은 유스케이스에 둔다</strong>
-  R5는 플랫폼 사정이 아니라 기능의 규칙이다. <code>SetDeviceRotationAngleUseCase</code>가 <code>setLocked(true)</code> 다음에 <code>setAngle(angle)</code>을 부르고, <code>:feature:rotation:domain</code> 테스트가 가짜 리포지토리로 순서까지 검증한다. 세 플랫폼의 <code>actual</code>에 같은 규칙을 세 번 적는 길은 버렸다. 잠금을 먼저 거는 이유는 Android에서 자동 회전이 켜진 채로 <code>USER_ROTATION</code>을 쓰면 값만 남고 화면은 그대로여서다.
+  R5는 플랫폼 사정이 아니라 기능의 규칙이다. <code>SetDeviceRotationAngleUseCase</code>가 <code>setLocked(true)</code> 다음에 <code>setAngle(angle)</code>을 부르고, <code>:feature:rotation:domain</code> 테스트가 가짜 리포지토리로 순서까지 검증한다. 플랫폼 <code>actual</code>에 적는 길은 버렸다. 지금 구현이 Android 하나뿐이어도 이 규칙은 플랫폼이 아니라 기능의 것이다. 잠금을 먼저 거는 이유는 Android에서 자동 회전이 켜진 채로 <code>USER_ROTATION</code>을 쓰면 값만 남고 화면은 그대로여서다.
 </aside>
 
 <aside class="decision">
@@ -146,15 +154,20 @@ internal expect fun createDeviceRotationDataSource(
   <a href="keep-screen-awake.html">화면 꺼짐 방지</a>는 설정값을 저장하고 앱이 뜰 때 다시 적용한다. 회전은 반대다. 시스템(또는 브라우저)이 이미 값을 들고 있고 앱이 없어도 유지되므로, 우리가 한 벌 더 저장하면 두 값이 어긋날 때 무엇이 사실인지 알 수 없어진다. 카드는 항상 시스템에서 읽는다. 그래서 <code>JarvisViewModel</code>이 적용하는 효과 목록에도 회전은 없다.
 </aside>
 
+<aside class="decision">
+  <strong>결정: 시스템 설정을 바꿀 수 없으면 우회하지 않고 "지원 안 함"으로 둔다</strong>
+  2026-09-22 구현은 iOS 에서 <code>supportedInterfaceOrientations</code> 마스크와 <code>requestGeometryUpdate</code> 로 앱 창을, Web 에서 <code>screen.orientation.lock()</code> 으로 브라우저 탭을 돌렸다. 카드는 같아 보였지만 뜻이 달랐다. Android 에서는 홈 화면까지 도는데 iOS 에서는 우리 앱만 돌고, 잠금 토글은 "시스템이 잠겼나"가 아니라 "우리가 마스크를 좁혔나"를 보여줬다. 2026-09-24 지시(R9)로 이 우회를 전부 걷어냈다. iOS 의 <code>DeviceRotationGate</code> 와 Swift <code>AppDelegate</code>, Info.plist 의 <code>PortraitUpsideDown</code> 추가, Web 의 <code>ScreenOrientation</code> 선언이 함께 사라졌다. 두 플랫폼의 <code>actual</code> 은 JVM 과 같은 <code>UnsupportedDeviceRotationDataSource</code> 를 돌려준다.
+</aside>
+
 <h2 id="platforms">플랫폼별 판정</h2>
 
 <table>
   <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
   <tbody>
     <tr><td>Android</td><td><span class="badge workaround">우회</span> <span class="badge untested">미검증</span></td><td><code>WRITE_SETTINGS</code>로 <code>ACCELEROMETER_ROTATION</code>·<code>USER_ROTATION</code>을 쓴다. 앱이 아니라 기기가 돌아간다</td><td><a href="../platform/android.html#device-rotation">android.html</a></td></tr>
-    <tr><td>iOS</td><td><span class="badge workaround">우회</span> <span class="badge untested">미검증</span></td><td>기기 전역은 불가. <code>requestGeometryUpdate</code>와 <code>supportedInterfaceOrientations</code>로 앱 창만 돌린다</td><td><a href="../platform/ios.html#device-rotation">ios.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>시스템 회전잠금을 읽거나 쓰는 공개 API가 없다. 앱 창만 돌리는 우회는 R9 로 버렸다. 카드가 잠긴다</td><td><a href="../platform/ios.html#device-rotation">ios.html</a></td></tr>
     <tr><td>JVM</td><td><span class="badge no">불가</span></td><td>디스플레이 회전을 바꾸는 공개 API가 없다. 카드가 잠긴다</td><td><a href="../platform/jvm.html#device-rotation">jvm.html</a></td></tr>
-    <tr><td>Web</td><td><span class="badge partial">조건부</span> <span class="badge untested">미검증</span></td><td>Screen Orientation API. 모바일 브라우저에서, 대개 전체화면일 때만 잠글 수 있다</td><td><a href="../platform/web.html#device-rotation">web.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>브라우저가 OS 회전 설정에 닿을 길이 없다. 탭만 돌리는 Screen Orientation API 는 R9 로 버렸다. 카드가 잠긴다</td><td><a href="../platform/web.html#device-rotation">web.html</a></td></tr>
   </tbody>
 </table>
 
@@ -175,13 +188,13 @@ internal expect fun createDeviceRotationDataSource(
   </tbody>
 </table>
 
-<p>실제로 화면이 도는 경로는 네 플랫폼 모두 <span class="badge untested">미검증</span>이다. 기기·브라우저에서만 돌고, 테스트 환경에는 돌릴 화면이 없다. 각 플랫폼 문서의 검증 절에 수동 확인 방법을 적었다.</p>
+<p>실제로 화면이 도는 경로는 Android 하나고 <span class="badge untested">미검증</span>이다. 기기에서만 돌고, 테스트 환경에는 돌릴 화면이 없다. 수동 확인 방법은 <a href="../platform/android.html#device-rotation">android.html</a> 검증 절에 있다. iOS·JVM·Web 은 <code>deviceRotationIsLockedWhereItIsNotSupported</code> 가 쓰는 가짜 상태의 기본값이 실제 판정과 같아서, 그 테스트가 실제 동작을 그대로 검증한다.</p>
 
 <h2 id="limits">한계</h2>
 
 <ul>
-  <li><strong>"기기 전역"인 곳은 Android뿐이다.</strong> iOS와 Web은 앱·문서 창만 돌아가고 시스템 회전잠금은 그대로다. <a href="#platforms">판정 표</a>와 각 플랫폼 문서 참고.</li>
-  <li><strong>180°는 거절될 수 있다.</strong> 노치가 있는 iPhone은 거꾸로 방향을 지원하지 않아 요청이 실패하고 각도가 그대로 남는다. Android도 제조사 ROM이 막을 수 있다.</li>
+  <li><strong>동작하는 플랫폼은 Android 하나다.</strong> iOS·JVM·Web 은 시스템 회전 설정에 닿을 길이 없어 카드가 잠긴다. <a href="#platforms">판정 표</a>와 각 플랫폼 문서 참고.</li>
+  <li><strong>180°는 거절될 수 있다.</strong> 제조사 ROM이 거꾸로 방향을 막으면 <code>USER_ROTATION</code>에 값은 남고 화면은 그대로다.</li>
   <li><strong>고정한 각도를 다른 앱이 덮어쓸 수 있다.</strong> Android에서 방향을 고정한 앱을 열면 그 앱이 이긴다. 우리는 마지막에 쓴 값만 책임진다.</li>
   <li><strong>회전잠금을 끄고 끝나지 않는다.</strong> 앱을 종료해도 Android에서는 걸어 둔 잠금이 남는다. 되돌리려면 토글을 끄거나 시스템 설정에서 자동 회전을 켜야 한다.</li>
 </ul>

@@ -121,14 +121,14 @@ internal fun jarvisModules(context: PlatformContext): List&lt;Module&gt; =
 <table>
   <thead><tr><th>플랫폼</th><th>어디서</th><th>호출</th></tr></thead>
   <tbody>
-    <tr><td>Android</td><td><code>MainActivity.onCreate</code>, <code>setContent</code> 전</td><td><code>startJarvisKoin(applicationContext)</code></td></tr>
+    <tr><td>Android</td><td><code>JarvisApplication.onCreate</code></td><td><code>startJarvisKoin(this)</code></td></tr>
     <tr><td>iOS</td><td><code>MainViewController()</code> 진입 시</td><td><code>startJarvisKoin()</code></td></tr>
     <tr><td>JVM</td><td><code>main()</code></td><td><code>startJarvisKoin()</code></td></tr>
     <tr><td>Web</td><td><code>main()</code></td><td><code>startJarvisKoin()</code></td></tr>
   </tbody>
 </table>
 
-<p><code>startJarvisKoin()</code>은 두 번 불려도 안전하다. Android 는 Activity 가 다시 만들어지면 <code>onCreate</code>가 다시 돌고, iOS 는 <code>MainViewController()</code>가 여러 번 만들어질 수 있다. 이미 시작돼 있으면 그 인스턴스를 그대로 돌려준다.</p>
+<p><code>startJarvisKoin()</code>은 두 번 불려도 안전하다. iOS 는 <code>MainViewController()</code>가 여러 번 만들어질 수 있다. 이미 시작돼 있으면 그 인스턴스를 그대로 돌려준다. Android 는 2026-09-24 부터 <code>Application.onCreate</code>에서 부르므로 프로세스마다 한 번이다. <a href="home-screen-widget.html">홈 화면 위젯</a>이 Activity 없이 프로세스를 띄우면서 <code>MainActivity.onCreate</code>에서 옮겼다.</p>
 
 <pre><code>fun startJarvisKoin(): Koin =
     // 이미 시작된 Koin 에 startKoin 을 다시 부르면 KoinAppAlreadyStartedException 이다.
@@ -142,7 +142,7 @@ internal fun jarvisModules(context: PlatformContext): List&lt;Module&gt; =
 
 <aside class="decision">
   <strong>결정: <code>rememberPlatformContext()</code>를 없앤다</strong>
-  Compose 트리에서 <code>Context</code>를 꺼내던 <a href="module-architecture.html#exceptions">계층 규칙의 예외</a> 하나가 사라진다. 이제 <code>MainActivity</code>가 <code>applicationContext</code>를 <code>startJarvisKoin(context)</code>에 넘기므로, 플랫폼 핸들이 Compose 를 거치지 않는다. <code>:shared</code>의 <code>androidMain</code>에는 <code>Context</code>를 <code>PlatformContext</code>로 감싸는 한 줄만 남는다. <code>PlatformContext</code> 자체는 <code>:core:data</code>에 있다. 예전에 버렸던 "<code>Application</code> 서브클래스나 <code>androidx.startup</code>으로 전역 컨텍스트 보관" 과는 다르다. 매니페스트에 등록하는 것도, 초기화 순서를 숨기는 것도 없고, 컨텍스트를 넘기는 코드가 진입점에 그대로 보인다.
+  Compose 트리에서 <code>Context</code>를 꺼내던 <a href="module-architecture.html#exceptions">계층 규칙의 예외</a> 하나가 사라진다. 이제 진입점(<code>JarvisApplication</code>)이 컨텍스트를 <code>startJarvisKoin(context)</code>에 넘기므로, 플랫폼 핸들이 Compose 를 거치지 않는다. <code>:shared</code>의 <code>androidMain</code>에는 <code>Context</code>를 <code>PlatformContext</code>로 감싸는 한 줄만 남는다. <code>PlatformContext</code> 자체는 <code>:core:data</code>에 있다. 예전에 버렸던 "<code>androidx.startup</code>으로 전역 컨텍스트 보관" 과는 다르다. 초기화 순서를 숨기는 것이 없고, 컨텍스트를 넘기는 코드가 진입점에 그대로 보인다. <code>Application</code> 서브클래스는 <a href="home-screen-widget.html">위젯</a> 때문에 들였지만, 그것이 하는 일은 <code>startJarvisKoin(this)</code> 한 줄이다.
 </aside>
 
 <aside class="decision">
@@ -187,7 +187,7 @@ internal fun TestJarvisApp(emulator: EmulatorRepository = FakeEmulatorRepository
 <table>
   <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
   <tbody>
-    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>MainActivity.onCreate</code>에서 <code>applicationContext</code>를 넘겨 시작한다. <code>koin-android</code> 없이 <code>koin-core</code>만 쓴다</td><td><a href="../platform/android.html#dependency-injection">android.html</a></td></tr>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>JarvisApplication.onCreate</code>에서 시작한다. <code>koin-android</code> 없이 <code>koin-core</code>만 쓴다</td><td><a href="../platform/android.html#dependency-injection">android.html</a></td></tr>
     <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td><code>MainViewController()</code>가 시작한다. Swift 는 Koin 을 모른다</td><td><a href="../platform/ios.html#dependency-injection">ios.html</a></td></tr>
     <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td><code>main()</code>에서 호스트 에이전트를 띄운 뒤 시작한다</td><td><a href="../platform/jvm.html#dependency-injection">jvm.html</a></td></tr>
     <tr><td>Web</td><td><span class="badge ok">구현</span></td><td><code>main()</code>에서 <code>ComposeViewport</code> 전에 시작한다. <code>koin-core</code>는 wasmJs 아티팩트를 퍼블리시한다</td><td><a href="../platform/web.html#dependency-injection">web.html</a></td></tr>
