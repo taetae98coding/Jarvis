@@ -942,7 +942,7 @@ class JarvisApplication : Application() {
   <tbody>
     <tr><td>기기의 <code>git</code> 실행 파일</td><td>없다. AOSP 는 <code>git</code> 을 싣지 않고, <code>/system/bin/sh</code> 에서 <code>git</code> 은 <code>not found</code> 다. Termux 의 <code>git</code> 은 다른 앱의 샌드박스라 이 앱이 실행할 수 없다</td></tr>
     <tr><td>JGit 을 앱에 싣기</td><td>버렸다. 워크트리를 만들 수는 있지만 만든 워크트리에서 셸이 <code>git</code> 을 못 쓰니(위) 사용자가 그 폴더에서 할 수 있는 일이 없다. 의존성만 는다</td></tr>
-    <tr><td>모델·저장</td><td>공통 코드. <code>parentId</code> 가 있는 파일(다른 기기에서 가져온 것)도 그대로 읽고 들여쓴 줄로 보인다</td></tr>
+    <tr><td>모델·저장</td><td>공통 코드. <code>parentId</code>·<code>branch</code>·<code>baseBranch</code> 가 있는 파일(다른 기기에서 가져온 것)도 그대로 읽고 들여쓴 줄과 <code>기준 → 브랜치</code> 줄로 보인다. 관측할 git 이 없어 브랜치 줄은 저장한 값으로 고정된다</td></tr>
   </tbody>
 </table>
 

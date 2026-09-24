@@ -106,8 +106,13 @@ internal class TerminalViewModel(
      * [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 패널을 붙인다. 창이 닫혀 이 호출이 취소돼도 git 명령과
      * 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게.
      */
-    suspend fun addWorktreePanel(parentId: Long, branch: String, directory: String, program: TerminalProgram): Result<Unit> =
-        viewModelScope.async { addWorktree(parentId, branch, directory, program).map { } }.await()
+    suspend fun addWorktreePanel(
+        parentId: Long,
+        branch: String,
+        baseBranch: String?,
+        directory: String,
+        program: TerminalProgram,
+    ): Result<Unit> = viewModelScope.async { addWorktree(parentId, branch, baseBranch, directory, program).map { } }.await()
 
     fun renamePanel(panelId: Long, name: String) = update { it.renamePanel(panelId, name) }
 

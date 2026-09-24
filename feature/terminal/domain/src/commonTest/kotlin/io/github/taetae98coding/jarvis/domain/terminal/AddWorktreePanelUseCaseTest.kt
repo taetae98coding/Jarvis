@@ -21,16 +21,19 @@ class AddWorktreePanelUseCaseTest {
     fun addsTheWorktreeToTheParentFolderRepositoryAndOpensAPanelInIt() = runTest {
         val git = RecordingGitWorktreeRepository()
 
-        val result = useCase(git).invoke(parent.id, " feature/login ", "/work/jarvis-worktrees/feature/login")
+        val result = useCase(git).invoke(parent.id, " feature/login ", " main ", "/work/jarvis-worktrees/feature/login")
 
         val added = git.added.single()
         assertEquals("/work/jarvis", added.repositoryDirectory)
         assertEquals("feature/login", added.branch)
+        assertEquals("main", added.baseBranch)
         assertEquals("/work/jarvis-worktrees/feature/login", added.path)
 
         val after = result.getOrThrow().after
         val child = after.selectedPanel!!
         assertEquals("feature/login", child.name)
+        assertEquals("feature/login", child.branch)
+        assertEquals("main", child.baseBranch)
         assertEquals("/work/jarvis-worktrees/feature/login", child.directory)
         assertEquals(parent.id, child.parentId)
         assertEquals(TerminalProgram.Shell, after.focusedTab!!.program)
@@ -40,8 +43,20 @@ class AddWorktreePanelUseCaseTest {
     }
 
     @Test
+    fun aBlankBaseBranchIsPassedAsNullAndNotRemembered() = runTest {
+        val git = RecordingGitWorktreeRepository()
+
+        val result = useCase(git).invoke(parent.id, "fix", "   ", "/tmp/fix")
+
+        assertNull(git.added.single().baseBranch)
+        val child = result.getOrThrow().after.selectedPanel!!
+        assertEquals("fix", child.branch)
+        assertNull(child.baseBranch)
+    }
+
+    @Test
     fun claudeGetsAFreshSessionId() = runTest {
-        val result = useCase(RecordingGitWorktreeRepository()).invoke(parent.id, "fix", "/tmp/fix", TerminalProgram.Claude)
+        val result = useCase(RecordingGitWorktreeRepository()).invoke(parent.id, "fix", null, "/tmp/fix", TerminalProgram.Claude)
 
         val tab = result.getOrThrow().after.focusedTab!!
         assertEquals(TerminalProgram.Claude, tab.program)
@@ -50,7 +65,7 @@ class AddWorktreePanelUseCaseTest {
 
     @Test
     fun gitFailureLeavesTheWorkspaceAlone() = runTest {
-        val result = useCase(RecordingGitWorktreeRepository(failure = "fatal: 'fix' is already checked out")).invoke(parent.id, "fix", "/tmp/fix")
+        val result = useCase(RecordingGitWorktreeRepository(failure = "fatal: 'fix' is already checked out")).invoke(parent.id, "fix", "main", "/tmp/fix")
 
         val error = assertIs<GitWorktreeException>(result.exceptionOrNull())
         assertEquals("fatal: 'fix' is already checked out", error.message)
@@ -62,10 +77,10 @@ class AddWorktreePanelUseCaseTest {
         val git = RecordingGitWorktreeRepository()
         val noFolder = initial.panels.first()
 
-        assertTrue(useCase(git).invoke(noFolder.id, "fix", "/tmp/fix").isFailure)
-        assertTrue(useCase(git).invoke(parent.id, "   ", "/tmp/fix").isFailure)
-        assertTrue(useCase(git).invoke(parent.id, "fix", "  ").isFailure)
-        assertTrue(useCase(git).invoke(999, "fix", "/tmp/fix").isFailure)
+        assertTrue(useCase(git).invoke(noFolder.id, "fix", "main", "/tmp/fix").isFailure)
+        assertTrue(useCase(git).invoke(parent.id, "   ", "main", "/tmp/fix").isFailure)
+        assertTrue(useCase(git).invoke(parent.id, "fix", "main", "  ").isFailure)
+        assertTrue(useCase(git).invoke(999, "fix", "main", "/tmp/fix").isFailure)
         assertEquals(emptyList(), git.added)
         assertEquals(initial, workspace.workspace.value)
     }

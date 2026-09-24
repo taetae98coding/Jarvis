@@ -297,13 +297,14 @@ internal class FakeTerminalWorkspaceRepository(
 
 /**
  * 폴더마다 정해 둔 워크트리를 답한다. 기본값은 어느 폴더도 저장소가 아닌 것이다. 만들기는 요청을 기록하고
- * 새 경로도 저장소로 등록해서, 진짜 git 처럼 워크트리 패널에도 + 가 붙는다. [failure] 가 있으면 그것으로 실패한다.
+ * 새 경로도 그 브랜치를 체크아웃한 저장소로 등록해서, 진짜 git 처럼 워크트리 패널에도 + 가 붙고 현재 브랜치가 보인다.
+ * [failure] 가 있으면 그것으로 실패한다.
  */
 internal class FakeGitWorktreeRepository(
     worktrees: Map<String, GitWorktree> = emptyMap(),
     var failure: String? = null,
 ) : GitWorktreeRepository {
-    class Added(val repositoryDirectory: String, val branch: String, val path: String)
+    class Added(val repositoryDirectory: String, val branch: String, val path: String, val baseBranch: String?)
 
     val worktrees = MutableStateFlow(worktrees)
 
@@ -311,11 +312,15 @@ internal class FakeGitWorktreeRepository(
 
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = worktrees.map { it[directory] }
 
-    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String): Result<GitWorktree> {
-        added += Added(repositoryDirectory, branch, path)
+    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> {
+        added += Added(repositoryDirectory, branch, path, baseBranch)
         failure?.let { return Result.failure(GitWorktreeException(it)) }
 
-        val worktree = GitWorktree(path = path, mainPath = worktrees.value[repositoryDirectory]?.mainPath ?: repositoryDirectory)
+        val worktree = GitWorktree(
+            path = path,
+            mainPath = worktrees.value[repositoryDirectory]?.mainPath ?: repositoryDirectory,
+            branch = branch,
+        )
         worktrees.update { it + (path to worktree) }
 
         return Result.success(worktree)

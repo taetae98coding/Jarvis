@@ -39,7 +39,7 @@ internal class ProcessGitDataSource(
     override fun observeWorktree(directory: String): Flow<GitWorktree?> =
         observeByPolling(interval = GitWorktreePollInterval) { readWorktree(directory) }.flowOn(Dispatchers.IO)
 
-    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String): Result<GitWorktree> =
+    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> =
         withContext(Dispatchers.IO) {
             val repository = File(expandHome(repositoryDirectory, home))
             val target = File(expandHome(path, home)).let { if (it.isAbsolute) it else File(repository, it.path) }
@@ -48,7 +48,7 @@ internal class ProcessGitDataSource(
             val added = if (branchExists) {
                 run(git(repository, "worktree", "add", target.path, branch))
             } else {
-                run(git(repository, "worktree", "add", "-b", branch, target.path))
+                run(git(repository, "worktree", "add", "-b", branch, target.path, *listOfNotNull(baseBranch).toTypedArray()))
             }
             if (added.exitCode != 0) {
                 return@withContext Result.failure(GitWorktreeException(added.error.trim().ifEmpty { "git 이 ${added.exitCode} 로 끝났습니다" }))
@@ -66,8 +66,14 @@ internal class ProcessGitDataSource(
 
         val result = run(git(folder, "rev-parse", "--show-toplevel", "--git-common-dir"))
         if (result.exitCode != 0) return null
+        val worktree = parseWorktree(result.output, folder) ?: return null
 
-        return parseWorktree(result.output, folder)
+        // rev-parse 에 --abbrev-ref HEAD 를 합치면 커밋 없는 저장소(unborn)에서 명령 전체가 실패해 저장소 판정까지
+        // 깨진다. branch --show-current 는 unborn 이면 이름, detached 면 빈 줄이다(docs/platform/jvm.html#terminal-worktree).
+        val head = run(git(folder, "branch", "--show-current"))
+        val branch = head.output.trim().takeIf { head.exitCode == 0 && it.isNotEmpty() }
+
+        return worktree.copy(branch = branch)
     }
 }
 

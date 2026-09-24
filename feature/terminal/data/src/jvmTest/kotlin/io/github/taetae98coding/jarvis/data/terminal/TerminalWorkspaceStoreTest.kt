@@ -66,13 +66,21 @@ class TerminalWorkspaceStoreTest {
         val path = newPath()
         val change = repository(path).updateWorkspace {
             val withRepo = it.addPanel(name = "Jarvis", directory = "/work/jarvis")
-            withRepo.addWorktreePanel(withRepo.selectedPanelId!!, name = "fix", directory = "/work/jarvis-worktrees/fix")
+            withRepo.addWorktreePanel(
+                withRepo.selectedPanelId!!,
+                name = "fix",
+                directory = "/work/jarvis-worktrees/fix",
+                branch = "fix",
+                baseBranch = "main",
+            )
         }
 
         val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
 
         assertEquals(change.after, reopened)
         assertEquals(reopened.panels[1].id, reopened.panels.last().parentId)
+        assertEquals("fix", reopened.panels.last().branch)
+        assertEquals("main", reopened.panels.last().baseBranch)
     }
 
     // 부모가 사라졌거나 부모 자신이 워크트리 패널인 parentId 는 최상위로 읽는다.
@@ -96,6 +104,9 @@ class TerminalWorkspaceStoreTest {
         val workspace = repository(path).observeWorkspace().first()
 
         assertEquals(listOf(null, 1L, null, null), workspace.panels.map { it.parentId })
+        // 이전 버전이 저장한 워크트리 패널에는 브랜치 키가 없다.
+        assertEquals(listOf(null, null, null, null), workspace.panels.map { it.branch })
+        assertEquals(listOf(null, null, null, null), workspace.panels.map { it.baseBranch })
     }
 
     @Test

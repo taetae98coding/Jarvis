@@ -8,17 +8,17 @@ internal class RecordingGitWorktreeRepository(
     private val worktrees: Map<String, GitWorktree> = emptyMap(),
     private val failure: String? = null,
 ) : GitWorktreeRepository {
-    class Added(val repositoryDirectory: String, val branch: String, val path: String)
+    class Added(val repositoryDirectory: String, val branch: String, val path: String, val baseBranch: String?)
 
     val added = mutableListOf<Added>()
 
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = flowOf(worktrees[directory])
 
-    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String): Result<GitWorktree> {
-        added += Added(repositoryDirectory, branch, path)
+    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> {
+        added += Added(repositoryDirectory, branch, path, baseBranch)
         if (failure != null) return Result.failure(GitWorktreeException(failure))
 
         val main = worktrees[repositoryDirectory]?.mainPath ?: repositoryDirectory
-        return Result.success(GitWorktree(path = path, mainPath = main))
+        return Result.success(GitWorktree(path = path, mainPath = main, branch = branch))
     }
 }

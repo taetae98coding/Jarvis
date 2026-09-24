@@ -8,14 +8,14 @@ import kotlinx.coroutines.flow.flowOf
 internal interface GitDataSource {
     fun observeWorktree(directory: String): Flow<GitWorktree?>
 
-    suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String): Result<GitWorktree>
+    suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree>
 }
 
 /** git 을 실행할 수 없는 타깃. 어떤 폴더도 저장소가 아니라서 패널에 + 가 없다. */
 internal object UnsupportedGitDataSource : GitDataSource {
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = flowOf(null)
 
-    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String): Result<GitWorktree> =
+    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> =
         Result.failure(GitWorktreeException("이 플랫폼에서는 git 을 쓸 수 없습니다"))
 }
 

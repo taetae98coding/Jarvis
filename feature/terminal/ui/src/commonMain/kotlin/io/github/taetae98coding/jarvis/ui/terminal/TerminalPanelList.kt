@@ -78,10 +78,13 @@ fun terminalNewWorktreeTestTag(id: Long): String = "terminal:new-worktree:$id"
 
 fun terminalWorktreePanelTestTag(id: Long): String = "terminal:worktree-panel:$id"
 
+fun terminalPanelBranchTestTag(id: Long): String = "terminal:panel-branch:$id"
+
 /**
  * 왼쪽의 패널 목록. 최상위 패널마다 그 워크트리 패널을 바로 아래 들여써 그린다. 닫아서 패널이 하나도 남지 않게
  * 되는 줄에는 ✕ 가 없다. "새 패널" 은 [NewPanelDialog] 를 거쳐 [onAdd] 를, [worktrees] 에 있는 패널의 + 는
- * [NewWorktreeDialog] 를 거쳐 [onAddWorktree] 를 부른다.
+ * [NewWorktreeDialog] 를 거쳐 [onAddWorktree] 를 부른다. 워크트리 패널 줄의 현재 브랜치는 [worktrees] 에서
+ * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다.
  */
 @Composable
 internal fun TerminalPanelList(
@@ -94,7 +97,7 @@ internal fun TerminalPanelList(
     onRename: (Long, String) -> Unit,
     onClose: (Long) -> Unit,
     onAdd: (name: String, directory: String, program: TerminalProgram) -> Unit,
-    onAddWorktree: suspend (parentId: Long, branch: String, directory: String, program: TerminalProgram) -> Result<Unit>,
+    onAddWorktree: suspend (parentId: Long, branch: String, baseBranch: String?, directory: String, program: TerminalProgram) -> Result<Unit>,
     modifier: Modifier = Modifier,
 ) {
     var creating by remember { mutableStateOf(false) }
@@ -112,13 +115,16 @@ internal fun TerminalPanelList(
             @Composable
             fun item(panel: TerminalPanel, closable: Boolean) {
                 val worktree = worktrees[panel.id]
+                val isWorktree = panel.parentId != null
 
                 TerminalPanelItem(
                     name = panel.name,
                     directory = panel.directory,
                     selected = panel.id == selectedPanelId,
                     closable = closable,
-                    isWorktree = panel.parentId != null,
+                    isWorktree = isWorktree,
+                    branch = if (isWorktree) worktree?.branch ?: panel.branch else null,
+                    baseBranch = if (isWorktree) panel.baseBranch else null,
                     onSelect = { onSelect(panel.id) },
                     onRename = { onRename(panel.id, it) },
                     onClose = { onClose(panel.id) },
@@ -128,6 +134,7 @@ internal fun TerminalPanelList(
                     closeModifier = Modifier.testTag(terminalPanelCloseTestTag(panel.id)),
                     addWorktreeModifier = Modifier.testTag(terminalNewWorktreeTestTag(panel.id)),
                     worktreeIconModifier = Modifier.testTag(terminalWorktreePanelTestTag(panel.id)),
+                    branchModifier = Modifier.testTag(terminalPanelBranchTestTag(panel.id)),
                 )
             }
 
@@ -165,7 +172,7 @@ internal fun TerminalPanelList(
         NewWorktreeDialog(
             worktree = worktree,
             canOpenClaude = canOpenClaude,
-            onCreate = { branch, directory, program -> onAddWorktree(parent.id, branch, directory, program) },
+            onCreate = { branch, baseBranch, directory, program -> onAddWorktree(parent.id, branch, baseBranch, directory, program) },
             onDismiss = { creatingWorktree = null },
         )
     }
@@ -173,8 +180,8 @@ internal fun TerminalPanelList(
 
 /**
  * 패널 한 줄. 이름을 바꾸는 동안은 이름 자리에 입력 필드가 온다. 편집 중인지는 이 줄만 아는 값이라
- * ViewModel 에 두지 않는다. [isWorktree] 면 들여쓰고 이름 앞에 브랜치 아이콘을 둔다. [onAddWorktree] 가 있으면
- * ✎ 앞에 + 가 있다.
+ * ViewModel 에 두지 않는다. [isWorktree] 면 들여쓰고 이름 앞에 브랜치 아이콘을 둔다. [branch] 가 있으면 이름과
+ * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. [onAddWorktree] 가 있으면 ✎ 앞에 + 가 있다.
  */
 @Composable
 internal fun TerminalPanelItem(
@@ -187,11 +194,14 @@ internal fun TerminalPanelItem(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     isWorktree: Boolean = false,
+    branch: String? = null,
+    baseBranch: String? = null,
     onAddWorktree: (() -> Unit)? = null,
     renameModifier: Modifier = Modifier,
     closeModifier: Modifier = Modifier,
     addWorktreeModifier: Modifier = Modifier,
     worktreeIconModifier: Modifier = Modifier,
+    branchModifier: Modifier = Modifier,
     style: Style = Style,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -250,6 +260,17 @@ internal fun TerminalPanelItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (branch != null) {
+                    Text(
+                        text = if (baseBranch != null) "$baseBranch → $branch" else branch,
+                        style = TerminalPanelItemDefaults.directoryStyle,
+                        color = TerminalPanelItemDefaults.directoryColor(selected),
+                        maxLines = 1,
+                        // 끝의 현재 브랜치가 알아보는 데 중요하다.
+                        overflow = TextOverflow.StartEllipsis,
+                        modifier = branchModifier,
+                    )
+                }
                 if (directory != null) {
                     Text(
                         text = directory,

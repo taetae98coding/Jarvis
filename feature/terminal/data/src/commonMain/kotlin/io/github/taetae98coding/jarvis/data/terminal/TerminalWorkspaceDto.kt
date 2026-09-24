@@ -34,6 +34,8 @@ internal data class TerminalPanelDto(
     val focusedGroupId: Long? = null,
     val directory: String? = null,
     val parentId: Long? = null,
+    val branch: String? = null,
+    val baseBranch: String? = null,
 )
 
 @Serializable
@@ -85,6 +87,8 @@ internal fun TerminalWorkspace.toDto(): TerminalWorkspaceDto =
                 focusedGroupId = panel.focusedGroupId,
                 directory = panel.directory,
                 parentId = panel.parentId,
+                branch = panel.branch,
+                baseBranch = panel.baseBranch,
             )
         },
         selectedPanelId = selectedPanelId,
@@ -105,6 +109,8 @@ internal fun TerminalWorkspaceDto.toDomain(): TerminalWorkspace {
             focusedGroupId = panel.focusedGroupId,
             directory = panel.directory,
             parentId = panel.parentId?.takeIf { it in topLevelIds },
+            branch = panel.branch,
+            baseBranch = panel.baseBranch,
         )
     }
     if (restored.none { it.root != null }) return TerminalWorkspace.initial()
