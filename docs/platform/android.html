@@ -756,6 +756,7 @@ class JarvisApplication : Application() {
 <ul>
   <li><code>vi</code>, <code>top</code>, <code>less</code> 같은 전체 화면 프로그램은 돌지 않는다. tty 가 아니라서 화면 크기도 키도 받지 못한다.</li>
   <li>방향키·Tab 완성·히스토리가 없다. <code>LineDiscipline</code> 은 방향키를 버린다.</li>
+  <li>하드웨어 키보드의 Shift+Enter 가 보내는 <code>ESC CR</code>(<a href="../common/terminal.html#shift-enter">결정</a>)도 이스케이프 시퀀스라 <code>LineDiscipline</code> 이 버린다. mksh 에 여러 줄 입력이 없어 줄바꿈을 흉내 낼 곳이 없다. 소프트 키보드의 Enter 는 원래 줄바꿈 글자로 와서 영향이 없다.</li>
   <li>Ctrl+C 는 입력 중인 줄만 버린다. 실행 중인 명령에 신호를 보낼 방법이 없다(프로세스 그룹이 없다). 멈추지 않는 명령은 창을 닫아야 끝난다.</li>
   <li>셸은 앱 샌드박스 안에서 돈다. 앱 uid 가 볼 수 있는 파일과 명령만 쓸 수 있다.</li>
   <li>소프트 키보드에 Esc·Ctrl·방향키가 없다.</li>

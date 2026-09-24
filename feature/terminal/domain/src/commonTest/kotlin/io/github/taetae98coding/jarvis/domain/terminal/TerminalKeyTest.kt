@@ -33,6 +33,13 @@ class TerminalKeyTest {
     }
 
     @Test
+    fun shiftEnterSendsEscCarriageReturn() {
+        assertEncodes("\u001b\r", encodeTerminalKey(TerminalKey.Enter, TerminalKeyModifiers(shift = true)))
+        assertEncodes("\u001b\r", encodeTerminalKey(TerminalKey.Enter, TerminalKeyModifiers(alt = true)))
+        assertEncodes("\r", encodeTerminalKey(TerminalKey.Enter, TerminalKeyModifiers(ctrl = true)))
+    }
+
+    @Test
     fun functionKeys() {
         assertEncodes("\u001bOP", encodeTerminalKey(TerminalKey.F1))
         assertEncodes("\u001b[15~", encodeTerminalKey(TerminalKey.F5))
