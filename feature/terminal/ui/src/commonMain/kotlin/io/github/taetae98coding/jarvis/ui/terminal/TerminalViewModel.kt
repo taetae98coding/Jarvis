@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.AddWorktreePanelUseCase
-import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.CloseWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
@@ -24,7 +24,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import io.github.taetae98coding.jarvis.domain.terminal.UpdateTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.claudeSessionIds
-import io.github.taetae98coding.jarvis.domain.terminal.claudeStatus
+import io.github.taetae98coding.jarvis.domain.terminal.claudeStatuses
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
 import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -60,6 +60,7 @@ internal class TerminalViewModel(
     private val addWorktree: AddWorktreePanelUseCase,
     private val closeWorktree: CloseWorktreePanelUseCase,
     observeClaudeActivities: ObserveClaudeActivitiesUseCase,
+    private val claudeAttention: ClaudeAttention,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -97,12 +98,12 @@ internal class TerminalViewModel(
     private val windowFocused = MutableStateFlow(false)
 
     /**
-     * Claude 탭이 있는 패널마다 줄에 보일 상태. 조회는 Claude sessionId 집합이 바뀔 때만 다시 묶는다. 창이 포커스를
+     * Claude 탭이 있는 패널마다 줄에 보일 탭별 상태. 조회는 Claude sessionId 집합이 바뀔 때만 다시 묶는다. 창이 포커스를
      * 가지면 보이는 탭의 끝난 결과를 확인한 것으로 계산하고 저장한다 — 계산에 먼저 반영해서 저장이 돌아오기 전
      * 한 프레임도 "응답 대기" 로 깜빡이지 않는다(docs/common/terminal-claude-status.html#implementation).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val claudeStatuses: StateFlow<Map<Long, ClaudeStatus>> = combine(
+    val claudeStatuses: StateFlow<Map<Long, List<ClaudeTabStatus>>> = combine(
         workspace.filterNotNull(),
         workspace
             .map { if (this.isClaudeSupported) it?.claudeSessionIds.orEmpty() else emptySet() }
@@ -113,7 +114,7 @@ internal class TerminalViewModel(
         val checked = if (focused) current.checkVisibleClaudeTabs(activities) else current
         if (checked !== current) update { it.checkVisibleClaudeTabs(activities) }
 
-        checked.panels.mapNotNull { panel -> panel.claudeStatus(activities)?.let { panel.id to it } }.toMap()
+        checked.panels.mapNotNull { panel -> panel.claudeStatuses(activities).takeIf { it.isNotEmpty() }?.let { panel.id to it } }.toMap()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyMap())
 
     fun setWindowFocused(focused: Boolean) {
@@ -121,6 +122,9 @@ internal class TerminalViewModel(
     }
 
     fun pane(tabId: Long): TerminalPaneState? = host.pane(tabId)
+
+    /** 사용자가 지금 보고 있는 Claude 탭. 이 탭들은 턴이 끝나도 알리지 않는다. */
+    fun watchClaude(sessionIds: Set<String>) = claudeAttention.watch(sessionIds)
 
     /** 셸 창은 셸이 정한 제목, 브라우저 탭은 페이지 제목. */
     fun title(tab: TerminalTab): StateFlow<String?>? =

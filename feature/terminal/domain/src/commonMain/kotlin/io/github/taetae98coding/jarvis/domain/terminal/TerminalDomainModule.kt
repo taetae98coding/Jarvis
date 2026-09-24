@@ -17,4 +17,5 @@ val terminalDomainModule = module {
     factoryOf(::ObserveClaudeActivitiesUseCase)
     factoryOf(::AddWorktreePanelUseCase)
     factoryOf(::CloseWorktreePanelUseCase)
+    factoryOf(::NotifyClaudeTurnEndsUseCase)
 }

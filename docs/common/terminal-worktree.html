@@ -58,6 +58,11 @@
   <footer>2026-09-25 대화. "worktree x" 는 워크트리 패널 줄의 ✕ 다(main 패널의 ✕ 는 그대로, R10). 선택지는 체크박스 둘이고 둘 다 켜진 채로 뜬다(R12). "폴더도" 의 "도" 로 폴더 지우기는 워크트리·브랜치 지우기에 딸린 선택이다 — 워크트리·브랜치만 지우면 폴더의 파일은 git 과 무관한 보통 폴더로 남는다(R13·R14).</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>워크트리 만들거나 지울 때 Dialog에서 Progress 돌잖아. 그때 취소랑 확인 버튼 사이에 생기는게 아니라 확인 버튼안에 progress 돌도록 수정해줘.</p>
+  <footer>2026-09-25 대화. "새 워크트리" 창과 "워크트리 닫기" 창 둘 다다. 진행 표시는 "확인" 버튼 안에서 "확인" 글자 자리에 돌고, 버튼 크기는 글자가 있을 때와 같다(R6a).</footer>
+</blockquote>
+
 <p>뒤따른 <a href="terminal-panel-item-layout.html">버튼을 아래 줄로</a> 지시로 패널 줄의 +·✎·✕ 는 이름 옆이 아니라 글자 아래 따로 된 줄에 있다. 아래 그림은 그 전 모양이고, R1 의 "✎ 앞" 은 그 버튼 줄 안의 순서다.</p>
 
 <h2 id="terms">용어</h2>
@@ -81,6 +86,7 @@
   <li><strong>R4.</strong> 폴더의 기본값은 main 워크트리 옆의 <code>&lt;main 워크트리 폴더 이름&gt;-worktrees/&lt;브랜치&gt;</code> 다. 브랜치를 치는 동안 기본값이 따라 바뀌고, 폴더 입력란을 한 번 직접 고치면 더 따라가지 않는다. 앞뒤 공백을 떼고 비어 있으면 기본값을 쓴다. <code>~</code>·<code>~/</code> 는 홈 기준이다(<a href="terminal-panel-create.html#requirements">새 패널 R3</a>).</li>
   <li><strong>R5.</strong> "확인" 을 누르면 main 패널의 폴더가 속한 저장소에 <code>git worktree add</code> 로 워크트리를 만든다. 브랜치가 저장소에 없으면 기준 브랜치(없으면 지금 HEAD)에서 그 이름의 새 브랜치를 만들어 체크아웃하고(<code>-b &lt;브랜치&gt; &lt;폴더&gt; [&lt;기준&gt;]</code>), 있으면 기준 브랜치와 무관하게 그 브랜치를 체크아웃한다. 기준 브랜치가 저장소에 없는 이름이면 git 이 거부하고 그 문구가 창에 보인다(R6). 브랜치·기준 브랜치·폴더 입력란에서 Enter 는 "확인" 과 같다.</li>
   <li><strong>R6.</strong> 만드는 동안 창은 남고 버튼과 입력란은 비활성이다. git 이 실패하면(이미 다른 워크트리가 체크아웃한 브랜치, 이미 있는 폴더, 권한 없음 등) 창은 남고 git 의 오류 문구가 창 안에 보이며 고쳐서 다시 누를 수 있다. 성공하면 창이 닫힌다.</li>
+  <li><strong>R6a.</strong> 만들거나 지우는 동안 진행 표시는 "취소"·"확인" 사이가 아니라 "확인" 버튼 안, "확인" 글자 자리에 돈다. 글자는 보이지 않게 자리만 남겨서 버튼 크기와 두 버튼 위치가 바뀌지 않는다. 워크트리 닫기 창(R16)도 같다.</li>
   <li><strong>R7.</strong> 성공하면 그 워크트리 폴더를 폴더로, 브랜치 이름을 제목으로 하는 패널이 생겨 선택된다. 패널은 만든 브랜치와 창에 넣은 기준 브랜치(비었으면 없음)를 기억한다. 패널은 그 워크트리 폴더에서 뜬 새 Claude(YOLO) 세션 탭 하나로 시작하고, Claude 를 띄울 수 없는 타깃에서는 빈 패널이다(<a href="terminal-panel-create.html#requirements">새 패널 R4·R4b·R8</a>). 워크트리 패널은 다른 패널과 같은 것이다 — 탭을 열면 탭 줄·분할 창이 뜨고 새 탭, 좌우·상하 분할, 끌어 놓기, 이름 바꾸기, 닫기가 그대로 된다(<a href="terminal-panels.html">패널</a>·<a href="terminal-tab-groups.html">그룹</a>·<a href="terminal-tab-dock.html">끌어 놓기</a>).</li>
   <li><strong>R8.</strong> 워크트리 패널은 목록에서 main 패널 바로 아래에, main 패널의 다른 워크트리 패널들 뒤에 들여써서 놓이고 이름 앞에 브랜치 아이콘이 붙는다. 한 단계만 있다 — 워크트리 패널에도 + 가 있고(폴더가 git 저장소이므로) 누르면 같은 main 패널 아래에 형제로 생긴다.</li>
   <li><strong>R8b.</strong> 워크트리 패널 줄에는 이름 아래, 폴더 위에 브랜치 줄 <code>&lt;기준 브랜치&gt; → &lt;현재 브랜치&gt;</code> 가 있다. 현재 브랜치는 그 폴더의 워크트리에서 관측한 값이고, 관측할 수 없으면(폴더가 지워짐, HEAD 가 떨어짐, git 이 없는 타깃) 만들 때의 브랜치다. 기준 브랜치를 기억하지 않는 패널(비워서 만들었거나 이전 버전이 저장한 파일)은 <code>→</code> 없이 현재 브랜치만 보인다. 현재 브랜치를 관측도 기억도 못 하면 브랜치 줄이 없다. 이름을 바꿔도 브랜치 줄은 그대로다.</li>
@@ -158,16 +164,16 @@
   <tbody>
     <tr><td>패널 줄의 +</td><td>이름 바꾸기 아이콘과 같은 모양의 아이콘 버튼(<code>JarvisIcons.Add</code>). contentDescription "워크트리 추가". git 을 지원하는 패널만</td></tr>
     <tr><td>워크트리 패널 줄</td><td>줄 앞에 <code>spacing.m + spacing.s</code> 들여쓴 자리에 <code>JarvisIcons.GitBranch</code>(<code>iconSize.small</code>, 폴더 경로와 같은 색)가 오고 이름·브랜치 줄·폴더가 그 옆에 붙는다. 선택·hover·이름 바꾸기·닫기는 보통 줄과 같다</td></tr>
-    <tr><td>브랜치 줄</td><td>폴더 줄과 같은 <code>labelSmall</code>·색, 한 줄, 넘치면 앞을 줄임(<code>StartEllipsis</code> — 끝의 현재 브랜치가 알아보는 데 중요하다). 글자는 <code>"&lt;기준&gt; → &lt;현재&gt;"</code>(화살표 앞뒤 공백 하나) 또는 <code>"&lt;현재&gt;"</code>(R8b)</td></tr>
+    <tr><td>브랜치 줄</td><td>폴더 줄과 같은 <code>labelSmall</code>·색, 한 줄, 넘치면 옆으로 흐른다(<a href="terminal-panel-text-marquee.html">글자 흐르게</a>. 그 전에는 끝의 현재 브랜치를 보이려고 앞을 줄였다). 글자는 <code>"&lt;기준&gt; → &lt;현재&gt;"</code>(화살표 앞뒤 공백 하나) 또는 <code>"&lt;현재&gt;"</code>(R8b)</td></tr>
     <tr><td>창</td><td>M3 <code>AlertDialog</code>. 제목 "새 워크트리"</td></tr>
     <tr><td>브랜치 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "브랜치". 창이 뜨면 포커스</td></tr>
     <tr><td>기준 브랜치 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "기준 브랜치". 초깃값은 + 를 누른 패널의 현재 브랜치(없으면 빈 칸, placeholder "HEAD"). 브랜치 입력란 아래, 폴더 입력란 위(R2b)</td></tr>
     <tr><td>폴더 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "폴더". 초깃값·따라가기는 R4</td></tr>
     <tr><td>오류</td><td>입력란 아래 <code>bodySmall</code>, <code>error</code> 색. git 의 stderr 마지막 줄들(앞뒤 공백 뗀 전체)</td></tr>
-    <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 브랜치가 비었거나 만드는 동안 "확인" 은 <code>enabled = false</code>. 만드는 동안 "취소" 도 잠기고 버튼 줄 왼쪽에 <code>iconSize.small</code> 크기의 <code>CircularProgressIndicator</code> 가 돈다</td></tr>
+    <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 브랜치가 비었거나 만드는 동안 "확인" 은 <code>enabled = false</code>. 만드는 동안 "취소" 도 잠기고 "확인" 버튼 안에서 "확인" 글자 대신 <code>iconSize.small</code> 크기의 <code>CircularProgressIndicator</code> 가 돈다. 글자는 <code>alpha(0f)</code> 로 자리만 남겨 버튼 크기가 그대로이고, 진행 표시 색은 잠긴 버튼의 글자색(<code>LocalContentColor</code>)이다(R6a)</td></tr>
     <tr><td>"워크트리 닫기" 창</td><td>M3 <code>AlertDialog</code>. 제목 "워크트리 닫기". 본문 첫 줄은 현재 브랜치(<code>bodyMedium</code>, 없으면 생략), 둘째 줄은 워크트리 폴더(<code>labelSmall</code>, 폴더 줄과 같은 색)</td></tr>
     <tr><td>체크박스 줄</td><td>M3 <code>Checkbox</code> + 글자. 줄 전체가 <code>toggleable(role = Checkbox)</code> 라 글자를 눌러도 바뀐다. 체크박스 자체는 표시만 한다(<code>onCheckedChange = null</code>). 글자 "워크트리·브랜치 지우기", "폴더도 지우기"</td></tr>
-    <tr><td>닫기 창 버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 지우는 동안 둘 다 잠기고 버튼 줄 왼쪽에 <code>CircularProgressIndicator</code>(<code>iconSize.small</code>). 오류는 새 워크트리 창과 같은 모양</td></tr>
+    <tr><td>닫기 창 버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 지우는 동안 둘 다 잠기고 진행 표시는 새 워크트리 창처럼 "확인" 버튼 안에 돈다(R6a). 오류는 새 워크트리 창과 같은 모양</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:new-worktree:&lt;panelId&gt;</code>(줄의 +), <code>terminal:worktree-panel:&lt;panelId&gt;</code>(워크트리 패널 줄의 브랜치 아이콘),
       <code>terminal:panel-branch:&lt;panelId&gt;</code>(브랜치 줄),

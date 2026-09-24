@@ -38,6 +38,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivity
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivityRepository
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeNotification
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeRepository
@@ -324,11 +325,17 @@ internal class FakeTerminalRepository(
 
     val stoppedClaudeSessions = mutableListOf<String>()
 
+    val notifications = mutableListOf<ClaudeNotification>()
+
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession =
         FakeTerminalSession(size, tab).also { sessions += it }
 
     override suspend fun stopClaude(sessionId: String) {
         stoppedClaudeSessions += sessionId
+    }
+
+    override suspend fun showNotification(notification: ClaudeNotification) {
+        notifications += notification
     }
 
     override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = flowOf(chromeProfiles)

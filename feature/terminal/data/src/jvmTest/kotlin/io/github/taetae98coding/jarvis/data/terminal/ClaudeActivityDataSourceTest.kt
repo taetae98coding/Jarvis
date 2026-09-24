@@ -22,6 +22,7 @@ class ClaudeActivityDataSourceTest {
         state: String,
         tempo: String? = null,
         inFlight: String? = null,
+        detail: String? = null,
         createdAt: String = "2026-09-24T16:00:00.000Z",
         updatedAt: String = "2026-09-24T16:53:21.608Z",
     ) {
@@ -29,6 +30,7 @@ class ClaudeActivityDataSourceTest {
             "\"state\": \"$state\"",
             tempo?.let { "\"tempo\": \"$it\"" },
             inFlight?.let { "\"inFlight\": $it" },
+            detail?.let { "\"detail\": \"$it\"" },
             windowSessionId?.let { "\"name\": \"${claudeJobName(it)}\"" },
             "\"sessionId\": \"$short-aa49-470a-aa43-2468b9373e0e\"",
             "\"createdAt\": \"$createdAt\"",
@@ -62,7 +64,21 @@ class ClaudeActivityDataSourceTest {
     fun aBlockedTurnIsFinishedEvenWithBackgroundWork() = runTest {
         job("9b0bd7f8", "w", state = "blocked", tempo = "blocked", inFlight = """{"tasks": 1, "queued": 0, "kinds": []}""")
 
-        assertEquals(ClaudeActivity.Finished(at = 1_790_268_801_608), activity("w"))
+        assertEquals(ClaudeActivity.Finished(at = 1_790_268_801_608, needsInput = true), activity("w"))
+    }
+
+    @Test
+    fun aFinishedTurnCarriesWhetherItNeedsInputAndItsSummary() = runTest {
+        job("a", "done", state = "done", tempo = "idle", detail = "merged to local main; tests green")
+        job("b", "asked", state = "blocked", tempo = "blocked", detail = "awaiting engine choice")
+        // 턴 도중 선택을 기다리면 state 는 working 그대로이고 tempo 만 blocked 다.
+        job("c", "choosing", state = "working", tempo = "blocked", detail = " ")
+
+        val activities = source.observeActivities(setOf("done", "asked", "choosing")).first()
+
+        assertEquals(ClaudeActivity.Finished(1_790_268_801_608, needsInput = false, summary = "merged to local main; tests green"), activities["done"])
+        assertEquals(ClaudeActivity.Finished(1_790_268_801_608, needsInput = true, summary = "awaiting engine choice"), activities["asked"])
+        assertEquals(ClaudeActivity.Finished(1_790_268_801_608, needsInput = true), activities["choosing"])
     }
 
     @Test

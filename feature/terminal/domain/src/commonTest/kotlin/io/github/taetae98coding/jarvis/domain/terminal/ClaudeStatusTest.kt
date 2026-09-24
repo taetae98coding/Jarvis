@@ -23,19 +23,23 @@ class ClaudeStatusTest {
     }
 
     @Test
-    fun aPanelShowsItsMostUrgentClaudeTab() {
+    fun aPanelShowsEveryKnownClaudeTabInTabOrder() {
         val workspace = TerminalWorkspace.initial().addClaude("a").addClaude("b").addClaude("c")
         val panel = workspace.panels.single()
+        val (a, b, c) = listOf("a", "b", "c").map { workspace.tab(it).id }
 
-        assertNull(panel.claudeStatus(emptyMap()))
-        assertEquals(ClaudeStatus.Monitoring, panel.claudeStatus(mapOf("a" to ClaudeActivity.Monitoring)))
+        assertEquals(emptyList<ClaudeTabStatus>(), panel.claudeStatuses(emptyMap()))
         assertEquals(
-            ClaudeStatus.Working,
-            panel.claudeStatus(mapOf("a" to ClaudeActivity.Monitoring, "b" to ClaudeActivity.Working)),
+            listOf(ClaudeTabStatus(a, ClaudeStatus.Monitoring), ClaudeTabStatus(c, ClaudeStatus.Working)),
+            panel.claudeStatuses(mapOf("c" to ClaudeActivity.Working, "a" to ClaudeActivity.Monitoring)),
         )
         assertEquals(
-            ClaudeStatus.AwaitingReply,
-            panel.claudeStatus(
+            listOf(
+                ClaudeTabStatus(a, ClaudeStatus.Monitoring),
+                ClaudeTabStatus(b, ClaudeStatus.Working),
+                ClaudeTabStatus(c, ClaudeStatus.AwaitingReply),
+            ),
+            panel.claudeStatuses(
                 mapOf("a" to ClaudeActivity.Monitoring, "b" to ClaudeActivity.Working, "c" to ClaudeActivity.Finished(1)),
             ),
         )
@@ -47,8 +51,8 @@ class ClaudeStatusTest {
         val workspace = parent.addWorktreePanel(parent.panels.single().id, directory = "/w").addClaude("child")
         val activities = mapOf("parent" to ClaudeActivity.Working, "child" to ClaudeActivity.Finished(1))
 
-        assertEquals(ClaudeStatus.Working, workspace.panels[0].claudeStatus(activities))
-        assertEquals(ClaudeStatus.AwaitingReply, workspace.panels[1].claudeStatus(activities))
+        assertEquals(listOf(ClaudeStatus.Working), workspace.panels[0].claudeStatuses(activities).map { it.status })
+        assertEquals(listOf(ClaudeStatus.AwaitingReply), workspace.panels[1].claudeStatuses(activities).map { it.status })
         assertEquals(setOf("parent", "child"), workspace.claudeSessionIds)
     }
 
@@ -87,7 +91,7 @@ class ClaudeStatusTest {
             .let { it.selectTab(it.addTab().tabs.last().id) }
         val panel = workspace.panels.single()
 
-        assertEquals(ClaudeStatus.Checked, panel.claudeStatus(mapOf("a" to ClaudeActivity.Finished(20))))
-        assertEquals(ClaudeStatus.AwaitingReply, panel.claudeStatus(mapOf("a" to ClaudeActivity.Finished(40))))
+        assertEquals(listOf(ClaudeStatus.Checked), panel.claudeStatuses(mapOf("a" to ClaudeActivity.Finished(20))).map { it.status })
+        assertEquals(listOf(ClaudeStatus.AwaitingReply), panel.claudeStatuses(mapOf("a" to ClaudeActivity.Finished(40))).map { it.status })
     }
 }

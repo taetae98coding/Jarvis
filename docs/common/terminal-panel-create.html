@@ -86,7 +86,7 @@
 
 패널 목록 줄
 │▌백엔드          ✎ ✕│
-│  …/projects/api     │ ← 폴더가 있을 때만, 앞쪽 말줄임</code></pre>
+│  …/projects/api     │ ← 폴더가 있을 때만, 넘치면 흐른다</code></pre>
 
 <table>
   <thead><tr><th>항목</th><th>값</th></tr></thead>
@@ -95,7 +95,7 @@
     <tr><td>제목 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "제목", placeholder 기본 제목("패널 N")</td></tr>
     <tr><td>폴더 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "폴더", placeholder "홈 디렉터리". 오른쪽에 <code>TextButton</code> "찾아보기"(폴더 선택 창이 있는 타깃만)</td></tr>
     <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 늘 활성이다 — 제목·폴더 모두 비워도 된다</td></tr>
-    <tr><td>패널 줄의 폴더</td><td>이름 아래 <code>labelSmall</code>, <code>onSurfaceVariant</code>(선택된 줄은 이름과 같은 색), 한 줄, <code>TextOverflow.StartEllipsis</code></td></tr>
+    <tr><td>패널 줄의 폴더</td><td>이름 아래 <code>labelSmall</code>, <code>onSurfaceVariant</code>(선택된 줄은 이름과 같은 색), 한 줄, 넘치면 옆으로 흐른다(<a href="terminal-panel-text-marquee.html">글자 흐르게</a>. 그 전에는 <code>TextOverflow.StartEllipsis</code>)</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:new-panel</code>(목록의 버튼, 그대로), <code>terminal:new-panel-dialog</code>, <code>terminal:new-panel-name</code>, <code>terminal:new-panel-directory</code>,
       <code>terminal:new-panel-browse</code>, <code>terminal:new-panel-confirm</code>, <code>terminal:new-panel-cancel</code>
