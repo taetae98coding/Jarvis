@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기기 목록 좌우 분할 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>기기 목록 좌우 분할</span></nav>
+
+<header>
+  <h1>기기 목록 좌우 분할</h1>
+  <p class="lead">기기 목록 화면을 좌우 두 열로 나눠 왼쪽에 Android 기기, 오른쪽에 iOS 기기를 둔다. 한 줄씩 섞여 있던 목록에서 플랫폼을 글자로 읽어 가려내지 않아도 된다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>deviceList에서 2등분해서 좌우 분리 후 android/ios 구분해줘.</p>
+  <footer>2026-09-24 대화.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> <a href="emulator-control.html">기기 목록</a> 화면의 본문을 가로로 <strong>같은 너비 두 열</strong>로 나눈다. 창 너비와 무관하게 항상 두 열이다.</li>
+  <li><strong>R2.</strong> 왼쪽 열에는 <code>EmulatorPlatform.ANDROID</code> 기기만, 오른쪽 열에는 <code>EmulatorPlatform.IOS</code> 기기만 나온다. 가상 기기와 실물 기기는 같은 열 안에 섞인다. 열 안의 순서는 받은 목록의 순서를 그대로 따른다.</li>
+  <li><strong>R3.</strong> 각 열 맨 위에 "Android" / "iOS" 머리글이 붙는다. 열이 플랫폼을 말하므로 항목 보조 문구 맨 앞의 플랫폼 이름(<code>Android ·</code>, <code>iOS ·</code>)은 뺀다.</li>
+  <li><strong>R4.</strong> 두 열은 따로 스크롤한다. 한쪽 기기가 많아도 다른 쪽 목록이 밀려 내려가지 않는다.</li>
+  <li><strong>R5.</strong> 한쪽 열만 비면 그 열의 머리글 아래에 "Android 기기가 없습니다." / "iOS 기기가 없습니다." 를 적는다. 두 열 모두 비면 지금처럼 열을 나누지 않고 "연결된 기기가 없거나 개발자 머신에 물어볼 수 없습니다." 한 줄만 보인다.</li>
+  <li><strong>R6.</strong> 항목 하나의 모양과 동작(누르기, <a href="emulator-launch.html">실행</a>, <a href="emulator-wake.html">화면 켜기</a>, 비활성 규칙, 테스트 태그)은 바뀌지 않는다. 상단 바와 <a href="wireless-pairing.html">Wi-Fi 페어링</a> 버튼도 그대로다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  좁은 창에서 한 열로 접는 반응형 배치는 하지 않는다. 지시가 "2등분"이라 폰 세로 화면에서도 두 열이다. 열 머리글에 개수를 붙이는 것도 하지 않는다. 개수는 <a href="emulator-count.html">홈 카드</a>가 이미 보여준다.
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>배치</td><td>상단 바 아래 <code>Row</code>. 두 열 모두 <code>weight(1f)</code>, 열 사이 간격 12dp(<code>spacing.m</code>)</td></tr>
+    <tr><td>왼쪽 열</td><td>머리글 "Android" + Android 기기 목록</td></tr>
+    <tr><td>오른쪽 열</td><td>머리글 "iOS" + iOS 기기 목록</td></tr>
+    <tr><td>머리글</td><td><code>titleSmall</code>, <code>onSurfaceVariant</code>. 목록과 함께 스크롤되지 않고 열 위에 고정된다</td></tr>
+    <tr><td>빈 열</td><td>"Android 기기가 없습니다." / "iOS 기기가 없습니다." (<code>bodyMedium</code>, <code>onSurfaceVariant</code>)</td></tr>
+    <tr><td>둘 다 빔</td><td>열 없이 "연결된 기기가 없거나 개발자 머신에 물어볼 수 없습니다."</td></tr>
+    <tr><td>테스트 태그</td><td><code>emulator:list:android</code>(왼쪽 열), <code>emulator:list:ios</code>(오른쪽 열). 기존 <code>emulator:list</code>, <code>emulator:device:&lt;id&gt;</code> 등은 그대로</td></tr>
+  </tbody>
+</table>
+
+<p>보조 문구는 <a href="emulator-control.html#behavior">기기 목록 표</a>에서 플랫폼 이름만 빠진다.</p>
+
+<table>
+  <thead><tr><th>기기</th><th>열</th><th>보조 문구</th></tr></thead>
+  <tbody>
+    <tr><td>실행 중인 AVD</td><td>왼쪽</td><td><code>실행 중</code></td></tr>
+    <tr><td>꺼진 AVD</td><td>왼쪽</td><td><code>꺼짐</code></td></tr>
+    <tr><td>연결된 실물 Android</td><td>왼쪽</td><td><code>실물 기기 · 연결됨</code></td></tr>
+    <tr><td>화면이 꺼진 실물 Android</td><td>왼쪽</td><td><code>실물 기기 · 연결됨 · 화면 꺼짐</code></td></tr>
+    <tr><td>부팅된 시뮬레이터</td><td>오른쪽</td><td><code>실행 중</code></td></tr>
+    <tr><td>꺼진 시뮬레이터</td><td>오른쪽</td><td><code>꺼짐</code></td></tr>
+    <tr><td>연결된 실물 iOS</td><td>오른쪽</td><td><code>실물 기기 · 연결됨 · 화면을 볼 수 없음</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/emulator/ui/src/commonMain/.../ui/emulator/EmulatorListScreen.kt</code></dd>
+  <dt>분류</dt><dd>화면이 <code>devices</code> 를 <code>platform</code> 으로 나눈다. <code>EmulatorDevicesViewModel</code> 의 상태는 그대로 한 목록이다</dd>
+  <dt>컴포저블</dt><dd><code>Row { DeviceColumn(Modifier.weight(1f)); DeviceColumn(Modifier.weight(1f)) }</code>. <code>DeviceColumn</code> 은 머리글 <code>Text</code> 아래에 열마다 자기 <code>LazyColumn</code> 을 둔다</dd>
+  <dt>공급</dt><dd>없음. commonMain 의 Compose 코드뿐이고 <code>expect</code> 선언이 필요 없다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 열마다 LazyColumn</strong>
+  <ul>
+    <li><strong>채택.</strong> <code>Row</code> 안에 <code>LazyColumn</code> 두 개. 열이 따로 스크롤해서(R4) 한쪽이 길어도 다른 쪽이 화면 밖으로 밀리지 않는다.</li>
+    <li><code>LazyVerticalGrid(GridCells.Fixed(2))</code> 하나. 행 단위로 채워져 왼쪽 = Android 를 지키려면 짧은 쪽에 빈 칸을 끼워 넣어야 하고, 스크롤도 하나라 R4 를 못 지킨다. 버렸다.</li>
+    <li>분류를 ViewModel 로 옮긴다. 화면 배치 하나 때문에 상태 모양과 기존 테스트(<code>EmulatorDevicesViewModelTest</code>, <code>launchingDevices</code> 계산)를 바꿔야 한다. 목록은 많아야 수십 개라 화면에서 나눠도 비용이 없다. 버렸다.</li>
+  </ul>
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<p>배치는 Compose 가 계산한다. 네 타깃 모두 같은 commonMain 코드가 돌고 플랫폼 API 차이가 없다.</p>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>공통 코드 그대로</td><td><a href="../platform/android.html#device-list-split">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>공통 코드 그대로. Skiko 렌더링</td><td><a href="../platform/ios.html#device-list-split">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 코드 그대로. 두 열에 마우스 휠이 각각 걸린다</td><td><a href="../platform/jvm.html#device-list-split">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>공통 코드 그대로. Canvas 에 그려서 CSS 레이아웃과 무관하다</td><td><a href="../platform/web.html#device-list-split">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.deviceListSplitsByPlatform</code></td><td>R2, R3. Android 기기는 <code>emulator:list:android</code> 안에, iOS 기기는 <code>emulator:list:ios</code> 안에 있고 머리글이 보인다</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.emptyPlatformColumnSaysSo</code></td><td>R5. 한쪽만 비면 그 열에 빈 문구가 나온다</td><td><code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest</code> 의 기존 기기 목록 테스트</td><td>R3, R5, R6. 보조 문구에서 플랫폼 이름이 빠진 것 외에는 그대로 통과한다</td><td><code>skikoTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R1, R4. 두 열 너비가 같고 따로 스크롤된다 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>폰 세로 화면(약 360dp)에서는 열 하나가 170dp 안팎이다. 실행·화면 켜기 버튼이 붙은 항목은 이름이 두세 줄로 접힌다. 지시가 항상 2등분이라 받아들인다.</li>
+  <li>너비가 같다는 것과 따로 스크롤된다는 것은 좌표·스크롤 위치의 성질이라 자동 테스트로 가리지 않는다(<a href="home-staggered-grid.html#limits">홈 그리드와 같은 이유</a>).</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>
