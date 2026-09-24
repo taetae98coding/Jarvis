@@ -556,7 +556,7 @@ class JarvisAppTerminalTest {
     }
 
     @Test
-    fun commandArrowsMoveToTheStartAndEndOfTheLine() = runComposeUiTest {
+    fun commandArrowsAndBackspaceEditTheLine() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         openTerminal(terminal)
 
@@ -564,11 +564,12 @@ class JarvisAppTerminalTest {
             withKeyDown(Key.MetaLeft) {
                 pressKey(Key.DirectionLeft)
                 pressKey(Key.DirectionRight)
+                pressKey(Key.Backspace)
             }
         }
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) {
-            terminal.sessions.single().written.joinToString("") { it.decodeToString() } == "\u0001\u0005"
+            terminal.sessions.single().written.joinToString("") { it.decodeToString() } == "\u0001\u0005\u0015"
         }
     }
 
