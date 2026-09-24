@@ -139,6 +139,7 @@ internal fun TerminalScreen(
                     worktrees = worktrees,
                     claudeStatuses = claudeStatuses,
                     onSelect = viewModel::selectPanel,
+                    onSelectTab = viewModel::selectTab,
                     onRename = viewModel::renamePanel,
                     onClose = viewModel::closePanel,
                     onAdd = viewModel::addPanel,

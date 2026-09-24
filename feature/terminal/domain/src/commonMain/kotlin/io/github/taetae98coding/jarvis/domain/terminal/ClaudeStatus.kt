@@ -22,7 +22,7 @@ sealed interface ClaudeActivity {
     ) : ClaudeActivity
 }
 
-/** 패널 줄에 보이는 Claude 상태. 선언 순서가 한 패널에 탭이 여럿일 때의 우선순위다. */
+/** 패널 줄의 Claude 탭 하나에 보이는 상태. */
 enum class ClaudeStatus {
     AwaitingReply,
     Working,
@@ -37,9 +37,16 @@ fun ClaudeActivity.status(checkedAt: Long?): ClaudeStatus =
         is ClaudeActivity.Finished -> if (checkedAt != null && checkedAt >= at) ClaudeStatus.Checked else ClaudeStatus.AwaitingReply
     }
 
-/** 이 패널 Claude 탭들의 상태 중 가장 앞선 것. 상태를 아는 Claude 탭이 없으면 null 이다. 하위 워크트리 패널은 세지 않는다. */
-fun TerminalPanel.claudeStatus(activities: Map<String, ClaudeActivity>): ClaudeStatus? =
-    tabs.mapNotNull { tab -> tab.claudeSessionId?.let(activities::get)?.status(tab.claudeCheckedAt) }.minOrNull()
+data class ClaudeTabStatus(val tabId: Long, val status: ClaudeStatus)
+
+/**
+ * 상태를 아는 이 패널 Claude 탭마다 하나, 패널의 탭 순서대로. 상태가 바뀌어도 순서가 그대로라 표시가 자리를
+ * 바꾸지 않는다. 하위 워크트리 패널은 세지 않는다.
+ */
+fun TerminalPanel.claudeStatuses(activities: Map<String, ClaudeActivity>): List<ClaudeTabStatus> =
+    tabs.mapNotNull { tab ->
+        tab.claudeSessionId?.let(activities::get)?.let { ClaudeTabStatus(tab.id, it.status(tab.claudeCheckedAt)) }
+    }
 
 /** 모든 패널의 Claude 탭이 붙은 세션. 상태를 조회할 대상이다. */
 val TerminalWorkspace.claudeSessionIds: Set<String>
