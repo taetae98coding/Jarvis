@@ -55,6 +55,7 @@ import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
 import io.github.taetae98coding.jarvis.ui.terminal.terminalUiModule
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -367,11 +368,14 @@ internal class FakeTerminalWorkspaceRepository(
  * 폴더마다 정해 둔 워크트리를 답한다. 기본값은 어느 폴더도 저장소가 아닌 것이다. 만들기는 요청을 기록하고
  * 새 경로도 그 브랜치를 체크아웃한 저장소로 등록해서, 진짜 git 처럼 워크트리 패널에도 + 가 붙고 현재 브랜치가 보인다.
  * 지우기는 요청을 기록하고 그 경로를 저장소가 아닌 것으로 되돌린다. [failure] 가 있으면 둘 다 그것으로 실패한다.
+ * [gate] 가 있으면 둘 다 요청을 기록한 뒤 그것이 끝날 때까지 기다린다 — 뒤에서 도는 동안의 화면을 볼 수 있게.
  */
 internal class FakeGitWorktreeRepository(
     worktrees: Map<String, GitWorktree> = emptyMap(),
     var failure: String? = null,
 ) : GitWorktreeRepository {
+    var gate: CompletableDeferred<Unit>? = null
+
     class Added(val repositoryDirectory: String, val branch: String, val path: String, val baseBranch: String?)
 
     val worktrees = MutableStateFlow(worktrees)
@@ -386,6 +390,7 @@ internal class FakeGitWorktreeRepository(
 
     override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> {
         added += Added(repositoryDirectory, branch, path, baseBranch)
+        gate?.await()
         failure?.let { return Result.failure(GitWorktreeException(it)) }
 
         val worktree = GitWorktree(
@@ -400,6 +405,7 @@ internal class FakeGitWorktreeRepository(
 
     override suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result<Unit> {
         removed += Removed(directory, deleteDirectory)
+        gate?.await()
         failure?.let { return Result.failure(GitWorktreeException(it)) }
 
         worktrees.update { it - directory }

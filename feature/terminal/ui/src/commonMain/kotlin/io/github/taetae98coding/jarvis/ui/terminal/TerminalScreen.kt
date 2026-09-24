@@ -95,6 +95,9 @@ internal fun TerminalScreen(
 ) {
     val workspace by viewModel.workspace.collectAsStateWithLifecycle()
     val worktrees by viewModel.worktrees.collectAsStateWithLifecycle()
+    val pendingWorktrees by viewModel.pendingWorktrees.collectAsStateWithLifecycle()
+    val removingWorktreePanels by viewModel.removingWorktreePanels.collectAsStateWithLifecycle()
+    val worktreeFailures by viewModel.worktreeFailures.collectAsStateWithLifecycle()
     val claudeStatuses by viewModel.claudeStatuses.collectAsStateWithLifecycle()
     // 창이 뒤에 있는 동안 보이는 탭은 본 것이 아니다(docs/common/terminal-claude-status.html#requirements R3).
     val windowFocused = LocalWindowInfo.current.isWindowFocused
@@ -137,6 +140,9 @@ internal fun TerminalScreen(
                     selectedPanelId = current.selectedPanelId,
                     nextPanelName = current.nextPanelName,
                     worktrees = worktrees,
+                    pendingWorktrees = pendingWorktrees,
+                    removingPanelIds = removingWorktreePanels,
+                    worktreeFailures = worktreeFailures,
                     claudeStatuses = claudeStatuses,
                     onSelect = viewModel::selectPanel,
                     onSelectTab = viewModel::selectTab,
@@ -145,6 +151,7 @@ internal fun TerminalScreen(
                     onAdd = viewModel::addPanel,
                     onAddWorktree = viewModel::addWorktreePanel,
                     onCloseWorktree = viewModel::closeWorktreePanel,
+                    onDismissWorktreeFailure = viewModel::dismissWorktreeFailure,
                 )
 
                 val panel = current.selectedPanel

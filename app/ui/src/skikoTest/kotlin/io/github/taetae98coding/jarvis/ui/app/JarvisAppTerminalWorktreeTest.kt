@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -36,10 +37,14 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeDialogTest
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeDirectoryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeErrorTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalScreenTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalNewWorktreeTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelBusyTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelBranchTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelCloseTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalWorktreePanelTestTag
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.update
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -54,6 +59,7 @@ class JarvisAppTerminalWorktreeTest {
     }
 
     private val panel = tagPrefix("terminal:panel:")
+    private val pendingRow = tagPrefix("terminal:pending-worktree:")
     private val tab = tagPrefix("terminal:tab:")
 
     private fun ComposeUiTest.panelCount() = onAllNodes(panel).fetchSemanticsNodes().size
@@ -238,7 +244,38 @@ class JarvisAppTerminalWorktreeTest {
     }
 
     @Test
-    fun gitFailureKeepsTheDialogOpenWithTheMessage() = runComposeUiTest {
+    fun whileGitRunsTheDialogIsClosedAndADimmedRowWaitsBehindTheFamily() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(
+            initial.addWorktreePanel(jarvis.id, "a", "/work/jarvis-worktrees/a", branch = "a").selectPanel(jarvis.id),
+        )
+        val gate = CompletableDeferred<Unit>()
+        val git = git().apply { this.gate = gate }
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        val before = workspace.workspace.value
+
+        addWorktree(jarvis.id, "b")
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodes(pendingRow).fetchSemanticsNodes().size == 1 }
+        assertEquals(0, count(TerminalNewWorktreeDialogTestTag))
+        assertEquals(before, workspace.workspace.value)
+        assertEquals(4, panelCount())
+        // 가족(Jarvis, a) 뒤에 온다.
+        val pending = onAllNodes(pendingRow).fetchSemanticsNodes().single()
+        val lastChild = onNodeWithTag(terminalPanelTestTag(before.panels.last().id)).fetchSemanticsNode()
+        assertTrue(pending.boundsInRoot.top >= lastChild.boundsInRoot.bottom)
+
+        gate.complete(Unit)
+
+        awaitWorktreePanel(terminal, panels = 5, sessions = 2)
+        assertEquals(0, onAllNodes(pendingRow).fetchSemanticsNodes().size)
+        assertEquals(listOf("a", "b"), workspace.workspace.value.children(jarvis.id).map { it.name })
+    }
+
+    @Test
+    fun gitFailureReopensTheDialogWithTheInputAndTheMessage() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         val workspace = FakeTerminalWorkspaceRepository(initial)
         val git = git().apply { failure = "fatal: 'fix' is already checked out at '/elsewhere'" }
@@ -246,20 +283,48 @@ class JarvisAppTerminalWorktreeTest {
         openTerminal()
         awaitSessions(terminal, 1)
 
-        addWorktree(jarvis.id, "fix")
+        addWorktree(jarvis.id, "fix", baseBranch = "release")
 
         awaitTag(TerminalNewWorktreeErrorTestTag)
         onNodeWithText("fatal: 'fix' is already checked out at '/elsewhere'").assertIsDisplayed()
         assertEquals(1, count(TerminalNewWorktreeDialogTestTag))
+        assertEquals(0, onAllNodes(pendingRow).fetchSemanticsNodes().size)
         assertEquals(initial, workspace.workspace.value)
-        onNodeWithTag(TerminalNewWorktreeConfirmTestTag).assertIsEnabled()
+        assertEquals("fix", fieldText(TerminalNewWorktreeBranchTestTag))
+        assertEquals("release", fieldText(TerminalNewWorktreeBaseTestTag))
+        // 기본 폴더였으므로 브랜치를 고치면 다시 따라간다.
+        onNodeWithTag(TerminalNewWorktreeBranchTestTag).performTextReplacement("fix-2")
+        assertEquals("/work/jarvis-worktrees/fix-2", fieldText(TerminalNewWorktreeDirectoryTestTag))
 
         // 고쳐서 다시 누르면 된다.
         git.failure = null
         onNodeWithTag(TerminalNewWorktreeConfirmTestTag).performClick()
 
         awaitWorktreePanel(terminal, panels = 4, sessions = 2)
-        assertEquals(jarvis.id, workspace.workspace.value.selectedPanel!!.parentId)
+        val child = workspace.workspace.value.selectedPanel!!
+        assertEquals(jarvis.id, child.parentId)
+        assertEquals("fix-2", child.branch)
+        assertEquals("release", child.baseBranch)
+        assertEquals(0, count(TerminalNewWorktreeErrorTestTag))
+    }
+
+    @Test
+    fun cancellingAReopenedDialogDropsTheFailure() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git().apply { failure = "fatal: nope" }
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        addWorktree(jarvis.id, "fix")
+        awaitTag(TerminalNewWorktreeErrorTestTag)
+
+        onNodeWithTag(TerminalNewWorktreeCancelTestTag).performClick()
+
+        waitForIdle()
+        assertEquals(0, count(TerminalNewWorktreeDialogTestTag))
+        assertEquals(1, git.added.size)
+        assertEquals(initial, workspace.workspace.value)
     }
 
     @Test
@@ -402,7 +467,60 @@ class JarvisAppTerminalWorktreeTest {
     }
 
     @Test
-    fun gitFailureKeepsTheCloseDialogAndThePanel() = runComposeUiTest {
+    fun whileGitRunsTheDialogIsClosedAndTheRowIsDimmedAndLocked() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        val child = openCloseWorktreeDialog(workspace, terminal)
+        val gate = CompletableDeferred<Unit>()
+        git.gate = gate
+
+        onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).performClick()
+
+        awaitTag(terminalPanelBusyTestTag(child))
+        assertEquals(0, count(TerminalCloseWorktreeDialogTestTag))
+        assertEquals(4, panelCount())
+        assertTrue(!terminal.sessions[1].closed)
+        onNodeWithTag(terminalPanelCloseTestTag(child)).assertIsNotEnabled()
+        onNodeWithTag(terminalNewWorktreeTestTag(child)).assertIsNotEnabled()
+        assertEquals(0, count(terminalPanelBusyTestTag(jarvis.id)))
+
+        // 다른 패널은 그대로 쓸 수 있다.
+        onNodeWithTag(terminalPanelCloseTestTag(api.id)).assertIsEnabled()
+
+        gate.complete(Unit)
+
+        awaitClosed(panels = 3)
+        assertEquals(1, git.removed.size)
+        assertTrue(terminal.sessions[1].closed)
+    }
+
+    @Test
+    fun removalKeepsGoingAfterLeavingTheScreenAndShowsProgressOnReturn() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        val child = openCloseWorktreeDialog(workspace, terminal)
+        val gate = CompletableDeferred<Unit>()
+        git.gate = gate
+        onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).performClick()
+        awaitTag(terminalPanelBusyTestTag(child))
+
+        onNodeWithContentDescription("뒤로").performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { count(TerminalScreenTestTag) == 0 }
+        openTerminal()
+        awaitTag(terminalPanelBusyTestTag(child))
+
+        gate.complete(Unit)
+
+        awaitClosed(panels = 3)
+        assertNull(workspace.workspace.value.panels.firstOrNull { it.id == child })
+    }
+
+    @Test
+    fun gitFailureReopensTheCloseDialogWithTheChoicesAndKeepsThePanel() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         val workspace = FakeTerminalWorkspaceRepository(initial)
         val git = git()
@@ -415,8 +533,11 @@ class JarvisAppTerminalWorktreeTest {
         awaitTag(TerminalCloseWorktreeErrorTestTag)
         onNodeWithText("fatal: '/work/jarvis-worktrees/a' contains modified or untracked files, use --force to delete it").assertIsDisplayed()
         assertEquals(1, count(TerminalCloseWorktreeDialogTestTag))
+        assertEquals(0, count(terminalPanelBusyTestTag(child)))
         assertEquals(4, panelCount())
         assertTrue(!terminal.sessions[1].closed)
+        onNodeWithTag(TerminalCloseWorktreeRemoveTestTag).assertIsOn()
+        onNodeWithTag(TerminalCloseWorktreeDeleteDirectoryTestTag).assertIsOn()
         onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).assertIsEnabled()
 
         // 폴더를 남기면 된다.

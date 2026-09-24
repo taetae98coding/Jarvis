@@ -1052,14 +1052,17 @@ internal actual fun createSystemScreenAwakeDataSource(
     <tr><td><code>.git/worktrees/&lt;이름&gt;</code> 을 직접 지우기</td><td>버렸다. git 내부 배치에 기댄다. <code>prune</code> 이 같은 일을 공식으로 한다</td></tr>
     <tr><td><code>git worktree list --porcelain</code> 으로 기존 워크트리 불러오기</td><td>조사만 했다. 스코프 밖(공통 스펙). 필요해지면 같은 데이터 소스에 <code>observeWorktrees(repository)</code> 를 더한다</td></tr>
     <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. <code>git</code> 이 PATH 에 있으면 그대로 돌고, 없으면 <code>ProcessBuilder.start</code> 의 <code>IOException</code> 을 삼켜 null(+ 없음)·실패(오류 문구 "git 을 실행할 수 없습니다")가 된다</td></tr>
+    <tr><td>흐린 줄: <code>Modifier.alpha</code></td><td>채택(공통 R17·R18). Compose 가 <code>graphicsLayer(alpha)</code> 로 줄을 한 레이어에 그리고 Skia(skiko) 가 그 레이어를 반투명으로 합성한다 — 배경·글자·아이콘이 겹쳐도 겹친 곳이 더 진해지지 않는다. 플랫폼 API 를 직접 부르지 않는다</td></tr>
+    <tr><td>뒤에서 돌리기: Koin <code>single</code> 의 <code>CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)</code></td><td>채택. git 은 이미 <code>Dispatchers.IO</code>·<code>runInterruptible</code> 에서 돌고, 호스트는 결과를 받아 작업 공간을 바꾸기만 한다. 앱 창을 닫으면 Koin 이 닫히며 스코프를 끊는다 — <code>runInterruptible</code> 이 <code>waitFor</code> 를 끊을 뿐 이미 띄운 <code>git</code> 프로세스는 스스로 끝까지 간다(공통 스펙 한계)</td></tr>
+    <tr><td><code>GlobalScope</code>·데몬 스레드</td><td>버렸다. 테스트가 Koin 을 다시 세울 때 끊을 수단이 없고, 앱이 닫힌 뒤 닫힌 저장소에 쓰려 할 수 있다</td></tr>
   </tbody>
 </table>
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../data/terminal/Git.jvm.kt</code>(<code>ProcessGitDataSource</code>, <code>createGitDataSource</code>), 공통 코드(<code>GitWorktree.kt</code>, <code>GitWorktreeRepository.kt</code>, <code>AddWorktreePanelUseCase.kt</code>, <code>CloseWorktreePanelUseCase.kt</code>, <code>NewWorktreeDialog.kt</code>, <code>CloseWorktreeDialog.kt</code>, <code>TerminalPanelList.kt</code>)</dd>
-  <dt>동작</dt><dd>공통 스펙 R1–R16 그대로. <code>observeWorktree</code> 는 <code>observeByPolling(GitWorktreePollInterval)</code> 로 수집하는 동안만 읽고 <code>Dispatchers.IO</code> 에서 돈다. 읽기는 <code>rev-parse</code> 가 성공한 뒤에만 <code>branch --show-current</code> 를 붙이고, 그것이 실패하면 브랜치만 null 이다. 폴더의 <code>~</code> 는 <code>expandHome(user.home)</code> 으로 편다. <code>addWorktree</code> 는 기준 브랜치가 null 이 아닐 때만 <code>-b</code> 뒤에 시작점으로 붙이고, 만든 뒤 그 경로로 같은 읽기를 다시 해 <code>GitWorktree</code>(현재 브랜치 포함)를 돌려준다. <code>removeWorktree</code> 는 같은 읽기로 워크트리를 얻어 main 이면 거부하고, 폴더를 지우면 <code>worktree remove</code>, 남기면 <code>.git</code> 파일 삭제 + <code>worktree prune</code>, 그 뒤 현재 브랜치가 있으면 <code>branch -D</code> 다</dd>
-  <dt>실패</dt><dd><code>git</code> 이 0 이 아닌 코드로 끝나면 stderr(비면 "git 이 &lt;코드&gt; 로 끝났습니다")를 <code>GitWorktreeException</code> 으로 돌려주고 창이 보인다. 프로세스를 띄우지 못하면(<code>IOException</code>) 같은 방식으로 실패, 저장소 판정은 null</dd>
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../data/terminal/Git.jvm.kt</code>(<code>ProcessGitDataSource</code>, <code>createGitDataSource</code>), 공통 코드(<code>GitWorktree.kt</code>, <code>GitWorktreeRepository.kt</code>, <code>AddWorktreePanelUseCase.kt</code>, <code>CloseWorktreePanelUseCase.kt</code>, <code>WorktreeTaskHost.kt</code>, <code>NewWorktreeDialog.kt</code>, <code>CloseWorktreeDialog.kt</code>, <code>TerminalPanelList.kt</code>)</dd>
+  <dt>동작</dt><dd>공통 스펙 R1–R20 그대로. <code>observeWorktree</code> 는 <code>observeByPolling(GitWorktreePollInterval)</code> 로 수집하는 동안만 읽고 <code>Dispatchers.IO</code> 에서 돈다. 읽기는 <code>rev-parse</code> 가 성공한 뒤에만 <code>branch --show-current</code> 를 붙이고, 그것이 실패하면 브랜치만 null 이다. 폴더의 <code>~</code> 는 <code>expandHome(user.home)</code> 으로 편다. <code>addWorktree</code> 는 기준 브랜치가 null 이 아닐 때만 <code>-b</code> 뒤에 시작점으로 붙이고, 만든 뒤 그 경로로 같은 읽기를 다시 해 <code>GitWorktree</code>(현재 브랜치 포함)를 돌려준다. <code>removeWorktree</code> 는 같은 읽기로 워크트리를 얻어 main 이면 거부하고, 폴더를 지우면 <code>worktree remove</code>, 남기면 <code>.git</code> 파일 삭제 + <code>worktree prune</code>, 그 뒤 현재 브랜치가 있으면 <code>branch -D</code> 다</dd>
+  <dt>실패</dt><dd><code>git</code> 이 0 이 아닌 코드로 끝나면 stderr(비면 "git 이 &lt;코드&gt; 로 끝났습니다")를 <code>GitWorktreeException</code> 으로 돌려주고 그 문구로 창이 다시 뜬다. 프로세스를 띄우지 못하면(<code>IOException</code>) 같은 방식으로 실패, 저장소 판정은 null</dd>
 </dl>
 
 <h3>한계</h3>
@@ -1071,7 +1074,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 </ul>
 
 <h3>검증</h3>
-<p>모델·유스케이스는 <code>TerminalWorkspaceTest</code>·<code>GitWorktreeTest</code>·<code>AddWorktreePanelUseCaseTest</code>·<code>CloseWorktreePanelUseCaseTest</code>(<code>jvmTest</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 실제 <code>git</code> 은 임시 저장소를 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다 — 현재 브랜치·detached·unborn, 기준 브랜치에서 갈라지는지, 지우기의 세 경우와 변경이 있는 폴더의 거부도 여기서 본다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 실제 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → 저장소 폴더의 패널 → + → 브랜치·기준 브랜치 → "확인" → 워크트리 패널에 뜬 Claude 탭과 + 로 연 터미널이 워크트리 폴더에서 시작하는지 손으로 확인하고, 그 패널의 ✕ → 체크박스 조합 → "확인" 뒤 <code>git worktree list</code>·<code>git branch</code>·폴더를 셸에서 본다.</p>
+<p>모델·유스케이스는 <code>TerminalWorkspaceTest</code>·<code>GitWorktreeTest</code>·<code>AddWorktreePanelUseCaseTest</code>·<code>CloseWorktreePanelUseCaseTest</code>(<code>jvmTest</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 실제 <code>git</code> 은 임시 저장소를 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다 — 현재 브랜치·detached·unborn, 기준 브랜치에서 갈라지는지, 지우기의 세 경우와 변경이 있는 폴더의 거부도 여기서 본다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 실제 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → 저장소 폴더의 패널 → + → 브랜치·기준 브랜치 → "확인" → 창이 곧바로 닫히고 흐린 만드는 중 줄이 도는지 → 워크트리 패널에 뜬 Claude 탭과 + 로 연 터미널이 워크트리 폴더에서 시작하는지 손으로 확인하고, 그 패널의 ✕ → 체크박스 조합 → "확인" → 줄이 흐려지고 진행 표시가 도는지 → 끝난 뒤 <code>git worktree list</code>·<code>git branch</code>·폴더를 셸에서 본다.</p>
 </section>
 
 <section class="feature" id="terminal-claude-status">
