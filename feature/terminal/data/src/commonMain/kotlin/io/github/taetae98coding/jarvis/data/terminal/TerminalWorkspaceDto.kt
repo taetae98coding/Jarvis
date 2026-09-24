@@ -50,6 +50,7 @@ internal data class TerminalTabDto(
     val deviceName: String? = null,
     val devicePlatform: String? = null,
     val name: String? = null,
+    val claudeCheckedAt: Long? = null,
 )
 
 @Serializable
@@ -147,6 +148,7 @@ private fun PaneNode.toDto(): PaneNodeDto =
                         null -> null
                     },
                     name = tab.name,
+                    claudeCheckedAt = tab.claudeCheckedAt,
                 )
             },
             selectedTabId = selectedTabId,
@@ -191,7 +193,8 @@ private fun PaneNodeDto.toDomain(): PaneNode? =
 
 private fun TerminalTabDto.toDomain(): TerminalTab =
     when {
-        program == ClaudeProgram && claudeSessionId != null -> TerminalTab(id, TerminalProgram.Claude, directory, claudeSessionId)
+        program == ClaudeProgram && claudeSessionId != null ->
+            TerminalTab(id, TerminalProgram.Claude, directory, claudeSessionId, claudeCheckedAt = claudeCheckedAt)
         program == BrowserProgram -> TerminalTab(id, TerminalProgram.Browser, url = url ?: TerminalTab.DefaultBrowserUrl)
         program == DeviceProgram && deviceId != null -> TerminalTab(
             id = id,

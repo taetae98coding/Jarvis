@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivity
 import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
@@ -87,6 +88,21 @@ class TerminalWorkspaceStoreTest {
 
         assertNull(tab.name)
         assertNull(tab.devicePlatform)
+    }
+
+    @Test
+    fun claudeCheckedAtIsReadBackByANewStore() = runTest {
+        val path = newPath()
+        val change = repository(path).updateWorkspace { workspace ->
+            workspace
+                .addTab(program = TerminalProgram.Claude, claudeSessionId = "e0c0")
+                .checkVisibleClaudeTabs(mapOf("e0c0" to ClaudeActivity.Finished(at = 1_790_000_000_000)))
+        }
+
+        val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
+
+        assertEquals(change.after, reopened)
+        assertEquals(1_790_000_000_000, reopened.tabs.single { it.claudeSessionId == "e0c0" }.claudeCheckedAt)
     }
 
     @Test
