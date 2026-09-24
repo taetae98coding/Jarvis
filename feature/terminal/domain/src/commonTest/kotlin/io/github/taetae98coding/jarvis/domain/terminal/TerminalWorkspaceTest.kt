@@ -685,6 +685,62 @@ class TerminalWorkspaceTest {
         assertEquals(TerminalTabKind.Android, TerminalTab(1, TerminalProgram.Device, deviceId = "d", devicePlatform = DevicePlatform.Android).kind)
         assertEquals(TerminalTabKind.IOS, TerminalTab(1, TerminalProgram.Device, deviceId = "d", devicePlatform = DevicePlatform.IOS).kind)
         assertEquals(TerminalTabKind.Device, TerminalTab(1, TerminalProgram.Device, deviceId = "d").kind)
+        assertEquals(TerminalTabKind.File, TerminalTab(1, TerminalProgram.File, filePath = "/a").kind)
+    }
+
+    @Test
+    fun openingAFileAppendsAFileTabToTheFocusedGroupAndSelectsIt() {
+        val workspace = TerminalWorkspace.initial()
+
+        val opened = workspace.openFile("/work/README.md")
+        val tab = opened.focusedTab!!
+
+        assertEquals(2, opened.groups.single().tabs.size)
+        assertEquals(TerminalProgram.File, tab.program)
+        assertEquals(TerminalTabKind.File, tab.kind)
+        assertEquals("/work/README.md", tab.filePath)
+    }
+
+    @Test
+    fun openingAFileInAnEmptyPanelCreatesAGroup() {
+        val workspace = TerminalWorkspace.initial().addPanel(name = "빈", directory = "/work")
+
+        val opened = workspace.openFile("/work/a.txt")
+
+        assertEquals(listOf("/work/a.txt"), opened.selectedPanel!!.tabs.map { it.filePath })
+        assertEquals(opened.groups.single().id, opened.focusedGroupId)
+    }
+
+    @Test
+    fun openingAnOpenFileAgainSelectsItsTabInsteadOfAddingOne() {
+        val workspace = TerminalWorkspace.initial().openFile("/work/a.txt").addTab()
+        val fileTab = workspace.tabs.single { it.program == TerminalProgram.File }
+
+        val opened = workspace.openFile("/work/a.txt")
+
+        assertEquals(workspace.tabIds, opened.tabIds)
+        assertEquals(fileTab.id, opened.focusedTab!!.id)
+    }
+
+    @Test
+    fun theSameFileInAnotherPanelIsOpenedAgain() {
+        val workspace = TerminalWorkspace.initial().openFile("/work/a.txt").addPanel().addTab()
+
+        val opened = workspace.openFile("/work/a.txt")
+
+        assertEquals(2, opened.tabs.count { it.filePath == "/work/a.txt" })
+        assertEquals(opened.panels.last().id, opened.selectedPanelId)
+    }
+
+    @Test
+    fun sideBarFollowsThePanelFolderThenTheFocusedTabDirectory() {
+        val withFolder = TerminalWorkspace.initial().addPanel(directory = "/work").addTab(directory = "/work/app")
+        assertEquals("/work", withFolder.sideBarDirectory)
+
+        val withoutFolder = TerminalWorkspace.initial().addPanel().addTab(directory = "/tmp/x")
+        assertEquals("/tmp/x", withoutFolder.sideBarDirectory)
+
+        assertNull(TerminalWorkspace.initial().sideBarDirectory)
     }
 
     @Test

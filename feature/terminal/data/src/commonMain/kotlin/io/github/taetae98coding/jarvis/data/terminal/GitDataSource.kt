@@ -1,5 +1,8 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import kotlinx.coroutines.flow.Flow
@@ -11,9 +14,17 @@ internal interface GitDataSource {
     suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree>
 
     suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result<Unit>
+
+    fun observeStatus(directory: String): Flow<GitStatus?>
+
+    fun observeGraph(directory: String): Flow<List<GitGraphLine>>
+
+    suspend fun stage(root: String, changes: List<GitChange>): Result<Unit>
+
+    suspend fun unstage(root: String, changes: List<GitChange>): Result<Unit>
 }
 
-/** git 을 실행할 수 없는 타깃. 어떤 폴더도 저장소가 아니라서 패널에 + 가 없다. */
+/** git 을 실행할 수 없는 타깃. 어떤 폴더도 저장소가 아니라서 패널에 + 가 없고 사이드 바의 Git 구획은 "git 저장소가 아닙니다" 다. */
 internal object UnsupportedGitDataSource : GitDataSource {
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = flowOf(null)
 
@@ -21,6 +32,14 @@ internal object UnsupportedGitDataSource : GitDataSource {
         unsupported()
 
     override suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result<Unit> = unsupported()
+
+    override fun observeStatus(directory: String): Flow<GitStatus?> = flowOf(null)
+
+    override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = flowOf(emptyList())
+
+    override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> = unsupported()
+
+    override suspend fun unstage(root: String, changes: List<GitChange>): Result<Unit> = unsupported()
 
     private fun <T> unsupported(): Result<T> = Result.failure(GitWorktreeException("이 플랫폼에서는 git 을 쓸 수 없습니다"))
 }

@@ -1,0 +1,325 @@
+package io.github.taetae98coding.jarvis.ui.app
+
+import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.v2.runComposeUiTest
+import io.github.taetae98coding.jarvis.domain.terminal.FileContent
+import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
+import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
+import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerNoticeTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFilesRootTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitBranchTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitErrorTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitNoCommitsTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitNotRepositoryTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitStageAllTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitUnstageAllTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarContentTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarFilesTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarGitTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarNoFolderTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarToggleTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalFileEntryTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalGitCommitTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalGitStageTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalGitStagedTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalGitUnstageTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalGitUnstagedTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalGroupTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalTabTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalTabTitleTestTag
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+/** docs/common/terminal-side-bar.html */
+@OptIn(ExperimentalTestApi::class)
+class JarvisAppTerminalSideBarTest {
+    // "패널 1"(폴더 없음)과 선택된 "Jarvis"(/work/jarvis, 셸 탭 하나).
+    private val initial = TerminalWorkspace.initial()
+        .addPanel(name = "Jarvis", directory = Root)
+        .addTab()
+
+    private val readme = FileEntry("README.md", "$Root/README.md", isDirectory = false)
+    private val src = FileEntry("src", "$Root/src", isDirectory = true)
+    private val main = FileEntry("Main.kt", "$Root/src/Main.kt", isDirectory = false)
+
+    private fun files(vararg contents: Pair<String, FileContent>) = FakeFileRepository(
+        directories = mapOf(Root to listOf(src, readme), src.path to listOf(main)),
+        files = contents.toMap(),
+    )
+
+    private val foo = GitChange("app/Foo.kt", GitChangeKind.Modified)
+    private val tmp = GitChange("tmp.txt", GitChangeKind.Untracked)
+    private val added = GitChange("new.kt", GitChangeKind.Added)
+    private val head = GitCommit("h1", "a1b2c3d", listOf("HEAD -> main"), "dev", "2026-09-25 10:00", "사이드 바 추가")
+    private val first = GitCommit("h2", "e4f5a6b", emptyList(), "dev", "2026-09-20 09:00", "처음")
+
+    private fun git() = FakeGitChangesRepository(
+        statuses = mapOf(Root to GitStatus(root = Root, branch = "main", staged = listOf(added), unstaged = listOf(foo, tmp))),
+        graphs = mapOf(
+            Root to listOf(
+                GitGraphLine("*", head),
+                GitGraphLine("|", head, isDetail = true),
+                GitGraphLine("*", first),
+                GitGraphLine("", first, isDetail = true),
+            ),
+        ),
+    )
+
+    private fun ComposeUiTest.count(tag: String) = onAllNodesWithTag(tag).fetchSemanticsNodes().size
+
+    private fun ComposeUiTest.awaitTag(tag: String, count: Int = 1) {
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { count(tag) == count }
+    }
+
+    private fun ComposeUiTest.openTerminal(
+        workspace: FakeTerminalWorkspaceRepository = FakeTerminalWorkspaceRepository(initial),
+        terminal: FakeTerminalRepository = FakeTerminalRepository(),
+        files: FakeFileRepository = files(),
+        git: FakeGitChangesRepository = git(),
+    ) {
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, files = files, gitChanges = git) }
+        onNodeWithTag(TerminalTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+    }
+
+    @Test
+    fun theSideBarStartsOpenOnFilesAndCollapsesAndExpandsWithoutTouchingTabs() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        openTerminal(workspace = workspace, terminal = terminal)
+        val tabId = workspace.workspace.value.focusedTab!!.id
+
+        onNodeWithTag(TerminalSideBarTestTag).assertIsDisplayed()
+        awaitTag(TerminalFilesRootTestTag)
+        val groupTag = terminalGroupTestTag(workspace.workspace.value.focusedGroup!!.id)
+        val openWidth = onNodeWithTag(groupTag).fetchSemanticsNode().boundsInRoot.width
+
+        onNodeWithTag(TerminalSideBarToggleTestTag).performClick()
+        awaitTag(TerminalSideBarContentTestTag, count = 0)
+        onNodeWithTag(terminalTabTestTag(tabId)).assertIsDisplayed()
+        assertFalse(terminal.sessions.single().closed)
+        assertTrue(onNodeWithTag(groupTag).fetchSemanticsNode().boundsInRoot.width > openWidth)
+
+        onNodeWithTag(TerminalSideBarToggleTestTag).performClick()
+        awaitTag(TerminalFilesRootTestTag)
+    }
+
+    @Test
+    fun sectionIconsSwitchTheSectionAndTheOpenOneCollapses() = runComposeUiTest {
+        openTerminal()
+        awaitTag(TerminalFilesRootTestTag)
+
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(TerminalGitBranchTestTag)
+        assertEquals(0, count(TerminalFilesRootTestTag))
+
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(TerminalSideBarContentTestTag, count = 0)
+
+        onNodeWithTag(TerminalSideBarFilesTestTag).performClick()
+        awaitTag(TerminalFilesRootTestTag)
+    }
+
+    @Test
+    fun aPanelWithoutAFolderSaysSo() = runComposeUiTest {
+        openTerminal(workspace = FakeTerminalWorkspaceRepository(TerminalWorkspace.initial()))
+
+        awaitTag(TerminalSideBarNoFolderTestTag)
+
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(TerminalSideBarNoFolderTestTag)
+    }
+
+    @Test
+    fun foldersExpandAndCollapseInPlace() = runComposeUiTest {
+        openTerminal()
+        awaitTag(terminalFileEntryTestTag(readme.path))
+        onNodeWithTag(TerminalFilesRootTestTag).assertTextEquals(Root)
+        val srcTop = onNodeWithTag(terminalFileEntryTestTag(src.path)).fetchSemanticsNode().boundsInRoot.top
+        val readmeTop = onNodeWithTag(terminalFileEntryTestTag(readme.path)).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(srcTop < readmeTop)
+        assertEquals(0, count(terminalFileEntryTestTag(main.path)))
+
+        onNodeWithTag(terminalFileEntryTestTag(src.path)).performClick()
+        awaitTag(terminalFileEntryTestTag(main.path))
+        val mainNode = onNodeWithTag(terminalFileEntryTestTag(main.path)).fetchSemanticsNode().boundsInRoot
+        assertTrue(mainNode.top < onNodeWithTag(terminalFileEntryTestTag(readme.path)).fetchSemanticsNode().boundsInRoot.top)
+
+        onNodeWithTag(terminalFileEntryTestTag(src.path)).performClick()
+        awaitTag(terminalFileEntryTestTag(main.path), count = 0)
+    }
+
+    @Test
+    fun theTreeFollowsTheDisk() = runComposeUiTest {
+        val files = files()
+        openTerminal(files = files)
+        awaitTag(terminalFileEntryTestTag(readme.path))
+
+        val added = FileEntry("NOTES.md", "$Root/NOTES.md", isDirectory = false)
+        files.directories.value = files.directories.value + (Root to listOf(src, added, readme))
+
+        awaitTag(terminalFileEntryTestTag(added.path))
+    }
+
+    @Test
+    fun clickingAFileOpensItInANewTabAndClickingAgainSelectsThatTab() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        openTerminal(workspace = workspace, files = files(readme.path to FileContent.Text("# Jarvis\n\n끝", truncated = false)))
+        awaitTag(terminalFileEntryTestTag(readme.path))
+
+        onNodeWithTag(terminalFileEntryTestTag(readme.path)).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.program == TerminalProgram.File }
+        val fileTab = workspace.workspace.value.focusedTab!!
+        assertEquals(readme.path, fileTab.filePath)
+        assertEquals(2, workspace.workspace.value.selectedPanel!!.tabs.size)
+        awaitTag(terminalFileViewerTestTag(fileTab.id))
+        onNodeWithText("# Jarvis").assertIsDisplayed()
+        onNodeWithText("끝").assertIsDisplayed()
+        onNodeWithText("3").assertIsDisplayed()
+        onNodeWithTag(terminalTabTitleTestTag(fileTab.id)).assertTextEquals("README.md")
+
+        workspace.workspace.value = workspace.workspace.value.selectTab(workspace.workspace.value.selectedPanel!!.tabs.first().id)
+        onNodeWithTag(terminalFileEntryTestTag(readme.path)).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.id == fileTab.id }
+        assertEquals(2, workspace.workspace.value.selectedPanel!!.tabs.size)
+    }
+
+    @Test
+    fun binaryBigAndMissingFilesSaySo() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val big = FileEntry("big.log", "$Root/big.log", isDirectory = false)
+        val files = FakeFileRepository(
+            directories = mapOf(Root to listOf(readme, big, main)),
+            files = mapOf(readme.path to FileContent.Binary, big.path to FileContent.Text("앞부분", truncated = true)),
+        )
+        openTerminal(workspace = workspace, files = files)
+        awaitTag(terminalFileEntryTestTag(readme.path))
+
+        onNodeWithTag(terminalFileEntryTestTag(readme.path)).performClick()
+        awaitTag(TerminalFileViewerNoticeTestTag)
+        onNodeWithTag(TerminalFileViewerNoticeTestTag).assertTextEquals("텍스트가 아닌 파일이라 보일 수 없습니다")
+
+        onNodeWithTag(terminalFileEntryTestTag(big.path)).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("앞 512 KiB 만 보입니다").fetchSemanticsNodes().size == 1 }
+        onNodeWithText("앞부분").assertIsDisplayed()
+
+        onNodeWithTag(terminalFileEntryTestTag(main.path)).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("파일을 읽을 수 없습니다").fetchSemanticsNodes().size == 1 }
+    }
+
+    @Test
+    fun theGitSectionListsStagedAndUnstagedChangesAndTheGraph() = runComposeUiTest {
+        openTerminal()
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(TerminalGitBranchTestTag)
+
+        onNodeWithTag(TerminalGitBranchTestTag).assertTextEquals("main")
+        onNodeWithText("스테이지된 변경 (1)").assertIsDisplayed()
+        onNodeWithText("변경 (2)").assertIsDisplayed()
+        onNodeWithTag(terminalGitStagedTestTag(added.path)).assertIsDisplayed()
+        onNodeWithTag(terminalGitUnstagedTestTag(foo.path)).assertIsDisplayed()
+        onNodeWithTag(terminalGitUnstagedTestTag(tmp.path)).assertIsDisplayed()
+        onNodeWithText("Foo.kt").assertIsDisplayed()
+        onNodeWithText("app").assertIsDisplayed()
+
+        awaitTag(terminalGitCommitTestTag(head.hash))
+        onNodeWithText("사이드 바 추가").assertIsDisplayed()
+        onNodeWithText("HEAD -> main").assertIsDisplayed()
+        onNodeWithText("a1b2c3d · dev · 2026-09-25 10:00").assertIsDisplayed()
+        onNodeWithTag(terminalGitCommitTestTag(first.hash)).assertIsDisplayed()
+    }
+
+    @Test
+    fun stageAndUnstageButtonsCallGitWithTheRepositoryRoot() = runComposeUiTest {
+        val git = git()
+        openTerminal(git = git)
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(terminalGitStageTestTag(foo.path))
+
+        onNodeWithTag(terminalGitStageTestTag(foo.path)).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { git.staged.size == 1 }
+        assertEquals(Root to listOf(foo), git.staged.single())
+
+        onNodeWithTag(terminalGitUnstageTestTag(added.path)).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { git.unstaged.size == 1 }
+        assertEquals(Root to listOf(added), git.unstaged.single())
+
+        onNodeWithTag(TerminalGitStageAllTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { git.staged.size == 2 }
+        assertEquals(Root to listOf(foo, tmp), git.staged.last())
+
+        onNodeWithTag(TerminalGitUnstageAllTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { git.unstaged.size == 2 }
+        assertEquals(Root to listOf(added), git.unstaged.last())
+        assertEquals(0, count(TerminalGitErrorTestTag))
+    }
+
+    @Test
+    fun aGitFailureStaysUntilTheNextCommandSucceeds() = runComposeUiTest {
+        val git = git().apply { failure = "fatal: pathspec 'x' did not match any files" }
+        openTerminal(git = git)
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(terminalGitStageTestTag(foo.path))
+
+        onNodeWithTag(terminalGitStageTestTag(foo.path)).performClick()
+        awaitTag(TerminalGitErrorTestTag)
+        onNodeWithTag(TerminalGitErrorTestTag).assertTextEquals("fatal: pathspec 'x' did not match any files")
+
+        git.failure = null
+        onNodeWithTag(terminalGitStageTestTag(foo.path)).performClick()
+        awaitTag(TerminalGitErrorTestTag, count = 0)
+    }
+
+    @Test
+    fun clickingAChangeOpensTheFileFromTheRepositoryRoot() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        openTerminal(workspace = workspace)
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(terminalGitUnstagedTestTag(foo.path))
+
+        onNodeWithText("Foo.kt").performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.program == TerminalProgram.File }
+        assertEquals("$Root/app/Foo.kt", workspace.workspace.value.focusedTab!!.filePath)
+    }
+
+    @Test
+    fun foldersOutsideARepositoryAndReposWithoutCommitsSaySo() = runComposeUiTest {
+        val git = FakeGitChangesRepository()
+        openTerminal(git = git)
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(TerminalGitNotRepositoryTestTag)
+
+        git.statuses.value = mapOf(Root to GitStatus(root = Root, branch = null, staged = emptyList(), unstaged = emptyList()))
+
+        awaitTag(TerminalGitNoCommitsTestTag)
+        onNodeWithTag(TerminalGitBranchTestTag).assertTextEquals("HEAD (detached)")
+        assertEquals(0, count(TerminalGitStageAllTestTag))
+    }
+
+    private companion object {
+        const val FrameTimeoutMillis = 10_000L
+        const val Root = "/work/jarvis"
+    }
+}

@@ -106,6 +106,34 @@ class TerminalWorkspaceStoreTest {
     }
 
     @Test
+    fun fileTabsAreReadBackWithTheirPath() = runTest {
+        val path = newPath()
+        val change = repository(path).updateWorkspace { it.openFile("/work/README.md") }
+
+        val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
+
+        assertEquals(change.after, reopened)
+        assertEquals("/work/README.md", reopened.tabs.single { it.program == TerminalProgram.File }.filePath)
+    }
+
+    @Test
+    fun aFileTabWithoutAPathIsReadAsAShell() {
+        val dto = TerminalWorkspaceDto(
+            panels = listOf(
+                TerminalPanelDto(
+                    id = 1,
+                    name = "패널 1",
+                    root = PaneNodeDto.Group(id = 2, tabs = listOf(TerminalTabDto(id = 3, program = "file"), TerminalTabDto(id = 4, program = "file", filePath = "/a"))),
+                ),
+            ),
+            selectedPanelId = 1,
+            nextId = 5,
+        )
+
+        assertEquals(listOf(TerminalProgram.Shell, TerminalProgram.File), dto.toDomain().tabs.map { it.program })
+    }
+
+    @Test
     fun panelDirectoryIsReadBackByANewStore() = runTest {
         val path = newPath()
         val change = repository(path).updateWorkspace {

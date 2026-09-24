@@ -15,6 +15,9 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -151,7 +154,8 @@ class JarvisAppTerminalPanelTest {
 
         fun layoutOf(text: String): TextLayoutResult {
             val layout = mutableListOf<TextLayoutResult>()
-            onNodeWithText(text, useUnmergedTree = true)
+            // 오른쪽 사이드 바 머리에도 같은 폴더가 보이므로 패널 줄 안에서 찾는다.
+            onNode(hasText(text) and hasAnyAncestor(panel), useUnmergedTree = true)
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layout) }
             return layout.single()
         }
@@ -256,7 +260,8 @@ class JarvisAppTerminalPanelTest {
         assertNotNull(claude.claudeSessionId)
         assertEquals(listOf(claude), panel.tabs)
         onNodeWithText("API").assertIsDisplayed()
-        onNodeWithText("/work/api").assertIsDisplayed()
+        // 오른쪽 사이드 바 머리에도 같은 폴더가 보이므로 패널 줄 안에서 찾는다.
+        onNode(hasText("/work/api") and hasAnyAncestor(hasTestTag(terminalPanelTestTag(panel.id))), useUnmergedTree = true).assertIsDisplayed()
 
         openNewTab(TerminalNewShellTabTestTag)
 

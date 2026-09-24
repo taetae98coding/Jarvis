@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
+import io.github.taetae98coding.jarvis.domain.terminal.FileContent
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
@@ -90,6 +91,7 @@ fun terminalTabTitleTestTag(id: Long): String = "terminal:tab-title:$id"
 @Composable
 internal fun TerminalScreen(
     viewModel: TerminalViewModel,
+    sideBar: TerminalSideBarViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -151,19 +153,24 @@ internal fun TerminalScreen(
                 val root = panel?.root
                 if (panel == null || root == null) {
                     EmptyPanel(viewModel = viewModel, devices = devices, modifier = Modifier.weight(1f).fillMaxHeight())
-                    return@Row
+                } else {
+                    key(panel.id) {
+                        PaneTree(
+                            node = root,
+                            panel = panel,
+                            viewModel = viewModel,
+                            drag = drag,
+                            devices = devices,
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                        )
+                    }
                 }
 
-                key(panel.id) {
-                    PaneTree(
-                        node = root,
-                        panel = panel,
-                        viewModel = viewModel,
-                        drag = drag,
-                        devices = devices,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                    )
-                }
+                TerminalSideBar(
+                    viewModel = sideBar,
+                    directory = current.sideBarDirectory,
+                    onOpenFile = viewModel::openFile,
+                )
             }
         }
 
@@ -310,6 +317,16 @@ private fun TerminalGroup(
                         onFocus = { viewModel.focusGroup(group.id) },
                         chromeProfiles = { viewModel.chromeProfiles() },
                         importCookies = { viewModel.importCookies(it) },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+            } else if (tab.program == TerminalProgram.File) {
+                key(tab.id) {
+                    val content = tab.filePath?.let { viewModel.fileContent(it).collectAsStateWithLifecycle().value } ?: FileContent.Unreadable
+                    TerminalFileViewer(
+                        tab = tab,
+                        content = content,
+                        onFocus = { viewModel.focusGroup(group.id) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 }
@@ -518,13 +535,18 @@ private fun DeviceMenuSection(devices: DeviceScreens, onSelect: (DeviceChoice) -
 @Composable
 private fun tabTitle(source: StateFlow<String?>?, index: Int, tab: TerminalTab): String {
     // 기기 이름은 고를 때 탭에 저장해 둔다. 가려진 탭의 이름을 알려고 목록을 계속 세지 않는다.
-    val automatic = if (tab.program == TerminalProgram.Device) tab.deviceName else source?.collectAsStateWithLifecycle()?.value
+    val automatic = when (tab.program) {
+        TerminalProgram.Device -> tab.deviceName
+        TerminalProgram.File -> tab.filePath?.trimEnd('/')?.substringAfterLast('/')
+        else -> source?.collectAsStateWithLifecycle()?.value
+    }
     val title = tab.name ?: automatic
     val fallback = when (tab.program) {
         TerminalProgram.Shell -> "셸"
         TerminalProgram.Claude -> "Claude"
         TerminalProgram.Browser -> "웹"
         TerminalProgram.Device -> "기기"
+        TerminalProgram.File -> "파일"
     }
 
     return title?.takeIf { it.isNotBlank() } ?: "$fallback ${index + 1}"

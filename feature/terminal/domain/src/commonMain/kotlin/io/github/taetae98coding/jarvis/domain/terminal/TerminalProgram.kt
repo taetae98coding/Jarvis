@@ -12,4 +12,7 @@ enum class TerminalProgram {
 
     /** 셸이 아니라 기기 화면이다. 세션을 열지 않고 화면이 [TerminalTab.deviceId] 기기를 찍어 보인다. */
     Device,
+
+    /** 셸이 아니라 파일 내용이다. 세션을 열지 않고 화면이 [TerminalTab.filePath] 를 읽기 전용으로 보인다. */
+    File,
 }

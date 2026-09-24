@@ -8,6 +8,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.AddWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.CloseWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
+import io.github.taetae98coding.jarvis.domain.terminal.FileContent
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsBrowserSupportedUseCase
@@ -15,6 +16,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.IsChromeImportSupportedUs
 import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveChromeProfilesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveClaudeActivitiesUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveFileUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitWorktreeUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
@@ -61,6 +63,7 @@ internal class TerminalViewModel(
     private val closeWorktree: CloseWorktreePanelUseCase,
     observeClaudeActivities: ObserveClaudeActivitiesUseCase,
     private val claudeAttention: ClaudeAttention,
+    private val observeFile: ObserveFileUseCase,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -70,6 +73,9 @@ internal class TerminalViewModel(
 
     // 페이지 제목은 웹뷰가 떠 있을 때만 알 수 있다. 저장하지 않고, 가려진 탭은 마지막으로 본 제목을 보인다.
     private val browserTitles = mutableMapOf<Long, MutableStateFlow<String?>>()
+
+    // 경로마다 하나. 같은 파일을 두 패널에서 열어도 디스크는 한 번만 따라간다.
+    private val fileContents = mutableMapOf<String, StateFlow<FileContent?>>()
 
     /** null 은 저장된 배치를 아직 읽지 못한 것이다. */
     val workspace: StateFlow<TerminalWorkspace?> = observeWorkspace()
@@ -133,6 +139,14 @@ internal class TerminalViewModel(
     fun setBrowserTitle(tabId: Long, title: String?) {
         browserTitle(tabId).value = title
     }
+
+    /** 파일 탭의 내용. null 은 아직 읽지 못한 것이다. 탭이 보이는 동안만 디스크를 따라간다. */
+    fun fileContent(path: String): StateFlow<FileContent?> =
+        fileContents.getOrPut(path) {
+            observeFile(path).stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), null)
+        }
+
+    fun openFile(path: String) = update { it.openFile(path) }
 
     private fun browserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
@@ -236,6 +250,7 @@ internal class TerminalViewModel(
         val tabIds = workspace.tabIds.toSet()
         host.retain(tabIds)
         browserTitles.keys.retainAll(tabIds)
+        fileContents.keys.retainAll(workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath })
 
         val visible = workspace.visibleTabs.filter { it.program == TerminalProgram.Shell || it.program == TerminalProgram.Claude }
 

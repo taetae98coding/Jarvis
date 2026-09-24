@@ -16,6 +16,7 @@ import org.koin.dsl.navigation3.navigation
 val terminalUiModule = module {
     viewModelOf(::TerminalCardViewModel)
     viewModelOf(::TerminalViewModel)
+    viewModelOf(::TerminalSideBarViewModel)
     viewModelOf(::ClaudeNotificationEffectViewModel)
     singleOf(::ClaudeAttention)
     singleOf(::TerminalPaneHost) withOptions { onClose { it?.close() } }
@@ -25,6 +26,7 @@ val terminalUiModule = module {
 
         TerminalScreen(
             viewModel = koinViewModel(),
+            sideBar = koinViewModel(),
             onBack = navigator::back,
         )
     }
