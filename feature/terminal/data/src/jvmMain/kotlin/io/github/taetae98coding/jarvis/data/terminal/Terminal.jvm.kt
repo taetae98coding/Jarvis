@@ -120,8 +120,11 @@ private class PtyTerminalSession(
 private fun loginShell(): String = System.getenv("SHELL")?.takeIf { File(it).canExecute() } ?: DefaultShell
 
 /** 저장된 작업 디렉터리가 지금도 있으면 거기서, 아니면 홈에서 시작한다. */
-private fun startDirectory(tab: TerminalTab): String =
-    tab.directory?.takeIf { File(it).isDirectory } ?: System.getProperty("user.home")
+private fun startDirectory(tab: TerminalTab): String {
+    val home = System.getProperty("user.home")
+
+    return tab.directory?.let { expandHome(it, home) }?.takeIf { File(it).isDirectory } ?: home
+}
 
 /**
  * 로그인 셸로 띄워야 `~/.zprofile` 의 PATH(Homebrew 등)가 들어온다. Finder 로 띄운 앱은 launchd 의

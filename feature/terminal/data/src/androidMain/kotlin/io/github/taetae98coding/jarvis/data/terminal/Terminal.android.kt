@@ -30,7 +30,7 @@ private class PipeTerminalDataSource(
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? {
         if (tab.program != TerminalProgram.Shell) return null
 
-        return openShell(tab.directory?.let(::File)?.takeIf { it.isDirectory } ?: home)
+        return openShell(tab.directory?.let { File(expandHome(it, home.path)) }?.takeIf { it.isDirectory } ?: home)
     }
 
     override suspend fun stopClaude(sessionId: String) = Unit
