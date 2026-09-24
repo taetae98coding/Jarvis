@@ -76,6 +76,7 @@
 │   ├── terminal-browser.html        터미널에서 웹 브라우저 (새 탭 메뉴, 시스템 웹뷰)
 │   ├── terminal-device.html         터미널에서 기기 화면 (새 탭 메뉴, 탭·스와이프)
 │   ├── terminal-tab-label.html      탭 종류 표시와 이름 바꾸기 (터미널·Claude·브라우저·Android·iOS 아이콘, 더블클릭 이름)
+│   ├── terminal-panel-item-layout.html 패널 줄의 버튼을 아래 줄로 (이름이 목록 폭 전체를 쓴다)
 │   ├── device-mirroring.html        기기 화면 영상 스트림·호버 (scrcpy-server + FFmpeg, 마우스 호버)
 │   ├── terminal-panel-create.html   새 패널 제목·폴더 (확인이 빈 패널을 만든다)
 │   ├── terminal-worktree.html       패널에서 git 워크트리 추가·지우기 (패널의 +, 기준 브랜치, git worktree add, 들여쓴 빈 하위 패널, ✕ 의 지우기 창)
@@ -321,6 +322,13 @@
       <td class="center"><a href="platform/web.html#terminal-tab-label"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/terminal-panel-item-layout.html">패널 줄의 버튼을 아래 줄로</a></td>
+      <td class="center"><a href="platform/android.html#terminal-panel-item-layout"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-panel-item-layout"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-panel-item-layout"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-panel-item-layout"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/device-mirroring.html">기기 화면 영상 스트림·호버</a></td>
       <td class="center"><a href="platform/android.html#device-mirroring"><span class="badge workaround">우회</span></a></td>
       <td class="center"><a href="platform/ios.html#device-mirroring"><span class="badge workaround">우회</span></a></td>
@@ -380,6 +388,7 @@
 
 <ul class="cards">
   <li><a href="common/index.html">공통 규약과 한계</a><p>expect/actual 목록, 앱 구조, 모든 플랫폼에 공통인 한계</p></li>
+  <li><a href="common/terminal-panel-item-layout.html">패널 줄의 버튼을 아래 줄로</a><p>왼쪽 패널 목록 줄의 +·✎·✕ 를 이름 아래 따로 된 줄로 내려 이름이 목록 폭을 다 쓰게 한다</p></li>
   <li><a href="common/module-architecture.html">모듈 구조</a><p>기능마다 domain / data / ui 모듈, core 와 앱 셸, 빌드 컨벤션 플러그인</p></li>
   <li><a href="common/dependency-injection.html">의존성 주입</a><p>Koin 모듈로 리포지토리·유스케이스·ViewModel·라우트를 등록하고 주입한다</p></li>
   <li><a href="common/view-model.html">화면 상태 소유 (ViewModel)</a><p>화면 하나가 쓰는 상태와 유스케이스 호출을 ViewModel 이 소유한다</p></li>

@@ -44,6 +44,8 @@
   <dt>본다</dt><dd>앱 창이 포커스를 가진 동안 그 탭이 터미널 화면에 보인다 — 선택된 패널에서, 그 탭이 속한 그룹의 선택된 탭이다.</dd>
 </dl>
 
+<p>뒤따른 <a href="terminal-panel-item-layout.html">버튼을 아래 줄로</a> 지시로 표시는 이름 옆이 아니라 이름 아래 버튼 줄의 왼쪽 끝에 있다. R1 의 "이름 칸 오른쪽(+ ✎ ✕ 아이콘 앞)" 은 그 문서의 R6 으로 읽는다.</p>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
@@ -78,7 +80,7 @@
 <table>
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
-    <tr><td>자리</td><td>패널 줄의 이름·브랜치·폴더 칸 오른쪽, + ✎ ✕ 아이콘 앞. 이름을 바꾸는 동안에는 입력 필드 오른쪽에 그대로 있다. 크기는 아이콘 small(18dp) 칸, 아이콘 버튼과 같은 안쪽 여백(spacing.s)</td></tr>
+    <tr><td>자리</td><td>패널 줄의 이름·브랜치·폴더 칸 아래, 버튼 줄의 왼쪽 끝(+ ✎ ✕ 는 같은 줄 오른쪽 끝). 이름을 바꾸는 동안에는 버튼 없이 그 줄에 표시만 남는다(<a href="terminal-panel-item-layout.html#requirements">버튼을 아래 줄로 R6</a>). 크기는 아이콘 small(18dp) 칸, 아이콘 버튼과 같은 안쪽 여백(spacing.s)</td></tr>
     <tr><td>작업 중</td><td>작은 원형 진행 표시(<code>CircularProgressIndicator</code>, 14dp, 선 2dp)가 돈다. 색은 줄의 글자색(<code>contentColor</code>). 설명 "Claude 작업 중"</td></tr>
     <tr><td>응답 대기</td><td>채운 원(8dp), <code>JarvisTheme.colors.warning</code>. 설명 "Claude 응답 대기"</td></tr>
     <tr><td>확인함</td><td><code>JarvisIcons.Check</code>, <code>JarvisTheme.colors.success</code>. 설명 "Claude 확인함"</td></tr>
