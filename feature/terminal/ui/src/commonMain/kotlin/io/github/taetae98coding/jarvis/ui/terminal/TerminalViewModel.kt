@@ -2,8 +2,10 @@ package io.github.taetae98coding.jarvis.ui.terminal
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.OpenTerminalSessionUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,14 +18,17 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 internal class TerminalViewModel(
     private val openSession: OpenTerminalSessionUseCase,
+    isClaudeSupported: IsClaudeSupportedUseCase,
 ) : ViewModel() {
+    val isClaudeSupported: Boolean = isClaudeSupported()
+
     private val _workspace = MutableStateFlow(TerminalWorkspace.initial())
     val workspace: StateFlow<TerminalWorkspace> = _workspace.asStateFlow()
 
     private val panes = mutableMapOf<Long, TerminalPaneState>()
 
     init {
-        reconcile(sizeSource = null)
+        reconcile(sizeSource = null, program = TerminalProgram.Shell)
     }
 
     fun pane(id: Long): TerminalPaneState? = panes[id]
@@ -33,6 +38,8 @@ internal class TerminalViewModel(
     fun splitStacked() = update { it.split(SplitDirection.Stacked) }
 
     fun addTab() = update { it.addTab() }
+
+    fun addClaudeTab() = update(TerminalProgram.Claude) { it.addTab() }
 
     fun closeFocusedPane() = update { workspace -> workspace.focusedPaneId?.let(workspace::closePane) ?: workspace }
 
@@ -57,16 +64,20 @@ internal class TerminalViewModel(
         panes.clear()
     }
 
-    private fun update(transform: (TerminalWorkspace) -> TerminalWorkspace) {
+    /** [program] 은 이번 변경으로 새로 생긴 패널이 띄울 프로그램이다. */
+    private fun update(
+        program: TerminalProgram = TerminalProgram.Shell,
+        transform: (TerminalWorkspace) -> TerminalWorkspace,
+    ) {
         val previous = _workspace.value
         val next = transform(previous)
         if (next == previous) return
 
         _workspace.value = next
-        reconcile(sizeSource = previous.focusedPaneId?.let(panes::get))
+        reconcile(sizeSource = previous.focusedPaneId?.let(panes::get), program = program)
     }
 
-    private fun reconcile(sizeSource: TerminalPaneState?) {
+    private fun reconcile(sizeSource: TerminalPaneState?, program: TerminalProgram) {
         val ids = _workspace.value.paneIds.toSet()
 
         // 새 패널은 아직 배치되지 않았다. 직전에 포커스된 패널의 크기로 먼저 띄우면 배치된 뒤의 크기와
@@ -80,7 +91,7 @@ internal class TerminalViewModel(
                 id = id,
                 initialSize = size,
                 scope = viewModelScope,
-                open = { openSession(it) },
+                open = { openSession(it, program) },
                 onExit = ::closePane,
             )
         }

@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
 import kotlinx.coroutines.async
@@ -22,7 +23,7 @@ class PtyTerminalDataSourceTest {
 
     @Test
     fun runsCommandsAndEndsOnExit() = runBlocking {
-        val session = assertNotNull(dataSource.open(TerminalSize(80, 24)))
+        val session = assertNotNull(dataSource.open(TerminalSize(80, 24), TerminalProgram.Shell))
 
         val text = async { withTimeout(10_000) { session.collectUntilExit() } }
         session.write("echo jarvis-\$((40 + 2))\nexit\n".encodeToByteArray())
@@ -32,7 +33,7 @@ class PtyTerminalDataSourceTest {
 
     @Test
     fun resizeReachesTheShell() = runBlocking {
-        val session = assertNotNull(dataSource.open(TerminalSize(80, 24)))
+        val session = assertNotNull(dataSource.open(TerminalSize(80, 24), TerminalProgram.Shell))
 
         val text = async { withTimeout(10_000) { session.collectUntilExit() } }
         session.resize(TerminalSize(columns = 123, rows = 45))
@@ -43,7 +44,7 @@ class PtyTerminalDataSourceTest {
 
     @Test
     fun closeEndsTheOutput() = runBlocking {
-        val session = assertNotNull(dataSource.open(TerminalSize(80, 24)))
+        val session = assertNotNull(dataSource.open(TerminalSize(80, 24), TerminalProgram.Shell))
 
         val done = async { withTimeout(10_000) { session.output.collect { } } }
         session.close()
@@ -51,10 +52,23 @@ class PtyTerminalDataSourceTest {
         done.await()
     }
 
+    // Claude 탭은 프로그램이 끝나면 exec 로 같은 pty 위의 셸이 이어받는다. 진짜 claude 대신 echo 를 쓴다.
+    @Test
+    fun programCommandRunsThenFallsBackToAShell() = runBlocking {
+        val program = PtyTerminalDataSource(command = { listOf("/bin/sh", "-c", "echo from-program; exec '/bin/sh'") })
+        val session = assertNotNull(program.open(TerminalSize(80, 24), TerminalProgram.Claude))
+
+        val text = async { withTimeout(10_000) { session.collectUntilExit() } }
+        session.write("echo from-shell-\$((40 + 2))\nexit\n".encodeToByteArray())
+
+        assertTrue("from-program" in text.await(), text.await())
+        assertTrue("from-shell-42" in text.await(), text.await())
+    }
+
     @Test
     fun missingShellYieldsNull() = runBlocking {
         val missing = PtyTerminalDataSource(command = { listOf("/nonexistent/shell") })
 
-        assertTrue(missing.open(TerminalSize(80, 24)) == null)
+        assertTrue(missing.open(TerminalSize(80, 24), TerminalProgram.Shell) == null)
     }
 }

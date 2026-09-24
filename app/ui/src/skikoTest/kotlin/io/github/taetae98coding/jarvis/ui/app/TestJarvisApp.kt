@@ -24,6 +24,7 @@ import io.github.taetae98coding.jarvis.domain.appinfo.appInfoDomainModule
 import io.github.taetae98coding.jarvis.domain.emulator.emulatorDomainModule
 import io.github.taetae98coding.jarvis.domain.rotation.rotationDomainModule
 import io.github.taetae98coding.jarvis.domain.screen.screenDomainModule
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
@@ -222,15 +223,17 @@ internal class FakeDeviceRotationRepository(
 // 셸 대신 테스트가 출력을 흘려 넣고 종료를 정한다. 기본값은 JVM·Android 처럼 셸을 띄울 수 있는 타깃이다.
 internal class FakeTerminalRepository(
     override val isSupported: Boolean = true,
+    override val isClaudeSupported: Boolean = true,
 ) : TerminalRepository {
     val sessions = mutableListOf<FakeTerminalSession>()
 
-    override suspend fun open(size: TerminalSize): TerminalSession =
-        FakeTerminalSession(size).also { sessions += it }
+    override suspend fun open(size: TerminalSize, program: TerminalProgram): TerminalSession =
+        FakeTerminalSession(size, program).also { sessions += it }
 }
 
 internal class FakeTerminalSession(
     var size: TerminalSize,
+    val program: TerminalProgram,
 ) : TerminalSession {
     private val channel = Channel<ByteArray>(Channel.UNLIMITED)
 

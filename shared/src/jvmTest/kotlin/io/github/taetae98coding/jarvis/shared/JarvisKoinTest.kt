@@ -25,6 +25,7 @@ import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeSettingsReposito
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepSystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeRepository
+import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsTerminalSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.OpenTerminalSessionUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
@@ -85,6 +86,7 @@ class JarvisKoinTest {
         assertNotNull(koin.get<SetDeviceRotationLockUseCase>())
         assertNotNull(koin.get<RotateDeviceUseCase>())
         assertNotNull(koin.get<IsTerminalSupportedUseCase>())
+        assertNotNull(koin.get<IsClaudeSupportedUseCase>())
         assertNotNull(koin.get<OpenTerminalSessionUseCase>())
 
         assertNotNull(koin.get<PlatformContext>())
