@@ -14,7 +14,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisIconButton
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisIconButtonDefaults
@@ -50,8 +50,8 @@ internal fun EmulatorListScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val devices by viewModel.devices.collectAsState()
-    val launchingIds by viewModel.launchingDevices.collectAsState()
+    val devices by viewModel.devices.collectAsStateWithLifecycle()
+    val launchingIds by viewModel.launchingDevices.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier.fillMaxSize().testTag(EmulatorListTestTag),

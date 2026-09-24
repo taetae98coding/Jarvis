@@ -8,8 +8,8 @@ import android.database.ContentObserver
 import android.net.Uri
 import android.provider.Settings
 import io.github.taetae98coding.jarvis.data.PlatformContext
-import io.github.taetae98coding.jarvis.data.state.observeByPolling
 import io.github.taetae98coding.jarvis.data.state.observeOnSignals
+import io.github.taetae98coding.jarvis.data.state.observeWriteSettingsPermission
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 internal actual fun createSystemScreenAwakeDataSource(context: PlatformContext): SystemScreenAwakeDataSource =
     ScreenOffTimeout(context.context)
@@ -37,12 +36,9 @@ private class ScreenOffTimeout(private val context: Context) : SystemScreenAwake
     private val saved: SharedPreferences =
         context.getSharedPreferences("jarvis.screen_off_timeout", Context.MODE_PRIVATE)
 
-    // 권한 상태는 시스템이 알려주지 않는다. 사용자가 설정 화면에서 허용하고 돌아온 걸 알아야 효과를
-    // 걸 수 있어서 짧은 간격으로 다시 본다.
-    private val permissions: Flow<Boolean> =
-        observeByPolling(interval = PermissionPollInterval) { isPermitted() }
+    private val permissions: Flow<Boolean> = observeWriteSettingsPermission(context)
 
-    // 반면 값은 ContentObserver 가 알려준다. 시스템 설정 앱에서 바꿔도 즉시 반영된다.
+    // 값은 ContentObserver 가 알려준다. 시스템 설정 앱에서 바꿔도 즉시 반영된다.
     private val timeouts: Flow<Duration?> =
         observeOnSignals(signals = timeoutChanges()) { readTimeout() }
 
@@ -128,8 +124,6 @@ private class ScreenOffTimeout(private val context: Context) : SystemScreenAwake
             awaitClose { resolver.unregisterContentObserver(observer) }
         }
 }
-
-private val PermissionPollInterval = 2.seconds
 
 private const val RestoreToKey = "restore_to"
 private const val NoSavedTimeout = -1

@@ -30,6 +30,36 @@ private fun startIdleInhibitor(): Process? =
     runCatching { ProcessBuilder("caffeinate", "-di").start() }.getOrNull()
 ```
 
+## 상태 조회
+
+플랫폼·시스템 상태를 받아오는 코드는 [`docs/common/state-observation.html`](docs/common/state-observation.html) 을 따른다.
+
+- **상태는 `suspend` 가 아니라 `Flow` 로 받는다.** 한 번 읽고 끝나는 `suspend fun getX(): T` 조회 API 를 만들지 않는다.
+  `suspend` 는 명령(쓰기·요청)과 그 결과에만 쓴다. 명령이 지금 값을 알아야 하면 `observeX().first()` 로 읽는다.
+  첫 프레임 초기값만 예외로 동기 스냅샷 `readX()` 를 두고, `stateIn` 의 초기값으로만 쓴다.
+- **콜백부터 찾는다.** System·SDK 가 주는 리스너·알림·콜백·코루틴 API 가 있으면 `callbackFlow` 로 감싸
+  `observeOnSignals` 에 넘긴다. 정말 없을 때만 `observeByPolling(interval)` 로 일정 ms 마다 다시 읽는다.
+  간격은 이름 붙은 `Duration` 상수로 두고, 콜백이 왜 없는지와 버린 후보를 플랫폼 스펙에 남긴다.
+- **Flow 는 항상 cold 로 내놓는다.** 수집이 시작될 때 콜백을 등록하거나 폴링을 시작하고, 수집이 끝나면
+  `awaitClose` 에서 해제하고 폴링을 멈춘다. data·domain 은 `StateFlow`·`SharedFlow` 를 노출하지 않고
+  앱 수명 스코프로 `stateIn`·`shareIn` 하지 않는다. 비싼 조회를 나눠야 할 때만
+  `shareIn(WhileSubscribed(replayExpirationMillis = 0))` 로 묶고 `Flow` 로 노출한다.
+- **수집은 화면 수명에 묶는다.** ViewModel 은 `stateIn(viewModelScope, WhileSubscribed(), 초기값)`,
+  화면은 `collectAsStateWithLifecycle()` 로 모은다. `Eagerly` 는 구독과 무관하게 이어져야 하는 작업에만,
+  이유를 주석으로 적고 쓴다.
+
+```kotlin
+// 콜백이 있다: 수집하는 동안에만 리스너가 붙는다.
+override val changes: Flow<Unit> = callbackFlow {
+    val listener = PreferenceChangeListener { trySend(Unit) }
+    preferences.addPreferenceChangeListener(listener)
+    awaitClose { preferences.removePreferenceChangeListener(listener) }
+}
+
+// 콜백이 없다: 수집하는 동안에만 5초마다 다시 센다.
+observeByPolling(interval = HostAgentPollInterval) { client.status() ?: EmulatorStatus() }
+```
+
 ## 주석 정책
 
 주석은 **코드와 문서를 읽어도 알 수 없는 것**만 남긴다.

@@ -3,10 +3,10 @@ package io.github.taetae98coding.jarvis.ui.emulator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCardHeader
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisLabeledValue
@@ -22,7 +22,7 @@ const val EmulatorTestTag = "feature:emulator"
 @Composable
 fun EmulatorCard(modifier: Modifier = Modifier) {
     val viewModel = koinViewModel<EmulatorStatusViewModel>()
-    val status by viewModel.status.collectAsState()
+    val status by viewModel.status.collectAsStateWithLifecycle()
     val navigator = LocalNavigator.current
 
     EmulatorCard(

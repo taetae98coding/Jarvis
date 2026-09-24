@@ -81,7 +81,7 @@
 
 <dl class="meta">
   <dt>UI</dt><dd><code>ui/screen/SystemScreenAwakeCard.kt</code></dd>
-  <dt>상태</dt><dd><code>ScreenAwakeSettingsRepository.keepSystemScreenAwake: StateFlow&lt;Boolean&gt;</code>, 키 <code>keep_system_screen_awake</code></dd>
+  <dt>상태</dt><dd><code>ScreenAwakeSettingsRepository.observeKeepSystemScreenAwake(): Flow&lt;Boolean&gt;</code>, 키 <code>keep_system_screen_awake</code></dd>
   <dt>모델</dt><dd><code>SystemScreenAwakeStatus(supported, permitted, screenOffTimeout)</code> (<code>domain/screen</code>)</dd>
   <dt>공급</dt><dd><code>data/screen/SystemScreenAwakeDataSource.kt</code></dd>
 </dl>
@@ -94,7 +94,8 @@ data class SystemScreenAwakeStatus(
 )
 
 interface SystemScreenAwakeRepository {
-    val status: StateFlow&lt;SystemScreenAwakeStatus&gt;
+    fun observeStatus(): Flow&lt;SystemScreenAwakeStatus&gt;   // cold
+    fun readStatus(): SystemScreenAwakeStatus              // 첫 프레임 초기값 전용
     fun setEnabled(enabled: Boolean)
     fun requestPermission()
 }
@@ -106,7 +107,7 @@ internal expect fun createSystemScreenAwakeDataSource(
 
 <aside class="decision">
   <strong>결정: 적용과 상태 읽기를 한 데이터 소스에 둔다</strong>
-  둘 다 화면 수명보다 오래 살아야 한다. 효과는 카드가 스크롤 밖으로 나가도 유지되어야 하고(R8), 권한 상태를 보는 <a href="state-observation.html">폴링</a>도 한 곳에서만 돌아야 한다. 그래서 <code>SystemScreenAwakeDataSource</code> 하나가 읽기와 쓰기를 모두 갖고, 리포지토리가 그 상태를 컨테이너 수명의 <code>StateFlow</code>로 공유한다. 카드마다 상태를 읽게 두면 폴링이 여러 벌 돌고, 카드가 사라질 때 효과도 흔들린다.
+  읽기와 쓰기가 같은 플랫폼 자원(권한과 설정값)을 다뤄서 <code>SystemScreenAwakeDataSource</code> 하나가 둘 다 갖는다. 효과는 카드가 스크롤 밖으로 나가도 유지되어야 하므로(R8) 카드가 아니라 앱 루트의 <code>ScreenAwakeEffectViewModel</code> 이 상태를 모은다. 상태는 <a href="state-observation.html">상태 조회 규칙</a>에 따라 cold 라서 카드와 효과가 각자 구독하고, 권한과 타임아웃 리스너도 구독마다 한 벌씩 붙었다가 수집이 끝나면 풀린다. 예전에는 리포지토리가 앱 수명 <code>StateFlow</code> 로 공유했지만, 권한을 폴링하던 때의 이유라 appop 콜백으로 바꾸면서 걷어냈다.
 </aside>
 
 <aside class="decision">

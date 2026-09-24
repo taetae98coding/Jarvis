@@ -1,11 +1,12 @@
 package io.github.taetae98coding.jarvis.domain.rotation
 
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class RotateDeviceUseCaseTest {
     @Test
-    fun rotatesForwardFromTheCurrentAngle() {
+    fun rotatesForwardFromTheCurrentAngle() = runTest {
         val repository = FakeDeviceRotationRepository(
             DeviceRotationStatus(supported = true, angle = RotationAngle.Degrees90),
         )
@@ -16,7 +17,7 @@ class RotateDeviceUseCaseTest {
     }
 
     @Test
-    fun rotatesBackwardFromTheCurrentAngle() {
+    fun rotatesBackwardFromTheCurrentAngle() = runTest {
         val repository = FakeDeviceRotationRepository(
             DeviceRotationStatus(supported = true, angle = RotationAngle.Degrees90),
         )
@@ -27,7 +28,7 @@ class RotateDeviceUseCaseTest {
     }
 
     @Test
-    fun treatsAnUnknownAngleAsZero() {
+    fun treatsAnUnknownAngleAsZero() = runTest {
         val repository = FakeDeviceRotationRepository(
             DeviceRotationStatus(supported = true, angle = null),
         )
@@ -38,7 +39,7 @@ class RotateDeviceUseCaseTest {
     }
 
     @Test
-    fun followsAnAngleThatChangedWhileTheScreenWasShowingTheOldOne() {
+    fun followsAnAngleThatChangedWhileTheScreenWasShowingTheOldOne() = runTest {
         val repository = FakeDeviceRotationRepository(
             DeviceRotationStatus(supported = true, angle = RotationAngle.Degrees0),
         )

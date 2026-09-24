@@ -5,6 +5,6 @@ import org.koin.dsl.module
 
 val rotationDataModule = module {
     single<DeviceRotationRepository> {
-        DefaultDeviceRotationRepository(createDeviceRotationDataSource(get()), get())
+        DefaultDeviceRotationRepository(createDeviceRotationDataSource(get()))
     }
 }

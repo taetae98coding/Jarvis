@@ -2,7 +2,9 @@ package io.github.taetae98coding.jarvis.data.state
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -96,6 +98,35 @@ class ObserveSystemStateTest {
         advanceTimeBy(6.seconds)
 
         assertEquals(listOf(1, 2), values)
+    }
+
+    @Test
+    fun pollingStopsWhenCollectionEnds() = runTest {
+        var reads = 0
+        val job = backgroundScope.launch { observeByPolling(interval = 5.seconds) { ++reads }.collect {} }
+        advanceTimeBy(11.seconds)
+
+        job.cancel()
+        advanceTimeBy(1.minutes)
+
+        assertEquals(3, reads)
+    }
+
+    @Test
+    fun callbackIsReleasedWhenCollectionEnds() = runTest {
+        var registered = 0
+        val signals = callbackFlow<Unit> {
+            registered++
+            awaitClose { registered-- }
+        }
+
+        val job = backgroundScope.launch { observeOnSignals(signals) { 1 }.collect {} }
+        runCurrent()
+        assertEquals(1, registered)
+
+        job.cancel()
+        runCurrent()
+        assertEquals(0, registered)
     }
 
     private fun signalFlow() =

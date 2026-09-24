@@ -54,6 +54,8 @@ kotlin {
             api(library("koin-compose-navigation3"))
 
             implementation(library("androidx-lifecycle-viewmodel-compose"))
+            // collectAsStateWithLifecycle. 앱이 백그라운드로 가면 상태 수집을 끊는다(docs/common/state-observation.html R14).
+            implementation(library("androidx-lifecycle-runtime-compose"))
             implementation(library("androidx-navigation3-runtime"))
             implementation(library("androidx-navigation3-ui"))
             implementation(library("androidx-lifecycle-viewmodel-navigation3"))

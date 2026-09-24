@@ -15,7 +15,7 @@ class ApplySystemScreenAwakeUseCase(
     private val systemScreenAwake: SystemScreenAwakeRepository,
 ) {
     suspend operator fun invoke() {
-        combine(settings.keepSystemScreenAwake, systemScreenAwake.status) { enabled, status ->
+        combine(settings.observeKeepSystemScreenAwake(), systemScreenAwake.observeStatus()) { enabled, status ->
             // 권한이 없으면 적용도 복원도 할 수 없다. 설정값은 그대로 두고 권한이 들어오기를 기다린다.
             enabled.takeIf { status.permitted }
         }

@@ -2,7 +2,6 @@ package io.github.taetae98coding.jarvis.ui.app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
 import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
@@ -35,7 +34,6 @@ import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
 import io.github.taetae98coding.jarvis.ui.terminal.terminalUiModule
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,12 +70,10 @@ internal fun TestJarvisApp(
     terminal: TerminalRepository = FakeTerminalRepository(),
     appInfo: AppInfo = TestAppInfo,
 ) {
-    // 앱 수명 스코프. 프로덕션에서는 진입점이 만들고 platformModule 이 등록한다.
-    val scope = rememberCoroutineScope()
+    remember {
+        installTestMainDispatcher()
 
-    remember(scope) {
         val fakes = module {
-            single<CoroutineScope> { scope }
             single<AppInfoRepository> { AppInfoRepository { appInfo } }
             single<EmulatorRepository> { emulator }
             single<DevicePairingRepository> { pairing }
@@ -112,8 +108,16 @@ internal class FakeScreenAwakeSettingsRepository(
     keepScreenAwake: Boolean = false,
     keepSystemScreenAwake: Boolean = false,
 ) : ScreenAwakeSettingsRepository {
-    override val keepScreenAwake = MutableStateFlow(keepScreenAwake)
-    override val keepSystemScreenAwake = MutableStateFlow(keepSystemScreenAwake)
+    val keepScreenAwake = MutableStateFlow(keepScreenAwake)
+    val keepSystemScreenAwake = MutableStateFlow(keepSystemScreenAwake)
+
+    override fun observeKeepScreenAwake() = keepScreenAwake
+
+    override fun readKeepScreenAwake() = keepScreenAwake.value
+
+    override fun observeKeepSystemScreenAwake() = keepSystemScreenAwake
+
+    override fun readKeepSystemScreenAwake() = keepSystemScreenAwake.value
 
     override fun setKeepScreenAwake(value: Boolean) {
         this.keepScreenAwake.value = value
@@ -128,7 +132,11 @@ internal class FakeScreenAwakeSettingsRepository(
 internal class FakeSystemScreenAwakeRepository(
     initial: SystemScreenAwakeStatus = SystemScreenAwakeStatus(),
 ) : SystemScreenAwakeRepository {
-    override val status = MutableStateFlow(initial)
+    val status = MutableStateFlow(initial)
+
+    override fun observeStatus() = status
+
+    override fun readStatus() = status.value
 
     override fun setEnabled(enabled: Boolean) = Unit
 
@@ -207,7 +215,11 @@ internal class FakeDevicePairingRepository(
 internal class FakeDeviceRotationRepository(
     initial: DeviceRotationStatus = DeviceRotationStatus(),
 ) : DeviceRotationRepository {
-    override val status = MutableStateFlow(initial)
+    val status = MutableStateFlow(initial)
+
+    override fun observeStatus() = status
+
+    override fun readStatus() = status.value
 
     override fun setAngle(angle: RotationAngle) {
         status.value = status.value.copy(angle = angle)

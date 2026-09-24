@@ -20,7 +20,6 @@ import androidx.compose.foundation.style.rememberUpdatedStyleState
 import androidx.compose.foundation.style.styleable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +37,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisIconButton
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
@@ -65,7 +65,7 @@ internal fun TerminalScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val workspace by viewModel.workspace.collectAsState()
+    val workspace by viewModel.workspace.collectAsStateWithLifecycle()
 
     // iTerm 은 마지막 탭이 닫히면 창을 닫는다. 이 앱에서 창에 해당하는 것이 이 화면이다.
     LaunchedEffect(workspace.tabs.isEmpty()) {
@@ -202,7 +202,7 @@ private fun TerminalTabRow(
 
 @Composable
 private fun tabTitle(source: StateFlow<String?>?, index: Int): String {
-    val title = source?.collectAsState()?.value
+    val title = source?.collectAsStateWithLifecycle()?.value
 
     return title?.takeIf { it.isNotBlank() } ?: "셸 ${index + 1}"
 }

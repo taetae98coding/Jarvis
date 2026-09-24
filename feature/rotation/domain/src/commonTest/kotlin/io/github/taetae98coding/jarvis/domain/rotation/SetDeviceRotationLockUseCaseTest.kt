@@ -1,11 +1,12 @@
 package io.github.taetae98coding.jarvis.domain.rotation
 
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SetDeviceRotationLockUseCaseTest {
     @Test
-    fun changesTheLockWithoutTouchingTheAngle() {
+    fun changesTheLockWithoutTouchingTheAngle() = runTest {
         val repository = FakeDeviceRotationRepository()
 
         SetDeviceRotationLockUseCase(repository)(true)
@@ -14,7 +15,7 @@ class SetDeviceRotationLockUseCaseTest {
     }
 
     @Test
-    fun opensThePermissionScreenWithoutPermission() {
+    fun opensThePermissionScreenWithoutPermission() = runTest {
         val repository = FakeDeviceRotationRepository(
             DeviceRotationStatus(supported = true, permitted = false),
         )

@@ -17,26 +17,20 @@ import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
 import io.github.taetae98coding.jarvis.ui.terminal.terminalUiModule
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import org.koin.mp.KoinPlatformTools
 
 /**
- * 진입점이 만든 플랫폼 값. 기능 모듈들은 이 둘을 `get()` 으로만 받는다.
+ * 진입점이 만든 플랫폼 값. 기능 모듈들은 이것을 `get()` 으로만 받는다.
  *
- * 앱 수명 스코프의 디스패처가 `Main` 인 이유는 구독자가 없어도 살아 있어야 하는 상태들이 플랫폼
- * API 를 읽기 때문이다. iOS 의 회전·화면 유지는 UIKit 을 부르고 메인 스레드를 요구한다. JVM 에서
- * 이 디스패처는 `kotlinx-coroutines-swing` 이 있어야 존재하는데 Compose Desktop 은 그것을 데려오지
- * 않는다. 그래서 이 모듈의 `jvmMain` 이 직접 선언한다.
+ * 앱 수명 `CoroutineScope` 는 두지 않는다. 기능의 data 모듈이 스스로 구독을 붙잡고 있지 않아야
+ * 아무도 보지 않는 상태의 리스너와 폴링이 멈춘다(docs/common/state-observation.html R12).
  */
 internal fun platformModule(context: PlatformContext): Module =
     module {
         single { context }
-        single { CoroutineScope(SupervisorJob() + Dispatchers.Main) }
     }
 
 /**

@@ -30,9 +30,9 @@ kotlin {
         }
 
         jvmMain.dependencies {
-            // 앱 수명 스코프가 Dispatchers.Main 이다. JVM 에서 그 디스패처는 이 아티팩트가 있어야
-            // 존재한다 — Compose Desktop 은 데려오지 않는다. 없으면 리포지토리를 만드는 순간
-            // "Module with the Main dispatcher is missing" 으로 앱이 뜨지 않는다.
+            // viewModelScope 가 Dispatchers.Main.immediate 다. JVM 에서 그 디스패처는 이 아티팩트가 있어야
+            // 존재한다 — Compose Desktop 은 데려오지 않는다. 없으면 viewModelScope 가 조용히 EDT 밖에서
+            // 돌고, Dispatchers.Main 을 직접 쓰는 곳은 "Module with the Main dispatcher is missing" 으로 죽는다.
             implementation(libs.kotlinx.coroutines.swing)
         }
 

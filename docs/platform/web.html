@@ -102,7 +102,7 @@
   <tbody>
     <tr><td><code>main()</code>에서 <code>startJarvisKoin()</code></td><td>채택. <code>ComposeViewport</code> 전에 시작한다. <code>PlatformContext</code>는 빈 상자다</td></tr>
     <tr><td><code>koin-core</code>의 wasmJs 아티팩트</td><td><code>koin-core-wasm-js</code>·<code>koin-compose-wasm-js</code>·<code>koin-compose-viewmodel-wasm-js</code>·<code>koin-compose-navigation3-wasm-js</code>가 모두 퍼블리시된다. Koin 은 리플렉션 대신 <code>KClass</code> 키를 쓰므로 Wasm 에서도 같은 코드가 돈다</td></tr>
-    <tr><td>단일 스레드 전제</td><td>문제 없음. Wasm 은 이벤트 루프가 하나라 Koin 의 인스턴스 생성 동기화가 경합할 일이 없다. 앱 수명 스코프의 <code>Dispatchers.Main</code>도 그 이벤트 루프다</td></tr>
+    <tr><td>단일 스레드 전제</td><td>문제 없음. Wasm 은 이벤트 루프가 하나라 Koin 의 인스턴스 생성 동기화가 경합할 일이 없다. <code>viewModelScope</code> 의 <code>Dispatchers.Main</code>도 그 이벤트 루프다</td></tr>
   </tbody>
 </table>
 
@@ -338,7 +338,8 @@
   <thead><tr><th>상태</th><th>콜백</th></tr></thead>
   <tbody>
     <tr><td>설정값</td><td><code>storage</code> 이벤트. 있지만 <strong>같은 오리진의 다른 문서가 쓴 변경만</strong> 알려준다. 이 문서 자신의 쓰기는 이벤트가 없다</td></tr>
-    <tr><td>에뮬레이터 개수</td><td><strong>없다.</strong> 로컬 에이전트에 <code>fetch</code>로 묻는 값이다. 서버가 밀어 주려면 SSE나 WebSocket이 필요한데, 에이전트를 그만큼 키우지 않았다</td></tr>
+    <tr><td>화면 방향</td><td><code>orientationchange</code> 이벤트. 있다. <code>lock()</code> 거절은 이벤트가 없어 자체 신호를 낸다</td></tr>
+    <tr><td>에뮬레이터 개수·목록·화면, 페어링 대기 기기</td><td><strong>없다.</strong> 로컬 에이전트에 <code>fetch</code>로 묻는 값이다. 서버가 밀어 주려면 SSE나 WebSocket이 필요한데, 에이전트를 그만큼 키우지 않았다</td></tr>
   </tbody>
 </table>
 
@@ -346,6 +347,7 @@
 <dl class="meta">
   <dt>콜백</dt><dd><code>storage</code> 이벤트 리스너와, <code>putBoolean</code>에서 직접 내는 신호를 <code>merge</code>해서 <code>observeOnSignals</code>에 넘긴다</dd>
   <dt>폴링</dt><dd>에뮬레이터 개수는 <code>observeByPolling(5.seconds)</code></dd>
+  <dt>해제</dt><dd>전부 cold 다. 수집이 끝나면 <code>awaitClose</code> 가 <code>removeEventListener</code> 를 부른다</dd>
 </dl>
 
 <h3>한계</h3>

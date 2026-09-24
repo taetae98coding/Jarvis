@@ -16,6 +16,9 @@ internal class InMemorySettingsStore(
 
     override val changes: Flow<Unit>? = changeSignals.takeIf { notifiesChanges }
 
+    /** 지금 변경 신호를 듣고 있는 수집자 수. 플랫폼 저장소의 등록된 리스너 수에 해당한다. */
+    val listeners: Int get() = changeSignals.subscriptionCount.value
+
     override fun getBoolean(key: String, defaultValue: Boolean): Boolean =
         values[key] ?: defaultValue
 

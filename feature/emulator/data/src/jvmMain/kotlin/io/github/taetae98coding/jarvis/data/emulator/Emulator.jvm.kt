@@ -10,7 +10,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.withContext
@@ -27,13 +26,16 @@ private val emulatorScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 // 데스크탑 UI 와 로컬 에이전트가 같은 값을 보게 묶는다. 구독자가 둘이어도 SDK 도구는 한 번만 띄우고,
 // replay 덕분에 나중에 붙는 구독자는 다음 폴링을 기다리지 않는다. 프로세스 싱글턴이라 DataModule 을
 // 두 번 만들어도 폴링은 한 벌이다.
-private val emulatorStatuses: SharedFlow<EmulatorStatus> =
+//
+// 상태 Flow 를 공유하지 않는다는 규칙의 예외다(docs/common/state-observation.html R12). 마지막 구독자가
+// 떠나면 폴링을 멈추고 replay 도 비워서, 다시 붙는 구독자가 오래된 개수를 사실처럼 받지 않는다.
+private val emulatorStatuses: Flow<EmulatorStatus> =
     observeByPolling(interval = PollInterval, read = ::countEmulators)
-        .shareIn(emulatorScope, SharingStarted.WhileSubscribed(), replay = 1)
+        .shareIn(emulatorScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), replay = 1)
 
-private val emulatorDevices: SharedFlow<List<EmulatorDevice>> =
+private val emulatorDevices: Flow<List<EmulatorDevice>> =
     observeByPolling(interval = PollInterval, read = ::listDevices)
-        .shareIn(emulatorScope, SharingStarted.WhileSubscribed(), replay = 1)
+        .shareIn(emulatorScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), replay = 1)
 
 internal actual val emulatorDataSource: EmulatorDataSource = object : EmulatorDataSource {
     override fun observeStatus(): Flow<EmulatorStatus> = emulatorStatuses

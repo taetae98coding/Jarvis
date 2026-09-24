@@ -5,13 +5,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 internal class FakeDeviceRotationRepository(
     initial: DeviceRotationStatus = DeviceRotationStatus(supported = true, angle = RotationAngle.Degrees0),
 ) : DeviceRotationRepository {
-    override val status = MutableStateFlow(initial)
+    val status = MutableStateFlow(initial)
 
     // 각도와 잠금을 어떤 순서로 썼는지까지 봐야 한다. 잠금이 나중에 걸리면 Android 에서 화면이
     // 돌지 않는다.
     val calls = mutableListOf<String>()
     var permissionRequests = 0
         private set
+
+    override fun observeStatus() = status
+
+    override fun readStatus() = status.value
 
     override fun setAngle(angle: RotationAngle) {
         calls += "angle=${angle.degrees}"

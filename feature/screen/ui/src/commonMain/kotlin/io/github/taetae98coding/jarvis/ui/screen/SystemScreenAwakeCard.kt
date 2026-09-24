@@ -3,9 +3,9 @@ package io.github.taetae98coding.jarvis.ui.screen
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.ui.component.ToggleFeatureCard
 import org.koin.compose.viewmodel.koinViewModel
@@ -19,8 +19,8 @@ const val KeepSystemScreenAwakeTestTag = "feature:keepSystemScreenAwake"
 @Composable
 fun SystemScreenAwakeCard(modifier: Modifier = Modifier) {
     val viewModel = koinViewModel<ScreenAwakeViewModel>()
-    val status by viewModel.systemScreenAwake.collectAsState()
-    val checked by viewModel.keepSystemScreenAwake.collectAsState()
+    val status by viewModel.systemScreenAwake.collectAsStateWithLifecycle()
+    val checked by viewModel.keepSystemScreenAwake.collectAsStateWithLifecycle()
 
     SystemScreenAwakeCard(
         status = status,

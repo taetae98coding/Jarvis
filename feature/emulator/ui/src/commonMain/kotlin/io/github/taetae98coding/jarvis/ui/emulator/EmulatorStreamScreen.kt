@@ -24,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.retain.retain
 import androidx.compose.ui.Alignment
@@ -35,6 +34,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
@@ -64,20 +67,24 @@ internal fun EmulatorStreamScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val device by viewModel.device.collectAsState()
-    val isWaking by viewModel.isWaking.collectAsState()
+    val device by viewModel.device.collectAsStateWithLifecycle()
+    val isWaking by viewModel.isWaking.collectAsStateWithLifecycle()
     val frame = retain(viewModel.deviceId) { EmulatorFrameState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    LaunchedEffect(viewModel) {
-        viewModel.frames.collect { bytes ->
-            val decoded = bytes?.let { withContext(FrameDecodeContext) { it.decodeToImageBitmapOrNull() } }
+    // 앱이 백그라운드로 가면 촬영을 멈춘다. 화면은 남아 있어서 LaunchedEffect 만으로는 수집이 끝나지 않는다.
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.frames.collect { bytes ->
+                val decoded = bytes?.let { withContext(FrameDecodeContext) { it.decodeToImageBitmapOrNull() } }
 
-            if (decoded == null) {
-                // 한 장이라도 받아 뒀으면 그걸 계속 보여준다. 빈 화면으로 되돌리지 않는다.
-                frame.failed = frame.image == null
-            } else {
-                frame.image = decoded
-                frame.failed = false
+                if (decoded == null) {
+                    // 한 장이라도 받아 뒀으면 그걸 계속 보여준다. 빈 화면으로 되돌리지 않는다.
+                    frame.failed = frame.image == null
+                } else {
+                    frame.image = decoded
+                    frame.failed = false
+                }
             }
         }
     }

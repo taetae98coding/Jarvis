@@ -119,7 +119,8 @@ data class DeviceRotationStatus(
 )
 
 interface DeviceRotationRepository {
-    val status: StateFlow&lt;DeviceRotationStatus&gt;
+    fun observeStatus(): Flow&lt;DeviceRotationStatus&gt;   // cold. 수집하는 동안에만 리스너가 붙는다
+    fun readStatus(): DeviceRotationStatus              // 첫 프레임 초기값 전용
     fun setAngle(angle: RotationAngle)
     fun setLocked(locked: Boolean)
     fun requestPermission()
@@ -137,7 +138,7 @@ internal expect fun createDeviceRotationDataSource(
 
 <aside class="decision">
   <strong>결정: 상대 회전은 현재 각도를 리포지토리에서 읽어 계산한다</strong>
-  <code>RotateDeviceUseCase</code>가 <code>status.value.angle</code>에 <code>±90</code>를 더해 절대 각도로 바꾼 뒤 <code>SetDeviceRotationAngleUseCase</code>에 넘긴다. 화면이 현재 각도를 들고 있다가 넘기는 길은 버렸다. 화면의 값은 마지막 방출 시점의 것이라, 그 사이 기기가 돌아가면 한 칸이 아니라 두 칸 돌게 된다. 각도를 모르는 상태(<code>null</code>)에서는 0°를 기준으로 삼는다.
+  <code>RotateDeviceUseCase</code>가 <code>observeStatus().first().angle</code>에 <code>±90</code>를 더해 절대 각도로 바꾼 뒤 <code>SetDeviceRotationAngleUseCase</code>에 넘긴다. 화면이 현재 각도를 들고 있다가 넘기는 길은 버렸다. 화면의 값은 마지막 방출 시점의 것이라, 그 사이 기기가 돌아가면 한 칸이 아니라 두 칸 돌게 된다. 각도를 모르는 상태(<code>null</code>)에서는 0°를 기준으로 삼는다.
 </aside>
 
 <aside class="decision">

@@ -103,7 +103,7 @@
   <dt>에이전트</dt><dd><code>data/emulator/agent/</code> — 주소, 와이어 포맷(DTO), 폴링 데이터 소스, JVM 서버</dd>
 </dl>
 
-<p><code>EmulatorStatusViewModel</code>이 <code>observeEmulatorStatus()</code>를 <code>stateIn(viewModelScope, Eagerly, initial = null)</code>로 들고 카드에는 값만 넘긴다. 초기값이 <code>null</code>인 것이 R3이다. 요약이 <code>null</code>인 것이 R7이다. 둘은 다른 층의 null이다. 전자는 "아직 답하지 않았다", 후자는 "답했고 셀 수 없다고 했다"다.</p>
+<p><code>EmulatorStatusViewModel</code>이 <code>observeEmulatorStatus()</code>를 <code>stateIn(viewModelScope, WhileSubscribed(), initial = null)</code>로 들고 카드에는 값만 넘긴다. 초기값이 <code>null</code>인 것이 R3이다. 요약이 <code>null</code>인 것이 R7이다. 둘은 다른 층의 null이다. 전자는 "아직 답하지 않았다", 후자는 "답했고 셀 수 없다고 했다"다.</p>
 
 <p><code>total</code>·<code>running</code> 은 가상 기기만, <code>physical</code> 은 연결된 실물 기기만 센다. 이전에는 실물 기기를 앞의 둘에 더했는데, 그렇게 합친 숫자에서는 둘을 다시 갈라낼 수 없어서 모델에서부터 나눴다.</p>
 
@@ -150,7 +150,7 @@
   </tbody>
 </table>
 
-<p>요청마다 세지 않는다. JVM 데이터 소스를 <code>shareIn(replay = 1)</code>으로 공유해서 UI와 에이전트가 같은 값을 보고, SDK 도구는 구독자 수와 무관하게 5초에 한 번만 돈다. 데이터 소스가 <code>data</code> <code>jvmMain</code>의 프로세스 싱글턴인 이유가 이것이다. 에이전트는 Koin(<code>dataModule</code>)을 거치지 않고 이 데이터 소스를 직접 구독한다.</p>
+<p>요청마다 세지 않는다. JVM 데이터 소스를 <code>shareIn(WhileSubscribed(replayExpirationMillis = 0), replay = 1)</code>으로 공유해서(<a href="state-observation.html">상태 조회 규칙</a> R12 의 예외) UI와 에이전트가 같은 값을 보고, SDK 도구는 구독자 수와 무관하게 5초에 한 번만 돈다. 데이터 소스가 <code>data</code> <code>jvmMain</code>의 프로세스 싱글턴인 이유가 이것이다. 에이전트는 Koin(<code>dataModule</code>)을 거치지 않고 이 데이터 소스를 직접 구독한다.</p>
 
 <aside class="warn">
   <strong>인증이 없다</strong>

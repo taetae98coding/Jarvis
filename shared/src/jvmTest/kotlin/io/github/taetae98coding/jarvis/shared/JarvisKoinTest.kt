@@ -29,7 +29,6 @@ import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsTerminalSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.OpenTerminalSessionUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
-import kotlinx.coroutines.CoroutineScope
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.koinApplication
@@ -90,10 +89,9 @@ class JarvisKoinTest {
         assertNotNull(koin.get<OpenTerminalSessionUseCase>())
 
         assertNotNull(koin.get<PlatformContext>())
-        assertNotNull(koin.get<CoroutineScope>())
     }
 
-    // 리포지토리가 둘이 되면 폴링이 두 번 돌고 설정 변경이 서로에게 보이지 않는다.
+    // 리포지토리는 상태를 들고 있지 않지만, 플랫폼 데이터 소스를 감싸는 얇은 객체라 한 벌만 둔다.
     @Test
     fun repositoriesAreSingletons() {
         val koin = jarvisKoin()
