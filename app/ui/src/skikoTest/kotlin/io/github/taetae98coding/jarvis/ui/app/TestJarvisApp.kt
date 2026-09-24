@@ -6,6 +6,7 @@ import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
 import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
@@ -155,7 +156,7 @@ internal class FakeEmulatorRepository(
     android: EmulatorSummary? = null,
     ios: EmulatorSummary? = null,
     devices: List<EmulatorDevice> = emptyList(),
-    private val frames: Flow<ByteArray?> = emptyFlow(),
+    private val frames: Flow<EmulatorFrame?> = emptyFlow(),
 ) : EmulatorRepository {
     val status = MutableStateFlow(EmulatorStatus(android = android, ios = ios))
 
@@ -192,7 +193,7 @@ internal object SilentEmulatorRepository : EmulatorRepository {
 
     override fun observeDevices() = emptyFlow<List<EmulatorDevice>>()
 
-    override fun observeScreen(deviceId: String) = emptyFlow<ByteArray?>()
+    override fun observeScreen(deviceId: String) = emptyFlow<EmulatorFrame?>()
 
     override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) = Unit
 

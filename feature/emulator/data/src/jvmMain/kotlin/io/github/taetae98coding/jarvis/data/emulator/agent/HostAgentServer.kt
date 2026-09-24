@@ -7,6 +7,7 @@ import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
 import io.github.taetae98coding.jarvis.data.emulator.devicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.emulatorDataSource
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +16,12 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import javax.imageio.IIOImage
+import javax.imageio.ImageIO
+import javax.imageio.ImageWriteParam
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URLDecoder
@@ -90,12 +96,18 @@ internal fun startEmulatorHostAgent(
                 exchange.requestMethod != "GET" -> exchange.respond(MethodNotAllowed)
                 deviceId == null -> exchange.respond(BadRequest)
                 else -> {
-                    // 폴링 Flow 의 첫 방출이 곧 지금 찍은 한 장이다. 요청 하나에 촬영 한 번.
+                    // Flow 의 첫 방출이 지금 프레임이다. Android 는 스트림이 replay 로 즉시 주고,
+                    // 시뮬레이터는 폴링이 한 장 찍는다.
                     val frame = runBlocking { dataSource.observeScreen(deviceId).first() }
 
-                    frame
-                        ?.let { exchange.respond(Ok, it, contentType = "image/png") }
-                        ?: exchange.respond(ServiceUnavailable)
+                    when (frame) {
+                        // 스트림의 디코딩된 픽셀은 JPEG 로 인코딩해 보낸다. data 모듈에는 ImageBitmap 이
+                        // 없어 AWT 를 쓴다.
+                        is EmulatorFrame.Pixels -> exchange.respond(Ok, encodeJpeg(frame), contentType = "image/jpeg")
+                        // 시뮬레이터의 PNG 는 그대로 흘려보낸다.
+                        is EmulatorFrame.Encoded -> exchange.respond(Ok, frame.bytes, contentType = "image/png")
+                        null -> exchange.respond(ServiceUnavailable)
+                    }
                 }
             }
         }
@@ -217,6 +229,39 @@ internal fun startEmulatorHostAgent(
         server.stop(0)
         executor.shutdownNow()
         scope.cancel()
+    }
+}
+
+// BGRA 픽셀을 JPEG 로 인코딩한다. TYPE_INT_RGB 는 0xRRGGBB 정수를 받으므로 BGRA 바이트에서 뽑아낸다.
+private fun encodeJpeg(frame: EmulatorFrame.Pixels): ByteArray {
+    val image = BufferedImage(frame.width, frame.height, BufferedImage.TYPE_INT_RGB)
+    val pixels = frame.pixels
+    val rgb = IntArray(frame.width * frame.height)
+
+    for (i in rgb.indices) {
+        val base = i * 4
+        val b = pixels[base].toInt() and 0xFF
+        val g = pixels[base + 1].toInt() and 0xFF
+        val r = pixels[base + 2].toInt() and 0xFF
+        rgb[i] = (r shl 16) or (g shl 8) or b
+    }
+    image.setRGB(0, 0, frame.width, frame.height, rgb, 0, frame.width)
+
+    val writer = ImageIO.getImageWritersByFormatName("jpeg").next()
+    val output = ByteArrayOutputStream()
+
+    return try {
+        ImageIO.createImageOutputStream(output).use { stream ->
+            writer.output = stream
+            val param = writer.defaultWriteParam.apply {
+                compressionMode = ImageWriteParam.MODE_EXPLICIT
+                compressionQuality = 0.8f
+            }
+            writer.write(null, IIOImage(image, null, null), param)
+        }
+        output.toByteArray()
+    } finally {
+        writer.dispose()
     }
 }
 

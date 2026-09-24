@@ -32,6 +32,11 @@ kotlinx-serialization = "1.11.0"
 # DataStore 는 okio 저장소까지 다섯 타깃을 퍼블리시한다. 버린 Room3 은 docs/common/terminal-panels.html#implementation 에 있다.
 androidx-datastore = "1.2.1"
 
+# scrcpy-server 로 받은 H.264 기기 화면을 디코딩한다(docs/common/device-mirroring.html).
+# 네이티브는 데스크톱이 지원하는 macOS 두 아키텍처만 넣는다.
+bytedeco-ffmpeg = "8.1.2-1.5.14"
+bytedeco-javacpp = "1.5.14"
+
 pty4j = "0.13.13"
 composeWebView = "1.0.0-beta-02"
 
@@ -64,6 +69,9 @@ kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
 androidx-datastore-core-okio = { module = "androidx.datastore:datastore-core-okio", version.ref = "androidx-datastore" }
+
+bytedeco-ffmpeg = { module = "org.bytedeco:ffmpeg", version.ref = "bytedeco-ffmpeg" }
+bytedeco-javacpp = { module = "org.bytedeco:javacpp", version.ref = "bytedeco-javacpp" }
 
 pty4j = { module = "org.jetbrains.pty4j:pty4j", version.ref = "pty4j" }
 compose-webview = { module = "io.github.kdroidfilter:composewebview", version.ref = "composeWebView" }

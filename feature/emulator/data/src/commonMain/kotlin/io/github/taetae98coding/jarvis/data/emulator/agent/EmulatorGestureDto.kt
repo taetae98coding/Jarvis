@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.emulator.agent
 
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import kotlinx.serialization.Serializable
 
 /*
@@ -12,11 +13,11 @@ import kotlinx.serialization.Serializable
 private data class EmulatorGestureDto(
     val id: String,
     val type: String,
+    val action: String? = null,
     val x: Int = 0,
     val y: Int = 0,
-    val toX: Int = 0,
-    val toY: Int = 0,
-    val durationMillis: Long = 0,
+    val width: Int = 0,
+    val height: Int = 0,
 )
 
 internal class HostAgentGesture(
@@ -26,45 +27,40 @@ internal class HostAgentGesture(
 
 internal fun encodeEmulatorGesture(deviceId: String, gesture: EmulatorGesture): String =
     HostAgentJson.encodeToString(
-        when (gesture) {
-            is EmulatorGesture.Tap -> EmulatorGestureDto(
-                id = deviceId,
-                type = TapType,
-                x = gesture.x,
-                y = gesture.y,
-            )
-
-            is EmulatorGesture.Swipe -> EmulatorGestureDto(
-                id = deviceId,
-                type = SwipeType,
-                x = gesture.fromX,
-                y = gesture.fromY,
-                toX = gesture.toX,
-                toY = gesture.toY,
-                durationMillis = gesture.durationMillis,
-            )
-        },
+        EmulatorGestureDto(
+            id = deviceId,
+            type = when (gesture) {
+                is EmulatorGesture.Touch -> TouchType
+                is EmulatorGesture.Hover -> HoverType
+            },
+            action = (gesture as? EmulatorGesture.Touch)?.action?.name?.lowercase(),
+            x = gesture.x,
+            y = gesture.y,
+            width = gesture.frameWidth,
+            height = gesture.frameHeight,
+        ),
     )
 
 internal fun decodeEmulatorGesture(body: String): HostAgentGesture? {
     val dto = runCatching { HostAgentJson.decodeFromString<EmulatorGestureDto>(body) }.getOrNull() ?: return null
 
     val gesture = when (dto.type) {
-        TapType -> EmulatorGesture.Tap(x = dto.x, y = dto.y)
-
-        SwipeType -> EmulatorGesture.Swipe(
-            fromX = dto.x,
-            fromY = dto.y,
-            toX = dto.toX,
-            toY = dto.toY,
-            durationMillis = dto.durationMillis,
+        TouchType -> EmulatorGesture.Touch(
+            action = TouchAction.entries.firstOrNull { it.name.equals(dto.action, ignoreCase = true) } ?: return null,
+            x = dto.x,
+            y = dto.y,
+            frameWidth = dto.width,
+            frameHeight = dto.height,
         )
 
+        HoverType -> EmulatorGesture.Hover(x = dto.x, y = dto.y, frameWidth = dto.width, frameHeight = dto.height)
+
+        // 예전 클라이언트의 tap·swipe 도 여기로 온다. 이벤트 단위 채널에 맞지 않으니 받지 않는다.
         else -> return null
     }
 
     return HostAgentGesture(deviceId = dto.id, gesture = gesture)
 }
 
-private const val TapType = "tap"
-private const val SwipeType = "swipe"
+private const val TouchType = "touch"
+private const val HoverType = "hover"

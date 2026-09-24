@@ -6,6 +6,7 @@ import io.github.taetae98coding.jarvis.data.emulator.EmulatorScreenPollInterval
 import io.github.taetae98coding.jarvis.data.emulator.PairingServicePollInterval
 import io.github.taetae98coding.jarvis.data.state.observeByPolling
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
@@ -89,8 +90,10 @@ internal fun hostAgentEmulatorDataSource(client: HostAgentClient): EmulatorDataS
         override fun observeDevices(): Flow<List<EmulatorDevice>> =
             observeByPolling(interval = HostAgentPollInterval) { client.devices().orEmpty() }
 
-        override fun observeScreen(deviceId: String): Flow<ByteArray?> =
-            observeByPolling(interval = EmulatorScreenPollInterval) { client.screen(deviceId) }
+        // 에이전트가 JPEG(Android, 스트림의 최신 프레임)를 주든 PNG(시뮬레이터)를 주든 Content-Type 을 보지
+        // 않는다. 화면 쪽 디코더가 둘 다 푼다.
+        override fun observeScreen(deviceId: String): Flow<EmulatorFrame?> =
+            observeByPolling(interval = EmulatorScreenPollInterval) { client.screen(deviceId)?.let(EmulatorFrame::Encoded) }
 
         override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
             client.gesture(deviceId, gesture)

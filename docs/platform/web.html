@@ -58,6 +58,7 @@
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
+    <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
@@ -844,6 +845,36 @@
 <h3>검증</h3>
 <p>화면에 들어갈 수 없으므로 확인할 동작이 없다. 컴파일만 확인한다.</p>
 </section>
+
+<section class="feature" id="device-mirroring">
+<h2>기기 화면 영상 스트림·호버 <span class="badge workaround">우회</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/device-mirroring.html">기기 화면 영상 스트림·호버</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>호스트 에이전트의 JPEG 프레임</td><td>채택. <code>fetch</code> 로 100ms 마다. 응답이 <code>image/jpeg</code> 라도 CORS 조건은 PNG 때와 같다(단순 GET)</td></tr>
+    <tr><td>WebCodecs <code>VideoDecoder</code></td><td>버렸다. 브라우저의 H.264 디코더를 쓸 수 있는 유일한 길이고 Chrome·Safari 가 지원하지만, 에이전트에 스트림 엔드포인트(WebSocket 이나 chunked)가 필요하고 Kotlin/Wasm 바인딩을 손으로 써야 한다. 스코프 밖. 세 타깃 중 가장 먼저 옮길 값어치가 있다</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드와 skiko 공용 actual</dd>
+  <dt>동작</dt><dd>Android 와 같다. 브라우저의 마우스는 <code>PointerType.Mouse</code> 라 <code>Hover</code> 가 POST 로 나간다. 제스처 POST 는 예전대로 <code>text/plain</code> 이라 사전 요청이 없다</dd>
+  <dt>실패</dt><dd>에이전트가 없으면 예전과 같다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>마우스를 움직일 때마다 POST 가 나간다. ViewModel 의 큐가 이전 요청이 끝나기 전에 쌓인 호버를 하나로 합치므로 초당 요청 수는 왕복 시간에 묶인다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>컴파일만 확인한다. <span class="badge untested">미검증</span>.</p>
+</section>
+
 
 <section class="feature" id="design-system">
 <h2>디자인 시스템 <span class="badge ok">구현</span></h2>

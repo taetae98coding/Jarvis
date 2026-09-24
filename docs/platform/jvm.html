@@ -55,6 +55,7 @@
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
+    <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
@@ -570,6 +571,8 @@ internal actual fun createSystemScreenAwakeDataSource(
     <tr><td><code>emulator -list-avds</code></td><td>채택. 꺼져 있는 AVD 까지 포함한 전체 목록. 이름만 한 줄씩 나온다</td></tr>
     <tr><td><code>adb devices</code></td><td>채택. <code>emulator-5554</code> 형태의 시리얼이 실행 중인 AVD 이고, 나머지 시리얼(<code>39061FDJH00CNS</code>, <code>192.168.0.10:5555</code>)이 실물 기기다. 상태가 <code>device</code> 인 줄만 쓴다. <code>unauthorized</code>·<code>offline</code> 은 화면을 찍을 수 없다. 줄은 탭으로만 자른다 — 무선 디버깅으로 붙은 기기의 시리얼은 mDNS 이름이라 공백을 품는다(<code>adb-R54T202XEHN-Y2yH0N (2)._adb-tls-connect._tcp</code>)</td></tr>
     <tr><td><code>adb -s &lt;시리얼&gt; shell getprop ro.product.model</code></td><td>채택. 실물 기기의 표시 이름. 빈 줄이 오면 시리얼을 그대로 이름으로 쓴다. <code>adb devices -l</code> 의 <code>model:</code> 필드도 같은 값을 주지만, 거기서는 공백이 <code>_</code> 로 치환되어 있다</td></tr>
+    <tr><td>유선·무선 판정(Android)</td><td>채택. adb 시리얼 모양으로 가른다. <code>adb connect</code> 는 <code>192.168.0.10:5555</code>, 무선 디버깅은 mDNS 이름(<code>adb-…_adb-tls-connect._tcp</code>)이라 콜론이나 <code>_tcp</code> 가 있으면 무선, 그 밖(하드웨어 시리얼)은 유선이다. <code>adb devices -l</code> 의 <code>usb:</code> 필드도 유선을 가리키지만, mDNS 시리얼이 공백을 품어(<code>adb-… (2)._adb-tls-connect._tcp</code>) 열 파싱이 깨지므로 탭으로 자른 시리얼의 모양만 본다</td></tr>
+    <tr><td><code>xcrun devicectl list devices --json-output &lt;파일&gt;</code></td><td>채택(iOS 유선·무선만). <code>result.devices[].connectionProperties.transportType</code> 이 <code>wired</code>/<code>localNetwork</code> 라 UDID 로 <code>xctrace</code> 목록에 붙인다. <code>--json-output</code> 은 파일 경로를 받으므로 임시 파일에 쓰고 읽는다. Command Line Tools 만 있는 머신에는 <code>devicectl</code> 이 없어 <code>null</code> 이 된다. "지금 연결됨" 판정에는 여전히 <code>xctrace</code> 를 쓰고(<a href="#emulator-control">위</a>), 여기서는 연결 방식만 가져온다</td></tr>
     <tr><td><code>xctrace list devices</code></td><td>채택. 연결된 실물 iOS 기기를 나열하는 표준 도구다. 경로는 <code>simctl</code>과 같은 규칙으로 찾는다(<a href="#emulator">에뮬레이터 개수</a>). <code>== Devices ==</code> 아래에 <code>이름 (OS 버전) (UDID)</code> 로 나오고, 괄호 묶음이 하나뿐인 줄은 이 Mac 자신이라 걸러낸다. 버전에 따라 목록을 stderr 로 내보내므로 두 스트림을 합쳐 읽고, 형태가 맞는 줄만 정규식으로 고른다</td></tr>
     <tr><td><code>xcrun devicectl list devices</code></td><td>버렸다. Xcode 15+ 의 후속 도구이고 <code>--json-output</code> 로 구조화된 출력을 주지만, 그 옵션이 파일 경로만 받아서 임시 파일을 한 번 더 왕복해야 한다. 기본 출력은 열 너비가 가변인 표라 파싱이 <code>xctrace</code> 보다 나을 것이 없다. 다시 볼 값어치는 있다 — <code>xctrace</code> 가 사라지면 이쪽이다. 2026-09-24 다시 봤다: <code>--json-output /dev/stdout</code> 이면 파일 왕복은 피할 수 있고, 개발 머신에서 0.2초로 <code>xctrace</code>(약 3.9초)보다 훨씬 빠르다. 그러나 페어링된 실물 기기가 <code>xctrace</code> 로는 <code>== Devices Offline ==</code> 인 순간에도 <code>available (paired)</code>, <code>tunnelState: disconnected</code> 로 나와서 "지금 연결됨" 을 가르는 필드를 정하지 못했다. 옮기려면 그 판정부터 확인해야 한다</td></tr>
     <tr><td>실물 iOS 기기의 화면 캡처</td><td><strong>없다.</strong> <code>simctl io</code> 는 시뮬레이터 전용이고, <code>xctrace</code>·<code>devicectl</code> 에는 스크린샷 하위 명령이 없다. Xcode 의 Devices 창과 QuickTime 은 GUI 로만 찍는다. 아래 대체 동작 참고</td></tr>
@@ -592,9 +595,10 @@ internal actual fun createSystemScreenAwakeDataSource(
 <dl class="meta">
   <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/Emulator.jvm.kt</code>(도구 실행·파싱), <code>feature/emulator/data/src/jvmMain/.../emulator/agent/HostAgentServer.kt</code>(엔드포인트)</dd>
   <dt>목록</dt><dd>AVD 이름 전체 + <code>adb</code> 가 아는 시리얼(에뮬레이터·실물) + 시뮬레이터 + 실물 iOS 기기. 5초마다 다시 읽는다. 실행 중이 아닌 AVD 의 <code>id</code> 는 <code>avd:&lt;이름&gt;</code>, 실물 iOS 기기는 <code>ios:&lt;UDID&gt;</code> 다(<a href="../common/emulator-control.html#identifier">식별자</a>)</dd>
+  <dt>유선·무선</dt><dd>실물 Android 는 시리얼 모양(<code>physicalConnection</code>), 실물 iOS 는 <code>devicectl</code> 의 <code>transportType</code> 을 UDID 로 붙인다(<a href="../common/emulator-control.html#connection">연결 방식</a>). iOS 쪽은 <span class="badge untested">미검증</span>이다 — 이 머신에는 <code>devicectl</code> 이 없다</dd>
   <dt>능력 플래그</dt><dd><code>adb</code> 시리얼(에뮬레이터·실물 Android)만 <code>canStream</code> 과 <code>canControl</code> 이 함께 참이다. 부팅된 시뮬레이터는 <code>canStream</code> 만, 실물 iOS 기기는 둘 다 거짓이다</dd>
-  <dt>프레임</dt><dd><code>id</code> 모양으로 가른다. <code>avd:</code>·<code>ios:</code> 는 찍을 것이 없어 <code>null</code>, 36자 UUID 는 <code>simctl</code>, 나머지는 <code>adb -s … exec-out screencap</code>. 500ms 주기로 요청이 들어온다</dd>
-  <dt>제스처</dt><dd><code>adb</code> 시리얼에만 <code>input tap</code> / <code>input swipe</code>. 에뮬레이터인지 실물인지는 구분하지 않는다. 스와이프의 지속 시간은 사용자가 실제로 끈 시간을 ms 로 넘긴다</dd>
+  <dt>프레임</dt><dd><code>id</code> 모양으로 가른다. <code>avd:</code>·<code>ios:</code> 는 찍을 것이 없어 <code>null</code>, 36자 UUID 는 <code>simctl</code>(500ms 폴링), 나머지(adb 시리얼)는 2026-09-24 부터 <a href="#device-mirroring">영상 스트림</a>이다. <code>screencap</code> 은 더 이상 부르지 않는다</dd>
+  <dt>제스처</dt><dd><code>adb</code> 시리얼에만. 2026-09-24 부터 <a href="#device-mirroring">영상 스트림</a>의 제어 소켓으로 <code>DOWN</code>·<code>MOVE</code>·<code>UP</code>·호버를 넣는다. <code>input tap</code>/<code>swipe</code> 는 더 이상 부르지 않는다(깨우기의 <code>input keyevent</code> 는 그대로다). 에뮬레이터인지 실물인지는 구분하지 않는다</dd>
   <dt>실행 방식</dt><dd>출력을 파이프가 아니라 임시 파일로 받는다. <code>adb</code> 가 stdout 을 물려받는 데몬을 fork 해서 파이프를 읽으면 자식이 끝난 뒤에도 블록된다. 프레임은 같은 파일을 텍스트가 아니라 바이트로 읽는다</dd>
   <dt>타임아웃</dt><dd>명령마다 10초. 넘기면 강제 종료하고 없는 것으로 답한다</dd>
   <dt>스레드</dt><dd>촬영을 포함해 모든 명령이 <code>withContext(Dispatchers.IO)</code> 에서 돈다. 촬영은 한때 수집하는 쪽(Swing EDT)에서 돌아 한 장마다 0.3~0.6초씩 UI 를 멈췄다(<a href="../common/emulator-control.html#decision-freeze">결정</a>). 프레임 디코딩은 <code>FrameDecodeContext = Dispatchers.Default</code></dd>
@@ -607,7 +611,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>한계</h3>
 <ul>
   <li><strong>macOS 만.</strong> Android SDK 경로 탐색과 <code>simctl</code> 경로가 macOS 기준이다. 다른 OS 에서는 목록이 비고 조용히 no-op 이 된다.</li>
-  <li><strong>프레임률이 낮다.</strong> <code>screencap</code> 한 장이 0.3~1초다. 500ms 주기로 물어봐도 그보다 빨라지지 않는다.</li>
+  <li><strong>시뮬레이터의 프레임률이 낮다.</strong> <code>simctl io screenshot</code> 한 장이 0.2~0.5초다. Android 기기는 <a href="#device-mirroring">영상 스트림</a>이라 해당 없다.</li>
   <li><strong>시리얼 ↔ AVD 이름 매핑에 명령이 한 번 더 든다.</strong> 실행 중인 에뮬레이터 수만큼 <code>adb emu avd name</code> 이 돈다. 폴링 주기가 5초라 감당 가능한 수준으로 봤다.</li>
   <li><strong>실물 iOS 기기를 찾는 데 <code>xctrace</code> 가 느리다.</strong> 기기를 스캔하느라 수 초가 걸리고, 그만큼 목록 폴링 한 바퀴가 길어진다. 명령 타임아웃(10초)을 넘기면 그 바퀴에서는 실물 iOS 기기가 없는 것으로 답한다.</li>
   <li><strong>USB 디버깅을 허용하지 않은 Android 기기는 보이지 않는다.</strong> <code>adb devices</code> 에 <code>unauthorized</code> 로 남는 동안은 목록에서 빠진다. 기기 화면의 확인 대화상자를 누르면 다음 폴링에 나타난다.</li>
@@ -1029,7 +1033,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 <table>
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
-    <tr><td>기기 화면과 같은 데이터 소스</td><td>채택. 새 조사가 없다. 목록은 <code>adb devices</code>·<code>simctl list</code>, 프레임은 <code>adb exec-out screencap -p</code>·<code>simctl io screenshot</code>, 제스처는 <code>adb shell input tap/swipe</code> 를 <code>Dispatchers.IO</code> 에서 직접 실행한다(<a href="#emulator-control">기기 목록·화면·제스처</a>). 마우스 누름·끌기는 Compose Desktop 이 AWT <code>MouseEvent</code> 를 포인터 이벤트로 바꿔 주어 같은 제스처 코드가 푼다</td></tr>
+    <tr><td>기기 화면과 같은 데이터 소스</td><td>채택. 새 조사가 없다. 목록은 <code>adb devices</code>·<code>simctl list</code>, 프레임·제스처는 Android 기기면 <a href="#device-mirroring">영상 스트림</a>, 시뮬레이터면 <code>simctl io screenshot</code> 폴링이다(<a href="#emulator-control">기기 목록·화면·제스처</a>). 마우스 누름·끌기·이동은 Compose Desktop 이 AWT <code>MouseEvent</code> 를 포인터 이벤트로 바꿔 주어 같은 코드가 푼다</td></tr>
     <tr><td>scrcpy 창을 <code>SwingPanel</code> 로 넣기</td><td>버렸다. 네이티브 창이라 웹 브라우저 탭처럼 메뉴·끄는 탭이 그 아래로 가려지고, 외부 도구 설치가 필요하다. 프레임률이 문제가 되면 기기 화면 스펙의 결정대로 스트림으로 옮긴다</td></tr>
     <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. 기기 목록이 도는 것은 기기 화면 기능 그대로다. 도구가 없으면 목록이 비어 빈 줄만 보인다</td></tr>
   </tbody>
@@ -1051,6 +1055,52 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>검증</h3>
 <p>메뉴·탭 열기·제스처 좌표는 <code>JarvisAppTerminalDeviceTest</code>(skiko, 이 타깃에서 돈다), 저장은 <code>TerminalWorkspaceStoreTest</code> 가 확인한다. 실제 기기 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → + → 기기로 손으로 확인한다. 2026-09-24 에 macOS(arm64)에서 무선 adb 실물 기기 둘(SM-F966N, SM-X906N)과 부팅된 시뮬레이터가 종류와 함께 메뉴에 나오고, 고르면 기기 이름의 탭에 화면이 흐르고, 앱을 다시 켜도 탭이 되살아나고, 화면 켜기 카드가 기기를 깨우고, 프레임 위 클릭이 기기 좌표의 <code>input tap</code> 으로 가는 것을 확인했다. 이때 SM-F966N 의 <code>screencap</code> 경고 문구(<a href="#emulator-control">기기 화면</a>)를 찾아 고쳤다. 마우스 끌기 → 스와이프는 자동화 도구의 합성 끌기가 Compose 에 끌기로 닿지 않아 <span class="badge untested">미검증</span>이다(좌표·지속 시간은 skiko 테스트가 확인한다).</p>
 </section>
+
+<section class="feature" id="device-mirroring">
+<h2>기기 화면 영상 스트림·호버 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/device-mirroring.html">기기 화면 영상 스트림·호버</a></p>
+
+<p>기기 에이전트를 올리고 영상을 푸는 곳은 여기뿐이다. 다른 세 타깃이 보는 프레임은 여기서 디코딩된 것을 <a href="../common/device-mirroring.html#agent">에이전트</a>가 JPEG 로 넘긴 것이다.</p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>scrcpy-server 번들</td><td>채택. <code>jvmMain/resources/scrcpy/scrcpy-server-v4.1</code>(Apache-2.0). 시작 시 임시 파일로 꺼내 <code>adb -s &lt;시리얼&gt; push … /data/local/tmp/scrcpy-server.jar</code>, 그다음 <code>adb -s &lt;시리얼&gt; shell CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.1 &lt;key=value…&gt;</code>. 첫 인자의 버전이 서버 자신의 버전(<code>BuildConfig.VERSION_NAME</code>)과 다르면 서버가 시작을 거부하므로 jar 를 바꿀 때 상수도 바꿔야 한다. 옵션은 <code>scid=&lt;8자리 hex&gt; log_level=warn tunnel_forward=true audio=false control=true cleanup=true video_codec=h264 max_size=2048 video_bit_rate=8000000 max_fps=60 send_device_meta=true send_stream_meta=true send_frame_meta=true send_dummy_byte=true</code>. 모르는 키를 주면 서버가 죽으므로 위 목록 밖의 키는 넣지 않는다</td></tr>
+    <tr><td>소켓</td><td><code>adb -s &lt;시리얼&gt; forward tcp:0 localabstract:scrcpy_&lt;scid&gt;</code> 가 호스트 포트를 골라 출력한다. 그 포트로 TCP 두 번 연결한다 — 첫 연결이 영상, 둘째가 제어(audio=false 라 오디오 소켓은 없다). <code>adb forward</code> 는 서버가 아직 리슨하지 않아도 connect 가 성공하고 곧 끊기므로, 영상 소켓에서 서버가 보내는 더미 1바이트가 읽힐 때까지 100ms 간격으로 다시 연결한다(최대 <code>MirrorConnectTimeout</code> 5초). 끝나면 <code>adb forward --remove tcp:&lt;포트&gt;</code></td></tr>
+    <tr><td>영상 소켓 형식</td><td>더미 1바이트 → 기기 이름 64바이트(UTF-8, NUL 패딩) → 코덱 헤더 4바이트(<code>0x68323634</code> = "h264") → 세션 헤더 12바이트(플래그 <code>u32</code>: 최상위 비트가 세션 표시, 그다음 폭 <code>u32</code>·높이 <code>u32</code>) → 패킷마다 헤더 12바이트(<code>u64</code> pts, 비트 62 = config(SPS/PPS), 비트 61 = 키프레임; <code>u32</code> 크기) + 페이로드. 회전으로 크기가 바뀌면 세션 헤더가 다시 온다 — 패킷 헤더와 같은 12바이트라 첫 <code>u32</code> 의 최상위 비트로 가른다(pts 는 그 비트를 쓰지 않는다). 전부 빅엔디언. <code>scrcpy v4.1</code> 의 <code>Streamer.java</code>·<code>DesktopConnection.java</code> 에서 읽었다</td></tr>
+    <tr><td>제어 소켓 형식</td><td>터치 메시지 32바이트: <code>u8</code> type=2, <code>u8</code> action(<code>MotionEvent.ACTION_*</code>: DOWN 0, UP 1, MOVE 2, CANCEL 3, HOVER_MOVE 7), <code>i64</code> pointerId, <code>i32</code> x, <code>i32</code> y, <code>u16</code> 프레임 폭, <code>u16</code> 프레임 높이, <code>u16</code> 압력(0..1 을 0..0xFFFF 고정소수점), <code>i32</code> actionButton, <code>i32</code> buttons. 손가락은 pointerId <code>-2</code>(GENERIC_FINGER), 압력 1.0, 버튼 0. 호버는 pointerId <code>-1</code>(MOUSE) + HOVER_MOVE + 압력 0 + 버튼 0 — 서버의 <code>Controller.injectTouch</code> 가 이 조합만 <code>SOURCE_MOUSE</code>·<code>TOOL_TYPE_MOUSE</code> 로 주입한다. 서버의 <code>PositionMapper.map</code> 은 메시지의 프레임 크기가 지금 영상 크기와 다르면 이벤트를 버린다(공통 R4)</td></tr>
+    <tr><td>FFmpeg (bytedeco)</td><td>채택. <code>avcodec_find_decoder(AV_CODEC_ID_H264)</code>, <code>AV_CODEC_FLAG_LOW_DELAY</code>, 슬라이스 스레딩(<code>FF_THREAD_SLICE</code> — 프레임 스레딩은 프레임 몇 장의 지연을 넣는다). config 패킷(SPS/PPS)도 그냥 <code>avcodec_send_packet</code> 으로 넣는다. <code>sws_getCachedContext</code> 로 <code>AV_PIX_FMT_BGRA</code> 변환 — Skia 의 N32 가 리틀엔디언에서 BGRA 다. 크기가 바뀌면 컨텍스트와 대상 프레임을 다시 만든다</td></tr>
+    <tr><td>JCodec</td><td>버렸다. 순수 Java 라 의존성은 작지만 1080p 가 실시간이 안 되고 CABAC·8×8 변환 조합에서 깨지는 스트림이 있다</td></tr>
+    <tr><td>VideoToolbox (FFM)</td><td>버렸다. 하드웨어 디코딩이 되지만 바인딩을 손으로 써야 하고 Intel Mac 검증이 어렵다. FFmpeg 소프트웨어 디코딩이 5ms 안이라 필요가 없다</td></tr>
+    <tr><td><code>adb exec-out screenrecord --output-format=h264 -</code></td><td>버렸다. 표준 도구라 올릴 것이 없지만 <code>--time-limit</code> 상한(3분)마다 스트림을 다시 열어야 하고, 입력 채널이 없어 탭은 예전대로 <code>input</code>, 호버는 불가다</td></tr>
+    <tr><td>Skia 이미지 수명</td><td>Compose Desktop 의 <code>drawImageRect</code> 는 그릴 때마다 <code>Image.makeFromBitmap(bitmap).use { }</code> 로 임시 이미지를 만들고 닫는다(CMP 1.12.1 <code>SkiaBackedCanvas.skiko.kt</code>). 비트맵이 mutable 이면 그때 픽셀을 복사하므로, 프레임 비트맵은 <code>installPixels</code> 뒤 <code>setImmutable()</code> 한다 — 그러면 공유되고 복사가 없다. 이전 프레임의 <code>Bitmap</code> 은 새 프레임을 상태에 넣은 직후 <code>close()</code> 한다. 그리기는 EDT 에서 동기로 끝나고 임시 이미지도 그 안에서 닫히므로 이전 비트맵을 참조하는 것이 남지 않는다. Cleaner 에 맡기면 초당 60장 × 10MB 네이티브 메모리가 GC 전까지 쌓인다(공통 R10)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/mirror/ScrcpyServer.kt</code>(올리기·시작·forward·연결), <code>ScrcpyStream.kt</code>(헤더 파서), <code>H264Decoder.kt</code>(FFmpeg → BGRA 링 버퍼), <code>ControlMessages.kt</code>(입력 인코딩), <code>ScreenMirror.kt</code>(세션 Flow). <code>Emulator.jvm.kt</code> 의 <code>observeScreen</code>·<code>sendGesture</code> 가 adb 시리얼이면 여기로 온다. UI 쪽은 <code>feature/emulator/ui/src/skikoMain/.../FrameImage.skiko.kt</code></dd>
+  <dt>세션</dt><dd>구독이 시작되면 IO 스레드에서 push → app_process → forward → 연결 → 헤더 → 패킷 루프. 패킷마다 디코딩해 <code>Pixels</code> 를 방출한다. 취소되면 소켓·프로세스를 닫고 forward 를 지운다. 실패하면 <code>null</code> 을 한 번 방출하고 <code>MirrorRetryDelay</code>(2초) 뒤 처음부터 다시 한다(공통 R6). 기기마다 하나를 <code>shareIn</code> 으로 나눈다(공통 R5)</dd>
+  <dt>제어</dt><dd><code>sendGesture</code> 는 그 기기의 살아 있는 세션의 제어 소켓에 32바이트를 쓴다. 세션이 없으면(아무도 화면을 보고 있지 않으면) 조용히 버린다 — 보이지 않는 화면을 누를 수는 없다. 쓰기는 세션의 락 안에서 순서대로다</dd>
+  <dt>스레드</dt><dd>소켓 읽기·디코딩은 <code>Dispatchers.IO</code>. UI 의 <code>Pixels → ImageBitmap</code> 은 <code>FrameDecodeContext</code>(Default). EDT 는 상태 대입과 그리기만 한다</dd>
+  <dt>에이전트 JPEG</dt><dd><code>HostAgentServer</code> 가 <code>Pixels</code> 를 <code>BufferedImage(TYPE_INT_RGB)</code> 에 옮겨 <code>ImageIO</code> 로 JPEG(0.8) 인코딩한다. <code>ImageBitmap</code> 이 없는 data 모듈이라 AWT 를 쓴다</dd>
+  <dt>상수</dt><dd><code>ScrcpyServerVersion = "4.1"</code>, <code>MirrorMaxSize = 2048</code>, <code>MirrorMaxFps = 60</code>, <code>MirrorBitRate = 8_000_000</code>, <code>MirrorSessionLinger = 3s</code>, <code>MirrorRetryDelay = 2s</code>, <code>MirrorConnectTimeout = 5s</code>, <code>FramePoolSize = 4</code></dd>
+  <dt>의존성</dt><dd><code>org.bytedeco:ffmpeg:8.1.2-1.5.14</code> 와 <code>:macosx-arm64</code>·<code>:macosx-x86_64</code>, <code>org.bytedeco:javacpp:1.5.14</code> 와 같은 분류자. 버전 카탈로그는 분류자를 못 적어서 <code>variantOf(libs.…) { classifier("…") }</code> 로 붙인다. 네이티브는 첫 사용 때 javacpp 가 <code>~/.javacpp/cache</code> 에 푼다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>macOS 만.</strong> FFmpeg 네이티브를 macOS 두 아키텍처만 넣는다. 다른 OS 에서는 디코더 로딩이 실패해 <code>null</code> 프레임(화면을 가져올 수 없습니다)이 된다.</li>
+  <li><strong>에뮬레이터 이미지에 하드웨어 인코더가 없으면</strong> 서버가 소프트웨어 인코더로 떨어지고 프레임률이 낮다. 최신 시스템 이미지에서는 문제없다.</li>
+  <li>공통 스펙의 <a href="../common/device-mirroring.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>ControlMessagesTest</code>·<code>ScrcpyStreamTest</code>(jvmTest)가 바이트 배치와 헤더 파서를, <code>HostAgentServerTest</code> 가 JPEG 응답을 확인한다. 실제 기기 왕복은 <span class="badge untested">미검증</span>으로 시작해 아래에 결과를 적는다.</p>
+<p id="device-mirroring-manual">수동 확인 결과: (구현 뒤 기록)</p>
+</section>
+
 
 <section class="feature" id="design-system">
 <h2>디자인 시스템 <span class="badge ok">구현</span></h2>

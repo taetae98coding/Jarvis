@@ -2,6 +2,7 @@ package io.github.taetae98coding.jarvis.ui.emulator
 
 import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
@@ -28,13 +29,17 @@ internal class FakeEmulatorRepository(
 
     val woken = mutableListOf<String>()
 
+    val gestures = mutableListOf<EmulatorGesture>()
+
     override fun observeStatus() = status
 
     override fun observeDevices() = devices
 
-    override fun observeScreen(deviceId: String) = emptyFlow<ByteArray?>()
+    override fun observeScreen(deviceId: String) = emptyFlow<EmulatorFrame?>()
 
-    override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) = Unit
+    override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
+        gestures += gesture
+    }
 
     override suspend fun launch(deviceId: String) {
         launched += deviceId

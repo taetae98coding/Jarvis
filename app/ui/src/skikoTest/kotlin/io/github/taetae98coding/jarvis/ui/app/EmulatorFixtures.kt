@@ -1,6 +1,8 @@
 package io.github.taetae98coding.jarvis.ui.app
 
+import io.github.taetae98coding.jarvis.domain.emulator.DeviceConnection
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -11,7 +13,7 @@ internal const val TestFrameHeight = 200
 // 100×200 짜리 단색 PNG. 제스처 좌표 기대값이 이 크기에서 나오므로, 프레임을 바꾸면 기대값도 바뀐다.
 // 파일 대신 상수로 두는 이유는 Compose 리소스가 테스트마다 로딩 경로가 달라서다.
 @OptIn(ExperimentalEncodingApi::class)
-internal val TestFrame: ByteArray = Base64.decode(
+private val TestFramePng: ByteArray = Base64.decode(
     "iVBORw0KGgoAAAANSUhEUgAAAGQAAADICAIAAACRXtOWAAABJElEQVR42u3QAQ0AAAgDoEcykpGMbIUHYCM" +
         "BmT1KUSBLlixZsmQpkCVLlixZshTIkiVLlixZCmTJkiVLliwFsmTJkiVLlgJZsmTJkiVLgSxZsmTJkqVA" +
         "lixZsmTJUiBLlixZsmQpkCVLlixZshTIkiVLlixZCmTJkiVLliwFsmTJkiVLlgJZsmTJkiVLgSxZsmTJk" +
@@ -19,6 +21,9 @@ internal val TestFrame: ByteArray = Base64.decode(
         "TJkqVAlixZsmTJUiBLlixZsmQpkCVLlixZshTIkiVLlixZCmTJkiVLliwFsmTJkiVLlgJZsmTJkiVLgSx" +
         "ZsmTJkqVAlixZsmTJUiBLlixZsmQp6D0TM+kaK9OWjAAAAABJRU5ErkJggg==",
 )
+
+// 화면이 실제로 디코딩·렌더링되어야 EmulatorFrameTestTag 가 뜬다. 로컬 에이전트를 거치는 타깃처럼 PNG 한 장이다.
+internal val TestFrame: EmulatorFrame = EmulatorFrame.Encoded(TestFramePng)
 
 internal val RunningAndroidDevice = EmulatorDevice(
     id = "emulator-5554",
@@ -54,6 +59,7 @@ internal val PhysicalAndroidDevice = EmulatorDevice(
     isRunning = true,
     canStream = true,
     canControl = true,
+    connection = DeviceConnection.WIRED,
 )
 
 // 연결은 됐는데 화면이 꺼져 있다. 화면은 찍히지만 검은 그림만 나온다.
@@ -61,6 +67,7 @@ internal val SleepingAndroidDevice = PhysicalAndroidDevice.copy(
     id = "adb-R54T202XEHN-Y2yH0N (2)._adb-tls-connect._tcp",
     name = "SM-X906N",
     isAsleep = true,
+    connection = DeviceConnection.WIRELESS,
 )
 
 // 연결되어 있어도 화면을 찍는 공개 도구가 없다. 목록에만 나온다.
@@ -70,4 +77,5 @@ internal val PhysicalIosDevice = EmulatorDevice(
     platform = EmulatorPlatform.IOS,
     isPhysical = true,
     isRunning = true,
+    connection = DeviceConnection.WIRELESS,
 )

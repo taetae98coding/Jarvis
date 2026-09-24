@@ -8,12 +8,12 @@ interface EmulatorRepository {
     fun observeDevices(): Flow<List<EmulatorDevice>>
 
     /**
-     * 기기 화면을 PNG 한 장씩 흘려보낸다. 그 주기에 화면을 찍지 못했으면 null 이다.
+     * 기기 화면을 한 장씩 흘려보낸다. 화면을 가져오지 못했으면 null 이다.
      *
-     * 구독을 끊으면 촬영도 멈춘다. 보이지 않는 기기의 화면을 계속 찍지 않으려면 화면을 벗어날 때
+     * 구독을 끊으면 촬영·스트림도 멈춘다. 보이지 않는 기기의 화면을 계속 받지 않으려면 화면을 벗어날 때
      * 수집을 끝내야 한다.
      */
-    fun observeScreen(deviceId: String): Flow<ByteArray?>
+    fun observeScreen(deviceId: String): Flow<EmulatorFrame?>
 
     suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture)
 

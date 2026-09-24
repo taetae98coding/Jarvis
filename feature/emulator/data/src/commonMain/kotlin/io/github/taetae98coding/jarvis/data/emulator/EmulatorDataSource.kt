@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.emulator
 
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import kotlinx.coroutines.flow.Flow
@@ -11,7 +12,7 @@ internal interface EmulatorDataSource {
 
     fun observeDevices(): Flow<List<EmulatorDevice>>
 
-    fun observeScreen(deviceId: String): Flow<ByteArray?>
+    fun observeScreen(deviceId: String): Flow<EmulatorFrame?>
 
     suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture)
 
@@ -27,6 +28,9 @@ internal interface EmulatorDataSource {
  */
 internal expect val emulatorDataSource: EmulatorDataSource
 
-// 화면 한 장을 찍는 데 이보다 오래 걸리므로(Android screencap 기준 0.3~1초) 실제 갱신은 더 느리다.
-// 주기를 더 줄여도 촬영이 따라오지 못하고 요청만 쌓인다.
-internal val EmulatorScreenPollInterval = 500.milliseconds
+// 로컬 에이전트를 거치는 타깃의 프레임 폴링 주기. 에이전트는 요청마다 기기를 찍지 않고 메모리의 최신
+// 프레임을 JPEG 로 인코딩(1080p 20~40ms)만 하므로 이 주기를 따라온다(docs/common/device-mirroring.html R11).
+internal val EmulatorScreenPollInterval = 100.milliseconds
+
+// iOS 시뮬레이터의 `simctl io screenshot` 은 한 장에 0.2~0.5초라 이보다 촘촘히 물어도 요청만 쌓인다.
+internal val SimulatorScreenPollInterval = 500.milliseconds

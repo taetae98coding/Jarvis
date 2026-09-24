@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기기 화면 영상 스트림·호버 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>기기 화면 영상 스트림·호버</span></nav>
+
+<header>
+  <h1>기기 화면 영상 스트림·호버</h1>
+  <p class="lead">기기 화면을 스크린샷 폴링이 아니라 기기 안의 에이전트가 인코딩한 영상으로 받고, 누름·끌기·마우스 호버를 같은 에이전트의 소켓으로 그 자리에서 기기에 넣는다. Android Studio 의 Running Devices 와 같은 구조다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#agent">에이전트 프로토콜</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>안드로이드 스튜디오에서 제공하는 running device 기능은 되게 빠릿빠릿하게 동작하는게 왜 우리껀 느려? 그리고 마우스 올렸을 때 hover효과도 있는데 왜 우리껀 없어?? 최대한 빠르게 동작하고 hover도 지원해줘.</p>
+  <footer>2026-09-24 대화. "우리 것" 은 <a href="emulator-control.html">기기 목록·화면·제스처</a>의 스트리밍 화면과 <a href="terminal-device.html">터미널의 기기 탭</a>(같은 컴포저블)이다. "hover 효과" 는 Running Devices 에서 마우스를 기기 화면 위로 움직이면 기기 안의 버튼·목록이 마우스 호버 상태로 바뀌는 것(기기 쪽 효과)으로 읽었다. 데스크톱 앱 쪽의 시각 효과가 아니다.</footer>
+</blockquote>
+
+<h3>왜 느렸나</h3>
+
+<p>2026-09-24 개발 머신에서 잰 값이다(macOS arm64, SM-F966N 무선 adb).</p>
+
+<table>
+  <thead><tr><th>단계</th><th>예전</th><th>비용</th></tr></thead>
+  <tbody>
+    <tr><td>프레임</td><td>500ms 마다 <code>adb exec-out screencap -p</code></td><td>한 장에 0.34~0.65초. PNG 인코딩이 기기 CPU 에서 돌고 400KB 가 USB·Wi-Fi 를 탄다. 초당 1~2장</td></tr>
+    <tr><td>탭</td><td><code>adb shell input tap</code></td><td>기기가 <code>input</code> 프로세스(Java VM)를 매번 새로 띄운다. 눌러서 반응까지 0.2~0.4초</td></tr>
+    <tr><td>드래그</td><td>손을 뗀 뒤 <code>input swipe</code> 한 번</td><td>끄는 동안 기기에는 아무것도 가지 않는다. 뗀 뒤에 기기가 혼자 재생한다</td></tr>
+    <tr><td>호버</td><td>없음</td><td><code>input</code> 명령에는 호버 이벤트가 없다</td></tr>
+  </tbody>
+</table>
+
+<p>Android Studio 는 기기 안에 자기 에이전트(<code>screen-sharing-agent</code>)를 올려 MediaCodec 으로 H.264 영상을 만들고 <code>adb forward</code> 소켓으로 받으며, 입력은 같은 소켓으로 <code>MotionEvent</code> 를 직접 주입한다. 프레임 하나에 수십 KB, 입력은 왕복 수 ms 다. 마우스 호버도 <code>ACTION_HOVER_MOVE</code> 로 기기에 들어가서 기기 UI 가 반응한다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> Android 기기(에뮬레이터·실물)의 화면은 기기 안의 에이전트가 인코딩한 영상 스트림으로 받는다. 화면이 바뀌는 동안 초당 30장 이상이 흐른다(기기 디스플레이 갱신률과 인코더가 허용하는 한).</li>
+  <li><strong>R2.</strong> 화면을 누른 순간 <code>DOWN</code> 이, 끄는 동안 <code>MOVE</code> 가, 뗀 순간 <code>UP</code> 이 기기에 들어간다. 뗀 뒤에 한 번에 보내지 않는다. 기기 화면에서 누름이 보이기까지 100ms 안이다(같은 머신의 에뮬레이터 기준).</li>
+  <li><strong>R3.</strong> 마우스가 누르지 않고 기기 화면 위를 움직이면 그 위치가 마우스 호버로 기기에 들어가서, 기기 안의 UI 가 호버 상태를 그린다. 터치(손가락)로는 호버가 가지 않는다.</li>
+  <li><strong>R4.</strong> 좌표는 지금 보고 있는 프레임의 픽셀 좌표로 보내고, 그 프레임의 크기를 함께 보낸다. 에이전트가 프레임 크기를 기기 디스플레이 크기로 바꾼다. 회전 직후처럼 프레임 크기가 달라진 순간의 입력은 버려지고 엉뚱한 곳을 누르지 않는다.</li>
+  <li><strong>R5.</strong> 같은 기기를 보는 곳이 여럿(기기 목록의 화면과 터미널 탭 두 개)이어도 기기 안의 에이전트와 스트림은 하나다. 마지막 구독자가 떠나면 잠시 뒤 에이전트를 끝낸다.</li>
+  <li><strong>R6.</strong> 에이전트를 올리지 못하거나 스트림이 끊기면(기기가 뽑혔거나 꺼졌으면) 마지막 프레임을 그대로 두고 주기적으로 다시 시도한다. 한 장도 못 받았으면 <a href="emulator-control.html#requirements">기기 화면 R11</a>의 "화면을 가져올 수 없습니다." 다.</li>
+  <li><strong>R7.</strong> 영상을 풀고 화면에 올리는 동안 UI 스레드가 멈추지 않는다. 소켓 읽기·H.264 디코딩·픽셀 변환은 전부 UI 스레드 밖이다(<a href="emulator-control.html#requirements">기기 화면 R14</a>).</li>
+  <li><strong>R8.</strong> 데스크톱 앱 밖의 도구를 사용자가 설치할 필요가 없다. 기기 에이전트와 디코더는 앱에 함께 들어간다.</li>
+  <li><strong>R9.</strong> 프레임은 화면이 보이는 동안에만 흐른다(<a href="emulator-control.html#requirements">기기 화면 R10</a>, <a href="terminal-device.html#requirements">기기 탭 R11</a>). 구독이 끊기면 소켓과 에이전트도 닫는다.</li>
+  <li><strong>R10.</strong> 프레임이 새로 올 때마다 이전 프레임의 네이티브 픽셀 메모리를 곧바로 놓는다. 초당 60장이 GC 를 기다리며 쌓이지 않는다.</li>
+  <li><strong>R11.</strong> 로컬 에이전트(HTTP)를 거치는 타깃(Android·iOS·Web)도 같은 스트림에서 나온 최신 프레임을 받는다. 요청마다 기기를 새로 찍지 않으므로 응답이 수십 ms 안에 끝나고, 폴링 주기를 그만큼 줄인다.</li>
+  <li><strong>R12.</strong> iOS 시뮬레이터는 예전대로 <code>simctl io screenshot</code> 폴링이다. 바뀌지 않는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>키 입력(텍스트·하드웨어 키), 마우스 휠 스크롤, 오른쪽 클릭, 멀티터치·핀치. 에이전트 프로토콜에는 있지만 지시에 없다.</li>
+    <li>오디오.</li>
+    <li>Android·iOS·Web 타깃에서 영상 스트림을 직접 받는 것. 각각 MediaCodec·VideoToolbox·WebCodecs 로 디코더를 붙여야 하고, 세 벌의 디코더는 이 지시의 범위를 넘는다. 이 타깃들은 호스트가 디코딩한 최신 프레임을 JPEG 로 받는다(R11).</li>
+    <li>데스크톱 앱 UI 쪽의 호버 시각 효과. 지시의 "hover 효과" 는 기기 안에서 일어나는 것이다.</li>
+    <li>호버가 화면을 벗어났다는 이벤트(<code>ACTION_HOVER_EXIT</code>). <a href="#limits">한계</a>.</li>
+    <li>화면 크기에 맞춰 영상 해상도를 다시 협상하는 것. 시작할 때 정한 최대 크기 하나로 간다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>화면 문구</td><td><a href="emulator-control.html#behavior">기기 화면</a>과 같다. "화면을 가져오는 중…", "화면을 가져올 수 없습니다.", 제스처 불가 문구, 화면 켜기 카드. 새 문구는 없다</td></tr>
+    <tr><td>첫 프레임</td><td>에이전트 올리기(<code>adb push</code>) → 시작 → 첫 키프레임까지 0.5~1.5초. 그동안 "화면을 가져오는 중…"</td></tr>
+    <tr><td>누름</td><td>포인터가 닿은 순간 <code>Touch(DOWN)</code>, 움직이면 <code>Touch(MOVE)</code>, 떼면 <code>Touch(UP)</code>. 탭과 드래그를 구분하지 않는다 — 기기가 구분한다</td></tr>
+    <tr><td>호버</td><td><code>PointerType.Mouse</code> 이고 눌린 버튼이 없는 <code>Move</code> 마다 <code>Hover(x, y)</code>. 터치·스타일러스는 보내지 않는다</td></tr>
+    <tr><td>순서</td><td>한 기기의 제스처는 보낸 순서대로 기기에 닿는다. 보내는 중에 쌓인 <code>MOVE</code>·<code>Hover</code> 는 마지막 하나만 남기고 버린다. <code>DOWN</code>·<code>UP</code>·<code>CANCEL</code> 은 버리지 않는다</td></tr>
+    <tr><td>영상 크기</td><td>긴 변 최대 2048px(<code>MirrorMaxSize</code>). 1080×2520 은 878×2048, 1848×2960 은 1278×2048 로 온다. 화면은 <code>ContentScale.Fit</code> 그대로다</td></tr>
+    <tr><td>테스트 태그</td><td>바뀌지 않는다. <code>emulator:frame</code> 이 프레임이다</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인</dt><dd>
+    <code>EmulatorFrame</code>(sealed) — <code>Encoded(bytes)</code>: PNG·JPEG 한 장. <code>Pixels(width, height, pixels)</code>: 디코딩된 BGRA 8888, 행 간격 <code>width × 4</code>.<br>
+    <code>EmulatorGesture</code>(sealed) — <code>Touch(action, x, y, frameWidth, frameHeight)</code>, <code>Hover(x, y, frameWidth, frameHeight)</code>. <code>TouchAction { DOWN, MOVE, UP, CANCEL }</code>. 예전의 <code>Tap</code>·<code>Swipe</code> 는 없다.<br>
+    <code>EmulatorRepository.observeScreen(deviceId): Flow&lt;EmulatorFrame?&gt;</code>. <code>sendGesture</code> 는 그대로
+  </dd>
+  <dt>데이터 (JVM)</dt><dd>
+    <code>feature/emulator/data/src/jvmMain/.../emulator/mirror/</code> — <code>ScrcpyServer.kt</code>(에이전트 올리기·시작·소켓), <code>H264Decoder.kt</code>(FFmpeg), <code>ControlMessages.kt</code>(입력 메시지 인코딩), <code>ScreenMirror.kt</code>(세션 = 프레임 Flow + 제어 채널).<br>
+    <code>src/jvmMain/resources/scrcpy/scrcpy-server-v4.1</code> — 기기 에이전트. 아래 <a href="#decision-agent">결정</a>
+  </dd>
+  <dt>데이터 (공통)</dt><dd><code>EmulatorDataSource.observeScreen</code> 의 타입만 바뀐다. 에이전트 클라이언트(<code>HostAgent.kt</code>)는 받은 바이트를 <code>Encoded</code> 로 감싼다. <code>expect</code> 선언은 늘지 않는다</dd>
+  <dt>UI</dt><dd>
+    <code>EmulatorStream</code> 은 <code>EmulatorFrame</code> 을 <code>ImageBitmap</code> 으로 바꾼다. <code>Encoded</code> 는 예전대로 <code>decodeToImageBitmap()</code>, <code>Pixels</code> 는 <code>internal expect fun EmulatorFrame.Pixels.toImageBitmap(): ImageBitmap</code>. 둘 다 <code>FrameDecodeContext</code> 에서 한다(R7).<br>
+    <code>internal expect fun ImageBitmap.release()</code> — 이전 프레임의 네이티브 메모리를 놓는다(R10). <code>EmulatorFrameState</code> 는 <code>RetainObserver</code> 가 되어 <code>onRetired</code> 에서 마지막 프레임도 놓는다.<br>
+    <code>DeviceScreen</code> 의 포인터 처리는 <code>awaitPointerEventScope</code> 루프 하나다. <code>Press</code>·<code>Move</code>·<code>Release</code> 를 그대로 <code>Touch</code> 로, 안 눌린 마우스 <code>Move</code> 를 <code>Hover</code> 로 보낸다. 슬롭 판정·최소 지속 시간은 없어졌다 — 기기가 알아서 한다
+  </dd>
+  <dt>상태</dt><dd><code>EmulatorScreenViewModel.onGesture</code> 는 바로 보내지 않고 큐에 넣는다. 코루틴 하나가 순서대로 꺼내 보내고, 꺼낼 때 뒤에 같은 종류의 <code>MOVE</code>·<code>Hover</code> 가 쌓여 있으면 마지막만 보낸다. 제스처마다 <code>launch</code> 하면 HTTP 를 타는 타깃에서 <code>UP</code> 이 <code>MOVE</code> 를 앞질러 간다</dd>
+</dl>
+
+<h3>프레임 픽셀 버퍼</h3>
+
+<p><code>Pixels.pixels</code> 는 데이터 소스가 돌려 쓰는 버퍼다. 1080×2520 BGRA 한 장이 10MB 인데 초당 60장을 새로 할당하면 600MB/s 의 쓰레기가 생긴다. 데이터 소스는 <code>FramePoolSize</code>(4)장짜리 링을 돌리고, 같은 버퍼는 4 프레임 뒤에 다시 쓰인다. <strong>받는 쪽은 받은 자리에서 곧바로 복사해야 한다</strong>(UI 는 Skia 비트맵으로, 에이전트는 JPEG 로). 복사를 미루면 다음 프레임이 덮어쓴다. 느린 구독자가 4장 이상 뒤처지면 한 장이 찢어져 보일 수 있고, 다음 프레임이 바로 고친다.</p>
+
+<h3>스트림 공유</h3>
+
+<p>JVM 의 <code>observeScreen(adb 시리얼)</code> 은 기기마다 <code>conflate().shareIn(scope, WhileSubscribed(stopTimeoutMillis = MirrorSessionLinger, replayExpirationMillis = 0), replay = 1)</code> 다(R5). <a href="state-observation.html">상태 조회 규칙</a>이 허용하는 "비싼 조회를 나눌 때" 의 예외다.</p>
+<ul>
+  <li><code>conflate()</code> — 느린 구독자가 프레임을 밀어 두지 않는다. 디코더가 UI 를 기다리지 않는다.</li>
+  <li><code>replay = 1</code> — 나중에 붙는 구독자(두 번째 탭, 에이전트의 HTTP 요청)가 다음 화면 변화를 기다리지 않고 지금 프레임을 받는다. 화면이 멈춰 있으면 에이전트는 새 프레임을 보내지 않으므로, 이게 없으면 <code>first()</code> 가 영원히 기다린다.</li>
+  <li><code>stopTimeoutMillis</code> — 로컬 에이전트가 100ms 마다 <code>first()</code> 로 붙고 떠난다. 여유가 없으면 요청마다 기기 에이전트를 올리고 내린다(1초). 3초로 둔다.</li>
+  <li><code>replayExpirationMillis = 0</code> — 멈춘 뒤 다시 붙는 구독자가 오래된 프레임을 지금 화면처럼 받지 않는다.</li>
+</ul>
+
+<h3>좌표</h3>
+
+<p>포인터 위치는 그려진 영역 기준으로 <a href="emulator-control.html#implementation">기기 화면</a>과 같이 프레임 픽셀로 바꾸고, 그 프레임의 <code>width × height</code> 를 함께 싣는다. 기기 에이전트는 자기가 지금 보내는 영상 크기와 다르면 이벤트를 버린다(R4). 영상은 디스플레이를 축소한 것이라 좌표 변환은 에이전트가 한다 — 우리는 디스플레이 해상도를 알 필요가 없다.</p>
+
+<aside class="decision" id="decision-agent">
+  <strong>결정: 기기 에이전트는 scrcpy-server 를 번들한다</strong>
+  <p>기기 안에서 화면을 인코딩하고 입력을 주입하는 코드는 Android 버전마다 숨은 API 가 바뀐다(<code>SurfaceControl</code>, <code>DisplayControl</code>, <code>InputManager.injectInputEvent</code>). 직접 쓰고 유지하는 일이 이 기능의 본체보다 크다.</p>
+  <ul>
+    <li><strong>채택.</strong> <a href="https://github.com/Genymobile/scrcpy">scrcpy</a> 의 서버(<code>scrcpy-server-v4.1</code>, Apache-2.0, 734KB, SHA-256 <code>deacb991…850cae</code>)를 <code>jvmMain/resources</code> 에 넣고 <code>adb push</code> 로 올린다. Android 5.0+ 전부에서 검증된 코드고, 영상·입력·호버가 한 프로토콜에 있다. 기기 화면 스펙이 예전에 scrcpy 를 버린 이유는 "별도 설치" 와 "다른 타깃에 디코더가 없음" 이었다. 앞은 번들로 없어졌고, 뒤는 R11(호스트가 디코딩해서 JPEG 로) 로 푼다. 버전은 서버가 인자로 받은 버전 문자열과 자기 버전이 다르면 시작을 거부하므로 코드에 상수로 박아 둔다.</li>
+    <li>Android Studio 의 <code>screen-sharing-agent</code>. Studio 가 설치되어 있어야 하고 경로·프로토콜이 문서화되어 있지 않다. 버렸다.</li>
+    <li><code>adb exec-out screencorder --output-format=h264 -</code>. 기기 안의 표준 도구라 올릴 것이 없지만, 3분마다 끊기고(<code>--time-limit</code> 상한) 입력 채널이 없어서 탭은 여전히 <code>input</code> 프로세스, 호버는 불가다. 버렸다.</li>
+    <li><code>screencap</code> 을 PNG 없이(raw RGBA) 받기. 인코딩은 없지만 한 장이 10MB 라 무선 adb 에서는 1초를 넘는다. 버렸다.</li>
+    <li>직접 만든 dex 에이전트가 JPEG 를 흘려보내기. 디코더는 어느 타깃에도 있지만 화면 캡처의 숨은 API 를 우리가 쫓아야 한다. 버렸다.</li>
+  </ul>
+</aside>
+
+<aside class="decision" id="decision-decoder">
+  <strong>결정: H.264 디코더는 FFmpeg(bytedeco javacpp-presets)</strong>
+  <ul>
+    <li><strong>채택.</strong> <code>org.bytedeco:ffmpeg:8.1.2-1.5.14</code> + <code>macosx-arm64</code>·<code>macosx-x86_64</code> 네이티브(각 20~24MB). Android Studio 가 Running Devices 에 쓰는 것과 같은 라이브러리다. libavcodec 의 H.264 디코더는 LGPL 이라 비-GPL 아티팩트로 충분하다. 1080×2520 한 장 디코딩 + BGRA 변환이 M 시리즈에서 5ms 안이다. 데스크톱은 macOS 만 지원하므로 그 둘만 넣는다.</li>
+    <li>JCodec(순수 Java). 의존성이 작지만 1080p 디코딩이 실시간을 못 따라가고 High profile 의 일부 기능이 빠져 있다. 버렸다.</li>
+    <li>macOS VideoToolbox 를 Java FFM 으로. 하드웨어 디코딩이지만 <code>CMVideoFormatDescription</code>·<code>VTDecompressionSession</code> 바인딩을 손으로 써야 한다. 버렸다.</li>
+    <li>호스트에 설치된 <code>ffmpeg</code> CLI. 설치가 필요하다(R8). 버렸다.</li>
+  </ul>
+</aside>
+
+<aside class="decision">
+  <strong>결정: 호버는 기기에 넣고, 데스크톱 UI 에는 아무것도 그리지 않는다</strong>
+  Running Devices 의 호버 효과는 기기 안의 UI 가 <code>ACTION_HOVER_MOVE</code> 를 받아 그리는 것이다. 에이전트의 터치 메시지에 마우스 포인터 id(-1)와 <code>HOVER_MOVE</code> 동작을 실으면 에이전트가 <code>SOURCE_MOUSE</code> 로 주입한다. 데스크톱 앱 쪽에 커서나 강조를 따로 그리면 기기 화면을 가린다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 탭·스와이프 대신 DOWN·MOVE·UP 을 그대로 보낸다</strong>
+  예전에는 <code>input</code> 명령의 모양(<code>tap x y</code>, <code>swipe … ms</code>)에 맞춰 화면이 제스처를 분류하고 끝난 뒤 한 번에 보냈다. 이제 채널이 이벤트 단위라 분류할 이유가 없다. 길게 누르기·플링·드래그 앤 드롭이 저절로 된다. 도메인 모델도 이벤트 단위로 바꾸고 <code>Tap</code>·<code>Swipe</code> 는 지운다 — 두 벌을 두면 로컬 에이전트의 와이어 포맷도 두 벌이 된다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 픽셀 프레임을 도메인 타입으로 둔다</strong>
+  디코딩된 프레임을 PNG·JPEG 로 다시 인코딩해 <code>ByteArray</code> 로 넘기면 한 장에 10~40ms 가 더 들어 60fps 가 나오지 않는다. <code>ImageBitmap</code> 은 Compose 타입이라 도메인에 둘 수 없다(<a href="emulator-control.html#implementation">기기 화면</a>). 그래서 폭·높이·BGRA 바이트만 가진 <code>Pixels</code> 를 도메인에 두고 <code>ImageBitmap</code> 변환은 <code>ui</code> 의 <code>expect</code> 로 뺀다.
+</aside>
+
+<h2 id="agent">에이전트 프로토콜</h2>
+
+<p><a href="emulator-control.html#agent">로컬 에이전트</a>의 두 엔드포인트가 바뀐다. 나머지는 그대로다.</p>
+
+<table>
+  <thead><tr><th>메서드·경로</th><th>응답</th><th>바뀐 것</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /emulators/screen?id=&lt;id&gt;</code></td><td><code>image/jpeg</code> 또는 <code>image/png</code>, 없으면 <code>503</code></td><td>Android 기기는 스트림의 최신 프레임을 JPEG(품질 0.8)로 준다. iOS 시뮬레이터는 예전대로 PNG. 클라이언트는 <code>Content-Type</code> 을 보지 않고 <code>decodeToImageBitmap()</code> 에 맡긴다 — 둘 다 푼다</td></tr>
+    <tr><td><code>POST /emulators/gesture</code></td><td><code>204</code></td><td>본문 <code>{"id","type":"touch"|"hover","action":"down"|"move"|"up"|"cancel","x","y","width","height"}</code>. <code>hover</code> 에는 <code>action</code> 이 없다. 예전의 <code>tap</code>·<code>swipe</code> 는 <code>400</code> 이다</td></tr>
+  </tbody>
+</table>
+
+<p>클라이언트 폴링 주기 <code>EmulatorScreenPollInterval</code> 은 500ms 에서 <strong>100ms</strong> 로 줄인다(R11). 에이전트가 요청마다 기기를 찍지 않고 메모리의 프레임을 JPEG 로 인코딩(1080p 20~40ms)만 하므로 따라온다. 시뮬레이터 프레임은 JVM 쪽 폴링(<code>SimulatorScreenPollInterval</code>, 500ms)이 갱신 속도를 정하고, 클라이언트는 같은 장을 몇 번 더 받는다.</p>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span></td><td>호스트가 디코딩한 최신 프레임을 100ms 마다 JPEG 로 받는다. 제스처·호버는 HTTP POST 한 번씩</td><td><a href="../platform/android.html#device-mirroring">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge workaround">우회</span></td><td>같다. 시뮬레이터에서만 에이전트에 닿는다</td><td><a href="../platform/ios.html#device-mirroring">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS. scrcpy-server 를 <code>adb push</code>·<code>app_process</code> 로 올리고 <code>adb forward</code> 소켓으로 H.264 를 받아 FFmpeg 로 푼다. 입력·호버는 제어 소켓</td><td><a href="../platform/jvm.html#device-mirroring">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge workaround">우회</span></td><td>Android 와 같다. <code>fetch</code> 로 JPEG</td><td><a href="../platform/web.html#device-mirroring">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>ControlMessagesTest</code></td><td>터치·호버 메시지의 바이트 배치(32바이트, 빅엔디언, 포인터 id, 동작, 프레임 크기, 압력)</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>ScrcpyStreamTest</code></td><td>기기 이름(64바이트)·코덱 헤더(12바이트)·패킷 헤더(12바이트: pts 와 config·key 플래그, 크기)를 읽는 파서</td><td>같음</td></tr>
+    <tr><td><code>HostAgentServerTest</code></td><td>R11. <code>Pixels</code> 프레임이 <code>image/jpeg</code> 로, <code>Encoded</code> 는 그대로 나간다. 새 제스처 본문이 데이터 소스까지 간다</td><td>같음</td></tr>
+    <tr><td><code>HostAgentTest</code></td><td>터치·호버의 와이어 왕복. 모르는 <code>type</code> 은 거부</td><td><code>commonTest</code></td></tr>
+    <tr><td><code>EmulatorScreenViewModelTest</code></td><td>제스처가 순서대로 하나씩 나가고, 쌓인 <code>MOVE</code> 는 마지막만 남고, <code>DOWN</code>·<code>UP</code> 은 버려지지 않는다</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest</code>, <code>JarvisAppTerminalDeviceTest</code></td><td>R2, R3, R4. 클릭이 <code>DOWN</code>·<code>UP</code> 으로, 끌기가 <code>DOWN</code>…<code>MOVE</code>…<code>UP</code> 으로, 마우스 이동이 <code>Hover</code> 로, 모두 프레임 좌표와 프레임 크기를 달고 간다. 제스처 불가 기기에는 아무것도 가지 않는다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R1, R2, R3, R5, R6, R10. 실물 기기에서 프레임률·입력 지연·호버 반응·메모리를 눈으로 본다. 결과는 <a href="../platform/jvm.html#device-mirroring">JVM 스펙</a>에 적는다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><strong>호버가 끝났다는 이벤트를 보내지 않는다.</strong> 마우스가 기기 화면 밖으로 나가도 기기는 마지막 호버 위치에 머문다. 다음 터치나 호버가 들어오면 풀린다. scrcpy 와 같은 동작이다. 에이전트가 <code>HOVER_EXIT</code> 를 마우스 이벤트로 다루지 않아서 보내도 손가락 이벤트로 들어간다.</li>
+  <li><strong>Android·iOS·Web 은 여전히 폴링이다.</strong> 100ms 마다 JPEG 한 장이라 최대 10fps 고, 제스처는 HTTP 왕복(에뮬레이터에서 5~20ms)이 든다. 영상을 직접 받으려면 타깃마다 디코더가 필요하다(스코프 밖).</li>
+  <li><strong>영상은 긴 변 2048px 로 축소된다.</strong> 기기 디스플레이가 그보다 크면(태블릿 1848×2960) 데스크톱에서 픽셀 단위로 확대해 보면 흐리다. 좌표는 에이전트가 되돌리므로 정확하다.</li>
+  <li><strong>디스플레이가 둘인 기기는 첫 디스플레이만.</strong> <code>display_id</code> 를 기본값(0)으로 둔다. 접힌 상태에 따라 켜진 디스플레이가 바뀌는 문제는 <a href="../platform/jvm.html#emulator-control">기기 화면</a>과 같다.</li>
+  <li><strong>화면이 멈춰 있으면 프레임도 멈춘다.</strong> 에이전트는 화면이 바뀔 때만 인코딩한다. 그래서 새 구독자에게는 <code>replay = 1</code> 이 마지막 장을 준다.</li>
+  <li><strong>기기 안에 <code>/data/local/tmp/scrcpy-server.jar</code> 가 남는다.</strong> 세션마다 다시 올린다(734KB, 0.1~0.3초). 다른 scrcpy 클라이언트가 같은 경로를 쓰지만 서로 덮어써도 시작 시점에 자기 것을 올리므로 문제없다.</li>
+  <li><strong>데스크톱 배포 크기가 45MB 늘어난다.</strong> FFmpeg 네이티브 두 아키텍처다.</li>
+  <li><strong>화면이 꺼진 기기는 검은 프레임 한 장이 온 뒤 멈춘다.</strong> 화면 켜기 카드는 <a href="emulator-wake.html">그대로</a> 동작한다.</li>
+  <li>에이전트 프로세스는 우리가 소켓을 닫으면 스스로 끝난다. 앱이 강제 종료되면 기기 안에 잠시 남지만, 소켓이 끊긴 것을 알고 곧 끝난다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a> · <a href="emulator-control.html">기기 목록·화면·제스처</a> · <a href="terminal-device.html">터미널에서 기기 화면</a>
+</footer>
+
+</body>
+</html>

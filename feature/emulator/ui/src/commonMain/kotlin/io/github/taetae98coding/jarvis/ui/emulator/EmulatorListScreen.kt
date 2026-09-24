@@ -29,6 +29,7 @@ import io.github.taetae98coding.jarvis.designsystem.component.JarvisIconButtonDe
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
+import io.github.taetae98coding.jarvis.domain.emulator.DeviceConnection
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 
@@ -257,6 +258,8 @@ internal object EmulatorDeviceDefaults {
 private fun EmulatorDevice.describe(): String =
     listOfNotNull(
         "실물 기기".takeIf { isPhysical },
+        // 유선(USB)인지 무선(네트워크)인지. 실물 기기에만, 알아낸 경우에만 붙는다.
+        connection?.label,
         when {
             !isRunning -> "꺼짐"
             isPhysical -> "연결됨"
@@ -265,6 +268,12 @@ private fun EmulatorDevice.describe(): String =
         "화면 꺼짐".takeIf { isAsleep },
         "화면을 볼 수 없음".takeIf { isRunning && !canStream },
     ).joinToString(" · ")
+
+private val DeviceConnection.label: String
+    get() = when (this) {
+        DeviceConnection.WIRED -> "유선"
+        DeviceConnection.WIRELESS -> "무선"
+    }
 
 private val EmulatorPlatform.label: String
     get() = when (this) {
