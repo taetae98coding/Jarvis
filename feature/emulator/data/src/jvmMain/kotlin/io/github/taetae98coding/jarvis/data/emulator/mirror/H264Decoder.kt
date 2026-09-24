@@ -32,7 +32,10 @@ internal class H264Decoder : AutoCloseable {
     private val frame = avutil.av_frame_alloc() ?: error("AVFrame 할당 실패")
     private val bgra = avutil.av_frame_alloc() ?: error("AVFrame 할당 실패")
 
-    private var sws = SwsContext()
+    // null 로 시작해야 한다. JavaCPP 의 SwsContext() 는 FFmpeg 8 의 공개 구조체를 초기화 없이 할당할 뿐이라,
+    // 그것을 sws_getCachedContext 에 넘기면 기존 컨텍스트로 알고 해제하다 avpriv_slicethread_free 에서
+    // SIGBUS 로 JVM 이 죽는다(2026-09-24, Galaxy Z Fold7 첫 프레임에서 확인).
+    private var sws: SwsContext? = null
     private var bgraWidth = 0
     private var bgraHeight = 0
 
@@ -120,7 +123,7 @@ internal class H264Decoder : AutoCloseable {
         avutil.av_frame_free(frame)
         avutil.av_frame_free(bgra)
         avcodec.avcodec_free_context(context)
-        if (!sws.isNull) swscale.sws_freeContext(sws)
+        sws?.let(swscale::sws_freeContext)
     }
 
     private companion object {

@@ -269,7 +269,7 @@ private fun EmulatorDevice.describe(): String =
         "화면을 볼 수 없음".takeIf { isRunning && !canStream },
     ).joinToString(" · ")
 
-private val DeviceConnection.label: String
+internal val DeviceConnection.label: String
     get() = when (this) {
         DeviceConnection.WIRED -> "유선"
         DeviceConnection.WIRELESS -> "무선"

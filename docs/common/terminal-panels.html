@@ -173,7 +173,7 @@
 <aside class="decision">
   <strong>결정: Claude 는 Claude Code 의 백그라운드 세션으로 돌리고 창은 <code>claude attach</code> 로 붙는다</strong>
   R11 은 앱이 꺼져도 Claude 가 일을 계속하라고 한다. 앱이 띄운 프로세스는 앱과 함께 끝나므로 앱 밖의 무언가가 Claude 를 붙잡고 있어야 한다. Claude Code 2.1.281 에는 그 일을 하는 백그라운드 세션이 있다: <code>claude --bg</code> 가 세션을 자기 서비스에 맡기고 곧바로 돌아오고, <code>claude attach &lt;id&gt;</code> 가 그 세션을 지금 터미널에 그린다. 붙어 있던 <code>attach</code> 를 죽여도 세션은 계속되고, 멈춘 세션(<code>claude stop</code>, 재부팅)에 <code>attach</code> 하면 다시 띄운다. 2026-09-24 에 직접 확인했다(<a href="../platform/jvm.html#terminal-panels">JVM</a>).<br>
-  sessionId 는 앱이 정한다. <code>--bg</code> 는 <code>--session-id</code> 를 무시하지만 <code>--bg --resume &lt;uuid&gt;</code> 는 그 uuid 로 새 백그라운드 세션을 만든다. 그래서 창을 만들 때 uuid 를 정해 저장하고(R9), 창을 열 때마다 "그 sessionId 의 백그라운드 세션이 있으면 붙고, 없으면 그 sessionId 로 만든 뒤 붙는다".<br>
+  창의 sessionId 는 앱이 정한다. 창을 만들 때 uuid 를 정해 저장하고(R9), 창을 열 때마다 "그 sessionId 에 묶인 백그라운드 세션이 있으면 붙고, 없으면 만든 뒤 묶고 붙는다". <code>--bg</code> 는 <code>--session-id</code> 를 무시하고, 처음 보는 uuid 를 <code>--bg --resume</code> 에 주는 방법은 Claude Code 2.1.281 에서 세션이 곧 죽는다(<a href="../platform/jvm.html#terminal-panels">jvm.html</a>). 그래서 실제 sessionId 는 Claude 가 정하게 두고 세션 이름으로 창 sessionId 와 잇는다. 도메인의 <code>claudeSessionId</code> 는 "Claude 세션을 찾는 열쇠" 로 뜻이 넓어질 뿐 모양은 그대로다 — 실제 sessionId 를 받아 저장소에 되돌려 쓰는 안은 열기 결과가 도메인까지 올라와 워크스페이스를 고쳐야 해서 버렸다.<br>
   버린 후보: (1) tmux 안에서 claude 를 돌리기 — macOS 에 기본으로 없다. (2) 앱이 Claude 를 직접 띄우고 다음에 <code>claude --resume</code> — 대화는 이어지지만 앱이 꺼져 있는 동안 일이 멈춘다. R11 의 "앱을 종료하거나" 를 어긴다. 백그라운드 세션을 만들 수 없을 때(작업 디렉터리를 신뢰하지 않았을 때 등)의 대체 동작으로만 남긴다.
 </aside>
 
@@ -196,7 +196,7 @@
   <tbody>
     <tr><td>Android</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td>패널·탭 배치는 <code>filesDir/datastore/terminal-workspace.json</code>. 작업 디렉터리는 <code>/proc/&lt;pid&gt;/cwd</code>. Claude 는 <a href="../platform/android.html#terminal-claude">불가</a>라 R11·R12 는 해당 없음. 앱 프로세스가 백그라운드에서 죽으면 셸도 끝난다</td><td><a href="../platform/android.html#terminal-panels">android.html</a></td></tr>
     <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 저장소가 없고(<code>null</code>) 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-panels">ios.html</a></td></tr>
-    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>배치는 <code>~/Library/Application Support/Jarvis/terminal-workspace.json</code>. Claude 는 <code>claude --bg --resume</code> + <code>claude attach</code>. 작업 디렉터리는 <code>lsof -a -p &lt;pid&gt; -d cwd -Fn</code></td><td><a href="../platform/jvm.html#terminal-panels">jvm.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>배치는 <code>~/Library/Application Support/Jarvis/terminal-workspace.json</code>. Claude 는 <code>claude --bg --name</code> + <code>claude attach</code>. 작업 디렉터리는 <code>lsof -a -p &lt;pid&gt; -d cwd -Fn</code></td><td><a href="../platform/jvm.html#terminal-panels">jvm.html</a></td></tr>
     <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 저장소가 없고(<code>null</code>) 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-panels">web.html</a></td></tr>
   </tbody>
 </table>
@@ -216,7 +216,7 @@
 </table>
 
 <p>자동으로 확인하지 못하는 것: 실제 Claude 백그라운드 세션이 앱을 끈 동안 일을 계속하는지(R11), 실제 앱을 다시 켰을 때의 복원(R9 의 파일 경로 쪽), 패널 목록의 모양. <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
-<p>2026-09-24 에 커밋하지 않는 임시 테스트로 실제 <code>claude</code> 2.1.281 에 대해 JVM 경로를 한 번 돌렸다: 처음 여는 sessionId 는 백그라운드 세션을 만들고 붙기까지 2.4초, 두 번째는 찾기만 해서 0.3초. 실제 pty 에 <code>attach</code> 한 화면에 <code>bypass permissions on</code> 이 보였고, 창을 닫은 뒤에도 세션이 <code>working</code> 으로 남았다. 멈춘 세션에 다시 붙으면 다시 떴다. 확인에 쓴 세션은 <code>claude rm</code> 으로 지웠다. 데스크톱 앱 화면은 아직 손으로 보지 않았다.</p>
+<p>2026-09-24 에 커밋하지 않는 임시 테스트로 실제 <code>claude</code> 2.1.281 에 대해 JVM 경로를 한 번 돌렸다: 처음 여는 sessionId 는 백그라운드 세션을 만들고 붙기까지 2.4초, 두 번째는 찾기만 해서 0.3초. 실제 pty 에 <code>attach</code> 한 화면에 <code>bypass permissions on</code> 이 보였고, 창을 닫은 뒤에도 세션이 <code>working</code> 으로 남았다. 멈춘 세션에 다시 붙으면 다시 떴다. 확인에 쓴 세션은 <code>claude rm</code> 으로 지웠다. 데스크톱 앱 화면은 아직 손으로 보지 않았다. 같은 날 뒤에 새 Claude 탭이 뜨지 않는다는 보고로 다시 보니, 처음 보는 uuid 로 만든 세션이 10초쯤 뒤 <code>failed</code> 가 되어 있었다. 세션 이름으로 잇게 바꾼 뒤 같은 임시 테스트로 새 세션을 만들고 15초 뒤 다시 열어 같은 짧은 id 에 붙는 것을 확인했다.</p>
 
 <h2 id="limits">한계</h2>
 

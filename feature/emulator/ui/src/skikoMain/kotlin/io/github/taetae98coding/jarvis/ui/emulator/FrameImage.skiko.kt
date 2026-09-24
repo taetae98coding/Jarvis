@@ -14,9 +14,12 @@ import org.jetbrains.skia.ImageInfo
 // 그릴 때마다(SkiaBackedCanvas 가 Image.makeFromBitmap) 픽셀을 다시 복사하지 않는다.
 internal actual fun EmulatorFrame.Pixels.toImageBitmap(): ImageBitmap {
     val info = ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.OPAQUE)
+    // apply 안에서는 width 가 빈 Bitmap 의 폭(0)이 된다. 행 간격 0 으로 설치되면 installPixels 는 true 를
+    // 주지만 그릴 때 Image::makeFromBitmap 이 실패해 EDT 가 죽는다(2026-09-25 실물 기기에서 확인).
+    val rowBytes = width * 4
 
     return Bitmap().apply {
-        installPixels(info, pixels, width * 4)
+        check(installPixels(info, pixels, rowBytes)) { "BGRA 픽셀을 설치하지 못했다" }
         setImmutable()
     }.asComposeImageBitmap()
 }

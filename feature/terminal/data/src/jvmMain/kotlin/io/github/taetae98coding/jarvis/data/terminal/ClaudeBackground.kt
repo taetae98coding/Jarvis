@@ -5,13 +5,15 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Claude Code 의 백그라운드 세션(`claude --bg`)을 sessionId 로 찾고, 만들고, 멈춘다.
+ * 창 sessionId 에 묶인 Claude Code 백그라운드 세션(`claude --bg`)을 찾고, 만들고, 멈춘다.
  *
  * 창을 닫아도 앱을 끝내도 Claude 가 일을 계속하려면 앱 밖의 무언가가 Claude 를 붙잡고 있어야 한다.
  * 그 일을 Claude Code 의 백그라운드 서비스에 맡기고, 창은 `claude attach` 로 붙기만 한다. 아래 동작은
@@ -22,57 +24,82 @@ internal class ClaudeBackground(
     private val run: suspend (script: String, directory: String) -> ShellResult = { script, directory ->
         runShell(shell, script, directory)
     },
+    private val hasConversation: (sessionId: String) -> Boolean = ::hasClaudeTranscript,
 ) {
-    /** 창의 pty 에 띄울 명령. 세션이 없으면 [sessionId] 로 만든 뒤 붙는다. */
+    /** 창의 pty 에 띄울 명령. [sessionId] 에 묶인 세션이 없으면 만든 뒤 붙는다. */
     suspend fun command(sessionId: String, directory: String): List<String> {
-        findJob(sessionId)?.let { return interactiveCommand(shell, claudeAttachScript(it), thenShell = true) }
+        val jobs = findJobs(sessionId)
+        jobs.alive()?.let { return interactiveCommand(shell, claudeAttachScript(it.id), thenShell = true) }
 
-        // --bg 는 --session-id 를 무시하지만, 처음 보는 uuid 를 --resume 에 주면 그 uuid 로 새 세션을 만든다.
-        val started = run(claudeStartScript(sessionId), directory)
-        val job = if (started.exitCode == 0) findJob(sessionId) ?: parseBackgroundedId(started.output) else null
+        // 대화가 남아 있으면 잇는다. 예전 방식으로 만든 창은 창 sessionId 가, 죽은 세션은 그 sessionId 가 대화다.
+        val resume = (listOf(sessionId) + jobs.map(ClaudeJob::sessionId)).distinct().firstOrNull(hasConversation)
+
+        val started = run(claudeStartScript(sessionId, resume), directory)
+        val job = if (started.exitCode == 0) findJobs(sessionId).alive()?.id ?: parseBackgroundedId(started.output) else null
 
         return if (job != null) {
             interactiveCommand(shell, claudeAttachScript(job), thenShell = true)
         } else {
-            interactiveCommand(shell, claudeForegroundScript(sessionId, started.output), thenShell = true)
+            interactiveCommand(shell, claudeForegroundScript(sessionId, resume, started.output), thenShell = true)
         }
     }
 
     suspend fun stop(sessionId: String) {
-        val job = findJob(sessionId) ?: return
-
-        run("claude stop ${shellQuote(job)}", System.getProperty("user.home"))
+        findJobs(sessionId).filterNot(ClaudeJob::isFailed).forEach { job ->
+            run("claude stop ${shellQuote(job.id)}", System.getProperty("user.home"))
+        }
     }
 
-    private suspend fun findJob(sessionId: String): String? {
+    private suspend fun findJobs(sessionId: String): List<ClaudeJob> {
         val listed = run("claude agents --json --all", System.getProperty("user.home"))
-        if (listed.exitCode != 0) return null
+        if (listed.exitCode != 0) return emptyList()
 
-        return parseClaudeJobs(listed.output).firstOrNull { it.sessionId == sessionId }?.id
+        val name = claudeJobName(sessionId)
+        return parseClaudeJobs(listed.output).filter { it.name == name || it.sessionId == sessionId }
     }
+
+    private fun List<ClaudeJob>.alive(): ClaudeJob? = filterNot(ClaudeJob::isFailed).maxByOrNull(ClaudeJob::startedAt)
 }
 
 internal class ShellResult(val exitCode: Int, val output: String)
 
-internal data class ClaudeJob(val id: String, val sessionId: String)
+internal data class ClaudeJob(
+    val id: String,
+    val sessionId: String,
+    val name: String? = null,
+    val state: String? = null,
+    val startedAt: Long = 0,
+) {
+    // 서비스가 세션을 띄우지 못했다. attach 해도 붙을 것이 없다. stopped 는 attach 가 다시 띄운다.
+    val isFailed: Boolean get() = state == "failed"
+}
 
-internal fun claudeStartScript(sessionId: String): String =
-    "claude --bg --resume ${shellQuote(sessionId)} --dangerously-skip-permissions"
+/** 창 sessionId 와 Claude 가 정한 실제 세션을 잇는 이름. Claude 입력창에도 보인다. */
+internal fun claudeJobName(sessionId: String): String = "jarvis-$sessionId"
+
+/**
+ * `--bg` 는 `--session-id` 를 무시하고, 처음 보는 uuid 를 `--resume` 에 주면 세션이 곧 죽는다
+ * (2.1.281, docs/platform/jvm.html#terminal-panels). 그래서 새 대화는 Claude 가 sessionId 를 정하게 두고
+ * 이름으로 찾는다. [resume] 은 대화 기록이 있는 sessionId 만 준다.
+ */
+internal fun claudeStartScript(sessionId: String, resume: String?): String =
+    "claude --bg --name ${shellQuote(claudeJobName(sessionId))}" +
+        resume?.let { " --resume ${shellQuote(it)}" }.orEmpty() +
+        " --dangerously-skip-permissions"
 
 // attach 는 짧은 id 만 받는다. 전체 sessionId 를 주면 "No job matching" 이다.
 internal fun claudeAttachScript(job: String): String = "claude attach ${shellQuote(job)}"
 
 /**
  * 백그라운드 세션을 만들지 못했을 때(신뢰하지 않은 디렉터리, 로그인 안 됨) 앱 안에서 직접 띄운다.
- * 왜 못 만들었는지 먼저 보여 준다. 대화가 이미 있으면 이어 가고, 없으면 같은 sessionId 로 시작한다 —
- * 다음에 창을 열 때 그 sessionId 로 백그라운드 세션을 만들 수 있게.
+ * 왜 못 만들었는지 먼저 보여 준다. 이을 대화가 있으면 잇고, 없으면 창 sessionId 로 시작한다 — 그러면
+ * 창 sessionId 로 대화 기록이 생겨 다음에 창을 열 때 백그라운드 세션이 그 대화를 잇는다.
  */
-internal fun claudeForegroundScript(sessionId: String, reason: String): String {
-    val id = shellQuote(sessionId)
+internal fun claudeForegroundScript(sessionId: String, resume: String?, reason: String): String {
     val message = reason.trim().takeIf { it.isNotEmpty() }?.let { "printf '%s\\n\\n' ${shellQuote(it)}; " }.orEmpty()
+    val launch = if (resume != null) "--resume ${shellQuote(resume)}" else "--session-id ${shellQuote(sessionId)}"
 
-    return message +
-        "claude --dangerously-skip-permissions --resume $id || claude --dangerously-skip-permissions --session-id $id"
+    return "${message}claude --dangerously-skip-permissions $launch"
 }
 
 /**
@@ -90,13 +117,29 @@ internal fun parseClaudeJobs(output: String): List<ClaudeJob> {
 
         val id = job["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
         val sessionId = job["sessionId"]?.jsonPrimitive?.content ?: return@mapNotNull null
-        ClaudeJob(id, sessionId)
+        ClaudeJob(
+            id = id,
+            sessionId = sessionId,
+            name = job["name"]?.jsonPrimitive?.contentOrNull,
+            state = job["state"]?.jsonPrimitive?.contentOrNull,
+            startedAt = job["startedAt"]?.jsonPrimitive?.longOrNull ?: 0,
+        )
     }
 }
 
 /** `claude --bg` 가 찍는 `backgrounded · <id> (…)`. `agents --json` 으로 찾지 못했을 때만 쓴다. */
 internal fun parseBackgroundedId(output: String): String? =
     Regex("""backgrounded · ([0-9a-f]+)""").find(output)?.groupValues?.get(1)
+
+/**
+ * Claude Code 는 대화를 `<설정 디렉터리>/projects/<cwd 를 바꾼 이름>/<sessionId>.jsonl` 에 쓴다. cwd 를
+ * 이름으로 바꾸는 규칙을 따라 하지 않고 모든 프로젝트 디렉터리를 본다.
+ */
+private fun hasClaudeTranscript(sessionId: String): Boolean {
+    val config = System.getenv("CLAUDE_CONFIG_DIR")?.let(::File) ?: File(System.getProperty("user.home"), ".claude")
+
+    return File(config, "projects").listFiles().orEmpty().any { File(it, "$sessionId.jsonl").isFile }
+}
 
 /**
  * 출력은 파이프가 아니라 파일로 받는다. `claude --bg` 가 처음 띄우는 백그라운드 서비스가 표준 출력을

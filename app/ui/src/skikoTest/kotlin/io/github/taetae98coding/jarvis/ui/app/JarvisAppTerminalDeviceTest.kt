@@ -4,6 +4,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
@@ -67,7 +69,7 @@ class JarvisAppTerminalDeviceTest {
 
     @Test
     fun menuListsOnlyDevicesWhoseScreenCanBeSeen() = runComposeUiTest {
-        openTerminal(streaming(RunningAndroidDevice, StoppedAndroidDevice, PhysicalAndroidDevice, RunningSimulator, PhysicalIosDevice))
+        openTerminal(streaming(RunningAndroidDevice, StoppedAndroidDevice, PhysicalAndroidDevice, SleepingAndroidDevice, RunningSimulator, PhysicalIosDevice))
 
         onNode(newTabButton).performClick()
         waitUntil(timeoutMillis = FrameTimeoutMillis) {
@@ -79,7 +81,9 @@ class JarvisAppTerminalDeviceTest {
         onNodeWithText("Android 에뮬레이터").assertIsDisplayed()
         onNodeWithTag(terminalNewDeviceTabTestTag(PhysicalAndroidDevice.id)).assertIsDisplayed()
         onNodeWithTag(terminalNewDeviceTabTestTag(RunningSimulator.id)).assertIsDisplayed()
-        onNodeWithText("Android 실물 기기").assertIsDisplayed()
+        // 실물 기기는 유선·무선을 함께 적는다.
+        onNodeWithText("Android 실물 기기 · 유선").assertIsDisplayed()
+        onNodeWithText("Android 실물 기기 · 무선").assertIsDisplayed()
         onNodeWithText("iOS 시뮬레이터").assertIsDisplayed()
         assertEquals(0, onAllNodesWithTag(terminalNewDeviceTabTestTag(StoppedAndroidDevice.id)).fetchSemanticsNodes().size)
         assertEquals(0, onAllNodesWithTag(terminalNewDeviceTabTestTag(PhysicalIosDevice.id)).fetchSemanticsNodes().size)
@@ -129,6 +133,22 @@ class JarvisAppTerminalDeviceTest {
         awaitFrame(tabId)
         // 기기 탭은 셸을 띄우지 않는다.
         assertEquals(1, terminal.sessions.size)
+    }
+
+    // 실물 기기·에뮬레이터의 영상 스트림은 PNG 가 아니라 디코더가 푼 BGRA 픽셀로 온다. 폭과 높이가 다른
+    // 프레임이라야 행 간격이 틀렸을 때 그리기가 실패한다.
+    @Test
+    fun videoFrameIsDrawnInTheDeviceTab() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository()
+        val pixels = EmulatorFrame.Pixels(width = 8, height = 16, pixels = ByteArray(8 * 16 * 4) { 0x40 })
+        openTerminal(FakeEmulatorRepository(devices = listOf(PhysicalAndroidDevice), frames = MutableStateFlow(pixels)), workspace = workspace)
+
+        val tabId = openDeviceTab(workspace, PhysicalAndroidDevice.id)
+        awaitFrame(tabId)
+
+        val frame = onNode(hasTestTag(EmulatorFrameTestTag) and hasAnyAncestor(hasTestTag(terminalDeviceTestTag(tabId))))
+        frame.assertIsDisplayed()
+        frame.captureToImage()
     }
 
     @Test

@@ -44,9 +44,14 @@ internal object ScrcpyServer {
             forwardPort = forward(adb, serial, socketName)
             process = launch(adb, serial, scid)
 
-            val video = connectWithHeader(forwardPort, sockets)
-            // 서버는 tunnel_forward 에서 영상 다음에 제어 소켓을 accept 한다. 두 번째 연결이 제어다.
+            val (videoSocket, video) = connectVideo(forwardPort)
+            sockets.add(videoSocket)
+            // 서버는 tunnel_forward 에서 영상 다음에 제어 소켓을 accept 하고, 둘 다 붙은 뒤에야 기기 이름을
+            // 보낸다. 헤더를 먼저 읽으면 서로 기다리며 멈춘다(docs/platform/jvm.html#device-mirroring).
             val control = connect(forwardPort).also(sockets::add)
+            video.readHeader()
+            // 화면이 멈춰 있으면 서버는 패킷을 보내지 않는다. 스트림에는 읽기 제한을 두지 않는다.
+            videoSocket.soTimeout = 0
 
             val currentForward = forwardPort
             val currentProcess = process
@@ -108,19 +113,17 @@ internal object ScrcpyServer {
             .also { it.outputStream.close() }
 
     // adb forward 는 서버가 아직 리슨하지 않아도 connect 가 성공하고 곧 끊긴다. 서버가 보내는 더미
-    // 1바이트를 읽을 수 있을 때까지 다시 연결한다.
-    private fun connectWithHeader(port: Int, sockets: MutableList<Socket>): ScrcpyStream {
+    // 1바이트를 읽을 수 있을 때까지 다시 연결한다. 헤더를 읽는 동안에는 읽기 제한을 건다.
+    private fun connectVideo(port: Int): Pair<Socket, ScrcpyStream> {
         val deadline = System.nanoTime() + MirrorConnectTimeout.inWholeNanoseconds
 
         while (true) {
             val socket = runCatching { connect(port) }.getOrNull()
 
             if (socket != null) {
+                socket.soTimeout = MirrorConnectTimeout.inWholeMilliseconds.toInt()
                 val stream = ScrcpyStream(DataInputStream(BufferedInputStream(socket.getInputStream())))
-                if (runCatching { stream.readHeader() }.isSuccess) {
-                    sockets.add(socket)
-                    return stream
-                }
+                if (runCatching { stream.readDummyByte() }.isSuccess) return socket to stream
                 runCatching { socket.close() }
             }
 
