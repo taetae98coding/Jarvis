@@ -41,6 +41,11 @@
   <footer>2026-09-22 대화. 뒷문장은 <a href="emulator-launch.html">꺼진 에뮬레이터 실행</a>에 있다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>그리고 디바이스 스트리밍 들어갈 때 UI가 잠시 멈추는 느낌인데 확인해줘.</p>
+  <footer>2026-09-24 대화. 같은 메시지의 앞부분은 <a href="emulator-wake.html">꺼진 화면 깨우기</a>에 있다. R14 로 옮겼다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
@@ -57,6 +62,7 @@
   <li><strong>R11.</strong> 프레임을 가져오지 못하면 마지막으로 받은 프레임을 그대로 두고, 한 장도 받지 못했으면 "화면을 가져올 수 없습니다"를 보여준다.</li>
   <li><strong>R12.</strong> 연결된 실물 Android 기기는 에뮬레이터와 똑같이 화면을 보고 제스처를 보낼 수 있다. 목록에서 실물이라는 것이 보인다.</li>
   <li><strong>R13.</strong> 화면을 볼 수 없는 실물 기기(실물 iOS)도 목록에는 나오고, 왜 누를 수 없는지 그 줄에 적는다. 목록에서 빼지 않는다.</li>
+  <li><strong>R14.</strong> 스트리밍 화면에 들어갈 때도, 보고 있는 동안에도 UI 가 멈추지 않는다. 화면을 찍는 일(외부 명령·HTTP)은 UI 스레드에서 돌지 않고, PNG 를 푸는 일도 스레드가 둘 이상인 타깃에서는 UI 스레드 밖에서 한다.</li>
 </ol>
 
 <aside class="warn">
@@ -76,6 +82,7 @@
   <tbody>
     <tr><td>카드</td><td>제목 "에뮬레이터". 카드 전체가 클릭 영역이다. 물결은 <a href="card-ripple.html">카드 모양</a>을 따른다</td></tr>
     <tr><td>목록 화면 제목</td><td>"기기 목록"</td></tr>
+    <tr><td>목록 배치</td><td>왼쪽 열 Android, 오른쪽 열 iOS. <a href="device-list-split.html">기기 목록 좌우 분할</a></td></tr>
     <tr><td>목록 항목</td><td><code>&lt;이름&gt;</code> / 보조 문구는 아래 표</td></tr>
     <tr><td>빈 목록</td><td>"연결된 기기가 없거나 개발자 머신에 물어볼 수 없습니다."</td></tr>
     <tr><td>스트리밍 화면 제목</td><td>선택한 기기 이름</td></tr>
@@ -88,18 +95,18 @@
   </tbody>
 </table>
 
-<p>보조 문구는 <code>·</code> 로 이어 붙인다. 가상 기기인지 실물인지, 지금 무슨 상태인지, 눌리지 않는다면 왜 그런지 순서다.</p>
+<p>목록은 <a href="device-list-split.html">좌우 두 열</a>로 나뉘어 왼쪽에 Android, 오른쪽에 iOS 기기가 나온다. 플랫폼은 열이 말하므로 보조 문구에는 넣지 않는다. 보조 문구는 <code>·</code> 로 이어 붙인다. 가상 기기인지 실물인지, 지금 무슨 상태인지, 눌리지 않는다면 왜 그런지 순서다.</p>
 
 <table>
   <thead><tr><th>기기</th><th>보조 문구</th><th>누를 수 있나</th></tr></thead>
   <tbody>
-    <tr><td>실행 중인 AVD</td><td><code>Android · 실행 중</code></td><td>예</td></tr>
-    <tr><td>꺼진 AVD</td><td><code>Android · 꺼짐</code></td><td>아니오 (<a href="emulator-launch.html">실행 버튼</a>이 붙는다)</td></tr>
-    <tr><td>부팅된 시뮬레이터</td><td><code>iOS · 실행 중</code></td><td>예 (제스처는 못 보낸다)</td></tr>
-    <tr><td>꺼진 시뮬레이터</td><td><code>iOS · 꺼짐</code></td><td>아니오 (<a href="emulator-launch.html">실행 버튼</a>이 붙는다)</td></tr>
-    <tr><td>연결된 실물 Android</td><td><code>Android · 실물 기기 · 연결됨</code></td><td>예</td></tr>
-    <tr><td>화면이 꺼진 실물 Android</td><td><code>Android · 실물 기기 · 연결됨 · 화면 꺼짐</code></td><td>예 (<a href="emulator-wake.html">화면 켜기 버튼</a>이 붙는다)</td></tr>
-    <tr><td>연결된 실물 iOS</td><td><code>iOS · 실물 기기 · 연결됨 · 화면을 볼 수 없음</code></td><td>아니오</td></tr>
+    <tr><td>실행 중인 AVD</td><td><code>실행 중</code></td><td>예</td></tr>
+    <tr><td>꺼진 AVD</td><td><code>꺼짐</code></td><td>아니오 (<a href="emulator-launch.html">실행 버튼</a>이 붙는다)</td></tr>
+    <tr><td>부팅된 시뮬레이터</td><td><code>실행 중</code></td><td>예 (제스처는 못 보낸다)</td></tr>
+    <tr><td>꺼진 시뮬레이터</td><td><code>꺼짐</code></td><td>아니오 (<a href="emulator-launch.html">실행 버튼</a>이 붙는다)</td></tr>
+    <tr><td>연결된 실물 Android</td><td><code>실물 기기 · 연결됨</code></td><td>예</td></tr>
+    <tr><td>화면이 꺼진 실물 Android</td><td><code>실물 기기 · 연결됨 · 화면 꺼짐</code></td><td>예 (<a href="emulator-wake.html">화면 켜기 버튼</a>이 붙는다)</td></tr>
+    <tr><td>연결된 실물 iOS</td><td><code>실물 기기 · 연결됨 · 화면을 볼 수 없음</code></td><td>아니오</td></tr>
   </tbody>
 </table>
 
@@ -154,6 +161,8 @@
 
 <p><code>observeScreen(deviceId)</code>는 <a href="state-observation.html">상태 조회 규칙</a>의 폴링을 쓴다. 주기는 <strong>500ms</strong>다. 화면을 한 장 찍는 데 걸리는 시간(Android <code>screencap</code> 기준 0.3~1초)이 주기보다 길어서 실제 갱신은 그보다 느리다. 구독이 끊기면 폴링이 멈춘다(R10).</p>
 
+<p><code>observeByPolling</code> 은 <code>read</code> 를 <strong>수집하는 쪽의 디스패처</strong>에서 부른다. 스트리밍 화면은 <code>LaunchedEffect</code> 에서 수집하므로 그 자리가 UI 스레드다. 그래서 <code>read</code> 가 블로킹이면 데이터 소스가 스스로 다른 디스패처로 옮겨야 한다(R14). 각 타깃의 클라이언트는 이미 그렇게 하고(<code>Dispatchers.IO</code>, <code>NSURLSession</code> 콜백, <code>fetch</code> 의 <code>await</code>), JVM 의 직접 촬영만 빠져 있었다(<a href="#decision-freeze">결정</a>).</p>
+
 <h3>좌표 변환</h3>
 
 <p>화면은 <code>ContentScale.Fit</code>으로 그린다. 탭 지점 <code>(px, py)</code>는 그려진 이미지 영역 기준으로 다음과 같이 기기 좌표가 된다.</p>
@@ -165,9 +174,21 @@ deviceY = (py - offsetY) / drawnHeight * frameHeight</code></pre>
 <code>detectDragGestures</code> 의 <code>onDragStart</code> 는 터치 슬롭을 넘은 지점을 주기 때문에, 스와이프가 손가락을 댄 자리보다
 몇 픽셀 뒤에서 시작한다. 슬롭 판정은 그대로 두되(그래야 탭과 갈린다) 시작점은 처음 누른 위치를 쓴다.</p>
 
-<p>프레임을 <code>ImageBitmap</code> 으로 푸는 일은 프레임이 도착한 그 자리에서 한다. 다른 디스패처로 넘기면 Wasm 에서
-디코딩이 끝나지 않는다. 스레드가 하나뿐이라 <code>Dispatchers.Default</code> 도 같은 이벤트 루프인데, Compose UI 테스트가
-그 루프를 잡고 있는 동안 이어지는 코드가 실행되지 못한다. 초당 두 장이라 그대로 두었다.</p>
+<p>프레임을 <code>ImageBitmap</code> 으로 푸는 일은 <code>ui</code> 의 <code>internal expect val FrameDecodeContext: CoroutineContext</code> 에서 한다.
+Android·iOS·JVM 은 <code>Dispatchers.Default</code>, Wasm 은 <code>EmptyCoroutineContext</code>(프레임이 도착한 그 자리)다. Wasm 에서
+다른 디스패처로 넘기면 디코딩이 끝나지 않는다. 스레드가 하나뿐이라 <code>Dispatchers.Default</code> 도 같은 이벤트 루프인데, Compose UI 테스트가
+그 루프를 잡고 있는 동안 이어지는 코드가 실행되지 못한다. 옮겨도 얻는 것이 없으니 그 타깃만 그대로 둔다.</p>
+
+<aside class="decision" id="decision-freeze">
+  <strong>결정: 스트리밍 진입 시 멈춤 — JVM 촬영을 <code>Dispatchers.IO</code> 로 옮기고, 디코딩도 UI 스레드에서 뺀다</strong>
+  2026-09-24 에 개발 머신에서 잰 값이다.
+  <ul>
+    <li><strong>주원인.</strong> JVM 의 <code>observeScreen</code> 만 <code>captureScreen</code> 을 그대로 불러서 <code>adb exec-out screencap</code> 이 끝나기를 Swing EDT 가 기다렸다. 연결된 실물 기기 두 대에서 한 장에 <strong>0.34~0.65초</strong>였다. 들어가자마자(<code>onStart</code> 의 첫 읽기) 한 번, 그 뒤로 500ms 마다 한 번씩 UI 가 그만큼 멈춘다. 전환 애니메이션이 첫 촬영과 겹쳐 "들어갈 때 멈추는" 것으로 보였다. 목록·개수·제스처·실행·깨우기는 이미 <code>withContext(Dispatchers.IO)</code> 였고 촬영만 빠져 있었다.</li>
+    <li><strong>부원인.</strong> PNG 디코딩이 UI 스레드에서 돌았다. 1080×2400(386KB) 한 장이 JVM 에서 7~8ms 라 데스크톱에서는 한 프레임 안이지만, 폰의 CPU 에서는 더 걸린다(Android·iOS 는 <span class="badge untested">미측정</span>). 초당 두 장씩 전환 애니메이션 중에도 끼어든다.</li>
+    <li>버린 후보: <code>observeByPolling</code> 자체에 <code>flowOn(Dispatchers.IO)</code> 를 건다. 설정·회전처럼 메인 스레드에서 읽어야 하는 플랫폼 API(UIKit 등)까지 옮겨 가서 버렸다. 블로킹 여부는 읽는 쪽이 안다.</li>
+    <li>버린 후보: ViewModel 에서 디코딩한다. <code>ImageBitmap</code> 을 상태 계층에 올리게 되어 <a href="retained-state.html">재생성을 넘기는 상태</a>의 결정과 어긋난다.</li>
+  </ul>
+</aside>
 
 <p>프레임의 픽셀 크기가 곧 기기의 디스플레이 해상도다. <code>screencap</code>도 <code>simctl io screenshot</code>도 축소하지 않은 원본을 준다. 그래서 별도의 해상도 조회 없이 프레임 하나로 변환이 닫힌다. 이미지 바깥(레터박스)을 누르면 아무것도 보내지 않는다.</p>
 
@@ -242,6 +263,7 @@ deviceY = (py - offsetY) / drawnHeight * frameHeight</code></pre>
     <tr><td><code>HostAgentServerTest</code></td><td>목록·프레임·제스처 엔드포인트의 상태 코드와 본문</td><td><code>jvmTest</code></td></tr>
     <tr><td><code>HostAgentTest</code></td><td>에이전트가 없을 때 목록이 비고 프레임이 <code>null</code>이 되는 것, 능력 플래그의 와이어 왕복</td><td><code>commonTest</code></td></tr>
     <tr><td>수동 확인</td><td>R10, R11과 실제 기기 왕복 <span class="badge untested">미검증</span></td><td>—</td></tr>
+    <tr><td>수동 확인</td><td>R14. 촬영·디코딩 시간은 위 <a href="#decision-freeze">결정</a>의 값으로 쟀다. 고친 뒤 전환이 끊기지 않는 것은 눈으로 본다 <span class="badge untested">미검증</span></td><td>—</td></tr>
   </tbody>
 </table>
 

@@ -9,6 +9,9 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -19,6 +22,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
@@ -27,9 +31,11 @@ import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorFrameTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorListTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorScreenTestTag
+import io.github.taetae98coding.jarvis.ui.emulator.EmulatorScreenWakeTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorDeviceTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorLaunchTestTag
+import io.github.taetae98coding.jarvis.ui.emulator.emulatorPlatformListTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorWakeTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationBackwardTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationForwardTestTag
@@ -226,10 +232,52 @@ class JarvisAppTest {
 
         onNodeWithTag(EmulatorTestTag).performClick()
 
+        val androidList = hasAnyAncestor(hasTestTag(emulatorPlatformListTestTag(EmulatorPlatform.ANDROID)))
+        val iosList = hasAnyAncestor(hasTestTag(emulatorPlatformListTestTag(EmulatorPlatform.IOS)))
+
         onNodeWithText(RunningAndroidDevice.name).assertIsDisplayed()
-        onNodeWithText("Android · 실행 중").assertIsDisplayed()
-        onNodeWithText("Android · 꺼짐").assertIsDisplayed()
-        onNodeWithText("iOS · 실행 중").assertIsDisplayed()
+        onNode(hasText("실행 중") and androidList).assertIsDisplayed()
+        onNode(hasText("꺼짐") and androidList).assertIsDisplayed()
+        onNode(hasText("실행 중") and iosList).assertIsDisplayed()
+    }
+
+    @Test
+    fun deviceListSplitsByPlatform() = runComposeUiTest {
+        setContent {
+            TestJarvisApp(
+                emulator = FakeEmulatorRepository(
+                    devices = listOf(RunningSimulator, RunningAndroidDevice, PhysicalIosDevice, PhysicalAndroidDevice),
+                ),
+            )
+        }
+
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        val androidList = hasAnyAncestor(hasTestTag(emulatorPlatformListTestTag(EmulatorPlatform.ANDROID)))
+        val iosList = hasAnyAncestor(hasTestTag(emulatorPlatformListTestTag(EmulatorPlatform.IOS)))
+
+        onNode(hasText("Android") and androidList).assertIsDisplayed()
+        onNode(hasText("iOS") and iosList).assertIsDisplayed()
+        onNode(hasTestTag(emulatorDeviceTestTag(RunningAndroidDevice.id)) and androidList).assertIsDisplayed()
+        onNode(hasTestTag(emulatorDeviceTestTag(PhysicalAndroidDevice.id)) and androidList).assertIsDisplayed()
+        onNode(hasTestTag(emulatorDeviceTestTag(RunningSimulator.id)) and iosList).assertIsDisplayed()
+        onNode(hasTestTag(emulatorDeviceTestTag(PhysicalIosDevice.id)) and iosList).assertIsDisplayed()
+    }
+
+    // 한쪽 열만 비어 있을 때 빈칸으로 두면 목록을 아직 못 받은 것처럼 보인다.
+    @Test
+    fun emptyPlatformColumnSaysSo() = runComposeUiTest {
+        setContent {
+            TestJarvisApp(emulator = FakeEmulatorRepository(devices = listOf(RunningAndroidDevice)))
+        }
+
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        onNode(
+            hasText("iOS 기기가 없습니다.") and
+                hasAnyAncestor(hasTestTag(emulatorPlatformListTestTag(EmulatorPlatform.IOS))),
+        ).assertIsDisplayed()
+        onNodeWithText("Android 기기가 없습니다.").assertDoesNotExist()
     }
 
     // 꺼져 있는 기기에는 찍을 화면이 없다. 눌러도 되는 것처럼 보이면 빈 화면만 보게 된다.
@@ -269,7 +317,7 @@ class JarvisAppTest {
         onNodeWithTag(EmulatorTestTag).performClick()
 
         onNodeWithText(PhysicalAndroidDevice.name).assertIsDisplayed()
-        onNodeWithText("Android · 실물 기기 · 연결됨").assertIsDisplayed()
+        onNodeWithText("실물 기기 · 연결됨").assertIsDisplayed()
         onNodeWithTag(emulatorDeviceTestTag(PhysicalAndroidDevice.id)).assertIsEnabled()
     }
 
@@ -281,7 +329,7 @@ class JarvisAppTest {
 
         onNodeWithTag(EmulatorTestTag).performClick()
 
-        onNodeWithText("iOS · 실물 기기 · 연결됨 · 화면을 볼 수 없음").assertIsDisplayed()
+        onNodeWithText("실물 기기 · 연결됨 · 화면을 볼 수 없음").assertIsDisplayed()
         onNodeWithTag(emulatorDeviceTestTag(PhysicalIosDevice.id)).assertIsNotEnabled()
     }
 
@@ -294,7 +342,7 @@ class JarvisAppTest {
         setContent { TestJarvisApp(emulator = emulator) }
         onNodeWithTag(EmulatorTestTag).performClick()
 
-        onNodeWithText("Android · 실물 기기 · 연결됨 · 화면 꺼짐").assertIsDisplayed()
+        onNodeWithText("실물 기기 · 연결됨 · 화면 꺼짐").assertIsDisplayed()
         onNodeWithTag(emulatorWakeTestTag(SleepingAndroidDevice.id)).performClick()
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.woken.isNotEmpty() }
@@ -302,6 +350,35 @@ class JarvisAppTest {
         // 깨어 있는 기기와 입력을 받지 못하는 꺼진 AVD 에는 붙지 않는다.
         onAllNodesWithTag(emulatorWakeTestTag(PhysicalAndroidDevice.id)).assertCountEquals(0)
         onAllNodesWithTag(emulatorWakeTestTag(StoppedAndroidDevice.id)).assertCountEquals(0)
+    }
+
+    // 검은 화면을 보고 목록으로 돌아가야 켤 수 있으면, 꺼진 줄 모르고 계속 기다리게 된다.
+    @Test
+    fun sleepingDeviceCanBeWokenUpFromTheStream() = runComposeUiTest {
+        val emulator = FakeEmulatorRepository(
+            devices = listOf(SleepingAndroidDevice),
+            frames = MutableStateFlow(TestFrame),
+        )
+        setContent { TestJarvisApp(emulator = emulator) }
+        onNodeWithTag(EmulatorTestTag).performClick()
+        onNodeWithTag(emulatorDeviceTestTag(SleepingAndroidDevice.id)).performClick()
+
+        onNodeWithText("기기 화면이 꺼져 있습니다.").assertIsDisplayed()
+        onNodeWithTag(EmulatorScreenWakeTestTag).performClick()
+
+        // 누른 뒤 "켜는 중" 으로 바뀌고 풀리는 것은 EmulatorScreenViewModelTest 가 본다. Wasm 에서는
+        // waitUntil 이 이벤트 루프를 잡는 동안 stateIn 을 거친 값이 화면까지 오지 못한다(web.html#test).
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.woken.isNotEmpty() }
+        assertEquals(listOf(SleepingAndroidDevice.id), emulator.woken.toList())
+    }
+
+    @Test
+    fun awakeDeviceShowsNoWakePrompt() = runComposeUiTest {
+        setContent { TestJarvisApp(emulator = streamingEmulator()) }
+        openStream()
+
+        onAllNodesWithText("기기 화면이 꺼져 있습니다.").assertCountEquals(0)
+        onAllNodesWithTag(EmulatorScreenWakeTestTag).assertCountEquals(0)
     }
 
     @Test

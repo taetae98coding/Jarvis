@@ -24,7 +24,7 @@ val emulatorUiModule = module {
     viewModelOf(::WifiPairingViewModel)
 
     // 라우트가 나르는 deviceId 를 파라미터로 받는다.
-    viewModel { parameters -> EmulatorScreenViewModel(parameters.get(), get(), get(), get()) }
+    viewModel { parameters -> EmulatorScreenViewModel(parameters.get(), get(), get(), get(), get()) }
 
     navigation<EmulatorRoute.Devices> {
         val navigator = LocalNavigator.current

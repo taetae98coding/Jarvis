@@ -36,6 +36,11 @@
   <footer>2026-09-22 대화. 무선 디버깅으로 붙은 실물 기기 한 대가 <code>Dozing</code> 상태여서 스트리밍 화면이 검게 나온 것에서 나왔다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>device 스트리밍 들어가고 화면이 꺼진 경우 킬 수 있도록 하는 UI/UX가 없어 수정해줘.</p>
+  <footer>2026-09-24 대화. 같은 메시지의 뒷부분(진입 시 멈춤)은 <a href="emulator-control.html#decision-freeze">기기 목록·화면·제스처</a>에 있다. R7~R10 으로 옮겼다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
@@ -45,6 +50,10 @@
   <li><strong>R4.</strong> 화면을 깨울 수 없는 기기에는 버튼이 붙지 않는다. 입력을 주입할 수 있는 기기만 깨울 수 있다.</li>
   <li><strong>R5.</strong> 깨울 수 없는 기기에 요청이 들어와도 기기까지 가지 않는다. 화면이 막는 것과 별개로 도메인에서 한 번 더 막는다.</li>
   <li><strong>R6.</strong> 화면이 꺼져 있어도 줄은 그대로 누를 수 있다. 검은 화면이라도 스트리밍은 열리고, 깨우면 바로 보인다.</li>
+  <li><strong>R7.</strong> 스트리밍 화면에서 기기 화면이 꺼져 있으면(<code>isAsleep &amp;&amp; canControl</code>) 검은 프레임 가운데에 "기기 화면이 꺼져 있습니다." 와 "화면 켜기" 버튼이 겹쳐 나온다. 목록으로 돌아가지 않고 그 자리에서 켠다.</li>
+  <li><strong>R8.</strong> 버튼을 누르면 곧바로 버튼 대신 "화면을 켜는 중…" 이 나온다. 목록이 5초 늦으므로, 켜진 것이 목록에 반영될 때까지 버튼이 그대로 남아 다시 누르게 만들지 않는다.</li>
+  <li><strong>R9.</strong> 목록이 켜졌다고 알려주면 안내가 사라진다. 10초(목록 폴링 두 번) 안에 켜지지 않으면 다시 버튼이 나온다.</li>
+  <li><strong>R10.</strong> 안내는 프레임 가운데의 자기 영역만 가린다. 나머지 프레임 영역의 제스처는 그대로 기기에 간다.</li>
 </ol>
 
 <aside class="warn">
@@ -52,7 +61,6 @@
   <ul>
     <li>잠금 해제. 깨우면 잠금 화면이 보인다. PIN·패턴을 앱이 알 수 없고, 넣는다 해도 저장할 곳이 없다. 잠금 화면을 넘기는 것은 스트리밍 화면에서 스와이프로 할 수 있다.</li>
     <li>화면 끄기. 켜는 것만 한다. <a href="emulator-launch.html">에뮬레이터 실행</a>과 같은 기준이다.</li>
-    <li>스트리밍 화면에서 깨우기. 그 화면은 들어갈 때의 기기 정보를 들고 있어서 "지금 화면이 꺼졌는지"를 모른다. 아래 <a href="#limits">한계</a> 참고.</li>
     <li>화면이 꺼진 기기의 프레임을 다르게 다루는 것. <code>screencap</code> 은 오류가 아니라 검은 그림을 주므로 화면은 "가져오는 중"도 "가져올 수 없음"도 아닌 검은 화면을 보여준다.</li>
   </ul>
 </aside>
@@ -63,10 +71,23 @@
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
     <tr><td>위치</td><td>기기 목록의 각 줄 오른쪽 끝. <a href="emulator-launch.html">실행 버튼</a>과 같은 자리다</td></tr>
-    <tr><td>보조 문구</td><td><code>Android · 실물 기기 · 연결됨 · 화면 꺼짐</code></td></tr>
+    <tr><td>보조 문구</td><td><code>실물 기기 · 연결됨 · 화면 꺼짐</code></td></tr>
     <tr><td>버튼</td><td><code>Sun</code> 아이콘 버튼, contentDescription <code>화면 켜기</code> — 화면이 꺼져 있고 입력을 받을 수 있는 기기에만</td></tr>
     <tr><td>누른 뒤</td><td>따로 잠그지 않는다. 다음 갱신 때 문구와 버튼이 사라진다</td></tr>
     <tr><td>테스트 태그</td><td><code>emulator:wake:&lt;id&gt;</code></td></tr>
+  </tbody>
+</table>
+
+<p>스트리밍 화면(R7~R10):</p>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>위치</td><td>프레임 영역 가운데에 겹친 <code>JarvisCard</code>. 첫 프레임이 오기 전이라도 목록이 꺼졌다고 하면 나온다</td></tr>
+    <tr><td>문구</td><td>"기기 화면이 꺼져 있습니다."</td></tr>
+    <tr><td>버튼</td><td>M3 <code>FilledTonalButton</code>, <code>Sun</code> 아이콘 + "화면 켜기"</td></tr>
+    <tr><td>누른 뒤</td><td>버튼 자리에 진행 표시와 "화면을 켜는 중…". 목록이 켜졌다고 하면 카드째 사라지고, 10초가 지나도 꺼져 있으면 버튼이 돌아온다</td></tr>
+    <tr><td>테스트 태그</td><td><code>emulator:screen:wake</code>(버튼)</td></tr>
   </tbody>
 </table>
 
@@ -78,8 +99,8 @@
   <dt>도메인 모델</dt><dd><code>EmulatorDevice.isAsleep</code> — 연결되어 있지만 화면이 꺼져 있다. <code>data</code> 가 정한다</dd>
   <dt>리포지토리</dt><dd><code>EmulatorRepository.wake(deviceId: String)</code> — <code>suspend</code>, 반환값 없음</dd>
   <dt>유스케이스</dt><dd><code>WakeDeviceUseCase(device)</code> — <code>canControl</code> 이 아니면 아무것도 하지 않는다 (R5)</dd>
-  <dt>UI</dt><dd><code>ui/emulator/EmulatorListScreen.kt</code> 의 줄 오른쪽 버튼</dd>
-  <dt>상태</dt><dd>없다. 깨우는 것은 즉시 끝나므로 <a href="emulator-launch.html">실행</a>과 달리 진행 중 상태를 들지 않는다</dd>
+  <dt>UI</dt><dd><code>ui/emulator/EmulatorListScreen.kt</code> 의 줄 오른쪽 버튼, <code>ui/emulator/EmulatorStreamScreen.kt</code> 의 프레임 위 안내</dd>
+  <dt>상태</dt><dd>목록에는 없다. 누른 줄은 다음 갱신 때 사라지면 그만이다. 스트리밍 화면에는 <code>EmulatorScreenViewModel.isWaking: StateFlow&lt;Boolean&gt;</code> 이 있다. 누른 시각을 들고 있다가, 목록의 <code>isAsleep</code> 이 거짓이 되거나 10초가 지나면 거짓이 된다. <a href="emulator-launch.html">실행</a>의 잠금과 같이 값을 목록에서 유도해서, 신호 하나를 놓쳐도 버튼이 영영 숨지 않는다</dd>
 </dl>
 
 <aside class="decision">
@@ -135,6 +156,9 @@
   <tbody>
     <tr><td><code>JarvisAppTest.sleepingDeviceCanBeWokenUp</code></td><td>R1, R2, R4. 꺼진 기기에만 문구와 버튼이 있고 누르면 요청이 나간다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
     <tr><td><code>EmulatorDevicesViewModelTest.wakingASleepingDeviceReachesTheRepository</code></td><td>R2. 화면의 요청이 리포지토리까지 간다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.sleepingDeviceCanBeWokenUpFromTheStream</code></td><td>R7. 스트리밍 화면에 안내가 나오고, 누르면 요청이 나간다. "켜는 중" 전이는 Wasm 에서 <code>waitUntil</code> 로 기다릴 수 없어(<a href="../platform/web.html#test">web.html</a>) 아래 ViewModel 테스트가 맡는다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.awakeDeviceShowsNoWakePrompt</code></td><td>R7. 켜져 있는 기기에는 안내가 없다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>EmulatorScreenViewModelTest</code></td><td>R8, R9. 누르면 켜는 중이 되고, 목록이 켜졌다고 하거나 10초가 지나면 풀린다</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
     <tr><td><code>WakeDeviceUseCaseTest</code></td><td>R5. 입력을 받지 못하는 기기의 요청이 리포지토리까지 가지 않는다</td><td><code>:feature:emulator:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>EmulatorParsingTest.readsTheScreenState</code></td><td><code>dumpsys deviceidle get screen</code> 출력 해석. <code>true</code>/<code>false</code> 가 아니면 모르는 것으로 둔다</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
     <tr><td><code>HostAgentTest.wakeRequestsAreSentToTheAgent</code></td><td>요청의 경로와 본문</td><td><code>:feature:emulator:data</code> <code>commonTest</code></td></tr>
@@ -147,7 +171,7 @@
 
 <ul>
   <li><strong>깨우면 잠금 화면이 보인다.</strong> 잠금을 푸는 것은 <a href="#requirements">스코프 밖</a>이다. 스트리밍 화면에서 위로 스와이프하면 넘어가지만 PIN·패턴은 직접 눌러야 한다.</li>
-  <li><strong>스트리밍 화면에는 버튼이 없다.</strong> 그 화면은 들어갈 때 고른 기기 정보를 그대로 들고 있어서 화면이 꺼졌는지를 모른다. 목록을 계속 구독하면 알 수 있지만, 그러면 스트리밍 중에도 5초마다 기기 목록 명령이 돌게 된다. 검은 화면을 보면 뒤로 가서 켜는 흐름이다.</li>
+  <li><strong>스트리밍 중에 기기가 꺼지면 안내가 최대 5초 늦게 나온다.</strong> 스트리밍 화면은 이미 이름과 능력 플래그를 보려고 목록을 구독하고 있어서(<code>EmulatorScreenViewModel.device</code>) 추가 명령은 없지만, 목록 주기가 5초다. 프레임이 검어지는 것이 먼저 보인다.</li>
   <li><strong>화면이 꺼진 iOS 기기는 다룰 수 없다.</strong> 실물 iOS 기기는 상태를 읽을 방법도 깨울 방법도 없고, 시뮬레이터에는 꺼진 화면이라는 상태가 없다.</li>
   <li><strong>상태가 최대 5초 늦다.</strong> 기기에서 직접 화면을 켜거나 꺼도 그다음 폴링에서야 반영된다.</li>
   <li>기기마다 명령이 한 번 더 돈다. 연결된 기기 수만큼 <code>dumpsys deviceidle get screen</code> 이 5초마다 실행된다. 출력이 한 줄이라 감당 가능한 수준으로 봤다.</li>
