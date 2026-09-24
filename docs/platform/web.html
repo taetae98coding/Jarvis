@@ -821,6 +821,23 @@
 <h3>검증</h3>
 <p>화면에 들어갈 수 없으므로 확인할 동작이 없다. 컴파일만 확인한다.</p>
 </section>
+<section class="feature" id="chrome-cookie-import">
+<h2>Chrome 쿠키 가져오기 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/chrome-cookie-import.html">Chrome 쿠키 가져오기</a></p>
+
+<h3>기술 조사</h3>
+<p>브라우저 탭 자체가 불가라(<a href="#terminal-browser">터미널에서 웹 브라우저</a>) 가져오기 버튼이 들어갈 자리가 없다. 웹은 샌드박스라 로컬 파일·키체인에 접근할 수 없다.</p>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>해당 없음. 공통 코드만 있다. <code>UnsupportedTerminalDataSource.isChromeImportSupported = false</code></dd>
+  <dt>동작</dt><dd>버튼이 없다(공통 R7)</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>검증</h3>
+<p>화면에 들어갈 수 없으므로 확인할 동작이 없다. 컴파일만 확인한다.</p>
+</section>
 
 <section class="feature" id="terminal-device">
 <h2>터미널에서 기기 화면 <span class="badge no">불가</span></h2>

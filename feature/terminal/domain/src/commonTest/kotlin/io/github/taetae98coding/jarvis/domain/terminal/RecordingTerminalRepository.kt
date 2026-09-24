@@ -3,11 +3,13 @@ package io.github.taetae98coding.jarvis.domain.terminal
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 
 internal class RecordingTerminalRepository(
     override val isSupported: Boolean = true,
     override val isClaudeSupported: Boolean = true,
     override val isBrowserSupported: Boolean = true,
+    override val isChromeImportSupported: Boolean = false,
 ) : TerminalRepository {
     val opened = mutableListOf<TerminalTab>()
     val stopped = mutableListOf<String>()
@@ -20,6 +22,10 @@ internal class RecordingTerminalRepository(
     override suspend fun stopClaude(sessionId: String) {
         stopped += sessionId
     }
+
+    override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = flowOf(emptyList())
+
+    override suspend fun importChromeCookies(profileDirectory: String): List<BrowserCookie> = emptyList()
 
     private object NoopSession : TerminalSession {
         override val isPty: Boolean = true

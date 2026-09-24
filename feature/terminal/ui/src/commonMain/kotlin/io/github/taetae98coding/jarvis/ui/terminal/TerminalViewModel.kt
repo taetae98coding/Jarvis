@@ -2,9 +2,14 @@ package io.github.taetae98coding.jarvis.ui.terminal
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
+import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
+import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsBrowserSupportedUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.IsChromeImportSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveChromeProfilesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
@@ -16,6 +21,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -30,10 +36,15 @@ internal class TerminalViewModel(
     private val host: TerminalPaneHost,
     isClaudeSupported: IsClaudeSupportedUseCase,
     isBrowserSupported: IsBrowserSupportedUseCase,
+    isChromeImportSupported: IsChromeImportSupportedUseCase,
+    private val observeChromeProfiles: ObserveChromeProfilesUseCase,
+    private val importChromeCookies: ImportChromeCookiesUseCase,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
     val isBrowserSupported: Boolean = isBrowserSupported()
+
+    val isChromeImportSupported: Boolean = isChromeImportSupported()
 
     // 페이지 제목은 웹뷰가 떠 있을 때만 알 수 있다. 저장하지 않고, 가려진 탭은 마지막으로 본 제목을 보인다.
     private val browserTitles = mutableMapOf<Long, MutableStateFlow<String?>>()
@@ -85,6 +96,12 @@ internal class TerminalViewModel(
 
     fun addDeviceTab(groupId: Long?, deviceId: String, deviceName: String) =
         update { it.addTab(groupId, TerminalProgram.Device, deviceId = deviceId, deviceName = deviceName) }
+
+    /** 드롭다운을 열 때 지금 Chrome 프로필 목록을 읽는다(명령이 지금 값을 읽음). */
+    suspend fun chromeProfiles(): List<ChromeProfile> = observeChromeProfiles().first()
+
+    /** 고른 프로필의 모든 쿠키를 복호화해 돌려준다. 웹뷰에 넣는 것은 화면이 한다. */
+    suspend fun importCookies(profileDirectory: String): List<BrowserCookie> = importChromeCookies(profileDirectory)
 
     fun closeFocusedTab() = update { it.closeFocusedTab() }
 

@@ -1,5 +1,7 @@
 package io.github.taetae98coding.jarvis.domain.terminal
 
+import kotlinx.coroutines.flow.Flow
+
 interface TerminalRepository {
     /** 이 플랫폼에서 셸을 띄울 수 있는지. 실행 중에 바뀌지 않는다. */
     val isSupported: Boolean
@@ -9,6 +11,21 @@ interface TerminalRepository {
 
     /** [TerminalProgram.Browser] 탭을 열 수 있는지. 실행 중에 바뀌지 않는다. */
     val isBrowserSupported: Boolean
+
+    /** 이 PC 의 Chrome 쿠키를 브라우저 탭으로 가져올 수 있는지(macOS 데스크톱만). 실행 중에 바뀌지 않는다. */
+    val isChromeImportSupported: Boolean
+
+    /**
+     * 이 PC 의 Chrome 프로필 목록. 수집할 때 `Local State` 를 읽어 한 번 내보낸다(cold). 지원하지 않는
+     * 플랫폼에서는 빈 목록이다. 드롭다운을 열 때 [kotlinx.coroutines.flow.first] 로 지금 값을 읽는다.
+     */
+    fun observeChromeProfiles(): Flow<List<ChromeProfile>>
+
+    /**
+     * [profileDirectory] 프로필의 모든 사이트 쿠키를 복호화해 돌려준다. 키체인 접근을 허용하지 않거나
+     * 읽지 못하면 빈 목록이다(no-op). 넣는 것은 UI 가 웹뷰 쿠키 저장소에 한다.
+     */
+    suspend fun importChromeCookies(profileDirectory: String): List<BrowserCookie>
 
     /**
      * [tab] 이 가리키는 것을 띄운다. 셸은 [TerminalTab.directory] 에서 시작하고, Claude 는

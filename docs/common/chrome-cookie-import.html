@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chrome 쿠키 가져오기 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>Chrome 쿠키 가져오기</span></nav>
+
+<header>
+  <h1>Chrome 쿠키 가져오기</h1>
+  <p class="lead">브라우저 탭 주소 줄의 아이콘 버튼을 누르면 이 PC 의 Chrome 프로필(계정) 목록이 뜨고, 고른 프로필의 모든 사이트 쿠키를 이 앱의 웹뷰로 옮겨 이미 로그인된 채로 웹을 쓴다. 시스템 웹뷰의 영구 저장소에 들어가서 앱을 껐다 켜도, 페이지를 옮겨도 로그인이 이어진다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>webView 주소창 옆에 cookie/session 정보 받아오는 아이콘 버튼 추가해줘. 그리고 클릭 시 PC에 로그인된 chrome 계정 목록 나타내고 해당 계정의 Cookie/Session 같은 정보를 포함하도록 해줘. 이 작업은 한번만 되는게 아니라 앱 종료후 다시 켜도 유지해야하고 지금 보는 사이트만 가져오는게 아니라 모든 사이트 가져와서 웹페이지 이동해도 로그인 이어가는게 목표야.</p>
+  <footer>2026-09-24 대화. "webView" 는 <a href="terminal-browser.html">터미널의 브라우저 탭</a>으로, "주소창 옆" 은 그 탭의 주소 줄로 읽었다. "chrome 계정 목록" 은 이 PC 의 Chrome 프로필(<code>Local State</code> 의 <code>profile.info_cache</code>, 프로필마다 로그인된 Google 계정이 붙는다)로 읽었다. "Cookie/Session 같은 정보" 는 로그인을 잇는 쿠키로 읽었다 — Chrome 의 localStorage·IndexedDB 는 옮길 수 없다(<a href="#limits">한계</a>).</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 브라우저 탭 주소 줄에서 새로 고침 버튼 다음, 주소 입력칸 앞에 아이콘 버튼(<code>JarvisIcons.User</code>, "Chrome 계정 가져오기")을 둔다. Chrome 쿠키 가져오기를 지원하는 타깃에서만 보인다(<a href="#platforms">R6</a>).</li>
+  <li><strong>R2.</strong> 버튼을 누르면 이 PC 의 Chrome 프로필 목록이 드롭다운으로 뜬다. 항목은 위에서부터 <code>Default</code>, <code>Profile 1</code>, … 순이고, 각 항목은 프로필 이름과 로그인된 Google 계정 이메일(있으면)을 보인다. 목록은 버튼을 누를 때마다 그때의 상태를 다시 읽는다(저장하지 않는다). 프로필이 하나도 없으면 "가져올 계정이 없습니다" 를 보인다.</li>
+  <li><strong>R3.</strong> 프로필을 고르면 그 프로필에 저장된 <em>모든 사이트</em>의 쿠키를 복호화해서 지금 브라우저 탭 웹뷰의 쿠키 저장소에 넣고, 넣은 뒤 페이지를 새로 고친다. 지금 보는 사이트만이 아니라 저장된 쿠키 전부다.</li>
+  <li><strong>R3a.</strong> 쿠키의 <code>SameSite</code> 는 웹뷰가 받아들이도록 넣는다. Chrome 의 <em>미지정</em>(<code>samesite = -1</code>)은 Chrome 기본값인 <strong>Lax</strong> 로 넣는다(<code>None</code> 이 아니다). <code>None</code>(<code>0</code>)은 <code>Secure</code> 일 때만 <code>None</code> 으로, <code>Secure</code> 가 아니면 <code>Lax</code> 로 낮춘다. <code>WKWebView</code> 는 <code>Secure</code> 가 아닌 <code>SameSite=None</code> 쿠키를 버리기 때문이다 — 이를 어기면 Google 의 <code>SID</code>·<code>HSID</code>·<code>APISID</code>(미지정·비-Secure) 가 통째로 버려져 로그인이 안 된다.</li>
+  <li><strong>R3c.</strong> 도메인 쿠키(<code>.example.com</code>)는 그것이 닿아야 할 호스트마다 호스트 전용으로 복제해서 넣는다 — <code>example.com</code>, <code>www.example.com</code>, 그리고 이 프로필이 쿠키를 가진 하위 도메인 전부. 데스크톱 웹뷰(wry)가 도메인 쿠키를 앞의 <code>.</code> 을 떼고 호스트 전용으로 저장해서(<a href="../platform/jvm.html#chrome-cookie-import">jvm.html</a>) 원본 그대로면 <code>.google.com</code> 로그인 쿠키가 <code>www.google.com</code>·<code>accounts.google.com</code> 같은 실제 로그인 검사 도메인에 닿지 않기 때문이다. 이렇게 펴야 YouTube·Naver 로그인이 이어진다(2026-09-24 손으로 확인).</li>
+  <li><strong>R3b.</strong> 가져오기가 끝나면 결과를 <code>Snackbar</code> 로 알린다. 세 가지다 — 성공 "쿠키 N개를 가져왔습니다"(넣고 되읽기 확인, R8a), 키체인·읽기 실패 "쿠키를 가져오지 못했습니다 — 키체인 접근을 허용했는지 확인하세요"(0개), 웹뷰 미준비 "웹뷰가 준비되지 않아 넣지 못했습니다 — 페이지가 뜬 뒤 다시 시도하세요"(되읽기 비어 있음). Snackbar 는 네이티브 페이지에 가려지므로 떠 있는 동안 페이지를 치운다(R6 과 같은 이유). 성공일 때만 페이지를 새로 고쳐(R3) 로그인된 화면이 뜬다.</li>
+  <li><strong>R4.</strong> 넣은 쿠키는 시스템 웹뷰의 기본(영구) 저장소에 들어간다. 그래서 (ㄱ) 모든 브라우저 탭이 같은 쿠키를 함께 쓰고, (ㄴ) 페이지를 옮기거나 새 브라우저 탭을 열어도 로그인이 이어지고, (ㄷ) 앱을 껐다 켜도 남는다. 한 번 가져오면 다시 가져오지 않아도 된다.</li>
+  <li><strong>R5.</strong> 다시 같은 프로필을 고르면 그 프로필의 지금 쿠키로 덮어쓴다(같은 이름·도메인·경로면 값이 바뀐다). 이렇게 만료됐거나 바뀐 로그인을 새로 고친다.</li>
+  <li><strong>R6.</strong> 드롭다운이 떠 있는 동안에는 웹 페이지가 사라지고 그 칸이 비어 보인다. 닫으면 같은 페이지가 다시 보인다(새로 부르지 않는다). 네이티브 웹뷰가 Compose 로 그린 드롭다운을 가리기 때문이다(<a href="terminal-browser.html#requirements">브라우저 R9</a> 와 같은 이유).</li>
+  <li><strong>R7.</strong> Chrome 쿠키 가져오기를 지원하지 않는 타깃(Android·iOS·Web, 그리고 macOS 가 아닌 데스크톱)에서는 버튼이 없다. 지원 판정은 실행 중에 바뀌지 않는다.</li>
+  <li><strong>R8.</strong> 복호화 키를 얻거나 쿠키를 읽지 못하면(키체인 접근을 허용하지 않음, Chrome 이 설치돼 있지 않음 등) 아무 쿠키도 넣지 않고 조용히 no-op 이다(0개). 앱은 예외로 끝나지 않는다.</li>
+  <li><strong>R8a.</strong> 넣은 뒤 방금 넣은 도메인의 쿠키를 <em>되읽어</em> 실제로 저장소에 들어갔는지 확인한다. 라이브러리의 <code>cookieManager.setCookie</code> 는 웹뷰(panel)가 아직 붙지 않았으면 예외 없이 아무 일도 하지 않으므로, 되읽어 비어 있으면 "웹뷰가 준비되지 않아 넣지 못했습니다 — 페이지가 뜬 뒤 다시 시도하세요" 를 알리고 새로 고치지 않는다. 되읽기가 비어 있지 않을 때만 성공으로 보고 새로 고친다(R3).</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>쿠키가 아닌 저장소 — localStorage·sessionStorage·IndexedDB·Service Worker 캐시. Chrome 은 이것들을 프로필 폴더의 LevelDB 에 두는데, 시스템 웹뷰(<code>WKWebView</code>)의 저장 형식과 달라 옮길 수 없다. 로그인은 거의 다 쿠키로 이어지므로 쿠키만 가져온다(<a href="#limits">한계</a>).</li>
+    <li>북마크, 방문·다운로드 기록, 저장된 비밀번호, 자동완성, 확장 프로그램.</li>
+    <li>가져온 쿠키를 이 앱이 따로 파일에 저장하는 것. 시스템 웹뷰의 기본 저장소가 이미 영구라서(R4) 두 번 저장하지 않는다. 인증 토큰을 평문으로 한 벌 더 두지 않으려는 것이기도 하다.</li>
+    <li>Chrome 이 아닌 브라우저(Edge·Brave·Safari 등)와 macOS 가 아닌 Chrome(Windows·Linux 는 키 보관 방식이 다르다).</li>
+    <li>가져올 쿠키를 사이트별로 고르는 것. "모든 사이트" 가 지시다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>버튼</td><td><code>JarvisIconButton</code>(<code>JarvisIcons.User</code>, 사람 윤곽선), contentDescription "Chrome 계정 가져오기". 주소 줄의 새로 고침 버튼과 주소 입력칸 사이</td></tr>
+    <tr><td>드롭다운</td><td><code>DropdownMenu</code>. 항목마다 프로필 이름(굵게)과 이메일(작게, 있으면). 프로필이 없으면 눌리지 않는 "가져올 계정이 없습니다" 한 줄</td></tr>
+    <tr><td>가져온 뒤</td><td>성공하면 페이지를 새로 고친다. 결과는 <code>Snackbar</code> 로 알린다(성공 "쿠키 N개를 가져왔습니다", 실패 "쿠키를 가져오지 못했습니다 — 키체인 접근을 허용했는지 확인하세요"). Snackbar 가 떠 있는 동안 페이지를 치운다</td></tr>
+    <tr><td>테스트 태그</td><td><code>terminal:chrome-import:&lt;tabId&gt;</code>(버튼), <code>terminal:chrome-import:menu:&lt;profileDir&gt;</code>(프로필 항목)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인</dt><dd>
+    <code>ChromeProfile(directory, name, email)</code>, <code>BrowserCookie(name, value, domain, path, expiresEpochSeconds, isSecure, isHttpOnly, sameSite, isSessionOnly)</code>.<br>
+    <code>TerminalRepository.isChromeImportSupported: Boolean</code>, <code>observeChromeProfiles(): Flow&lt;List&lt;ChromeProfile&gt;&gt;</code>(cold, 수집할 때 읽는다 — <a href="state-observation.html">상태 조회</a>), <code>suspend importChromeCookies(profileDirectory): List&lt;BrowserCookie&gt;</code>(명령, 복호화 결과를 돌려준다).<br>
+    use case: <code>IsChromeImportSupportedUseCase</code>, <code>ObserveChromeProfilesUseCase</code>, <code>ImportChromeCookiesUseCase</code>.
+  </dd>
+  <dt>공급</dt><dd><code>TerminalDataSource</code> 에 <code>isChromeImportSupported</code>, <code>observeChromeProfiles()</code>, <code>importChromeCookies(dir)</code> 를 더한다. 실제 읽기·복호화는 JVM actual(<code>Terminal.jvm.kt</code> → <code>ChromeCookieReader</code>)에만 있고, 그 밖(<code>UnsupportedTerminalDataSource</code>, Android)은 <code>false</code>·빈 목록이다. 새 <code>expect</code> 함수는 만들지 않는다 — 기존 <code>createTerminalDataSource</code> 이음매를 그대로 쓴다</dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.isChromeImportSupported</code>, <code>suspend chromeProfiles() = observeChromeProfilesUseCase().first()</code>(드롭다운을 열 때 지금 값을 읽는 명령), <code>suspend importChromeCookies(dir)</code></dd>
+  <dt>UI</dt><dd><code>TerminalBrowser.kt</code> 의 주소 줄에 가져오기 버튼과 드롭다운. 프로필을 고르면 <code>importCookies(dir)</code> 로 받은 각 쿠키를 <code>io.github.kdroidfilter.webview.cookie.Cookie</code> 로 바꿔(<code>SameSite</code> 는 R3a 규칙) <code>state.cookieManager.setCookie("https://&lt;domain&gt;", cookie)</code> 로 넣고, 넣은 개수를 <code>SnackbarHostState.showSnackbar</code> 로 알린 뒤 성공이면 <code>navigator.reload()</code> 한다. 드롭다운이 열렸거나(R6) Snackbar 가 떠 있는 동안(R3b) 웹뷰 크기를 0 으로 줄인다(<code>pageHidden || menuExpanded || snackbar</code>)</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 시스템 웹뷰의 영구 쿠키 저장소에 한 번 넣는 것으로 R4(영구·모든 탭·모든 사이트)를 끝낸다</strong>
+  <code>composewebview</code> 의 JVM 백엔드(wry)는 <code>incognito</code> 가 꺼진 기본값에서 <code>WKWebsiteDataStore.default()</code>(영구) 를 쓴다(바이트코드에서 <code>defaultDataStore</code>·<code>nonPersistentDataStore</code> 분기 확인, <a href="../platform/jvm.html#chrome-cookie-import">jvm.html</a>). <code>WebViewState.cookieManager.setCookie</code> 는 이 공유 저장소에 쓰므로, 한 번 넣으면 (ㄱ) 모든 브라우저 탭이 같은 저장소를 읽고 (ㄴ) 앱을 다시 켜도 남는다. 그래서 가져온 쿠키를 이 앱이 따로 저장하지 않는다. 만약 이 저장소가 영구가 아닌 것으로 드러나면, 대안은 가져온 쿠키를 <a href="settings-persistence.html">설정 저장소</a>에 스냅샷으로 두고 브라우저 웹뷰가 뜰 때마다 다시 넣는 것이다 — 인증 토큰을 평문으로 한 벌 더 두게 되므로 지금은 택하지 않는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 복호화 결과(쿠키 목록)를 data 가 UI 로 돌려주고 주입은 UI 가 한다</strong>
+  쿠키를 넣을 대상(<code>cookieManager</code>)은 살아 있는 웹뷰의 Compose 상태다. data 계층은 그 상태를 모른다. 그래서 data 는 복호화한 <code>BrowserCookie</code> 목록만 돌려주고, <code>composewebview</code> 의존성이 이미 있는 UI 가 이를 라이브러리 <code>Cookie</code> 로 바꿔 넣는다. <code>importChromeCookies</code> 는 결과가 있는 명령이라 <code>suspend</code> 가 맞다(<a href="state-observation.html">상태 조회</a> 규칙의 "명령과 그 결과").
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>PC 의 Chrome 에 접근할 수 없다. 버튼이 없다</td><td><a href="../platform/android.html#chrome-cookie-import">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>브라우저 탭 자체가 불가다(터미널 화면에 들어갈 수 없다)</td><td><a href="../platform/ios.html#chrome-cookie-import">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. <code>Local State</code> 로 프로필을 읽고, 키체인의 AES 키로 <code>Cookies</code> SQLite 를 복호화한다</td><td><a href="../platform/jvm.html#chrome-cookie-import">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>브라우저 탭 자체가 불가다. 로컬 파일·키체인에 접근할 수 없다</td><td><a href="../platform/web.html#chrome-cookie-import">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>ChromeCookieReaderTest</code></td><td>R2, R3. <code>Local State</code> JSON → 프로필 목록(Default 먼저·이메일), Chrome epoch(1601 기준 μs) → epoch 초, AES-128-CBC 복호화(<code>v10</code> 접두사 제거, 32바이트 도메인 해시 접두사 제거) 왕복</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>ExpandChromeCookiesTest</code></td><td>R3c. 도메인 쿠키가 apex·<code>www.</code>·형제 호스트로 펴지고, 호스트 전용 쿠키는 그대로다</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: R1·R7 의 버튼 유무, R3~R6 의 실제 로그인 유지. 가져오기 버튼은 브라우저 탭 안(네이티브 웹뷰를 띄우는 <code>TerminalBrowser</code>)에 있는데 네이티브 웹뷰가 <code>runComposeUiTest</code> 화면에 붙지 않아, 기존 브라우저 탭 테스트처럼 탭을 열지 않고 메뉴만 보는 식으로도 버튼을 띄울 수 없다. 키체인 창도 테스트에 붙지 않는다. <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다 — 브라우저 탭 → 주소 줄의 가져오기 버튼 확인 → 프로필 선택 → 키체인 허용 → 로그인된 페이지 확인 → 앱 재시작·다른 사이트로 이동 후에도 로그인 유지 확인.</p>
+
+<p><strong>2026-09-24 손으로 확인.</strong> <code>rkdxowhd98@gmail.com</code>(Default 프로필)을 가져온 뒤 <code>www.youtube.com/account</code> 가 로그아웃 사인인 페이지로 튕기지 않고 "<code>rkdxowhd98@gmail.com(으)로 로그인</code>" 설정 화면을 보였다. R3c(호스트 전용 확장) 전에는 <code>.google.com</code>·<code>.youtube.com</code>·<code>.naver.com</code> 도메인 쿠키가 apex 호스트에만 붙어 로그아웃 상태였고, 확장 뒤 <code>www.youtube.com</code>·<code>www.google.com</code> 에 쿠키가 붙어 로그인이 이어졌다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>쿠키만 옮긴다. 사이트가 localStorage·IndexedDB 에 로그인 상태를 두면(일부 SPA) 그 사이트는 다시 로그인해야 한다. Chrome 의 LevelDB 저장 형식을 <code>WKWebView</code> 로 옮길 수 없다.</li>
+  <li>데스크톱은 도메인 쿠키를 호스트별로 펴서 넣으므로(R3c), 프로필에 쿠키가 없던 하위 도메인은 빠진다. 예: 방문한 적 없는 <code>myaccount.google.com</code> 은 로그인이 안 이어질 수 있다. 로그인 흐름이 지나는 <code>accounts.*</code>·<code>nid.*</code> 같은, 쿠키가 있는 하위 도메인은 이어진다.</li>
+  <li>쿠키가 다 들어가도 사이트가 세션을 기기·User-Agent 에 묶으면(Google 은 점점 그렇게 간다) 다시 확인을 요구할 수 있다. 다만 <code>SID</code>·<code>__Secure-3PSID</code>·<code>LOGIN_INFO</code> 등 로그인 쿠키가 제대로 들어가면 보통 YouTube 로그인은 이어진다(R3a 를 어기면 이 쿠키들이 버려져 로그아웃으로 보였다).</li>
+  <li>처음 가져올 때 macOS 키체인 접근 허용 창이 한 번 뜬다. "항상 허용" 을 누르지 않으면 가져올 때마다 뜬다. 이 앱은 Chrome 이 아니라서 Chrome 이 만든 키체인 항목을 처음 읽을 때 사용자 확인이 필요하다.</li>
+  <li>쿠키를 가져오는 프로필과 Chrome 이 동시에 켜져 있어도 읽는다(<code>Cookies</code> DB 를 복사해서 연다). 다만 Chrome 이 방금 쓴, 아직 메인 DB 에 합쳐지지 않은 쿠키(WAL)는 빠질 수 있다.</li>
+  <li>가져온 뒤 Chrome 에서 로그아웃하거나 세션이 만료돼도 이 앱의 쿠키는 그대로다. 최신 상태로 맞추려면 같은 프로필을 다시 가져온다(R5).</li>
+  <li>플랫폼마다의 한계는 각 플랫폼 문서에 있다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

@@ -75,6 +75,7 @@
 │   ├── terminal-browser.html        터미널에서 웹 브라우저 (새 탭 메뉴, 시스템 웹뷰)
 │   ├── terminal-device.html         터미널에서 기기 화면 (새 탭 메뉴, 탭·스와이프)
 │   ├── terminal-panel-create.html   새 패널 제목·폴더 (그 폴더에서 터미널·Claude)
+│   ├── chrome-cookie-import.html    Chrome 쿠키 가져오기 (프로필 골라 모든 쿠키를 웹뷰로)
 │   └── design-system.html           디자인 시스템 (JarvisTheme, Defaults·Style, 아이콘)
 ├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
 │   ├── index.html                   플랫폼 스펙 읽는 법과 공통 판정 기준
@@ -308,6 +309,13 @@
       <td class="center"><a href="platform/web.html#terminal-panel-create"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/chrome-cookie-import.html">Chrome 쿠키 가져오기</a></td>
+      <td class="center"><a href="platform/android.html#chrome-cookie-import"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/ios.html#chrome-cookie-import"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#chrome-cookie-import"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#chrome-cookie-import"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/design-system.html">디자인 시스템</a></td>
       <td class="center"><a href="platform/android.html#design-system"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/ios.html#design-system"><span class="badge ok">구현</span></a></td>
@@ -360,6 +368,7 @@
   <li><a href="common/terminal-tab-groups.html">분할 그룹마다 탭 줄</a><p>패널을 나눈 칸(그룹)마다 자기 탭 줄을 두고, 탭은 그 그룹의 + 로 붙이고 ✕ 로 닫는다. 탭 하나가 창 하나다</p></li>
   <li><a href="common/terminal-browser.html">터미널에서 웹 브라우저</a><p>새 탭(+) 메뉴에서 골라 그 그룹에 웹 페이지 탭을 연다. 시스템 웹뷰를 쓰고 마지막 주소를 저장한다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-device.html">터미널에서 기기 화면</a><p>새 탭(+) 메뉴에 화면을 볼 수 있는 에뮬레이터·실물 기기가 나오고, 고르면 그 그룹에 기기 화면 탭을 열어 탭·스와이프를 보낸다. JVM(macOS)·Android</p></li>
+  <li><a href="common/chrome-cookie-import.html">Chrome 쿠키 가져오기</a><p>브라우저 탭 주소 줄의 버튼으로 이 PC 의 Chrome 프로필을 골라 모든 사이트 쿠키를 웹뷰로 옮긴다. 영구 저장소라 앱을 껐다 켜도 로그인이 이어진다. JVM(macOS)</p></li>
   <li><a href="common/terminal-panel-create.html">새 패널 제목·폴더</a><p>"새 패널" 이 제목(비우면 "패널 N")과 폴더를 받는 창을 띄우고, 그 폴더에서 터미널이나 Claude 를 연 패널을 만든다</p></li>
 </ul>
 
