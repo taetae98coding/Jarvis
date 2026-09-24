@@ -247,13 +247,16 @@ class TerminalWorkspaceTest {
     }
 
     @Test
-    fun newPanelIsNamedByCountAndSelected() {
+    fun newPanelIsNamedByCountSelectedAndEmpty() {
         val workspace = TerminalWorkspace.initial().addPanel()
 
         assertEquals(listOf("패널 1", "패널 2"), workspace.panels.map { it.name })
         assertEquals(workspace.panels.last().id, workspace.selectedPanelId)
-        assertEquals(1, workspace.groups.size)
-        assertEquals(TerminalProgram.Shell, workspace.focusedTab!!.program)
+        assertNull(workspace.selectedPanel!!.root)
+        assertNull(workspace.selectedPanel!!.focusedGroupId)
+        assertEquals(emptyList(), workspace.groups)
+        assertNull(workspace.focusedTab)
+        assertEquals(1, workspace.tabIds.size)
     }
 
     @Test
@@ -268,18 +271,19 @@ class TerminalWorkspaceTest {
     }
 
     @Test
-    fun newPanelOpensItsFirstTabInItsDirectory() {
-        val shell = TerminalWorkspace.initial().addPanel(directory = "/work")
-        val claude = TerminalWorkspace.initial()
-            .addPanel(directory = "/work", program = TerminalProgram.Claude, claudeSessionId = "session")
+    fun firstTabOfANewPanelIsOpenedByAddTabInThePanelDirectory() {
+        val empty = TerminalWorkspace.initial().addPanel(directory = "/work")
 
-        assertEquals(TerminalTab(shell.focusedTab!!.id, TerminalProgram.Shell, "/work"), shell.focusedTab)
-        assertEquals(TerminalTab(claude.focusedTab!!.id, TerminalProgram.Claude, "/work", "session"), claude.focusedTab)
+        val opened = empty.addTab(directory = empty.startDirectory())
+
+        assertEquals(1, opened.selectedPanel!!.groups.size)
+        assertEquals(TerminalTab(opened.focusedTab!!.id, TerminalProgram.Shell, "/work"), opened.focusedTab)
+        assertEquals(opened.groups.single().id, opened.focusedGroupId)
     }
 
     @Test
     fun startDirectoryPrefersTheSelectedTabThenThePanelDirectory() {
-        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work")
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work").addTab(directory = "/work")
         val tab = workspace.focusedTab!!
 
         assertEquals("/work/api", workspace.setDirectory(tab.id, "/work/api").startDirectory())
@@ -290,7 +294,7 @@ class TerminalWorkspaceTest {
 
     @Test
     fun groupsBelongToTheSelectedPanel() {
-        val workspace = TerminalWorkspace.initial().addTab().addPanel()
+        val workspace = TerminalWorkspace.initial().addTab().addPanel().addTab()
         val (first, second) = workspace.panels
 
         val split = workspace.split(SplitDirection.SideBySide)
@@ -342,8 +346,8 @@ class TerminalWorkspaceTest {
         assertEquals(parent.id, fix.parentId)
         assertEquals("fix", fix.name)
         assertEquals("/work/jarvis-worktrees/fix", fix.directory)
-        assertEquals("/work/jarvis-worktrees/fix", two.focusedTab!!.directory)
-        assertEquals(1, fix.tabs.size)
+        assertNull(fix.root)
+        assertEquals("/work/jarvis-worktrees/fix", two.startDirectory())
     }
 
     @Test
@@ -369,11 +373,11 @@ class TerminalWorkspaceTest {
 
     @Test
     fun closingAParentClosesItsWorktreePanelsToo() {
-        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis")
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis").addTab()
         val parent = workspace.panels.last()
         val withChildren = workspace
-            .addWorktreePanel(parent.id, name = "a", directory = "/work/a")
-            .addWorktreePanel(parent.id, name = "b", directory = "/work/b")
+            .addWorktreePanel(parent.id, name = "a", directory = "/work/a").addTab()
+            .addWorktreePanel(parent.id, name = "b", directory = "/work/b").addTab()
             .addPanel(name = "after")
         val children = withChildren.children(parent.id)
         val selectedChild = withChildren.selectPanel(children.first().id)
@@ -411,7 +415,7 @@ class TerminalWorkspaceTest {
 
     @Test
     fun closingTheSelectedPanelSelectsTheNextOne() {
-        val workspace = TerminalWorkspace.initial().addPanel().addPanel()
+        val workspace = TerminalWorkspace.initial().addPanel().addTab().addPanel()
         val (first, middle, last) = workspace.panels
 
         val closed = workspace.selectPanel(middle.id).closePanel(middle.id)

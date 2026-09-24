@@ -4,7 +4,6 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -18,7 +17,7 @@ class AddWorktreePanelUseCaseTest {
         AddWorktreePanelUseCase(workspace, git, UpdateTerminalWorkspaceUseCase(workspace, terminal))
 
     @Test
-    fun addsTheWorktreeToTheParentFolderRepositoryAndOpensAPanelInIt() = runTest {
+    fun addsTheWorktreeToTheParentFolderRepositoryAndAddsAnEmptyPanelForIt() = runTest {
         val git = RecordingGitWorktreeRepository()
 
         val result = useCase(git).invoke(parent.id, " feature/login ", "/work/jarvis-worktrees/feature/login")
@@ -33,19 +32,9 @@ class AddWorktreePanelUseCaseTest {
         assertEquals("feature/login", child.name)
         assertEquals("/work/jarvis-worktrees/feature/login", child.directory)
         assertEquals(parent.id, child.parentId)
-        assertEquals(TerminalProgram.Shell, after.focusedTab!!.program)
-        assertEquals("/work/jarvis-worktrees/feature/login", after.focusedTab!!.directory)
-        assertNull(after.focusedTab!!.claudeSessionId)
+        assertNull(child.root)
+        assertEquals("/work/jarvis-worktrees/feature/login", after.startDirectory())
         assertEquals(after, workspace.workspace.value)
-    }
-
-    @Test
-    fun claudeGetsAFreshSessionId() = runTest {
-        val result = useCase(RecordingGitWorktreeRepository()).invoke(parent.id, "fix", "/tmp/fix", TerminalProgram.Claude)
-
-        val tab = result.getOrThrow().after.focusedTab!!
-        assertEquals(TerminalProgram.Claude, tab.program)
-        assertNotNull(tab.claudeSessionId)
     }
 
     @Test
