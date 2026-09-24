@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>분할 그룹마다 탭 줄 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>분할 그룹마다 탭 줄</span></nav>
+
+<header>
+  <h1>분할 그룹마다 탭 줄</h1>
+  <p class="lead">패널을 나눈 칸 하나하나가 <strong>그룹</strong>이고, 그룹마다 자기 탭 줄을 가진다. 탭은 그룹의 + 로 그 그룹에 붙고 탭의 ✕ 로 그 그룹에서 닫힌다. 탭 하나가 창(터미널 또는 Claude) 하나다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>각 분활된 터미널마다 다시 탭 그룹들을 노출해서 그분할된 곳에 탭을 추가하거나 삭제하는 방식으로 리팩토링해줘.</p>
+  <footer>2026-09-24 대화. 직전 지시(<a href="terminal-tab-dock.html">탭 끌어 놓기</a>)까지는 패널 하나에 탭 줄이 하나였고 탭마다 분할 트리를 가졌다. 이 지시는 그 층을 뒤집는 것으로 읽었다: 패널이 분할 트리를 가지고, 나뉜 칸(그룹)마다 탭 줄이 있으며, 탭은 그 칸 안에서 더하고 닫는다. VS Code 의 편집기 그룹과 같다.</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<table>
+  <thead><tr><th>말</th><th>뜻</th><th>코드</th></tr></thead>
+  <tbody>
+    <tr><td>패널</td><td>왼쪽 목록의 한 줄. 이름과 그룹 분할 트리를 가진다(<a href="terminal-panels.html">패널</a>)</td><td><code>TerminalPanel</code></td></tr>
+    <tr><td>그룹</td><td>패널을 나눈 칸 하나. 탭 줄과 선택된 탭의 창을 보여 준다. 분할 트리의 잎이다</td><td><code>PaneNode.Group</code></td></tr>
+    <tr><td>탭</td><td>그룹의 탭 줄 한 칸. 터미널(셸) 하나 또는 Claude 하나다. 탭 id 가 곧 그 창의 id 다</td><td><code>TerminalTab</code></td></tr>
+    <tr><td>창</td><td>탭이 보여 주는 터미널 화면. 그룹에서 선택된 탭의 창만 보인다</td><td><code>TerminalPane</code>, <code>TerminalPaneState</code></td></tr>
+  </tbody>
+</table>
+
+<p>이전 문서들의 "탭이 분할 트리를 가진다", "창을 나눈다" 는 이 문서 이후 "패널이 그룹 트리를 가진다", "그룹을 나눈다" 로 읽는다. <a href="terminal.html">터미널</a>·<a href="terminal-panels.html">패널</a>·<a href="terminal-tab-dock.html">탭 끌어 놓기</a>의 해당 요구사항은 이 문서를 가리키도록 고쳤다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<h3>그룹과 탭</h3>
+<ol>
+  <li><strong>R1.</strong> 패널의 오른쪽 영역은 그룹의 분할 트리다. 그룹은 위에 탭 줄, 아래에 선택된 탭의 창을 보여 준다. 탭 줄에는 그 그룹의 탭이 만든 순서대로 놓이고 마지막 탭 오른쪽에 그 그룹의 새 탭(+) 버튼이 있다.</li>
+  <li><strong>R2.</strong> 그룹의 + 를 누르면 <strong>그 그룹</strong>의 탭 줄 끝에 탭이 붙고 선택되며 그 그룹이 포커스를 받는다. Claude 를 실행할 수 있는 타깃에서는 "터미널 / Claude (YOLO)" 메뉴가 뜨고(<a href="terminal-claude.html#requirements">Claude 실행 R1·R6</a>), 새 탭은 그 그룹에서 선택돼 있던 탭의 작업 디렉터리에서 시작한다(<a href="terminal-panels.html#requirements">패널 R8</a>).</li>
+  <li><strong>R3.</strong> 탭의 ✕ 는 그 탭을 닫고 셸을 끝낸다(Claude 는 백그라운드 세션을 멈춘다, 패널 R12). 선택된 탭이 닫히면 그 자리에 오는 탭(없으면 앞 탭)이 선택된다. 그룹의 마지막 탭이 닫히면 그룹이 사라지고 형제가 부모 자리를 채우며, 사라진 그룹이 포커스를 갖고 있었으면 닫힌 자리와 맞닿은 그룹이 포커스를 받는다. 패널의 마지막 그룹이 사라지면 패널은 빈 채로 남는다(R10).</li>
+  <li><strong>R4.</strong> 셸이 스스로 끝나면(<code>exit</code>) 그 탭이 R3 과 같이 닫힌다. 탭이 보이지 않을 때도 그렇다.</li>
+  <li><strong>R5.</strong> 탭을 누르면 그 탭이 자기 그룹에서 선택되고 그 그룹이 포커스를 받는다. 창을 누르면 그 그룹이 포커스를 받는다. 패널에 그룹이 둘 이상이면 포커스된 그룹의 창에 테두리가 그려진다.</li>
+  <li><strong>R6.</strong> 그룹에서 선택된 탭의 창만 보인다. 보이지 않는 탭의 셸은 살아 있고(<a href="terminal-panels.html#requirements">패널 R13</a>), 처음 보일 때 열린다.</li>
+</ol>
+
+<h3>끌어 놓기</h3>
+<ol start="7">
+  <li><strong>R7.</strong> 탭을 끌어 어떤 그룹의 <strong>변</strong>(왼쪽·오른쪽·위·아래)에 놓으면 그 그룹이 그 방향으로 나뉘고, 끌어온 탭 하나짜리 새 그룹이 그 변 쪽에 생긴다(왼쪽·위면 앞, 오른쪽·아래면 뒤, 비율 0.5). <strong>가운데</strong>에 놓으면 그 그룹의 탭 줄 끝에 들어간다. 어느 쪽이든 끌어온 탭이 선택되고 놓인 그룹이 포커스를 받는다.</li>
+  <li><strong>R8.</strong> 끌어온 탭은 원래 그룹에서 빠진다. 그 그룹이 비면 R3 과 같이 사라진다. 탭의 셸·Claude 세션은 끊기지 않는다.</li>
+  <li><strong>R9.</strong> 변 판정: 그룹 영역의 네 변에서 각각 안쪽으로 <code>TerminalTabDragDefaults.EdgeFraction</code>(25%) 띠가 변이고, 그 안쪽은 가운데다. 띠가 겹치는 모서리는 더 가까운 변이다. 자기 그룹의 가운데에 놓는 것은 아무 일도 하지 않고, 자기 그룹의 변은 그룹에 탭이 둘 이상일 때만 뗄 수 있다(하나뿐이면 결과가 같으므로 아무 일도 하지 않는다). 끄는 동안 놓일 자리가 미리 보인다 — 변이면 그 절반, 가운데면 그룹 전체가 강조된다. 그 밖의 끌기 규칙은 <a href="terminal-tab-dock.html#requirements">탭 끌어 놓기</a> R8·R10·R11 그대로다.</li>
+</ol>
+
+<h3>빈 패널, 단축키, 저장</h3>
+<ol start="10">
+  <li><strong>R10.</strong> 그룹이 없는 패널은 탭 줄 자리에 + 하나와 "탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다." 를 보여 준다. 그 + 는 그룹을 하나 만들어 탭을 넣는다.</li>
+  <li><strong>R11.</strong> 단축키는 포커스된 그룹에 작용한다. ⌘T 는 그 그룹에 새 셸 탭, ⌘D · ⌘⇧D 는 그 그룹을 좌우·상하로 나눠 새 셸 탭 하나짜리 그룹을 오른쪽·아래에 두고 포커스, ⌘W 는 그 그룹의 선택된 탭 닫기(R3), ⌘] · ⌘[ 는 화면 순서의 다음·이전 그룹, ⌘⇧] · ⌘⇧[ 는 그룹 안 다음·이전 탭, ⌘1–⌘9 는 그룹 안 그 번호의 탭이다.</li>
+  <li><strong>R12.</strong> 탭 이름은 그 탭의 창이 OSC 로 정한 제목이고, 없으면 "셸 N" 또는 "Claude N"(N 은 그 그룹 안 순번)이다.</li>
+  <li><strong>R13.</strong> 저장하는 것은 패널마다 그룹 트리(분할 방향·비율, 그룹마다 탭 목록과 선택된 탭)와 포커스된 그룹, 탭마다 종류·작업 디렉터리·Claude sessionId 다(<a href="terminal-panels.html#requirements">패널 R9</a>). 처음 켤 때는 패널 하나, 그룹 하나, 셸 탭 하나다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>그룹 안에서 탭 순서 바꾸기, 탭을 다른 패널로 옮기기, 그룹 통째로 옮기기.</li>
+    <li>이전 저장 형식(패널 → 탭 → 분할 트리) 파일의 변환. 형식이 뒤집혀 자동으로 옮길 수 없다. 이전 파일은 그룹이 없는 것으로 읽혀 처음 켠 것과 같아진다(<a href="#implementation">구현</a>).</li>
+    <li>그룹의 창 전체를 덮는 닫기 버튼. 탭의 ✕ 와 ⌘W 로 닫는다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌ ← 터미널 ──────────────────────────────────────────────────┐
+│ ┌ 패널 목록 ──┐ ┌ 그룹 A ──────────────┐┃┌ 그룹 B ───────────┐ │
+│ │▌패널 1  ✎ ✕│ │ [셸 1 ✕] [Claude ✕] [+]│┃│ [셸 1 ✕] [+]       │ │
+│ │ 백엔드  ✎ ✕│ ├──────────────────────┤┃├───────────────────┤ │
+│ │            │ │ 창 (그룹 A 의 선택 탭)│┃│ 창 (그룹 B 의 탭) │ │  ← 포커스된 그룹의 창에 테두리
+│ │ [+ 새 패널]│ │                      │┃│                   │ │
+│ └────────────┘ └──────────────────────┘┃└───────────────────┘ │
+└──────────────────────────────────────────────────────────────┘</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>그룹</td><td>세로 <code>Column</code>: 탭 줄(가로 스크롤, 탭들 + 새 탭 버튼) 위, 창 아래. 그룹 사이 경계선은 <a href="terminal.html#behavior">터미널</a>과 같다</td></tr>
+    <tr><td>탭 줄</td><td><a href="terminal-tab-dock.html#behavior">탭 끌어 놓기</a>와 같은 탭·새 탭 버튼. 탭은 끌 수 있다</td></tr>
+    <tr><td>빈 패널</td><td>탭 줄 자리에 새 탭 버튼 하나, 아래 가운데에 안내 글</td></tr>
+    <tr><td>놓일 자리 미리 보기</td><td>변: 그룹 영역의 그 절반. 가운데: 그룹 영역 전체. 색은 탭 끌어 놓기와 같다</td></tr>
+    <tr><td>테스트 태그</td><td>
+      <code>terminal:group:&lt;groupId&gt;</code>(그룹 영역), <code>terminal:new-tab:&lt;groupId&gt;</code>(그룹의 + 버튼), <code>terminal:new-tab:none</code>(빈 패널의 +),
+      <code>terminal:new-tab-menu:shell</code> · <code>terminal:new-tab-menu:claude</code>(메뉴 항목, 전에는 <code>terminal:new-tab:shell</code> 등),
+      <code>terminal:tab:&lt;tabId&gt;</code>, <code>terminal:tab-close:&lt;tabId&gt;</code>, <code>terminal:pane:&lt;tabId&gt;</code>, <code>terminal:drop-preview:&lt;groupId&gt;</code>, <code>terminal:drag-ghost</code>, <code>terminal:empty-panel</code>
+    </td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<pre><code>TerminalWorkspace(panels, selectedPanelId, nextId)
+└─ TerminalPanel(id, name, root: PaneNode?, focusedGroupId: Long?)   ← root 가 null 이면 빈 패널
+   └─ PaneNode
+      ├─ Group(id, tabs: List&lt;TerminalTab&gt;, selectedTabId)            ← tabs 는 비지 않는다
+      │  └─ TerminalTab(id, program = Shell | Claude, directory?, claudeSessionId?)
+      └─ Split(id, direction, first, second, ratio)</code></pre>
+
+<dl class="meta">
+  <dt>도메인</dt><dd>
+    <code>TerminalTab</code> — 이전 <code>PaneNode.Leaf</code>. 탭 id 가 창·세션 id 다.<br>
+    <code>PaneNode.Group</code> — 잎. <code>selectedTab</code>.<br>
+    <code>TerminalPanel</code> — <code>groups</code>(화면 순서), <code>tabs</code>, <code>focusedGroup</code>.<br>
+    <code>TerminalWorkspace</code> — <code>addTab(groupId?, program, directory, claudeSessionId)</code>(R2·R10, null 이면 선택된 패널의 포커스된 그룹, 그룹이 없으면 새로 만든다), <code>closeTab(tabId)</code>(R3), <code>selectTab(tabId)</code>·<code>selectTabAt(index)</code>·<code>selectAdjacentTab(offset)</code>(R5·R11), <code>focusGroup(groupId)</code>·<code>focusAdjacentGroup(offset)</code>, <code>split(direction, directory)</code>(R11), <code>dockTab(tabId, groupId, edge: DockEdge)</code>(R7–R9, <code>DockEdge.Center</code> 가 더해졌다), <code>setRatio</code>·<code>resizeSplit</code>·<code>setDirectory(tabId, directory)</code>. 사라지는 탭이 없는 변경은 <code>TerminalWorkspaceChange.removedTabs</code> 가 비어 세션이 멈추지 않는다.<br>
+    <code>DockEdge</code> — <code>Left · Right · Top · Bottom · Center</code>. <code>splitDirection</code> 은 <code>Center</code> 에서 null.
+  </dd>
+  <dt>리포지토리</dt><dd><code>TerminalRepository.open(size, tab: TerminalTab)</code>. <code>TerminalWorkspaceChange.removedTabs</code>(이전 <code>removedLeaves</code>)</dd>
+  <dt>저장</dt><dd><code>TerminalPanelDto(id, name, root: PaneNodeDto? = null, focusedGroupId)</code>, <code>PaneNodeDto.Group("group")</code> · <code>Split("split")</code>, <code>TerminalTabDto</code>. 이전 형식의 <code>tabs</code> 키는 모르는 키로 버려져 모든 패널의 <code>root</code> 가 null 이 된다. 그룹이 하나도 없는 파일은 패널이 없는 파일과 같이 처음 켠 것으로 읽는다</dd>
+  <dt>세션 보관</dt><dd><code>TerminalPaneHost.acquire(tab, size)</code>. ViewModel 의 <code>reconcile</code> 은 선택된 패널의 그룹마다 선택된 탭만 연다(R6)</dd>
+  <dt>UI</dt><dd>
+    <code>TerminalScreen</code> — <code>PaneTree</code> 의 잎이 <code>TerminalGroup</code>(탭 줄 + 창 + 미리 보기)이다. 빈 패널은 <code>EmptyPanel</code>(+ 버튼 + 안내). 단축키는 R11.<br>
+    <code>TerminalTabDrag.kt</code> — 그룹이 <code>registerGroup(groupId, tabIds, coordinates)</code> 로 등록되고 <code>target()</code> 이 R9 의 띠 규칙으로 <code>TerminalDropTarget(groupId, edge)</code> 를 낸다. 자기 그룹 규칙(R9)도 여기서 거른다.
+  </dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 그룹이 트리의 잎이고 탭은 그룹의 목록이다 (탭 위의 두 번째 탭 층은 버렸다)</strong>
+  "분할된 터미널마다 탭 그룹" 을 두는 방법은 둘이었다. (1) 지금 구조를 두고 분할된 창 안에 탭 층을 하나 더 넣기 — 패널 탭 줄과 창 탭 줄, 탭이 두 층이 되어 "탭" 이 무엇을 가리키는지 흐려지고, 위 층 탭은 이미 그 안에 분할 트리를 갖고 있어 아래 층과 역할이 겹친다. (2) 채택: 분할 트리를 패널이 갖고 잎이 그룹(탭 목록)이다. 탭은 한 층뿐이고 언제나 "그룹 안의 하나" 다. 지시의 "그 분할된 곳에 탭을 추가하거나 삭제" 가 그대로 <code>Group.tabs</code> 의 추가·삭제다. VS Code 의 편집기 그룹, iTerm 은 반대(탭 안에 분할)라 이 지시 뒤로 iTerm 비유는 분할 방향과 단축키에만 남는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 끌어 놓기의 가운데는 "그 그룹에 넣기" 다</strong>
+  <a href="terminal-tab-dock.html#implementation">탭 끌어 놓기</a>에서는 두 대각선으로 넷만 나눴다. 그때는 탭이 분할 트리 하나를 통째로 옮기는 것이라 "안에 넣기" 가 없었다. 이제 탭은 그룹의 원소라 다른 그룹으로 옮기는 것이 자연스러운 동작이고, 그 자리가 가운데다. 띠 폭 25% 는 VS Code 의 편집기 영역과 비슷한 값이다. 가운데를 두지 않고 그룹의 탭 줄에 놓게 하는 방법도 봤지만 탭 줄은 좁아 맞추기 어렵고, 탭 줄 안에서의 위치가 순서 바꾸기로 읽혀 스코프 밖의 기대를 만든다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 이전 저장 파일은 변환하지 않는다</strong>
+  이전 형식은 패널 → 탭 → 분할 트리(잎 = 창)이고 새 형식은 패널 → 분할 트리(잎 = 그룹) → 탭이다. 이전 탭 하나의 분할 트리를 새 그룹 트리로 옮기려면 탭마다 트리가 있어 패널 하나에 트리가 여럿인데 새 형식은 하나뿐이라, 어떤 탭의 트리를 남길지 정해야 한다. 이 앱은 아직 배포 전이고 저장소도 한 사람의 개발 머신뿐이라 변환 코드를 넣지 않는다. 대신 이전 파일이 와도 깨지지 않게, 그룹이 없으면 처음 켠 것으로 읽는다. Claude 백그라운드 세션은 앱 밖에 남아 있으므로 <code>claude agents --all</code> 로 찾을 수 있다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td>공통 코드. 플랫폼 코드가 없다</td><td><a href="../platform/android.html#terminal-tab-groups">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-tab-groups">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 코드. 저장 파일 형식만 바뀐다</td><td><a href="../platform/jvm.html#terminal-tab-groups">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-tab-groups">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R2, R3, R5, R7–R9, R11, R13. 그룹에 탭 추가·선택, 선택된 탭 닫기 후 선택, 마지막 탭이 닫히면 그룹이 사라지고 형제 승격·포커스, 마지막 그룹이 사라지면 빈 패널, 빈 패널에 탭 추가, 분할이 새 그룹을 만듦, 변·가운데 끌어 놓기와 자기 그룹 규칙, 그룹·탭 이동 단축키 규칙, id 재사용 없음</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>UpdateTerminalWorkspaceUseCaseTest</code></td><td>R3·R8. 닫힌 Claude 탭만 세션을 멈추고 옮긴 탭은 멈추지 않음</td><td>같음</td></tr>
+    <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R13. 그룹 트리가 파일을 오가고, 이전 형식 파일은 처음 켠 것으로 읽힘</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalTest</code></td><td>R1–R5, R7–R11. 그룹마다 탭 줄과 +, 그룹의 + 가 그 그룹에만 탭을 붙임, ✕ 로 탭 닫기와 셸 종료, 마지막 탭을 닫으면 그룹이 사라짐, 변에 놓으면 새 그룹, 가운데에 놓으면 그 그룹의 탭, 자기 그룹 가운데는 무시, 단축키 분할·닫기, 빈 패널의 +</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalPanelTest</code></td><td>패널마다 자기 그룹 트리를 가짐, 다시 켜면 그룹·탭이 복원됨</td><td>같음</td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것은 <a href="terminal-tab-dock.html#verification">탭 끌어 놓기</a>와 같다. <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>이전 형식으로 저장된 배치는 되살아나지 않는다(<a href="#implementation">결정</a>).</li>
+  <li>그룹이 많아 탭 줄이 좁아지면 탭 이름이 잘린다. 탭 줄은 가로로 스크롤된다.</li>
+  <li>터치만 있는 기기에서도 이제 탭의 ✕ 로 그룹 안의 탭 하나를 닫을 수 있다. 그룹을 통째로 닫는 버튼은 없다 — 탭을 하나씩 닫으면 그룹이 사라진다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

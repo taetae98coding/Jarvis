@@ -1,7 +1,7 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.data.PlatformContext
-import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
 
@@ -10,7 +10,7 @@ internal interface TerminalDataSource {
 
     val isClaudeSupported: Boolean
 
-    suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession?
+    suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession?
 
     suspend fun stopClaude(sessionId: String)
 }
@@ -20,7 +20,7 @@ internal object UnsupportedTerminalDataSource : TerminalDataSource {
 
     override val isClaudeSupported: Boolean = false
 
-    override suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession? = null
+    override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? = null
 
     override suspend fun stopClaude(sessionId: String) = Unit
 }

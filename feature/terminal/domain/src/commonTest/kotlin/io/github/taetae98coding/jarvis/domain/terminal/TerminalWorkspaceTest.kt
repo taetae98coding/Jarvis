@@ -7,192 +7,243 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class TerminalWorkspaceTest {
+    private val TerminalWorkspace.root: PaneNode?
+        get() = selectedPanel!!.root
+
+    private val TerminalWorkspace.focusedGroupId: Long?
+        get() = focusedGroup?.id
+
     @Test
-    fun startsWithOnePanelOneTabAndOnePane() {
+    fun startsWithOnePanelOneGroupAndOneTab() {
         val workspace = TerminalWorkspace.initial()
 
         assertEquals(listOf("패널 1"), workspace.panels.map { it.name })
         assertEquals(workspace.panels.single().id, workspace.selectedPanelId)
-        assertEquals(1, workspace.tabs.size)
-        assertEquals(1, workspace.paneIds.size)
-        assertEquals(workspace.paneIds.single(), workspace.focusedPaneId)
+        assertEquals(1, workspace.groups.size)
+        assertEquals(1, workspace.tabIds.size)
+        assertEquals(workspace.tabIds.single(), workspace.focusedTab!!.id)
+        assertEquals(workspace.groups.single().id, workspace.focusedGroupId)
     }
 
     @Test
-    fun sideBySideSplitPutsNewPaneOnTheRightAndFocusesIt() {
+    fun newTabIsAppendedToTheFocusedGroupAndSelected() {
+        val workspace = TerminalWorkspace.initial()
+
+        val added = workspace.addTab()
+        val group = added.groups.single()
+
+        assertEquals(2, group.tabs.size)
+        assertEquals(group.tabs.last().id, group.selectedTabId)
+        assertEquals(group.tabs.last(), added.focusedTab)
+    }
+
+    @Test
+    fun newTabGoesToTheGivenGroupAndFocusesIt() {
+        val workspace = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
+        val (left, right) = workspace.groups
+        assertEquals(right.id, workspace.focusedGroupId)
+
+        val added = workspace.addTab(groupId = left.id)
+
+        assertEquals(2, added.groups.first { it.id == left.id }.tabs.size)
+        assertEquals(1, added.groups.first { it.id == right.id }.tabs.size)
+        assertEquals(left.id, added.focusedGroupId)
+    }
+
+    @Test
+    fun newTabInAnEmptyPanelCreatesAGroup() {
+        val workspace = TerminalWorkspace.initial()
+        val emptied = workspace.closeTab(workspace.focusedTab!!.id)
+        assertNull(emptied.root)
+
+        val added = emptied.addTab()
+
+        assertIs<PaneNode.Group>(added.root)
+        assertEquals(1, added.groups.single().tabs.size)
+        assertEquals(added.groups.single().id, added.focusedGroupId)
+    }
+
+    @Test
+    fun sideBySideSplitPutsANewGroupOnTheRightAndFocusesIt() {
         val initial = TerminalWorkspace.initial()
-        val original = initial.focusedPaneId!!
+        val original = initial.groups.single()
 
         val split = initial.split(SplitDirection.SideBySide)
-        val root = assertIs<PaneNode.Split>(split.selectedTab!!.root)
+        val root = assertIs<PaneNode.Split>(split.root)
 
         assertEquals(SplitDirection.SideBySide, root.direction)
-        assertEquals(PaneNode.Leaf(original), root.first)
-        assertEquals(root.second, PaneNode.Leaf(split.focusedPaneId!!))
+        assertEquals(original, root.first)
+        assertEquals<PaneNode?>(split.focusedGroup, root.second)
+        assertEquals(TerminalProgram.Shell, split.focusedTab!!.program)
         assertEquals(0.5f, root.ratio)
     }
 
     @Test
-    fun stackedSplitPutsNewPaneBelow() {
+    fun stackedSplitPutsTheNewGroupBelow() {
         val split = TerminalWorkspace.initial().split(SplitDirection.Stacked)
-        val root = assertIs<PaneNode.Split>(split.selectedTab!!.root)
+        val root = assertIs<PaneNode.Split>(split.root)
 
         assertEquals(SplitDirection.Stacked, root.direction)
-        assertEquals(PaneNode.Leaf(split.focusedPaneId!!), root.second)
+        assertEquals<PaneNode?>(split.focusedGroup, root.second)
     }
 
     @Test
-    fun splitsNestInsideTheFocusedPane() {
+    fun splitsNestInsideTheFocusedGroup() {
         val workspace = TerminalWorkspace.initial()
             .split(SplitDirection.SideBySide)
             .split(SplitDirection.Stacked)
 
-        val root = assertIs<PaneNode.Split>(workspace.selectedTab!!.root)
+        val root = assertIs<PaneNode.Split>(workspace.root)
         val right = assertIs<PaneNode.Split>(root.second)
 
-        assertIs<PaneNode.Leaf>(root.first)
+        assertIs<PaneNode.Group>(root.first)
         assertEquals(SplitDirection.Stacked, right.direction)
-        assertEquals(3, workspace.paneIds.size)
-        assertEquals(workspace.paneIds.toSet().size, workspace.paneIds.size)
-    }
-
-    @Test
-    fun closingAPanePromotesItsSiblingAndFocusesTheAdjacentPane() {
-        val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
-        val (left, right) = split.paneIds
-
-        val closed = split.closePane(right)
-
-        assertEquals(PaneNode.Leaf(left), closed.selectedTab!!.root)
-        assertEquals(left, closed.focusedPaneId)
-    }
-
-    @Test
-    fun closingTheFirstChildFocusesTheSecondChildsFirstPane() {
-        val workspace = TerminalWorkspace.initial()
-            .split(SplitDirection.SideBySide)
-            .split(SplitDirection.Stacked)
-        val (left, topRight, _) = workspace.paneIds
-
-        val closed = workspace.focusPane(left).closePane(left)
-
-        assertEquals(topRight, closed.focusedPaneId)
-        assertEquals(2, closed.paneIds.size)
-    }
-
-    @Test
-    fun closingAnUnfocusedPaneKeepsFocus() {
-        val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
-        val (left, right) = split.paneIds
-
-        val closed = split.closePane(left)
-
-        assertEquals(right, closed.focusedPaneId)
-    }
-
-    @Test
-    fun closingTheLastPaneOfATabClosesTheTab() {
-        val workspace = TerminalWorkspace.initial().addTab()
-        val second = workspace.selectedTab!!
-
-        val closed = workspace.closePane(second.focusedPaneId)
-
-        assertEquals(1, closed.tabs.size)
-        assertEquals(closed.tabs.single().id, closed.selectedTabId)
-    }
-
-    @Test
-    fun closingTheLastTabLeavesAnEmptyPanel() {
-        val workspace = TerminalWorkspace.initial()
-
-        val closed = workspace.closePane(workspace.focusedPaneId!!)
-
-        assertEquals(1, closed.panels.size)
-        assertEquals(workspace.selectedPanelId, closed.selectedPanelId)
-        assertTrue(closed.tabs.isEmpty())
-        assertNull(closed.selectedTabId)
-        assertNull(closed.focusedPaneId)
-    }
-
-    @Test
-    fun newTabIsAppendedAndSelected() {
-        val workspace = TerminalWorkspace.initial()
-
-        val added = workspace.addTab()
-
-        assertEquals(2, added.tabs.size)
-        assertEquals(added.tabs.last().id, added.selectedTabId)
+        assertEquals(3, workspace.groups.size)
+        assertEquals(workspace.tabIds.toSet().size, workspace.tabIds.size)
     }
 
     @Test
     fun closingTheSelectedMiddleTabSelectsTheNextOne() {
         val workspace = TerminalWorkspace.initial().addTab().addTab()
-        val (first, middle, last) = workspace.tabs
+        val (first, middle, last) = workspace.groups.single().tabs
 
         val closed = workspace.selectTab(middle.id).closeTab(middle.id)
+        val group = closed.groups.single()
 
-        assertEquals(listOf(first.id, last.id), closed.tabs.map { it.id })
-        assertEquals(last.id, closed.selectedTabId)
+        assertEquals(listOf(first.id, last.id), group.tabs.map { it.id })
+        assertEquals(last.id, group.selectedTabId)
     }
 
     @Test
-    fun adjacentTabWrapsAround() {
+    fun closingAnUnselectedTabKeepsTheSelection() {
         val workspace = TerminalWorkspace.initial().addTab()
+        val (first, second) = workspace.groups.single().tabs
 
-        assertEquals(workspace.tabs.first().id, workspace.selectAdjacentTab(1).selectedTabId)
-        assertEquals(workspace.tabs.first().id, workspace.selectAdjacentTab(-1).selectedTabId)
+        val closed = workspace.closeTab(first.id)
+
+        assertEquals(second.id, closed.groups.single().selectedTabId)
     }
 
     @Test
-    fun adjacentPaneFollowsScreenOrder() {
+    fun closingTheLastTabRemovesTheGroupAndFocusesTheAdjacentOne() {
+        val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
+        val (left, right) = split.groups
+
+        val closed = split.closeTab(right.selectedTabId)
+
+        assertEquals(left, closed.root)
+        assertEquals(left.id, closed.focusedGroupId)
+    }
+
+    @Test
+    fun closingTheFirstChildFocusesTheSecondChildsFirstGroup() {
         val workspace = TerminalWorkspace.initial()
             .split(SplitDirection.SideBySide)
             .split(SplitDirection.Stacked)
-        val ids = workspace.paneIds
+        val (left, topRight, _) = workspace.groups
 
-        assertEquals(ids[0], workspace.focusAdjacentPane(1).focusedPaneId)
-        assertEquals(ids[1], workspace.focusAdjacentPane(-1).focusedPaneId)
+        val closed = workspace.focusGroup(left.id).closeTab(left.selectedTabId)
+
+        assertEquals(topRight.id, closed.focusedGroupId)
+        assertEquals(2, closed.groups.size)
     }
 
     @Test
-    fun focusingAPaneInAnotherTabSelectsThatTab() {
+    fun closingAnUnfocusedGroupKeepsFocus() {
+        val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
+        val (left, right) = split.groups
+
+        val closed = split.closeTab(left.selectedTabId)
+
+        assertEquals(right.id, closed.focusedGroupId)
+    }
+
+    @Test
+    fun closingTheLastGroupLeavesAnEmptyPanel() {
         val workspace = TerminalWorkspace.initial()
-        val firstPane = workspace.focusedPaneId!!
 
-        val focused = workspace.addTab().focusPane(firstPane)
+        val closed = workspace.closeFocusedTab()
 
-        assertEquals(workspace.tabs.single().id, focused.selectedTabId)
-        assertEquals(firstPane, focused.focusedPaneId)
+        assertEquals(1, closed.panels.size)
+        assertEquals(workspace.selectedPanelId, closed.selectedPanelId)
+        assertNull(closed.root)
+        assertTrue(closed.groups.isEmpty())
+        assertNull(closed.focusedTab)
+        assertEquals(closed, closed.closeFocusedTab())
+    }
+
+    @Test
+    fun selectingATabFocusesItsGroup() {
+        val workspace = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
+        val left = workspace.groups.first()
+
+        val selected = workspace.selectTab(left.selectedTabId)
+
+        assertEquals(left.id, selected.focusedGroupId)
+    }
+
+    @Test
+    fun adjacentTabWrapsAroundInsideTheFocusedGroup() {
+        val workspace = TerminalWorkspace.initial().addTab()
+        val (first, second) = workspace.groups.single().tabs
+
+        assertEquals(first.id, workspace.selectAdjacentTab(1).focusedTab!!.id)
+        assertEquals(first.id, workspace.selectAdjacentTab(-1).focusedTab!!.id)
+        assertEquals(second.id, workspace.selectTabAt(1).focusedTab!!.id)
+        assertEquals(workspace, workspace.selectTabAt(5))
+    }
+
+    @Test
+    fun adjacentGroupFollowsScreenOrder() {
+        val workspace = TerminalWorkspace.initial()
+            .split(SplitDirection.SideBySide)
+            .split(SplitDirection.Stacked)
+        val ids = workspace.groups.map { it.id }
+
+        assertEquals(ids[0], workspace.focusAdjacentGroup(1).focusedGroupId)
+        assertEquals(ids[1], workspace.focusAdjacentGroup(-1).focusedGroupId)
+    }
+
+    @Test
+    fun focusingAGroupInAnotherPanelSelectsThatPanel() {
+        val workspace = TerminalWorkspace.initial()
+        val firstGroup = workspace.groups.single()
+
+        val focused = workspace.addPanel().focusGroup(firstGroup.id)
+
+        assertEquals(workspace.selectedPanelId, focused.selectedPanelId)
+        assertEquals(firstGroup.id, focused.focusedGroupId)
     }
 
     @Test
     fun ratioIsClamped() {
         val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
-        val id = assertIs<PaneNode.Split>(split.selectedTab!!.root).id
+        val id = assertIs<PaneNode.Split>(split.root).id
 
-        assertEquals(0.9f, (split.setRatio(id, 2f).selectedTab!!.root as PaneNode.Split).ratio)
-        assertEquals(0.1f, (split.setRatio(id, -1f).selectedTab!!.root as PaneNode.Split).ratio)
-        assertEquals(0.3f, (split.setRatio(id, 0.3f).selectedTab!!.root as PaneNode.Split).ratio)
+        assertEquals(0.9f, (split.setRatio(id, 2f).root as PaneNode.Split).ratio)
+        assertEquals(0.1f, (split.setRatio(id, -1f).root as PaneNode.Split).ratio)
+        assertEquals(0.3f, (split.setRatio(id, 0.3f).root as PaneNode.Split).ratio)
     }
 
     @Test
     fun resizeSplitAddsToTheCurrentRatio() {
         val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
-        val id = assertIs<PaneNode.Split>(split.selectedTab!!.root).id
+        val id = assertIs<PaneNode.Split>(split.root).id
 
         val resized = split.resizeSplit(id, 0.1f).resizeSplit(id, 0.1f)
 
-        assertEquals(0.7f, (resized.selectedTab!!.root as PaneNode.Split).ratio, 0.0001f)
+        assertEquals(0.7f, (resized.root as PaneNode.Split).ratio, 0.0001f)
     }
 
     @Test
     fun idsAreNeverReused() {
         val workspace = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
-        val closed = workspace.closePane(workspace.focusedPaneId!!)
+        val closed = workspace.closeFocusedTab()
 
         val again = closed.split(SplitDirection.SideBySide)
 
-        assertTrue(again.focusedPaneId!! !in workspace.paneIds)
+        assertTrue(again.focusedTab!!.id !in workspace.tabIds)
+        assertTrue(again.focusedGroupId !in workspace.groups.map { it.id })
     }
 
     @Test
@@ -201,31 +252,31 @@ class TerminalWorkspaceTest {
 
         assertEquals(listOf("패널 1", "패널 2"), workspace.panels.map { it.name })
         assertEquals(workspace.panels.last().id, workspace.selectedPanelId)
-        assertEquals(1, workspace.tabs.size)
-        assertEquals(TerminalProgram.Shell, workspace.focusedLeaf!!.program)
+        assertEquals(1, workspace.groups.size)
+        assertEquals(TerminalProgram.Shell, workspace.focusedTab!!.program)
     }
 
     @Test
-    fun tabsBelongToTheSelectedPanel() {
+    fun groupsBelongToTheSelectedPanel() {
         val workspace = TerminalWorkspace.initial().addTab().addPanel()
         val (first, second) = workspace.panels
 
         val split = workspace.split(SplitDirection.SideBySide)
 
         assertEquals(first, split.panels.first { it.id == first.id })
-        assertEquals(2, split.panels.first { it.id == second.id }.leaves.size)
+        assertEquals(2, split.panels.first { it.id == second.id }.groups.size)
     }
 
     @Test
-    fun selectingAPanelShowsItsOwnTabs() {
+    fun selectingAPanelShowsItsOwnGroups() {
         val workspace = TerminalWorkspace.initial().addTab()
         val first = workspace.panels.single()
         val withSecond = workspace.addPanel()
 
         val back = withSecond.selectPanel(first.id)
 
-        assertEquals(first.tabs.map { it.id }, back.tabs.map { it.id })
-        assertEquals(first.selectedTabId, back.selectedTabId)
+        assertEquals(first.groups, back.groups)
+        assertEquals(first.focusedGroupId, back.focusedGroupId)
     }
 
     @Test
@@ -253,60 +304,146 @@ class TerminalWorkspaceTest {
 
         assertEquals(listOf(first.id, last.id), closed.panels.map { it.id })
         assertEquals(last.id, closed.selectedPanelId)
-        assertTrue(middle.leaves.none { it.paneId in closed.paneIds })
-    }
-
-    @Test
-    fun focusingAPaneInAnotherPanelSelectsThatPanel() {
-        val workspace = TerminalWorkspace.initial()
-        val firstPane = workspace.focusedPaneId!!
-
-        val focused = workspace.addPanel().focusPane(firstPane)
-
-        assertEquals(workspace.selectedPanelId, focused.selectedPanelId)
-        assertEquals(firstPane, focused.focusedPaneId)
+        assertTrue(middle.tabs.none { it.id in closed.tabIds })
     }
 
     @Test
     fun claudeTabKeepsItsProgramAndSessionId() {
         val workspace = TerminalWorkspace.initial()
-            .addTab(TerminalProgram.Claude, directory = "/work", claudeSessionId = "session")
+            .addTab(program = TerminalProgram.Claude, directory = "/work", claudeSessionId = "session")
 
-        val leaf = workspace.focusedLeaf!!
+        val tab = workspace.focusedTab!!
 
-        assertEquals(TerminalProgram.Claude, leaf.program)
-        assertEquals("/work", leaf.directory)
-        assertEquals("session", leaf.claudeSessionId)
+        assertEquals(TerminalProgram.Claude, tab.program)
+        assertEquals("/work", tab.directory)
+        assertEquals("session", tab.claudeSessionId)
     }
 
     @Test
-    fun splittingAClaudePaneOpensAShellInTheGivenDirectory() {
+    fun splittingAClaudeGroupOpensAShellInTheGivenDirectory() {
         val workspace = TerminalWorkspace.initial()
-            .addTab(TerminalProgram.Claude, claudeSessionId = "session")
+            .addTab(program = TerminalProgram.Claude, claudeSessionId = "session")
             .split(SplitDirection.SideBySide, directory = "/work")
 
-        val leaf = workspace.focusedLeaf!!
+        val tab = workspace.focusedTab!!
 
-        assertEquals(TerminalProgram.Shell, leaf.program)
-        assertEquals("/work", leaf.directory)
-        assertNull(leaf.claudeSessionId)
+        assertEquals(TerminalProgram.Shell, tab.program)
+        assertEquals("/work", tab.directory)
+        assertNull(tab.claudeSessionId)
     }
 
     @Test
-    fun directoryIsRecordedOnTheLeaf() {
+    fun directoryIsRecordedOnTheTab() {
         val workspace = TerminalWorkspace.initial()
-        val id = workspace.focusedPaneId!!
+        val id = workspace.focusedTab!!.id
 
-        assertEquals("/tmp", workspace.setDirectory(id, "/tmp").focusedLeaf!!.directory)
+        assertEquals("/tmp", workspace.setDirectory(id, "/tmp").focusedTab!!.directory)
     }
 
     @Test
-    fun closingAPaneWithADirectoryStillPromotesItsSibling() {
-        val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
-        val (left, right) = split.paneIds
+    fun dockingOnTheRightEdgeSplitsSideBySideWithTheDraggedTabSecond() {
+        val workspace = TerminalWorkspace.initial().addTab()
+        val group = workspace.groups.single()
+        val (first, second) = group.tabs
 
-        val closed = split.setDirectory(right, "/tmp").closePane(right)
+        val docked = workspace.dockTab(second.id, group.id, DockEdge.Right)
+        val root = assertIs<PaneNode.Split>(docked.root)
 
-        assertEquals(PaneNode.Leaf(left), closed.selectedTab!!.root)
+        assertEquals(SplitDirection.SideBySide, root.direction)
+        assertEquals(PaneNode.Group(group.id, listOf(first), first.id), root.first)
+        val added = assertIs<PaneNode.Group>(root.second)
+        assertEquals(listOf(second), added.tabs)
+        assertEquals(second.id, added.selectedTabId)
+        assertEquals(added.id, docked.focusedGroupId)
+        assertEquals(0.5f, root.ratio)
+        assertEquals(workspace.tabIds.toSet(), docked.tabIds.toSet())
+    }
+
+    @Test
+    fun dockingOnTheLeftOrTopEdgePutsTheNewGroupFirst() {
+        val workspace = TerminalWorkspace.initial().addTab()
+        val group = workspace.groups.single()
+        val second = group.tabs.last()
+
+        val left = assertIs<PaneNode.Split>(workspace.dockTab(second.id, group.id, DockEdge.Left).root)
+        val top = assertIs<PaneNode.Split>(workspace.dockTab(second.id, group.id, DockEdge.Top).root)
+        val bottom = assertIs<PaneNode.Split>(workspace.dockTab(second.id, group.id, DockEdge.Bottom).root)
+
+        assertEquals(SplitDirection.SideBySide, left.direction)
+        assertEquals(listOf(second), assertIs<PaneNode.Group>(left.first).tabs)
+        assertEquals(SplitDirection.Stacked, top.direction)
+        assertEquals(listOf(second), assertIs<PaneNode.Group>(top.first).tabs)
+        assertEquals(SplitDirection.Stacked, bottom.direction)
+        assertEquals(listOf(second), assertIs<PaneNode.Group>(bottom.second).tabs)
+    }
+
+    @Test
+    fun dockingInTheCenterMovesTheTabIntoThatGroup() {
+        val workspace = TerminalWorkspace.initial().split(SplitDirection.SideBySide).addTab()
+        val (left, right) = workspace.groups
+        val moved = right.tabs.last()
+
+        val docked = workspace.dockTab(moved.id, left.id, DockEdge.Center)
+        val (newLeft, newRight) = docked.groups
+
+        assertEquals(left.tabs + moved, newLeft.tabs)
+        assertEquals(moved.id, newLeft.selectedTabId)
+        assertEquals(right.tabs - moved, newRight.tabs)
+        assertEquals(left.id, docked.focusedGroupId)
+        assertEquals(workspace.tabIds.toSet(), docked.tabIds.toSet())
+    }
+
+    @Test
+    fun dockingTheLastTabOfAGroupRemovesThatGroup() {
+        val workspace = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
+        val (left, right) = workspace.groups
+
+        val docked = workspace.dockTab(right.selectedTabId, left.id, DockEdge.Center)
+        val group = assertIs<PaneNode.Group>(docked.root)
+
+        assertEquals(left.tabs + right.tabs, group.tabs)
+        assertEquals(right.selectedTabId, group.selectedTabId)
+    }
+
+    @Test
+    fun dockingIntoAnotherGroupsEdgeKeepsTheSourceGroup() {
+        val workspace = TerminalWorkspace.initial().split(SplitDirection.SideBySide).addTab()
+        val (left, right) = workspace.groups
+        val moved = right.tabs.last()
+
+        val docked = workspace.dockTab(moved.id, left.id, DockEdge.Bottom)
+        val root = assertIs<PaneNode.Split>(docked.root)
+        val leftSide = assertIs<PaneNode.Split>(root.first)
+
+        assertEquals(SplitDirection.Stacked, leftSide.direction)
+        assertEquals(left, leftSide.first)
+        assertEquals(listOf(moved), assertIs<PaneNode.Group>(leftSide.second).tabs)
+        assertEquals(right.tabs - moved, assertIs<PaneNode.Group>(root.second).tabs)
+    }
+
+    @Test
+    fun dockingWhereNothingWouldChangeDoesNothing() {
+        val single = TerminalWorkspace.initial()
+        val group = single.groups.single()
+        val tab = group.selectedTabId
+        val two = single.addTab()
+
+        assertEquals(single, single.dockTab(tab, group.id, DockEdge.Right))
+        assertEquals(two, two.dockTab(tab, group.id, DockEdge.Center))
+        assertEquals(two, two.dockTab(999, group.id, DockEdge.Right))
+        assertEquals(two, two.dockTab(tab, 999, DockEdge.Right))
+    }
+
+    @Test
+    fun dockingUsesFreshIds() {
+        val workspace = TerminalWorkspace.initial().addTab()
+        val group = workspace.groups.single()
+
+        val docked = workspace.dockTab(group.tabs.last().id, group.id, DockEdge.Right)
+        val root = assertIs<PaneNode.Split>(docked.root)
+
+        assertEquals(workspace.nextId, root.id)
+        assertEquals(workspace.nextId + 1, assertIs<PaneNode.Group>(root.second).id)
+        assertEquals(workspace.nextId + 2, docked.nextId)
     }
 }

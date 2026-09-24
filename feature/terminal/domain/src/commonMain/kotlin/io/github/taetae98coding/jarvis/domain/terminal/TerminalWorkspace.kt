@@ -1,26 +1,45 @@
 package io.github.taetae98coding.jarvis.domain.terminal
 
 enum class SplitDirection {
-    /** 좌우. iTerm 의 "Split Vertically"(⌘D). 새 창이 오른쪽에 온다. */
+    /** 좌우. iTerm 의 "Split Vertically"(⌘D). 새 그룹이 오른쪽에 온다. */
     SideBySide,
 
-    /** 상하. iTerm 의 "Split Horizontally"(⌘⇧D). 새 창이 아래에 온다. */
+    /** 상하. iTerm 의 "Split Horizontally"(⌘⇧D). 새 그룹이 아래에 온다. */
     Stacked,
 }
 
+/** 탭을 끌어다 놓는 그룹의 자리. 변이면 그 방향으로 나뉘고, [Center] 는 나누지 않고 그 그룹에 넣는다. */
+enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolean) {
+    Left(SplitDirection.SideBySide, placesFirst = true),
+    Right(SplitDirection.SideBySide, placesFirst = false),
+    Top(SplitDirection.Stacked, placesFirst = true),
+    Bottom(SplitDirection.Stacked, placesFirst = false),
+    Center(null, placesFirst = false),
+}
+
+/**
+ * 탭 하나 = 창 하나. 다시 열 때 무엇을 띄울지를 들고 있다 — 앱을 다시 켜면 이 값만으로 창을 되살린다.
+ *
+ * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
+ * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만 있다.
+ */
+data class TerminalTab(
+    val id: Long,
+    val program: TerminalProgram = TerminalProgram.Shell,
+    val directory: String? = null,
+    val claudeSessionId: String? = null,
+)
+
 sealed interface PaneNode {
-    /**
-     * 창 하나. 다시 열 때 무엇을 띄울지를 들고 있다 — 앱을 다시 켜면 이 값만으로 창을 되살린다.
-     *
-     * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
-     * [claudeSessionId] 는 [TerminalProgram.Claude] 창에만 있다.
-     */
-    data class Leaf(
-        val paneId: Long,
-        val program: TerminalProgram = TerminalProgram.Shell,
-        val directory: String? = null,
-        val claudeSessionId: String? = null,
-    ) : PaneNode
+    /** 나뉜 칸 하나. 자기 탭 줄을 가진다. [tabs] 는 비지 않는다 — 마지막 탭이 닫히면 그룹이 사라진다. */
+    data class Group(
+        val id: Long,
+        val tabs: List<TerminalTab>,
+        val selectedTabId: Long,
+    ) : PaneNode {
+        val selectedTab: TerminalTab
+            get() = tabs.firstOrNull { it.id == selectedTabId } ?: tabs.first()
+    }
 
     /** [ratio] 는 [first] 가 차지하는 몫이다. */
     data class Split(
@@ -32,44 +51,42 @@ sealed interface PaneNode {
     ) : PaneNode
 }
 
-/** 화면 순서(왼쪽→오른쪽, 위→아래)대로의 창. */
-val PaneNode.leaves: List<PaneNode.Leaf>
+/** 화면 순서(왼쪽→오른쪽, 위→아래)대로의 그룹. */
+val PaneNode.groups: List<PaneNode.Group>
     get() = when (this) {
-        is PaneNode.Leaf -> listOf(this)
-        is PaneNode.Split -> first.leaves + second.leaves
+        is PaneNode.Group -> listOf(this)
+        is PaneNode.Split -> first.groups + second.groups
     }
 
-val PaneNode.paneIds: List<Long>
-    get() = leaves.map { it.paneId }
+val PaneNode.tabs: List<TerminalTab>
+    get() = groups.flatMap { it.tabs }
 
-data class TerminalTab(
-    val id: Long,
-    val root: PaneNode,
-    val focusedPaneId: Long,
-)
-
-/** 왼쪽 목록의 한 줄. 탭은 만든 패널에 속하고 다른 패널로 옮겨 가지 않는다. */
+/** 왼쪽 목록의 한 줄. [root] 가 null 이면 그룹이 없는 빈 패널이다. 탭은 만든 패널에 속하고 다른 패널로 옮겨 가지 않는다. */
 data class TerminalPanel(
     val id: Long,
     val name: String,
-    val tabs: List<TerminalTab>,
-    val selectedTabId: Long?,
+    val root: PaneNode?,
+    val focusedGroupId: Long?,
 ) {
-    val selectedTab: TerminalTab?
-        get() = tabs.firstOrNull { it.id == selectedTabId }
+    val groups: List<PaneNode.Group>
+        get() = root?.groups.orEmpty()
 
-    val leaves: List<PaneNode.Leaf>
-        get() = tabs.flatMap { it.root.leaves }
+    val tabs: List<TerminalTab>
+        get() = groups.flatMap { it.tabs }
+
+    /** 저장된 포커스가 사라진 그룹을 가리키면 첫 그룹이다. */
+    val focusedGroup: PaneNode.Group?
+        get() = groups.firstOrNull { it.id == focusedGroupId } ?: groups.firstOrNull()
 }
 
 /**
- * 패널·탭·분할 트리. 셸은 들고 있지 않다 — 화면이 이 값의 창 id 와 자기가 띄운 셸을 맞춘다.
+ * 패널·그룹·탭 배치. 셸은 들고 있지 않다 — 화면이 이 값의 탭 id 와 자기가 띄운 셸을 맞춘다.
  *
- * 탭 단위 동작(분할, 탭 추가·선택, 포커스 이동)은 선택된 패널에 작용한다. 창·탭 id 로 가리키는
- * 동작(닫기, 포커스)은 그 id 가 있는 패널에 작용한다.
+ * 그룹 단위 동작(분할, 탭 추가, 포커스 이동)은 선택된 패널의 포커스된 그룹에 작용한다. 탭·그룹 id 로
+ * 가리키는 동작(닫기, 선택, 포커스, 끌어 놓기)은 그 id 가 있는 패널에 작용한다.
  *
- * 패널·탭·분할·창 id 는 모두 [nextId] 하나에서 나온다. 닫힌 창의 id 를 다시 쓰지 않아야 화면이
- * 새 창을 닫힌 창의 셸에 잇는 일이 없다. 저장했다가 다시 읽어도 [nextId] 가 함께 오므로 그대로다.
+ * 패널·그룹·분할·탭 id 는 모두 [nextId] 하나에서 나온다. 닫힌 탭의 id 를 다시 쓰지 않아야 화면이
+ * 새 탭을 닫힌 탭의 셸에 잇는 일이 없다. 저장했다가 다시 읽어도 [nextId] 가 함께 오므로 그대로다.
  */
 data class TerminalWorkspace(
     val panels: List<TerminalPanel>,
@@ -79,38 +96,37 @@ data class TerminalWorkspace(
     val selectedPanel: TerminalPanel?
         get() = panels.firstOrNull { it.id == selectedPanelId }
 
+    /** 선택된 패널의 그룹. 화면 순서다. */
+    val groups: List<PaneNode.Group>
+        get() = selectedPanel?.groups.orEmpty()
+
+    val focusedGroup: PaneNode.Group?
+        get() = selectedPanel?.focusedGroup
+
+    val focusedTab: TerminalTab?
+        get() = focusedGroup?.selectedTab
+
+    /** 선택된 패널에서 지금 보이는 탭. 그룹마다 선택된 탭 하나다. */
+    val visibleTabs: List<TerminalTab>
+        get() = groups.map { it.selectedTab }
+
+    /** 모든 패널의 탭. */
     val tabs: List<TerminalTab>
-        get() = selectedPanel?.tabs.orEmpty()
+        get() = panels.flatMap { it.tabs }
 
-    val selectedTabId: Long?
-        get() = selectedPanel?.selectedTabId
+    val tabIds: List<Long>
+        get() = tabs.map { it.id }
 
-    val selectedTab: TerminalTab?
-        get() = selectedPanel?.selectedTab
-
-    val focusedPaneId: Long?
-        get() = selectedTab?.focusedPaneId
-
-    val focusedLeaf: PaneNode.Leaf?
-        get() = selectedTab?.let { tab -> tab.root.leaves.firstOrNull { it.paneId == tab.focusedPaneId } }
-
-    /** 모든 패널의 창. */
-    val leaves: List<PaneNode.Leaf>
-        get() = panels.flatMap { it.leaves }
-
-    val paneIds: List<Long>
-        get() = leaves.map { it.paneId }
-
-    /** 터미널 탭 하나를 가진 "패널 N" 을 끝에 붙이고 고른다. */
+    /** 셸 탭 하나짜리 그룹을 가진 "패널 N" 을 끝에 붙이고 고른다. */
     fun addPanel(directory: String? = null): TerminalWorkspace {
         val panelId = nextId
-        val tabId = nextId + 1
-        val paneId = nextId + 2
+        val groupId = nextId + 1
+        val tabId = nextId + 2
         val panel = TerminalPanel(
             id = panelId,
             name = "$DefaultPanelName ${panels.size + 1}",
-            tabs = listOf(TerminalTab(tabId, PaneNode.Leaf(paneId, directory = directory), paneId)),
-            selectedTabId = tabId,
+            root = PaneNode.Group(groupId, listOf(TerminalTab(tabId, directory = directory)), tabId),
+            focusedGroupId = groupId,
         )
 
         return copy(panels = panels + panel, selectedPanelId = panelId, nextId = nextId + 3)
@@ -142,133 +158,177 @@ data class TerminalWorkspace(
     fun selectPanel(panelId: Long): TerminalWorkspace =
         if (panels.any { it.id == panelId }) copy(selectedPanelId = panelId) else this
 
-    /** 선택된 패널의 탭 줄 끝에 창 하나짜리 탭을 붙이고 고른다. */
+    /**
+     * [groupId] 그룹(null 이면 선택된 패널의 포커스된 그룹)의 탭 줄 끝에 탭을 붙이고 고른다. 그 그룹이
+     * 포커스를 받는다. 패널에 그룹이 없으면 그룹을 하나 만들어 넣는다.
+     */
     fun addTab(
+        groupId: Long? = null,
         program: TerminalProgram = TerminalProgram.Shell,
         directory: String? = null,
         claudeSessionId: String? = null,
     ): TerminalWorkspace {
-        val panel = selectedPanel ?: return this
+        val panel = (if (groupId == null) selectedPanel else findPanel { panel -> panel.groups.any { it.id == groupId } })
+            ?: return this
+        val group = if (groupId == null) panel.focusedGroup else panel.groups.first { it.id == groupId }
         val tabId = nextId
-        val paneId = nextId + 1
-        val leaf = PaneNode.Leaf(paneId, program, directory, claudeSessionId)
+        val tab = TerminalTab(tabId, program, directory, claudeSessionId)
 
-        return replacePanel(panel.id) {
-            it.copy(tabs = it.tabs + TerminalTab(tabId, leaf, paneId), selectedTabId = tabId)
-        }.copy(nextId = nextId + 2)
-    }
+        if (group == null) {
+            val newGroupId = nextId + 1
 
-    /** 새 창은 터미널이다. Claude 는 새 탭 메뉴로만 뜬다. */
-    fun split(direction: SplitDirection, directory: String? = null): TerminalWorkspace {
-        val tab = selectedTab ?: return this
-        val splitId = nextId
-        val paneId = nextId + 1
-
-        val root = tab.root.replaceLeaf(tab.focusedPaneId) { leaf ->
-            PaneNode.Split(
-                id = splitId,
-                direction = direction,
-                first = leaf,
-                second = PaneNode.Leaf(paneId, directory = directory),
-            )
+            return replacePanel(panel.id) { it.copy(root = PaneNode.Group(newGroupId, listOf(tab), tabId), focusedGroupId = newGroupId) }
+                .copy(nextId = nextId + 2)
         }
 
-        return replaceTab(tab.copy(root = root, focusedPaneId = paneId)).copy(nextId = nextId + 2)
+        return replaceGroup(group.id) { it.copy(tabs = it.tabs + tab, selectedTabId = tabId) }
+            .focusGroup(group.id)
+            .copy(nextId = nextId + 1)
+    }
+
+    /** 포커스된 그룹을 나눠 셸 탭 하나짜리 새 그룹을 오른쪽·아래에 두고 포커스한다. Claude 는 새 탭 메뉴로만 뜬다. */
+    fun split(direction: SplitDirection, directory: String? = null): TerminalWorkspace {
+        val group = focusedGroup ?: return this
+        val splitId = nextId
+        val groupId = nextId + 1
+        val tabId = nextId + 2
+        val added = PaneNode.Group(groupId, listOf(TerminalTab(tabId, directory = directory)), tabId)
+
+        return replaceGroup(group.id) { PaneNode.Split(splitId, direction, first = it, second = added) }
+            .focusGroup(groupId)
+            .copy(nextId = nextId + 3)
     }
 
     /**
-     * 형제가 부모 자리를 채운다. 닫힌 창이 포커스를 갖고 있었으면 형제 쪽에서 닫힌 자리와 맞닿은
-     * 창이 포커스를 받는다. 탭의 마지막 창이면 탭이 닫힌다.
+     * 선택된 탭이 닫히면 그 자리에 오는 탭(없으면 앞 탭)이 선택된다. 그룹의 마지막 탭이면 그룹이 사라지고
+     * 형제가 부모 자리를 채우며, 사라진 그룹이 포커스를 갖고 있었으면 닫힌 자리와 맞닿은 그룹이 포커스를
+     * 받는다. 패널의 마지막 그룹이면 패널이 빈 채로 남는다.
      */
-    fun closePane(paneId: Long): TerminalWorkspace {
-        val tab = findTab { paneId in it.root.paneIds } ?: return this
-        val removal = tab.root.remove(paneId) ?: return closeTab(tab.id)
-
-        val focused = if (tab.focusedPaneId == paneId) removal.neighbor else tab.focusedPaneId
-
-        return replaceTab(tab.copy(root = removal.root, focusedPaneId = focused))
-    }
-
-    /** 선택된 탭이 닫히면 그 자리에 오는 탭(없으면 앞 탭)이 선택된다. 마지막 탭이면 패널이 빈 채로 남는다. */
     fun closeTab(tabId: Long): TerminalWorkspace {
-        val panel = panels.firstOrNull { panel -> panel.tabs.any { it.id == tabId } } ?: return this
-        val index = panel.tabs.indexOfFirst { it.id == tabId }
+        val group = findGroup { group -> group.tabs.any { it.id == tabId } } ?: return this
+        if (group.tabs.size == 1) return removeGroup(group.id)
 
-        val remaining = panel.tabs.filterIndexed { i, _ -> i != index }
-        val selected = when {
-            panel.selectedTabId != tabId -> panel.selectedTabId
-            remaining.isEmpty() -> null
-            else -> remaining[index.coerceAtMost(remaining.lastIndex)].id
-        }
+        val index = group.tabs.indexOfFirst { it.id == tabId }
+        val remaining = group.tabs.filterIndexed { i, _ -> i != index }
+        val selected = if (group.selectedTabId != tabId) group.selectedTabId else remaining[index.coerceAtMost(remaining.lastIndex)].id
 
-        return replacePanel(panel.id) { it.copy(tabs = remaining, selectedTabId = selected) }
+        return replaceGroup(group.id) { it.copy(tabs = remaining, selectedTabId = selected) }
     }
 
-    /** 다른 패널의 탭이면 그 패널도 함께 고른다. */
+    fun closeFocusedTab(): TerminalWorkspace = focusedTab?.let { closeTab(it.id) } ?: this
+
+    /** 탭을 자기 그룹에서 고르고 그 그룹과 패널에 포커스·선택을 준다. */
     fun selectTab(tabId: Long): TerminalWorkspace {
-        val panel = panels.firstOrNull { panel -> panel.tabs.any { it.id == tabId } } ?: return this
+        val group = findGroup { group -> group.tabs.any { it.id == tabId } } ?: return this
 
-        return replacePanel(panel.id) { it.copy(selectedTabId = tabId) }.copy(selectedPanelId = panel.id)
+        return replaceGroup(group.id) { it.copy(selectedTabId = tabId) }.focusGroup(group.id)
     }
 
+    /** 포커스된 그룹 안에서 [index] 번째 탭. */
     fun selectTabAt(index: Int): TerminalWorkspace =
-        tabs.getOrNull(index)?.let { selectTab(it.id) } ?: this
+        focusedGroup?.tabs?.getOrNull(index)?.let { selectTab(it.id) } ?: this
 
-    /** 끝에서 넘어가면 반대쪽 끝으로 돈다. */
+    /** 포커스된 그룹 안에서. 끝에서 넘어가면 반대쪽 끝으로 돈다. */
     fun selectAdjacentTab(offset: Int): TerminalWorkspace {
-        val index = tabs.indexOfFirst { it.id == selectedTabId }
-        if (index < 0) return this
+        val group = focusedGroup ?: return this
+        val index = group.tabs.indexOfFirst { it.id == group.selectedTabId }
 
-        return selectTabAt((index + offset).mod(tabs.size))
+        return selectTabAt((index + offset).mod(group.tabs.size))
     }
 
-    /** 다른 탭·패널의 창이면 그 탭과 패널도 함께 고른다. */
-    fun focusPane(paneId: Long): TerminalWorkspace {
-        val tab = findTab { paneId in it.root.paneIds } ?: return this
+    /** 다른 패널의 그룹이면 그 패널도 함께 고른다. */
+    fun focusGroup(groupId: Long): TerminalWorkspace {
+        val panel = findPanel { panel -> panel.groups.any { it.id == groupId } } ?: return this
 
-        return replaceTab(tab.copy(focusedPaneId = paneId)).selectTab(tab.id)
+        return replacePanel(panel.id) { it.copy(focusedGroupId = groupId) }.copy(selectedPanelId = panel.id)
     }
 
-    fun focusAdjacentPane(offset: Int): TerminalWorkspace {
-        val tab = selectedTab ?: return this
-        val ids = tab.root.paneIds
-        val index = ids.indexOf(tab.focusedPaneId)
+    /** 선택된 패널의 화면 순서로. 끝에서 넘어가면 반대쪽 끝으로 돈다. */
+    fun focusAdjacentGroup(offset: Int): TerminalWorkspace {
+        val focused = focusedGroup ?: return this
+        val index = groups.indexOfFirst { it.id == focused.id }
 
-        return focusPane(ids[(index + offset).mod(ids.size)])
+        return focusGroup(groups[(index + offset).mod(groups.size)].id)
+    }
+
+    /**
+     * [tabId] 탭을 [groupId] 그룹의 [edge] 에 놓는다. 변이면 그 그룹이 나뉘어 그 탭 하나짜리 새 그룹이 그
+     * 변 쪽에 생기고, [DockEdge.Center] 면 그 그룹의 탭 줄 끝에 들어간다. 탭은 원래 그룹에서 빠지고 그
+     * 그룹이 비면 사라진다. 놓아도 배치가 같은 자리(자기 그룹의 가운데, 탭 하나뿐인 자기 그룹의 변)와
+     * 모르는 id 는 그대로다. 탭이 사라지지 않으므로 세션은 하나도 닫히지 않는다.
+     */
+    fun dockTab(tabId: Long, groupId: Long, edge: DockEdge): TerminalWorkspace {
+        val source = findGroup { group -> group.tabs.any { it.id == tabId } } ?: return this
+        val target = findGroup { it.id == groupId } ?: return this
+        if (source.id == target.id && (edge == DockEdge.Center || source.tabs.size == 1)) return this
+
+        val tab = source.tabs.first { it.id == tabId }
+        val detached = closeTab(tabId)
+        val direction = edge.splitDirection
+            ?: return detached.replaceGroup(target.id) { it.copy(tabs = it.tabs + tab, selectedTabId = tabId) }.focusGroup(target.id)
+
+        val splitId = nextId
+        val newGroupId = nextId + 1
+        val added = PaneNode.Group(newGroupId, listOf(tab), tabId)
+
+        return detached
+            .replaceGroup(target.id) { group ->
+                PaneNode.Split(
+                    id = splitId,
+                    direction = direction,
+                    first = if (edge.placesFirst) added else group,
+                    second = if (edge.placesFirst) group else added,
+                )
+            }
+            .focusGroup(newGroupId)
+            .copy(nextId = nextId + 2)
     }
 
     fun setRatio(splitId: Long, ratio: Float): TerminalWorkspace {
-        val tab = findTab { it.root.findSplit(splitId) != null } ?: return this
+        val panel = findPanel { it.root?.findSplit(splitId) != null } ?: return this
 
-        return replaceTab(tab.copy(root = tab.root.withRatio(splitId, ratio.coerceIn(MinRatio, MaxRatio))))
+        return replacePanel(panel.id) { it.copy(root = it.root?.withRatio(splitId, ratio.coerceIn(MinRatio, MaxRatio))) }
     }
 
     /** 경계선을 끄는 동안 한 프레임에 여러 번 불린다. 매번 지금 값에 더해야 움직임을 잃지 않는다. */
     fun resizeSplit(splitId: Long, delta: Float): TerminalWorkspace {
-        val split = panels.firstNotNullOfOrNull { panel -> panel.tabs.firstNotNullOfOrNull { it.root.findSplit(splitId) } }
-            ?: return this
+        val split = panels.firstNotNullOfOrNull { it.root?.findSplit(splitId) } ?: return this
 
         return setRatio(splitId, split.ratio + delta)
     }
 
-    fun setDirectory(paneId: Long, directory: String): TerminalWorkspace {
-        val tab = findTab { paneId in it.root.paneIds } ?: return this
+    fun setDirectory(tabId: Long, directory: String): TerminalWorkspace {
+        val group = findGroup { group -> group.tabs.any { it.id == tabId } } ?: return this
 
-        return replaceTab(tab.copy(root = tab.root.replaceLeaf(paneId) { it.copy(directory = directory) }))
+        return replaceGroup(group.id) { it.copy(tabs = it.tabs.map { tab -> if (tab.id == tabId) tab.copy(directory = directory) else tab }) }
     }
 
-    private fun findTab(predicate: (TerminalTab) -> Boolean): TerminalTab? =
-        panels.firstNotNullOfOrNull { panel -> panel.tabs.firstOrNull(predicate) }
+    /**
+     * 형제가 부모 자리를 채운다. 사라진 그룹이 포커스를 갖고 있었으면 형제 쪽에서 닫힌 자리와 맞닿은
+     * 그룹이 포커스를 받는다. 패널의 마지막 그룹이면 패널이 빈다.
+     */
+    private fun removeGroup(groupId: Long): TerminalWorkspace {
+        val panel = findPanel { panel -> panel.groups.any { it.id == groupId } } ?: return this
+        val root = panel.root ?: return this
+
+        if (root is PaneNode.Group) return replacePanel(panel.id) { it.copy(root = null, focusedGroupId = null) }
+
+        val removal = root.remove(groupId) ?: return this
+        val focused = if (panel.focusedGroupId == groupId) removal.neighbor else panel.focusedGroupId
+
+        return replacePanel(panel.id) { it.copy(root = removal.root, focusedGroupId = focused) }
+    }
+
+    private fun findPanel(predicate: (TerminalPanel) -> Boolean): TerminalPanel? = panels.firstOrNull(predicate)
+
+    private fun findGroup(predicate: (PaneNode.Group) -> Boolean): PaneNode.Group? =
+        panels.firstNotNullOfOrNull { panel -> panel.groups.firstOrNull(predicate) }
 
     private fun replacePanel(panelId: Long, transform: (TerminalPanel) -> TerminalPanel): TerminalWorkspace =
         copy(panels = panels.map { if (it.id == panelId) transform(it) else it })
 
-    private fun replaceTab(tab: TerminalTab): TerminalWorkspace =
-        copy(
-            panels = panels.map { panel ->
-                if (panel.tabs.none { it.id == tab.id }) panel else panel.copy(tabs = panel.tabs.map { if (it.id == tab.id) tab else it })
-            },
-        )
+    private fun replaceGroup(groupId: Long, transform: (PaneNode.Group) -> PaneNode): TerminalWorkspace =
+        copy(panels = panels.map { panel -> panel.copy(root = panel.root?.replaceGroup(groupId, transform)) })
 
     companion object {
         const val MinRatio = 0.1f
@@ -276,47 +336,50 @@ data class TerminalWorkspace(
 
         const val DefaultPanelName = "패널"
 
-        /** 처음 켰을 때. 패널 하나, 탭 하나, 창 하나. */
+        /** 처음 켰을 때. 패널 하나, 그룹 하나, 셸 탭 하나. */
         fun initial(): TerminalWorkspace =
             TerminalWorkspace(panels = emptyList(), selectedPanelId = null, nextId = 1).addPanel()
     }
 }
 
-private fun PaneNode.replaceLeaf(paneId: Long, transform: (PaneNode.Leaf) -> PaneNode): PaneNode =
+private fun PaneNode.replaceGroup(groupId: Long, transform: (PaneNode.Group) -> PaneNode): PaneNode =
     when (this) {
-        is PaneNode.Leaf -> if (this.paneId == paneId) transform(this) else this
+        is PaneNode.Group -> if (id == groupId) transform(this) else this
         is PaneNode.Split -> copy(
-            first = first.replaceLeaf(paneId, transform),
-            second = second.replaceLeaf(paneId, transform),
+            first = first.replaceGroup(groupId, transform),
+            second = second.replaceGroup(groupId, transform),
         )
     }
 
 private class Removal(val root: PaneNode, val neighbor: Long)
 
-private fun PaneNode.isLeaf(paneId: Long): Boolean = this is PaneNode.Leaf && this.paneId == paneId
+private fun PaneNode.isGroup(groupId: Long): Boolean = this is PaneNode.Group && id == groupId
 
-// 첫째 자식이 빠지면 둘째의 맨 앞 창이, 둘째가 빠지면 첫째의 맨 뒤 창이 닫힌 자리와 맞닿아 있다.
-private fun PaneNode.remove(paneId: Long): Removal? =
+private val PaneNode.groupIds: List<Long>
+    get() = groups.map { it.id }
+
+// 첫째 자식이 빠지면 둘째의 맨 앞 그룹이, 둘째가 빠지면 첫째의 맨 뒤 그룹이 닫힌 자리와 맞닿아 있다.
+private fun PaneNode.remove(groupId: Long): Removal? =
     when (this) {
-        is PaneNode.Leaf -> null
+        is PaneNode.Group -> null
 
         is PaneNode.Split -> when {
-            first.isLeaf(paneId) -> Removal(second, second.paneIds.first())
-            second.isLeaf(paneId) -> Removal(first, first.paneIds.last())
-            paneId in first.paneIds -> first.remove(paneId)?.let { Removal(copy(first = it.root), it.neighbor) }
-            else -> second.remove(paneId)?.let { Removal(copy(second = it.root), it.neighbor) }
+            first.isGroup(groupId) -> Removal(second, second.groupIds.first())
+            second.isGroup(groupId) -> Removal(first, first.groupIds.last())
+            groupId in first.groupIds -> first.remove(groupId)?.let { Removal(copy(first = it.root), it.neighbor) }
+            else -> second.remove(groupId)?.let { Removal(copy(second = it.root), it.neighbor) }
         }
     }
 
 private fun PaneNode.findSplit(splitId: Long): PaneNode.Split? =
     when (this) {
-        is PaneNode.Leaf -> null
+        is PaneNode.Group -> null
         is PaneNode.Split -> if (id == splitId) this else first.findSplit(splitId) ?: second.findSplit(splitId)
     }
 
 private fun PaneNode.withRatio(splitId: Long, ratio: Float): PaneNode =
     when (this) {
-        is PaneNode.Leaf -> this
+        is PaneNode.Group -> this
         is PaneNode.Split -> if (id == splitId) {
             copy(ratio = ratio)
         } else {

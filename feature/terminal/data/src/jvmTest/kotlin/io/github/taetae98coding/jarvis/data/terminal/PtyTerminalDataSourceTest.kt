@@ -1,6 +1,6 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
-import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
 import kotlinx.coroutines.async
@@ -27,7 +27,7 @@ class PtyTerminalDataSourceTest {
         launch = { pane -> PtyLaunch(listOf("/bin/sh"), pane.directory ?: home, tracksDirectory = true) },
     )
 
-    private val shell = PaneNode.Leaf(1)
+    private val shell = TerminalTab(1)
 
     private suspend fun TerminalSession.collectUntilExit(): String =
         output.fold("") { acc, bytes -> acc + bytes.decodeToString() }

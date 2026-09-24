@@ -56,10 +56,6 @@ object JarvisIcons {
         )
     }
 
-    val SplitSideBySide: ImageVector by lazy { outline("SplitSideBySide", "$Frame M12 3v18") }
-
-    val SplitStacked: ImageVector by lazy { outline("SplitStacked", "$Frame M3 12h18") }
-
     val Sun: ImageVector by lazy {
         outline(
             "Sun",
@@ -81,12 +77,9 @@ object JarvisIcons {
     internal val all: List<ImageVector>
         get() = listOf(
             Add, Back, ChevronRight, Claude, Close, Edit, Eye, Monitor, Play, RotateLeft, RotateRight,
-            Smartphone, SplitSideBySide, SplitStacked, Sun, Terminal, Wifi,
+            Smartphone, Sun, Terminal, Wifi,
         )
 }
-
-// 분할 아이콘 둘이 공유하는 창 테두리.
-private const val Frame = "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
 
 private fun outline(name: String, pathData: String): ImageVector =
     ImageVector.Builder(

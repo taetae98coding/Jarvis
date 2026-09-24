@@ -14,11 +14,11 @@ data class TerminalWorkspaceChange(
     val before: TerminalWorkspace,
     val after: TerminalWorkspace,
 ) {
-    /** 이번 변경으로 작업 공간에서 사라진 창. */
-    val removedLeaves: List<PaneNode.Leaf>
+    /** 이번 변경으로 작업 공간에서 사라진 탭. 다른 그룹으로 옮겨진 탭은 남아 있으므로 여기 들지 않는다. */
+    val removedTabs: List<TerminalTab>
         get() {
-            val remaining = after.paneIds.toSet()
+            val remaining = after.tabIds.toSet()
 
-            return before.leaves.filter { it.paneId !in remaining }
+            return before.tabs.filter { it.id !in remaining }
         }
 }

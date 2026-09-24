@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>탭 끌어 놓기 분할 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>탭 끌어 놓기 분할</span></nav>
+
+<header>
+  <h1>탭 끌어 놓기 분할</h1>
+  <p class="lead">터미널 상단 막대의 동작 버튼을 없애고, 새 탭은 탭 줄 끝의 + 로 그 패널에 붙인다. 창을 좌우·상하로 나누는 것은 탭을 끌어다 보이는 창의 어느 변에 놓느냐로 정한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>terminal에서 actions에 버튼 다 제거해줘.<br>
+  그리고 패널에서 탭 옆에 + 버튼을 둬서 해당 패널에 탭을 추가하겠다는 느낌의 UI/UX를 구성해줘.<br>
+  그리고 상하/좌우 탭 구분은 탭을 dragAndDrop 방식으로 지정할 수 있도록 해줘.</p>
+  <footer>2026-09-24 대화. "actions" 는 <a href="terminal.html">터미널</a> 상단 <code>JarvisTopBar</code> 의 오른쪽 동작 버튼 줄(좌우 분할 · 상하 분할 · 새 탭 · 닫기)로 읽었다. "탭 옆에 + 버튼" 은 탭 줄에서 마지막 탭 바로 오른쪽에 붙는 버튼으로 읽었다. "상하/좌우 탭 구분을 dragAndDrop 으로" 는 탭을 끌어다 지금 보이는 창 위에 놓으면 그 창이 나뉘고 끌어온 탭이 그 자리에 들어가는 것, 놓은 변(왼쪽·오른쪽·위·아래)이 좌우·상하를 정하는 것으로 읽었다. VS Code 가 편집기 탭을 다른 그룹 영역의 가장자리에 놓는 방식이다.</footer>
+</blockquote>
+
+<p>이 지시로 <a href="terminal.html#requirements">터미널</a> R5·R6·R7·R10 의 버튼과 <a href="terminal-claude.html#requirements">Claude 실행</a> R1 의 + 자리가 바뀌었다. 두 문서는 그 자리에 이 문서를 가리킨다. 단축키는 지시에 없어 그대로 둔다.</p>
+
+<p>뒤따른 <a href="terminal-tab-groups.html">분할 그룹</a> 지시로 놓는 대상이 창에서 그룹으로, 옮겨지는 것이 탭의 분할 트리에서 탭 하나로 바뀌었고 가운데 영역(그 그룹에 넣기)이 생겼다. 아래 R4–R9 는 그에 맞춰 고쳤고, 충돌하면 그 문서의 R7–R9 가 우선한다. + 버튼(R2·R3)은 그룹마다 하나다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<h3>상단 막대와 새 탭</h3>
+<ol>
+  <li><strong>R1.</strong> 터미널 상단 막대에는 뒤로 버튼과 제목 "터미널" 만 있다. 좌우 분할·상하 분할·새 탭·닫기 아이콘 버튼이 없다.</li>
+  <li><strong>R2.</strong> 그룹의 탭 줄에서 마지막 탭 바로 오른쪽에 새 탭(+) 버튼이 있다. 누르면 <strong>그 그룹</strong>의 탭 줄 끝에 탭이 붙고 선택된다(<a href="terminal-tab-groups.html#requirements">분할 그룹 R2</a>). Claude 를 실행할 수 있는 타깃에서는 <a href="terminal-claude.html#requirements">Claude 실행 R1</a> 의 "터미널 / Claude (YOLO)" 메뉴가 이 버튼 아래로 뜨고, 아니면 곧바로 셸 탭이 열린다(R6). 패널에 그룹이 하나도 없어도 + 버튼은 남는다.</li>
+  <li><strong>R3.</strong> 새 탭은 그 그룹 안에서 열린다. 다른 패널을 골라도 그 패널의 그룹마다 + 가 있고, 누르면 그 그룹에 붙는다. 탭은 만든 패널을 벗어나지 않는다(<a href="terminal-panels.html#requirements">패널 R5</a>).</li>
+</ol>
+
+<h3>탭 끌어 놓기</h3>
+<ol start="4">
+  <li><strong>R4.</strong> 탭 줄의 탭을 끌어서 어떤 그룹의 변에 놓으면 그 그룹이 나뉘고, 끌어온 탭 하나짜리 새 그룹이 놓은 변 쪽에 생긴다(<a href="terminal-tab-groups.html#requirements">분할 그룹 R7</a>). 왼쪽·오른쪽 변은 좌우 분할(<code>SideBySide</code>), 위·아래 변은 상하 분할(<code>Stacked</code>)이다. 왼쪽·위에 놓으면 새 그룹이 앞(<code>first</code>), 오른쪽·아래에 놓으면 뒤(<code>second</code>)다. 비율은 0.5 다. 가운데에 놓으면 나누지 않고 그 그룹의 탭 줄 끝에 들어간다.</li>
+  <li><strong>R5.</strong> 끌어온 탭은 원래 그룹에서 빠진다. 그 그룹이 비면 사라지고 형제가 자리를 채운다. 옮겨진 탭의 셸·Claude 세션은 끊기지 않고 화면과 스크롤백이 그대로다.</li>
+  <li><strong>R6.</strong> 놓은 뒤 끌어온 탭이 선택되고, 놓인 그룹(변이면 새 그룹, 가운데면 그 그룹)이 포커스를 받는다.</li>
+  <li><strong>R7.</strong> 놓을 자리는 그룹 영역의 네 변에서 안쪽으로 25% 띠가 각각 그 변이고, 그 안쪽이 가운데다. 띠가 겹치는 모서리는 더 가까운 변이다(<a href="terminal-tab-groups.html#requirements">분할 그룹 R9</a>).</li>
+  <li><strong>R8.</strong> 끄는 동안 포인터를 따라 끌던 탭의 이름이 적힌 칩이 움직인다. 포인터가 그룹 위에 있으면 놓일 자리가 강조색으로 덮여 결과가 미리 보인다 — 변이면 그 절반, 가운데면 그룹 전체. 그룹 밖이면 강조가 없다.</li>
+  <li><strong>R9.</strong> 그룹 밖에 놓거나, 자기 그룹의 가운데에 놓거나, 탭이 하나뿐인 그룹의 탭을 자기 그룹의 변에 놓으면 아무 일도 일어나지 않는다(결과가 지금과 같다). 그런 자리에서는 강조도 없다. 탭이 둘 이상인 그룹의 탭을 자기 그룹의 변에 놓으면 그 탭이 새 그룹으로 떨어져 나간다.</li>
+  <li><strong>R10.</strong> 마우스는 탭을 누른 채 터치 슬롭만큼 움직이면 끌기가 시작된다. 터치는 탭을 길게 누른 뒤 움직여야 시작된다 — 그냥 옆으로 밀면 탭 줄이 스크롤된다. 끌기가 시작되지 않고 뗀 것은 탭 선택(누름)이다.</li>
+  <li><strong>R11.</strong> 놓아서 바뀐 배치는 다른 변경과 같이 저장된다(<a href="terminal-panels.html#requirements">패널 R9</a>).</li>
+  <li><strong>R12.</strong> ⌘D(좌우 분할) · ⌘⇧D(상하 분할) · ⌘T(새 탭) · ⌘W(포커스된 창 닫기)와 나머지 단축키(<a href="terminal.html#requirements">터미널 R12</a>)는 그대로다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>탭 순서 바꾸기(탭 줄 안에서 끌어 놓기), 탭을 다른 패널로 옮기기(패널 목록에 놓기), 창 하나만 떼어 다른 탭으로 옮기기. 지시는 "상하/좌우 탭 구분" 이다.</li>
+    <li>창을 창 위에 놓아 자리를 바꾸기. 놓는 것은 탭이고, 놓이는 것은 창이다.</li>
+    <li>새 창을 여는 다른 진입점(빈 창 위의 + 등). 빈 패널은 <a href="terminal-panels.html#requirements">패널 R7</a> 의 안내 글과 탭 줄의 + 로 충분하다.</li>
+    <li>가운데 영역에 놓았을 때의 별도 동작. VS Code 의 가운데는 "그 그룹으로 옮기기" 인데 이 앱에는 그룹이 없다. 네 삼각형이 창 전체를 덮는다(R7).</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌ ← 터미널 ────────────────────────────────────────────────────┐
+│ ┌ 패널 목록 ──┐ ┌ 탭 줄 ─────────────────────────────────────┐ │
+│ │▌패널 1  ✎ ✕│ │ [셸 1 ✕] [Claude ✕] [+]                     │ │
+│ │ 백엔드  ✎ ✕│ ├────────────────────────────────────────────┤ │
+│ │            │ │                    ╲  위  ╱                 │ │
+│ │ [+ 새 패널]│ │            왼쪽      ╳      오른쪽 ▒▒▒▒▒▒▒▒ │ │  ← "Claude" 탭을 오른쪽 변으로
+│ │            │ │                    ╱ 아래 ╲        ▒▒▒▒▒▒▒▒ │ │     끌고 있다. 오른쪽 절반이 강조된다
+│ └────────────┘ └────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>상단 막대</td><td><code>JarvisTopBar(title = "터미널", onBack)</code>. <code>actions</code> 는 비어 있다</td></tr>
+    <tr><td>새 탭 버튼</td><td>탭 줄에서 탭들 다음, 같은 줄에 <code>Add</code> 아이콘(small). 탭과 같은 높이·모서리(<code>TerminalTabDefaults.style</code> 의 surfaceVariant 배경, hover·눌림 한 단계 진하게). contentDescription "새 탭". 메뉴는 <a href="terminal-claude.html#behavior">Claude 실행</a>과 같은 <code>DropdownMenu</code></td></tr>
+    <tr><td>끌기 칩</td><td>포인터 위치에서 오른쪽 아래로 조금 떨어져 따라오는 둥근 칩. 끌던 탭의 이름, primaryContainer 배경, 투명도 <code>TerminalTabDragDefaults.GhostAlpha</code>(0.85). 포인터 이벤트를 받지 않는다</td></tr>
+    <tr><td>놓일 자리 미리 보기</td><td>대상 그룹 위에 그 절반(변) 또는 전체(가운데) 크기의 상자. primary 색을 <code>TerminalTabDragDefaults.PreviewAlpha</code>(0.25)로 채우고 primary 1dp 테두리. 대상 그룹이나 자리가 바뀌면 상자가 바뀐다</td></tr>
+    <tr><td>끌 수 있는 것</td><td>모든 그룹의 모든 탭(선택된 탭 포함). 놓을 수 없는 자리(R9)에서는 강조가 뜨지 않고 놓아도 아무 일이 없다</td></tr>
+    <tr><td>빈 패널</td><td>탭 줄 자리에 + 만 있다. 안내 글은 <a href="terminal-panels.html#behavior">패널</a>과 같다</td></tr>
+    <tr><td>테스트 태그</td><td>
+      <code>terminal:new-tab:&lt;groupId&gt;</code>(그룹의 + 버튼), <code>terminal:new-tab:none</code>(빈 패널의 +), <code>terminal:new-tab-menu:shell</code>, <code>terminal:new-tab-menu:claude</code>,
+      <code>terminal:drag-ghost</code>(끌기 칩), <code>terminal:drop-preview:&lt;groupId&gt;</code>(미리 보기 상자).
+      없어진 태그: <code>terminal:split-side</code>, <code>terminal:split-stacked</code>, <code>terminal:close</code>
+    </td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인</dt><dd>
+    <code>enum class DockEdge { Left, Right, Top, Bottom, Center }</code> — <code>splitDirection</code>(Left·Right → <code>SideBySide</code>, Top·Bottom → <code>Stacked</code>, Center → null), <code>placesFirst</code>(Left·Top).<br>
+    <code>TerminalWorkspace.dockTab(tabId, groupId, edge)</code> — 탭을 원래 그룹에서 빼고(비면 그룹을 지운다), 변이면 대상 그룹을 <code>Split(direction, first, second)</code> 로 바꿔 한쪽에 그 탭 하나짜리 새 <code>Group</code> 을 넣고, 가운데면 대상 그룹의 <code>tabs</code> 끝에 붙인다(R4–R6). R9 의 경우는 그대로 돌려준다. 사라지는 탭이 없으므로 <code>TerminalWorkspaceChange.removedTabs</code> 가 비어 세션이 멈추지 않는다(R5).
+  </dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.dockTab(tabId, groupId, edge)</code>. 끄는 중인 탭·포인터 위치·그룹의 경계는 화면에서만 쓰는 값이라 ViewModel 에 두지 않는다</dd>
+  <dt>UI</dt><dd>
+    <code>TerminalScreen</code> — 상단 막대에서 동작 버튼을 뺀다(R1). <code>TerminalTabRow</code> 끝에 <code>NewTabButton</code>(R2). 화면 루트를 <code>Box</code> 로 감싸 끌기 칩을 맨 위에 그린다.<br>
+    <code>TerminalTabDrag.kt</code> — <code>TerminalTabDragState</code>(<code>remember</code>): 끌고 있는 탭 id·이름, 화면 좌표의 포인터 위치, 창 id → <code>LayoutCoordinates</code>. 그룹은 자기 탭 id 목록과 함께 등록되고 <code>target()</code> 이 R7·R9 대로 대상 그룹과 자리를 계산한다(자기 그룹의 가운데, 탭 하나뿐인 자기 그룹의 변은 건너뛴다). <code>Modifier.terminalTabDragSource(...)</code> 가 R10 의 제스처를 <code>pointerInput</code> 으로 만든다: 첫 포인터가 <code>PointerType.Mouse</code> 면 <code>viewConfiguration.touchSlop</code> 만큼 움직인 뒤, 아니면 <code>awaitLongPressOrCancellation</code> 을 지나야 시작하고, 그 뒤 <code>drag()</code> 가 끝날 때까지 이동을 소비한다. 마우스에 <code>awaitTouchSlopOrCancellation</code> 을 쓰지 않는 이유는 그 함수가 마우스에는 터치 슬롭의 1/144(0.125dp)만 주어, 누르는 동안의 1px 떨림에도 끌기가 시작돼 탭 선택(클릭)이 사라지기 때문이다.<br>
+    <code>PaneTree</code> 의 잎(그룹)은 <code>onGloballyPositioned</code> 로 좌표를 등록하고, 대상이면 <code>TerminalDropPreview</code> 상자를 겹친다(R8).
+  </dd>
+  <dt>공급</dt><dd>해당 없음. 플랫폼 코드가 없다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 끌기는 Compose 의 <code>dragAndDropSource</code>/<code>dragAndDropTarget</code> 이 아니라 <code>pointerInput</code> 제스처로 만든다</strong>
+  Compose Multiplatform 1.12.1 의 <code>Modifier.dragAndDropSource</code> 는 플랫폼의 시스템 끌어 놓기를 부른다. 데스크톱은 <code>AwtDragAndDropManager</code> 가 <code>java.awt.dnd.DropTarget</code> 을 창에 붙이고 Swing <code>TransferHandler</code>(<code>ComposeTransferHandler</code>)로 네이티브 드래그 세션을 시작한다. Android 는 <code>View.startDragAndDrop</code>, iOS 는 <code>UIDragInteraction</code> 이다. 이 API 는 앱·창 사이에 데이터(<code>Transferable</code>, <code>ClipData</code>)를 옮기려고 있는 것이라 (1) 옮길 데이터가 없는데 <code>DragAndDropTransferData</code> 를 만들어야 하고, (2) 드래그 중의 그림자는 플랫폼이 그려 데스크톱과 Android 의 모양이 다르며, (3) 네이티브 드래그 세션이 도는 동안 Compose 는 포인터 이벤트를 받지 못해 미리 보기 상자를 우리가 그릴 수 없고, (4) skiko 헤드리스 UI 테스트(<code>runComposeUiTest</code>)에는 AWT 창이 없어 자동으로 확인할 수 없다. 탭은 이 화면 안에서만 움직이므로 시스템 끌어 놓기가 필요 없다.<br>
+  <code>pointerInput</code> 으로 만들면 네 플랫폼이 같은 코드와 같은 모양이고, <code>performMouseInput</code> 으로 테스트한다. 버린 다른 후보: <code>Modifier.draggable</code> 은 한 축만 따라가 변을 고를 수 없다. <code>detectDragGestures</code> 는 터치에서도 슬롭만 넘으면 시작해 탭 줄의 가로 스크롤을 빼앗는다 — 마우스에만 그 규칙을 쓰고 터치는 <code>detectDragGesturesAfterLongPress</code> 와 같은 길게 누르기로 시작한다(R10). 포인터 종류는 첫 <code>PointerInputChange.type</code> 으로 안다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 놓는 것은 탭 하나이고 대상은 그룹이다</strong>
+  처음(패널 → 탭 → 분할 트리)에는 탭의 분할 트리를 통째로 옮겼고 대상은 잎(창)이었다. <a href="terminal-tab-groups.html#implementation">분할 그룹</a> 뒤로는 탭이 그룹의 원소라 옮기는 단위가 탭 하나고, 대상은 잎인 그룹이다. 변은 <code>split()</code> 이 포커스된 그룹을 <code>Split</code> 으로 바꾸는 것과 같은 규칙(<code>replaceGroup</code>)을 쓰고, 가운데는 <code>addTab</code> 과 같은 자리에 붙인다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 결과가 지금과 같은 자리는 놓을 수 없는 자리다</strong>
+  처음에는 선택된 탭(보이는 창의 주인)만 놓을 수 없었다. 그룹 뒤로는 규칙이 "놓아도 배치가 바뀌지 않는 자리" 로 일반화됐다: 자기 그룹의 가운데, 탭이 하나뿐인 자기 그룹의 변. 그런 자리에서 강조를 띄우면 놓았을 때 아무 일도 없어 어긋나므로 강조도 없다. 끌기 시작 때 탭을 선택으로 바꾸지 않는 것은 그대로다 — 누르자마자 선택하면 그룹의 보이는 창이 바뀌어 끌던 손 아래의 화면이 흔들린다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td>공통 코드. 터치는 길게 누른 뒤 끈다(<code>ViewConfiguration.longPressTimeoutMillis</code>). 마우스·트랙패드를 단 기기는 곧바로 끈다</td><td><a href="../platform/android.html#terminal-tab-dock">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-tab-dock">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 코드. 마우스는 슬롭을 넘으면 시작한다. AWT 끌어 놓기는 쓰지 않는다</td><td><a href="../platform/jvm.html#terminal-tab-dock">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-tab-dock">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R4–R6, R9. 네 변마다 방향과 앞뒤, 가운데는 탭 줄 끝, 끌어온 탭이 원래 그룹에서 빠지고 빈 그룹이 사라짐, 포커스·선택, 탭이 하나도 사라지지 않음, 놓을 수 없는 자리는 그대로</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalTest</code></td><td>R1, R2, R4, R5, R8–R10. 상단 막대에 동작 버튼이 없음, 그룹의 + 로 탭 추가(메뉴 포함), 마우스로 탭을 그룹의 오른쪽·위에 끌어 놓으면 그룹이 둘이 되고 세션은 그대로, 가운데에 놓으면 그 그룹의 탭, 끄는 동안 미리 보기 상자가 뜸, 그룹 밖에 놓으면 그대로, 자기 그룹 가운데는 놓이지 않음, 슬롭 안에서 떼면 탭 선택</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalPanelTest</code></td><td>R3. 두 번째 패널의 + 가 그 패널에 탭을 붙임</td><td>같음</td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 터치의 길게 누르기(R10 의 터치 쪽) — skiko 테스트의 <code>performTouchInput</code> 은 <code>longClick</code> 뒤의 이동을 같은 제스처로 잇지 못해 손으로 확인한다. 끌기 칩이 포인터를 따라오는 모양(R8), 단축키(R12). <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>그룹을 통째로 닫는 버튼은 없다. 탭의 ✕ 로 하나씩 닫으면 마지막에 그룹이 사라진다(<a href="terminal-tab-groups.html#limits">분할 그룹</a>).</li>
+  <li>탭 줄이 스크롤될 만큼 탭이 많으면, 끄는 동안 탭 줄은 스크롤되지 않는다. 대상은 창이므로 탭 줄을 스크롤할 필요가 없다.</li>
+  <li>끌어 놓기는 같은 패널 안에서만 일어난다. 다른 패널의 그룹은 보이지 않아 놓을 수 없다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

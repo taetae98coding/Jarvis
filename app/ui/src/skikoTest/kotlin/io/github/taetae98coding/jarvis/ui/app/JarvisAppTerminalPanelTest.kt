@@ -26,9 +26,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalEmptyPanelTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewClaudeTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewPanelTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
-import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalPanelNameFieldTestTag
-import io.github.taetae98coding.jarvis.ui.terminal.TerminalSplitSideTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelCloseTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelRenameTestTag
@@ -56,7 +54,7 @@ class JarvisAppTerminalPanelTest {
     }
 
     private fun ComposeUiTest.openNewTab(itemTag: String) {
-        onNodeWithTag(TerminalNewTabTestTag).performClick()
+        onNode(newTabButton).performClick()
         onNodeWithTag(itemTag).performClick()
     }
 
@@ -92,6 +90,25 @@ class JarvisAppTerminalPanelTest {
         onNodeWithText("패널 2").assertIsDisplayed()
         assertEquals(1, tabCount())
         assertEquals(workspace.workspace.value.panels.last().id, workspace.workspace.value.selectedPanelId)
+    }
+
+    @Test
+    fun newTabButtonAddsATabToTheSelectedPanelOnly() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        awaitSessions(terminal, 2)
+
+        openNewTab(TerminalNewShellTabTestTag)
+
+        awaitSessions(terminal, 3)
+        val (first, second) = workspace.workspace.value.panels
+        assertEquals(1, first.tabs.size)
+        assertEquals(2, second.tabs.size)
+        assertEquals(2, tabCount())
     }
 
     @Test
@@ -165,7 +182,7 @@ class JarvisAppTerminalPanelTest {
         waitUntil(timeoutMillis = FrameTimeoutMillis) { panelCount() == 1 }
         assertTrue(terminal.sessions[1].closed)
         assertTrue(terminal.sessions[2].closed)
-        assertEquals(listOf(terminal.sessions[2].pane.claudeSessionId), terminal.stoppedClaudeSessions)
+        assertEquals(listOf(terminal.sessions[2].tab.claudeSessionId), terminal.stoppedClaudeSessions)
         onNodeWithText("패널 1").assertIsDisplayed()
     }
 
@@ -186,7 +203,7 @@ class JarvisAppTerminalPanelTest {
         onNodeWithTag(TerminalPanelNameFieldTestTag).performImeAction()
         openNewTab(TerminalNewClaudeTabTestTag)
         awaitSessions(before, 2)
-        val claudeSessionId = assertNotNull(before.sessions[1].pane.claudeSessionId)
+        val claudeSessionId = assertNotNull(before.sessions[1].tab.claudeSessionId)
 
         generation = 1
         waitUntil(timeoutMillis = FrameTimeoutMillis) { before.sessions.all { it.closed } }
@@ -196,7 +213,7 @@ class JarvisAppTerminalPanelTest {
         onNodeWithText("백엔드").assertIsDisplayed()
         assertEquals(2, tabCount())
         assertEquals(TerminalProgram.Claude, after.sessions.single().program)
-        assertEquals(claudeSessionId, after.sessions.single().pane.claudeSessionId)
+        assertEquals(claudeSessionId, after.sessions.single().tab.claudeSessionId)
         assertTrue(before.stoppedClaudeSessions.isEmpty())
     }
 
@@ -209,11 +226,11 @@ class JarvisAppTerminalPanelTest {
         awaitSessions(terminal, 1)
 
         terminal.sessions.single().changeDirectory("/work")
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedLeaf?.directory == "/work" }
-        onNodeWithTag(TerminalSplitSideTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.directory == "/work" }
+        pressTerminalShortcut(Key.D)
 
         awaitSessions(terminal, 2)
-        assertEquals("/work", terminal.sessions[1].pane.directory)
+        assertEquals("/work", terminal.sessions[1].tab.directory)
     }
 
     @Test

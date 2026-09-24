@@ -125,11 +125,10 @@
   <thead><tr><th>아이콘</th><th>쓰는 곳</th><th>contentDescription</th></tr></thead>
   <tbody>
     <tr><td><code>Back</code></td><td>기기 목록·기기 화면·터미널 상단 막대</td><td>뒤로</td></tr>
-    <tr><td><code>SplitSideBySide</code>, <code>SplitStacked</code></td><td>터미널 상단 막대</td><td>좌우 분할 / 상하 분할</td></tr>
-    <tr><td><code>Add</code></td><td>터미널 상단 막대, 터미널 패널 목록의 새 패널 버튼</td><td>새 탭 / 없음(버튼 글자 "새 패널")</td></tr>
+    <tr><td><code>Add</code></td><td>터미널 탭 줄 끝의 새 탭 버튼(<a href="terminal-tab-dock.html">탭 끌어 놓기</a>), 터미널 패널 목록의 새 패널 버튼</td><td>새 탭 / 없음(버튼 글자 "새 패널")</td></tr>
     <tr><td><code>Edit</code></td><td>터미널 패널 줄(<a href="terminal-panels.html">패널</a>). 연필</td><td>이름 바꾸기</td></tr>
     <tr><td><code>Claude</code></td><td>터미널 새 탭 메뉴의 항목 앞(<a href="terminal-claude.html">Claude 실행</a>). 여덟 갈래 광채 — 가로·세로가 길고 대각선이 짧다</td><td>Claude (YOLO)</td></tr>
-    <tr><td><code>Close</code></td><td>터미널 상단 막대(창 닫기), 탭 닫기, 패널 닫기</td><td>닫기 / 탭 닫기 / 패널 닫기</td></tr>
+    <tr><td><code>Close</code></td><td>터미널 탭 닫기, 패널 닫기</td><td>탭 닫기 / 패널 닫기</td></tr>
     <tr><td><code>Play</code></td><td>기기 줄의 실행 버튼</td><td>실행</td></tr>
     <tr><td><code>Sun</code></td><td>기기 줄의 화면 켜기 버튼</td><td>화면 켜기</td></tr>
     <tr><td><code>Wifi</code></td><td>기기 목록 상단 막대의 <a href="wireless-pairing.html">Wi-Fi 페어링</a> 버튼</td><td>Wi-Fi 로 페어링</td></tr>
@@ -146,7 +145,7 @@
   <tbody>
     <tr><td>기기 목록·기기 화면</td><td><code>TextButton</code> "← 뒤로" + 제목</td><td><code>JarvisTopBar</code>: <code>Back</code> 아이콘 버튼 + 제목</td></tr>
     <tr><td>기기 줄</td><td>이름·설명 + <code>TextButton</code> "화면 켜기" / "실행" / "켜는 중…"</td><td>상태 색 <code>Smartphone</code> 아이콘 + 이름·설명 + <code>Sun</code> / <code>Play</code> 아이콘 버튼. 실행 요청 중에는 버튼 자리에 작은 원형 진행 표시가 돌고 버튼이 잠긴다. 그 동안 contentDescription 은 "켜는 중…"</td></tr>
-    <tr><td>터미널 상단</td><td>"← 뒤로", 제목, 글자 버튼 넷</td><td><code>JarvisTopBar</code> + 아이콘 버튼 넷(<code>SplitSideBySide</code>, <code>SplitStacked</code>, <code>Add</code>, <code>Close</code>)</td></tr>
+    <tr><td>터미널 상단</td><td>"← 뒤로", 제목, 글자 버튼 넷</td><td><code>JarvisTopBar</code>(뒤로 + 제목). 한때 아이콘 버튼 넷(<code>SplitSideBySide</code>, <code>SplitStacked</code>, <code>Add</code>, <code>Close</code>)이 있었으나 <a href="terminal-tab-dock.html">탭 끌어 놓기</a>로 없어졌고 분할 아이콘 둘은 지웠다</td></tr>
     <tr><td>터미널 탭</td><td>이름 + 글자 "×"</td><td>이름 + <code>Close</code> 아이콘(small). 선택·hover·눌림 배경은 Style 이 애니메이션한다</td></tr>
     <tr><td>기능 카드</td><td>제목 글자만</td><td><code>JarvisCardHeader</code>: 아이콘 + 제목 (+ 스위치 또는 <code>ChevronRight</code>)</td></tr>
     <tr><td>화면 회전 버튼</td><td>"-90°", "+90°"</td><td><code>RotateLeft</code>/<code>RotateRight</code> 아이콘 + 같은 글자</td></tr>

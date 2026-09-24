@@ -70,6 +70,8 @@
 │   ├── terminal.html                터미널 (분할·탭)
 │   ├── terminal-claude.html         터미널에서 Claude 실행 (YOLO 모드)
 │   ├── terminal-panels.html         터미널 패널과 세션 유지 (DataStore, Claude 백그라운드 세션)
+│   ├── terminal-tab-dock.html       탭 끌어 놓기 분할 (탭 줄의 +, 끌어 놓은 변으로 좌우·상하)
+│   ├── terminal-tab-groups.html     분할 그룹마다 탭 줄 (그룹 = 분할 트리의 잎, 탭 = 창)
 │   └── design-system.html           디자인 시스템 (JarvisTheme, Defaults·Style, 아이콘)
 ├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
 │   ├── index.html                   플랫폼 스펙 읽는 법과 공통 판정 기준
@@ -268,6 +270,20 @@
       <td class="center"><a href="platform/web.html#terminal-panels"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/terminal-tab-dock.html">탭 끌어 놓기 분할</a></td>
+      <td class="center"><a href="platform/android.html#terminal-tab-dock"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-tab-dock"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-tab-dock"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-tab-dock"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/terminal-tab-groups.html">분할 그룹마다 탭 줄</a></td>
+      <td class="center"><a href="platform/android.html#terminal-tab-groups"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-tab-groups"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-tab-groups"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-tab-groups"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/design-system.html">디자인 시스템</a></td>
       <td class="center"><a href="platform/android.html#design-system"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/ios.html#design-system"><span class="badge ok">구현</span></a></td>
@@ -316,6 +332,8 @@
   <li><a href="common/terminal.html">터미널</a><p>iTerm 처럼 셸을 띄우고 좌우·상하 분할과 탭을 쓴다. JVM 은 pty, Android 는 파이프, iOS·Web 은 불가</p></li>
   <li><a href="common/terminal-claude.html">터미널에서 Claude 실행</a><p>터미널 새 탭(+) 메뉴에서 골라 새 탭에 Claude Code 를 YOLO 모드로 띄운다. JVM 만 가능</p></li>
   <li><a href="common/terminal-panels.html">터미널 패널과 세션 유지</a><p>왼쪽 패널 목록에 패널마다 탭·분할을 두고, 배치·작업 디렉터리·Claude sessionId 를 앱을 다시 켜도 유지한다. Claude 는 백그라운드에서 계속 일한다</p></li>
+  <li><a href="common/terminal-tab-dock.html">탭 끌어 놓기 분할</a><p>상단 막대의 동작 버튼을 없애고, 새 탭은 탭 줄 끝의 + 로, 좌우·상하 분할은 탭을 창의 변에 끌어 놓아 정한다</p></li>
+  <li><a href="common/terminal-tab-groups.html">분할 그룹마다 탭 줄</a><p>패널을 나눈 칸(그룹)마다 자기 탭 줄을 두고, 탭은 그 그룹의 + 로 붙이고 ✕ 로 닫는다. 탭 하나가 창 하나다</p></li>
 </ul>
 
 <h2 id="platform">플랫폼 스펙</h2>
