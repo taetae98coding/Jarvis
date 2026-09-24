@@ -62,6 +62,43 @@ class TerminalWorkspaceStoreTest {
     }
 
     @Test
+    fun worktreePanelParentIsReadBackByANewStore() = runTest {
+        val path = newPath()
+        val change = repository(path).updateWorkspace {
+            val withRepo = it.addPanel(name = "Jarvis", directory = "/work/jarvis")
+            withRepo.addWorktreePanel(withRepo.selectedPanelId!!, name = "fix", directory = "/work/jarvis-worktrees/fix")
+        }
+
+        val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
+
+        assertEquals(change.after, reopened)
+        assertEquals(reopened.panels[1].id, reopened.panels.last().parentId)
+    }
+
+    // 부모가 사라졌거나 부모 자신이 워크트리 패널인 parentId 는 최상위로 읽는다.
+    @Test
+    fun orphanedOrNestedParentsAreReadAsTopLevel() = runTest {
+        val path = newPath()
+        FileSystem.SYSTEM.createDirectories(path.parent!!)
+        FileSystem.SYSTEM.write(path) {
+            writeUtf8(
+                """
+                {"panels": [
+                  {"id": 1, "name": "main", "focusedGroupId": 2, "root": {"type": "group", "id": 2, "selectedTabId": 3, "tabs": [{"id": 3}]}},
+                  {"id": 4, "name": "child", "parentId": 1, "focusedGroupId": 5, "root": {"type": "group", "id": 5, "selectedTabId": 6, "tabs": [{"id": 6}]}},
+                  {"id": 7, "name": "grandchild", "parentId": 4, "focusedGroupId": 8, "root": {"type": "group", "id": 8, "selectedTabId": 9, "tabs": [{"id": 9}]}},
+                  {"id": 10, "name": "orphan", "parentId": 99, "focusedGroupId": 11, "root": {"type": "group", "id": 11, "selectedTabId": 12, "tabs": [{"id": 12}]}}],
+                 "selectedPanelId": 1, "nextId": 13}
+                """.trimIndent(),
+            )
+        }
+
+        val workspace = repository(path).observeWorkspace().first()
+
+        assertEquals(listOf(null, 1L, null, null), workspace.panels.map { it.parentId })
+    }
+
+    @Test
     fun changeCarriesTheValueBeforeTheUpdate() = runTest {
         val repository = repository(newPath())
 

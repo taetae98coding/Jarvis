@@ -73,6 +73,7 @@ val PaneNode.tabs: List<TerminalTab>
  * 왼쪽 목록의 한 줄. [root] 가 null 이면 그룹이 없는 빈 패널이다. 탭은 만든 패널에 속하고 다른 패널로 옮겨 가지 않는다.
  *
  * [directory] 는 만들 때 정한 폴더다. 탭의 작업 디렉터리를 모를 때 새 탭이 여기서 시작한다.
+ * [parentId] 가 있으면 그 패널 아래 들여쓰는 워크트리 패널이다. 부모는 늘 최상위 패널이라 한 단계뿐이다.
  */
 data class TerminalPanel(
     val id: Long,
@@ -80,6 +81,7 @@ data class TerminalPanel(
     val root: PaneNode?,
     val focusedGroupId: Long?,
     val directory: String? = null,
+    val parentId: Long? = null,
 ) {
     val groups: List<PaneNode.Group>
         get() = root?.groups.orEmpty()
@@ -134,6 +136,13 @@ data class TerminalWorkspace(
     val nextPanelName: String
         get() = "$DefaultPanelName ${panels.size + 1}"
 
+    /** 워크트리 패널이 아닌 패널. 목록은 이것마다 [children] 을 아래에 들여써 그린다. */
+    val topLevelPanels: List<TerminalPanel>
+        get() = panels.filter { it.parentId == null }
+
+    /** [panelId] 아래의 워크트리 패널. 목록 순서다. */
+    fun children(panelId: Long): List<TerminalPanel> = panels.filter { it.parentId == panelId }
+
     /**
      * 탭 하나짜리 그룹을 가진 패널을 끝에 붙이고 고른다. [name]·[directory] 는 앞뒤 공백을 떼고, 비면
      * [nextPanelName]·폴더 없음이다. 첫 탭은 패널 폴더에서 시작한다.
@@ -144,19 +153,50 @@ data class TerminalWorkspace(
         program: TerminalProgram = TerminalProgram.Shell,
         claudeSessionId: String? = null,
     ): TerminalWorkspace {
+        val panel = newPanel(name, directory, program, claudeSessionId)
+
+        return copy(panels = panels + panel, selectedPanelId = panel.id, nextId = nextId + 3)
+    }
+
+    /**
+     * [addPanel] 과 같은 패널을 [parentId] 패널의 워크트리 패널로 붙이고 고른다. 부모가 워크트리 패널이면 그
+     * 부모의 부모 아래 형제로 들어간다(한 단계). 부모와 그 워크트리 패널들 바로 뒤에 놓인다. 모르는 부모면 그대로다.
+     */
+    fun addWorktreePanel(
+        parentId: Long,
+        name: String? = null,
+        directory: String? = null,
+        program: TerminalProgram = TerminalProgram.Shell,
+        claudeSessionId: String? = null,
+    ): TerminalWorkspace {
+        val parent = findPanel { it.id == parentId } ?: return this
+        val rootId = parent.parentId ?: parent.id
+        val familyEnd = panels.indexOfLast { it.id == rootId || it.parentId == rootId }
+        val panel = newPanel(name, directory, program, claudeSessionId).copy(parentId = rootId)
+        val inserted = panels.toMutableList().apply { add(familyEnd + 1, panel) }
+
+        return copy(panels = inserted, selectedPanelId = panel.id, nextId = nextId + 3)
+    }
+
+    // 패널·그룹·탭 id 로 nextId 부터 셋을 쓴다. 부르는 쪽이 nextId 를 3 늘린다.
+    private fun newPanel(
+        name: String?,
+        directory: String?,
+        program: TerminalProgram,
+        claudeSessionId: String?,
+    ): TerminalPanel {
         val panelId = nextId
         val groupId = nextId + 1
         val tabId = nextId + 2
         val folder = directory?.trim()?.ifEmpty { null }
-        val panel = TerminalPanel(
+
+        return TerminalPanel(
             id = panelId,
             name = name?.trim()?.ifEmpty { null } ?: nextPanelName,
             root = PaneNode.Group(groupId, listOf(TerminalTab(tabId, program, folder, claudeSessionId)), tabId),
             focusedGroupId = groupId,
             directory = folder,
         )
-
-        return copy(panels = panels + panel, selectedPanelId = panelId, nextId = nextId + 3)
     }
 
     /** 앞뒤 공백을 뗀다. 비어 있으면 바꾸지 않는다. */
@@ -167,16 +207,22 @@ data class TerminalWorkspace(
         return replacePanel(panelId) { it.copy(name = trimmed) }
     }
 
-    /** 마지막 패널은 닫지 않는다. 선택된 패널이 닫히면 그 자리에 오는 패널(없으면 앞 패널)이 선택된다. */
+    /**
+     * 패널과 그 아래 워크트리 패널을 함께 닫는다. 남는 패널이 없게 되는 닫기는 하지 않는다. 선택된 패널이
+     * 닫히면 닫힌 것들 뒤에 오는 첫 패널(없으면 앞 패널)이 선택된다.
+     */
     fun closePanel(panelId: Long): TerminalWorkspace {
         val index = panels.indexOfFirst { it.id == panelId }
-        if (index < 0 || panels.size == 1) return this
+        if (index < 0) return this
 
-        val remaining = panels.filterIndexed { i, _ -> i != index }
-        val selected = if (selectedPanelId != panelId) {
+        val closing = children(panelId).map { it.id }.toSet() + panelId
+        val remaining = panels.filter { it.id !in closing }
+        if (remaining.isEmpty()) return this
+
+        val selected = if (selectedPanelId !in closing) {
             selectedPanelId
         } else {
-            remaining[index.coerceAtMost(remaining.lastIndex)].id
+            panels.drop(index).firstOrNull { it.id !in closing }?.id ?: remaining.last().id
         }
 
         return copy(panels = remaining, selectedPanelId = selected)
