@@ -90,7 +90,7 @@
     <code>OpenTerminalSessionUseCase</code> 는 <code>Device</code> 탭이면 저장소를 부르지 않고 null(R12)
   </dd>
   <dt>공급 (terminal)</dt><dd>저장 형식에 <code>program = "device"</code> 와 <code>deviceId</code>·<code>deviceName</code> 키가 는다. <code>deviceId</code> 가 없는 <code>device</code> 탭은 셸로 읽는다. <code>expect</code> 선언은 늘지 않는다</dd>
-  <dt>기능 사이</dt><dd><code>:core:ui</code> 의 <code>DeviceScreens</code>(인터페이스)와 <code>DeviceChoice(id, name, kind)</code>. <code>:feature:emulator:ui</code> 가 구현을 Koin 에 <code>single&lt;DeviceScreens&gt;</code> 로 등록하고, <code>:feature:terminal:ui</code> 가 <code>getKoin().getOrNull&lt;DeviceScreens&gt;()</code> 로 받는다(없으면 R13)</dd>
+  <dt>기능 사이</dt><dd><code>:core:ui</code> 의 <code>DeviceScreens</code>(인터페이스)와 <code>DeviceChoice(id, name, kind, platform)</code>. <code>platform</code>(<code>DeviceChoicePlatform</code>)은 탭의 종류 아이콘에 쓰려고 뒤에 더했고, 고를 때 탭의 <code>devicePlatform</code> 에 적는다(<a href="terminal-tab-label.html#implementation">탭 종류 표시와 이름 바꾸기</a>). <code>:feature:emulator:ui</code> 가 구현을 Koin 에 <code>single&lt;DeviceScreens&gt;</code> 로 등록하고, <code>:feature:terminal:ui</code> 가 <code>getKoin().getOrNull&lt;DeviceScreens&gt;()</code> 로 받는다(없으면 R13)</dd>
   <dt>상태</dt><dd>
     <code>DeviceScreens.choices(): List&lt;DeviceChoice&gt;?</code>(<code>@Composable</code>, null = 아직 모름)은 emulator 의 <code>DeviceChoicesViewModel</code>(초기값 null, <code>WhileSubscribed</code>)을 모은다. 메뉴 내용은 메뉴가 떠 있을 때만 컴포즈되므로 그때만 센다(R3). 이 ViewModel 은 터미널 화면의 백스택 항목에 붙어 있어 메뉴를 닫아도 지난 목록을 들고 있다.<br>
     <code>DeviceScreens.Screen(deviceId, modifier)</code> 는 <code>EmulatorScreenViewModel(deviceId)</code> 를 <code>key = "device-screen:$deviceId"</code> 로 받는다 — 기기마다 ViewModel 이 따로다.<br>

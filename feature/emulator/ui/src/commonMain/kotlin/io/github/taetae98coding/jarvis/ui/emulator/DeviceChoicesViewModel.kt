@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUseCase
 import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
+import io.github.taetae98coding.jarvis.ui.device.DeviceChoicePlatform
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -30,6 +31,7 @@ internal class DeviceChoicesViewModel(
                             device.isPhysical -> listOfNotNull("Android 실물 기기", device.connection?.label).joinToString(" · ")
                             else -> "Android 에뮬레이터"
                         },
+                        platform = if (device.platform == EmulatorPlatform.IOS) DeviceChoicePlatform.IOS else DeviceChoicePlatform.Android,
                     )
                 }
             }

@@ -144,6 +144,90 @@ class GitDataSourceTest {
         assertTrue(error.message!!.contains("main"), error.message)
     }
 
+    /** [branch] 를 새로 만든 연결된 워크트리. */
+    private fun newWorktree(repository: File, branch: String): File =
+        File(repository.parentFile, "${repository.name}-worktrees/$branch").also { git(repository, "worktree", "add", "-q", "-b", branch, it.path) }
+
+    private fun worktreePaths(repository: File): List<String> =
+        read(repository, "worktree", "list", "--porcelain").lines().filter { it.startsWith("worktree ") }.map { it.removePrefix("worktree ") }
+
+    private fun branchExists(repository: File, branch: String): Boolean =
+        ProcessBuilder("git", "-C", repository.path, "rev-parse", "--verify", "--quiet", "refs/heads/$branch").start().waitFor() == 0
+
+    @Test
+    fun removeWorktreeDeletesTheFolderTheRecordAndTheCurrentBranch() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val path = newWorktree(repository, "feature")
+        // 셸에서 바꾼 것처럼 지금 체크아웃한 브랜치가 지워진다.
+        git(path, "switch", "-q", "-c", "switched")
+        git(path, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", "unmerged")
+
+        source.removeWorktree(path.path, deleteDirectory = true).getOrThrow()
+
+        assertTrue(!path.exists())
+        assertEquals(listOf(repository.path), worktreePaths(repository))
+        assertTrue(!branchExists(repository, "switched"))
+        assertTrue(branchExists(repository, "feature"))
+    }
+
+    @Test
+    fun removeWorktreeCanKeepTheFilesAsAPlainFolder() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val path = newWorktree(repository, "keep")
+        File(path, "notes.txt").writeText("draft")
+
+        source.removeWorktree(path.path, deleteDirectory = false).getOrThrow()
+
+        assertEquals("draft", File(path, "notes.txt").readText())
+        assertTrue(!File(path, ".git").exists())
+        assertEquals(listOf(repository.path), worktreePaths(repository))
+        assertTrue(!branchExists(repository, "keep"))
+    }
+
+    @Test
+    fun aFolderWithChangesIsNotDeletedAndNothingIsRemoved() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val path = newWorktree(repository, "dirty")
+        File(path, "untracked.txt").writeText("work")
+
+        val result = source.removeWorktree(path.path, deleteDirectory = true)
+
+        val error = assertIs<GitWorktreeException>(result.exceptionOrNull())
+        assertTrue(error.message!!.contains("untracked"), error.message)
+        assertTrue(File(path, "untracked.txt").exists())
+        assertEquals(listOf(repository.path, path.canonicalPath), worktreePaths(repository))
+        assertTrue(branchExists(repository, "dirty"))
+    }
+
+    @Test
+    fun aDetachedWorktreeIsRemovedWithoutTouchingBranches() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val path = newWorktree(repository, "detached")
+        git(path, "switch", "-q", "--detach")
+
+        source.removeWorktree(path.path, deleteDirectory = true).getOrThrow()
+
+        assertTrue(!path.exists())
+        assertTrue(branchExists(repository, "detached"))
+        assertTrue(branchExists(repository, "main"))
+    }
+
+    @Test
+    fun theMainWorktreeAndFoldersOutsideARepositoryAreRefused() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+
+        assertIs<GitWorktreeException>(source.removeWorktree(repository.path, deleteDirectory = true).exceptionOrNull())
+        assertIs<GitWorktreeException>(source.removeWorktree(repository.path, deleteDirectory = false).exceptionOrNull())
+        assertIs<GitWorktreeException>(source.removeWorktree(newDirectory().path, deleteDirectory = true).exceptionOrNull())
+        assertTrue(File(repository, ".git").isDirectory)
+        assertTrue(branchExists(repository, "main"))
+    }
+
     @Test
     fun revParseOutputIsParsedWithRelativeAndAbsoluteCommonDirs() {
         val directory = newDirectory()

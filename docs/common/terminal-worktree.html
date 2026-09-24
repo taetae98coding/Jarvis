@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>패널에서 git 워크트리 추가 — 공통 스펙 — Jarvis</title>
+<title>패널에서 git 워크트리 추가·지우기 — 공통 스펙 — Jarvis</title>
 <link rel="stylesheet" href="../assets/spec.css">
 </head>
 <body>
 
-<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>패널에서 git 워크트리 추가</span></nav>
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>패널에서 git 워크트리 추가·지우기</span></nav>
 
 <header>
-  <h1>패널에서 git 워크트리 추가</h1>
-  <p class="lead">폴더가 git 저장소 안에 있는 패널은 목록 줄에 + 가 붙고, 누르면 브랜치 이름과 기준 브랜치를 받아 <code>git worktree add</code> 로 워크트리를 만든 뒤 그 폴더를 가진 빈 패널을 원래 패널 아래에 들여써서 붙인다. 워크트리 패널 줄에는 기준 브랜치와 지금 체크아웃한 브랜치가 함께 보인다. 워크트리 패널도 다른 패널처럼 새 탭(+)·좌우·상하 분할을 가진다.</p>
+  <h1>패널에서 git 워크트리 추가·지우기</h1>
+  <p class="lead">폴더가 git 저장소 안에 있는 패널은 목록 줄에 + 가 붙고, 누르면 브랜치 이름과 기준 브랜치를 받아 <code>git worktree add</code> 로 워크트리를 만든 뒤 그 폴더를 가진 빈 패널을 원래 패널 아래에 들여써서 붙인다. 워크트리 패널 줄에는 기준 브랜치와 지금 체크아웃한 브랜치가 함께 보인다. 워크트리 패널도 다른 패널처럼 새 탭(+)·좌우·상하 분할을 가진다. 워크트리 패널의 ✕ 는 창을 띄워 워크트리·브랜치와 폴더를 함께 지울지 고르게 한다.</p>
 </header>
 
 <nav class="toc">
@@ -48,6 +48,11 @@
   <footer>2026-09-25 대화. "+ 눌렀을 때 워크트리" 는 + 를 누른 패널의 워크트리다 — 그 워크트리가 지금 체크아웃한 브랜치가 기준 브랜치의 기본값이다(R2b).</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>worktree x로 지울 때 popup 나오면서 worktree&amp;브랜치 지우기, 폴더도 지우기 선택할 수 있도록 해줘. 기본값은 선택이야.</p>
+  <footer>2026-09-25 대화. "worktree x" 는 워크트리 패널 줄의 ✕ 다(main 패널의 ✕ 는 그대로, R10). 선택지는 체크박스 둘이고 둘 다 켜진 채로 뜬다(R12). "폴더도" 의 "도" 로 폴더 지우기는 워크트리·브랜치 지우기에 딸린 선택이다 — 워크트리·브랜치만 지우면 폴더의 파일은 git 과 무관한 보통 폴더로 남는다(R13·R14).</footer>
+</blockquote>
+
 <h2 id="terms">용어</h2>
 
 <dl class="meta">
@@ -73,14 +78,26 @@
   <li><strong>R8.</strong> 워크트리 패널은 목록에서 main 패널 바로 아래에, main 패널의 다른 워크트리 패널들 뒤에 들여써서 놓이고 이름 앞에 브랜치 아이콘이 붙는다. 한 단계만 있다 — 워크트리 패널에도 + 가 있고(폴더가 git 저장소이므로) 누르면 같은 main 패널 아래에 형제로 생긴다.</li>
   <li><strong>R8b.</strong> 워크트리 패널 줄에는 이름 아래, 폴더 위에 브랜치 줄 <code>&lt;기준 브랜치&gt; → &lt;현재 브랜치&gt;</code> 가 있다. 현재 브랜치는 그 폴더의 워크트리에서 관측한 값이고, 관측할 수 없으면(폴더가 지워짐, HEAD 가 떨어짐, git 이 없는 타깃) 만들 때의 브랜치다. 기준 브랜치를 기억하지 않는 패널(비워서 만들었거나 이전 버전이 저장한 파일)은 <code>→</code> 없이 현재 브랜치만 보인다. 현재 브랜치를 관측도 기억도 못 하면 브랜치 줄이 없다. 이름을 바꿔도 브랜치 줄은 그대로다.</li>
   <li><strong>R9.</strong> 부모 관계와 브랜치·기준 브랜치는 패널과 함께 저장되어 앱을 다시 켜도 그대로다(<a href="terminal-panels.html#requirements">패널 R9</a>). 저장 파일의 부모가 없어졌으면 최상위 패널로 읽는다.</li>
-  <li><strong>R10.</strong> 워크트리 패널을 닫으면 패널만 닫힌다. 디스크의 워크트리와 브랜치는 남는다. main 패널을 닫으면 그 아래 워크트리 패널도 함께 닫힌다(사라진 Claude 탭의 세션은 <a href="terminal-panels.html#requirements">패널 R12</a> 대로 멈춘다). 닫아서 패널이 하나도 남지 않게 되는 닫기는 하지 않고 그 줄에 ✕ 가 없다.</li>
+  <li><strong>R10.</strong> 워크트리 패널이 아닌 패널(main 패널 포함)의 ✕ 는 창 없이 곧바로 닫는다. main 패널을 닫으면 그 아래 워크트리 패널도 함께 닫히고, 이때 디스크의 워크트리·브랜치·폴더는 모두 남는다(사라진 Claude 탭의 세션은 <a href="terminal-panels.html#requirements">패널 R12</a> 대로 멈춘다). 닫아서 패널이 하나도 남지 않게 되는 닫기는 하지 않고 그 줄에 ✕ 가 없다.</li>
   <li><strong>R11.</strong> 워크트리 폴더가 나중에 지워졌으면 다른 패널과 같이 탭은 홈에서 시작한다(<a href="terminal-panel-create.html#requirements">새 패널 R9</a>). 패널은 남고 + 는 사라진다(R1).</li>
+  <li><strong>R12.</strong> 워크트리 패널의 ✕ 를 누르면 "워크트리 닫기" 창이 뜬다. 창에는 패널의 현재 브랜치(R8b 의 관측 값, 없으면 줄 없음)와 워크트리 폴더, 체크박스 "워크트리·브랜치 지우기"·"폴더도 지우기", "취소"·"확인" 버튼이 있다. 두 체크박스는 창이 뜰 때마다 켜져 있다. 그 폴더의 워크트리를 관측할 수 없거나(폴더가 지워짐, git 이 없는 타깃) 관측한 워크트리가 main 워크트리면 지울 워크트리가 없으므로 창 없이 패널만 닫는다(R10 과 같다).</li>
+  <li><strong>R13.</strong> "워크트리·브랜치 지우기" 를 끄면 "폴더도 지우기" 는 꺼진 채로 보이고 누를 수 없다. 다시 켜면 "폴더도 지우기" 는 끄기 전 값으로 돌아온다.</li>
+  <li><strong>R14.</strong> "확인" 은 고른 것을 지운 뒤 패널을 닫는다(선택·탭 정리는 R10 의 닫기와 같다).
+    <ul>
+      <li>둘 다 켬: <code>git worktree remove</code> 로 워크트리 폴더와 저장소의 워크트리 기록을 지우고, 그 워크트리가 체크아웃하고 있던 브랜치를 지운다.</li>
+      <li>"워크트리·브랜치 지우기" 만: 저장소의 워크트리 기록과 브랜치를 지우고 폴더는 남긴다. 남은 폴더는 파일이 그대로인 보통 폴더다(<code>.git</code> 파일이 없어 git 저장소가 아니다).</li>
+      <li>둘 다 끔: 패널만 닫는다. 디스크는 그대로다.</li>
+    </ul>
+    지우는 브랜치는 "확인" 을 누른 순간 그 워크트리가 체크아웃하고 있는 브랜치다 — 패널이 기억한 만들 때의 브랜치가 아니다(셸에서 <code>git switch</code> 했으면 바뀐 브랜치). HEAD 가 떨어져 있으면 브랜치는 지우지 않고 워크트리만 지운다. 브랜치는 병합 여부와 무관하게 지운다.</li>
+  <li><strong>R15.</strong> 폴더에 커밋하지 않은 변경이나 추적하지 않는 파일이 있으면 폴더를 지우지 않는다 — git 이 거부하고 그 문구가 창에 보이며 워크트리·브랜치·패널은 그대로다. "폴더도 지우기" 를 끄고 다시 누르면 파일을 남긴 채 워크트리·브랜치만 지운다.</li>
+  <li><strong>R16.</strong> 지우는 동안 창은 남고 체크박스와 버튼은 비활성이며 진행 표시가 돈다. git 이 실패하면 창은 남고 git 의 오류 문구가 창 안에 보이며 패널은 닫히지 않는다. 고쳐서 다시 누를 수 있다. 성공하면 창이 닫히고 패널이 닫힌다.</li>
 </ol>
 
 <aside class="warn">
   <strong>스코프에서 뺀 것</strong>
   <ul>
-    <li>워크트리·브랜치 삭제(<code>git worktree remove</code>, <code>git branch -d</code>). 패널을 닫는 것은 되돌릴 수 있어야 하는데 작업 트리 삭제는 커밋하지 않은 변경을 날린다. 셸에서 한다.</li>
+    <li>변경이 있는 워크트리 폴더의 강제 삭제(<code>git worktree remove --force</code>). 커밋하지 않은 변경은 git 에도 남지 않아 되돌릴 수 없다. 기본값이 켜진 체크박스 하나로 날아가면 안 된다(R15). 셸에서 한다.</li>
+    <li>main 패널을 닫을 때 그 아래 워크트리들을 함께 지우기. 지시는 "worktree x" 다(R10).</li>
     <li>저장소에 이미 있는 워크트리를 목록에 불러오기(<code>git worktree list</code>). 지시는 "+ 로 새로 만들기" 다. 기존 워크트리는 "새 패널" 에서 그 폴더를 골라 연다.</li>
     <li>두 단계 이상의 중첩. 워크트리의 워크트리는 git 에서도 같은 저장소의 형제라 한 단계로 충분하다(R8).</li>
     <li>워크트리 패널 목록 접기·펼치기. 지시에 없다.</li>
@@ -106,6 +123,17 @@
 │ 패널 3              ✎ ✕│ ← 폴더 없음: + 없음
                 [+ 새 패널]
 
+┌ 워크트리 닫기 ──────────────────────────────────┐   ← 워크트리 패널의 ✕
+│ feature/login                                    │ ← 현재 브랜치(관측)
+│ ~/projects/Jarvis-worktrees/feature/login        │
+│                                                  │
+│ [✓] 워크트리·브랜치 지우기                       │ ← 기본 켬
+│ [✓] 폴더도 지우기                                │ ← 기본 켬, 위가 꺼지면 꺼진 채 비활성
+│ ⚠ fatal: '…' contains modified or untracked files│ ← 실패했을 때만
+│                                                  │
+│                                    [취소] [확인] │ ← 지우는 동안 비활성
+└──────────────────────────────────────────────────┘
+
 ┌ 새 워크트리 ────────────────────────────────────┐
 │ 브랜치                                           │
 │ [feature/login                                 ] │ ← 비울 수 없음
@@ -130,11 +158,16 @@
     <tr><td>폴더 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "폴더". 초깃값·따라가기는 R4</td></tr>
     <tr><td>오류</td><td>입력란 아래 <code>bodySmall</code>, <code>error</code> 색. git 의 stderr 마지막 줄들(앞뒤 공백 뗀 전체)</td></tr>
     <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 브랜치가 비었거나 만드는 동안 "확인" 은 <code>enabled = false</code>. 만드는 동안 "취소" 도 잠기고 버튼 줄 왼쪽에 <code>iconSize.small</code> 크기의 <code>CircularProgressIndicator</code> 가 돈다</td></tr>
+    <tr><td>"워크트리 닫기" 창</td><td>M3 <code>AlertDialog</code>. 제목 "워크트리 닫기". 본문 첫 줄은 현재 브랜치(<code>bodyMedium</code>, 없으면 생략), 둘째 줄은 워크트리 폴더(<code>labelSmall</code>, 폴더 줄과 같은 색)</td></tr>
+    <tr><td>체크박스 줄</td><td>M3 <code>Checkbox</code> + 글자. 줄 전체가 <code>toggleable(role = Checkbox)</code> 라 글자를 눌러도 바뀐다. 체크박스 자체는 표시만 한다(<code>onCheckedChange = null</code>). 글자 "워크트리·브랜치 지우기", "폴더도 지우기"</td></tr>
+    <tr><td>닫기 창 버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 지우는 동안 둘 다 잠기고 버튼 줄 왼쪽에 <code>CircularProgressIndicator</code>(<code>iconSize.small</code>). 오류는 새 워크트리 창과 같은 모양</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:new-worktree:&lt;panelId&gt;</code>(줄의 +), <code>terminal:worktree-panel:&lt;panelId&gt;</code>(워크트리 패널 줄의 브랜치 아이콘),
       <code>terminal:panel-branch:&lt;panelId&gt;</code>(브랜치 줄),
       <code>terminal:new-worktree-dialog</code>, <code>terminal:new-worktree-branch</code>, <code>terminal:new-worktree-base</code>, <code>terminal:new-worktree-directory</code>,
-      <code>terminal:new-worktree-error</code>, <code>terminal:new-worktree-confirm</code>, <code>terminal:new-worktree-cancel</code>
+      <code>terminal:new-worktree-error</code>, <code>terminal:new-worktree-confirm</code>, <code>terminal:new-worktree-cancel</code>,
+      <code>terminal:close-worktree-dialog</code>, <code>terminal:close-worktree-remove</code>(워크트리·브랜치 체크박스 줄), <code>terminal:close-worktree-delete-directory</code>(폴더 체크박스 줄),
+      <code>terminal:close-worktree-error</code>, <code>terminal:close-worktree-confirm</code>, <code>terminal:close-worktree-cancel</code>
     </td></tr>
   </tbody>
 </table>
@@ -152,6 +185,7 @@ data class GitWorktree(val path: String, val mainPath: String, val branch: Strin
 interface GitWorktreeRepository {
     fun observeWorktree(directory: String): Flow&lt;GitWorktree?&gt;
     suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String? = null): Result&lt;GitWorktree&gt;
+    suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result&lt;Unit&gt;
 }</code></pre>
 
 <dl class="meta">
@@ -163,20 +197,23 @@ interface GitWorktreeRepository {
     <code>TerminalWorkspace.closePanel(panelId)</code> — R10. 그 패널과 <code>children(panelId)</code> 를 함께 뺀다. 남는 패널이 없으면 그대로다. 선택된 패널이 빠지면 그 자리에 오는 패널(없으면 앞 패널)이 선택된다.
   </dd>
   <dt>git</dt><dd>
-    <code>GitWorktree(path, mainPath, branch)</code> — <code>path</code> 는 폴더를 담는 워크트리의 최상위, <code>mainPath</code> 는 main 워크트리의 최상위, <code>branch</code> 는 현재 브랜치(HEAD 가 떨어져 있으면 null). <code>defaultWorktreePath(branch)</code> 는 R4 의 기본 폴더.<br>
+    <code>GitWorktree(path, mainPath, branch)</code> — <code>path</code> 는 폴더를 담는 워크트리의 최상위, <code>mainPath</code> 는 main 워크트리의 최상위, <code>branch</code> 는 현재 브랜치(HEAD 가 떨어져 있으면 null). <code>defaultWorktreePath(branch)</code> 는 R4 의 기본 폴더. <code>isMain</code> 은 <code>path == mainPath</code> — 지울 수 없는 워크트리다(R12).<br>
     <code>GitWorktreeRepository.observeWorktree(directory)</code> — 상태라 <code>Flow</code> 다(<a href="state-observation.html">상태 조회</a>). 저장소가 아니거나 git 을 쓸 수 없는 타깃이면 null 을 내놓는다. 수집하는 동안만 다시 읽는다. 현재 브랜치도 같은 폴링으로 따라온다(R8b).<br>
-    <code>GitWorktreeRepository.addWorktree(repositoryDirectory, branch, path, baseBranch)</code> — 명령이라 <code>suspend</code> 다. <code>baseBranch</code> 가 null 이 아니면 새 브랜치의 시작점이고, 브랜치가 이미 있으면 쓰지 않는다(R5). 실패는 <code>Result.failure(GitWorktreeException(message))</code> 이고 <code>message</code> 는 git 의 stderr 다(R6).
+    <code>GitWorktreeRepository.addWorktree(repositoryDirectory, branch, path, baseBranch)</code> — 명령이라 <code>suspend</code> 다. <code>baseBranch</code> 가 null 이 아니면 새 브랜치의 시작점이고, 브랜치가 이미 있으면 쓰지 않는다(R5). 실패는 <code>Result.failure(GitWorktreeException(message))</code> 이고 <code>message</code> 는 git 의 stderr 다(R6).<br>
+    <code>GitWorktreeRepository.removeWorktree(directory, deleteDirectory)</code> — 명령. <code>directory</code> 를 담는 워크트리를 다시 읽어, main 워크트리가 아니면 저장소에서 떼고 그 순간의 현재 브랜치를 지운다(R14). <code>deleteDirectory</code> 면 폴더도 지우고 변경이 있으면 거부한다(R15). 워크트리가 아니거나 main 워크트리거나 git 이 거부하면 <code>GitWorktreeException</code> 이다(R16).
   </dd>
   <dt>유스케이스</dt><dd>
     <code>ObserveGitWorktreeUseCase(directory): Flow&lt;GitWorktree?&gt;</code>.<br>
-    <code>AddWorktreePanelUseCase(parentId, branch, baseBranch, path): Result&lt;TerminalWorkspaceChange&gt;</code> — main 패널의 폴더를 저장소로 <code>addWorktree</code> 를 부르고, 성공하면 <code>UpdateTerminalWorkspaceUseCase</code> 로 <code>addWorktreePanel(parentId, name = branch, directory = 만든 워크트리의 path, branch, baseBranch)</code> 를 적용한다. <code>baseBranch</code> 는 앞뒤 공백을 떼고 비면 null 로 넘긴다. 부모 패널이 없거나 폴더가 없으면 실패다.
+    <code>AddWorktreePanelUseCase(parentId, branch, baseBranch, path): Result&lt;TerminalWorkspaceChange&gt;</code> — main 패널의 폴더를 저장소로 <code>addWorktree</code> 를 부르고, 성공하면 <code>UpdateTerminalWorkspaceUseCase</code> 로 <code>addWorktreePanel(parentId, name = branch, directory = 만든 워크트리의 path, branch, baseBranch)</code> 를 적용한다. <code>baseBranch</code> 는 앞뒤 공백을 떼고 비면 null 로 넘긴다. 부모 패널이 없거나 폴더가 없으면 실패다.<br>
+    <code>CloseWorktreePanelUseCase(panelId, removeWorktree, deleteDirectory): Result&lt;TerminalWorkspaceChange&gt;</code> — <code>removeWorktree</code> 면 워크트리 패널(<code>parentId != null</code>)의 폴더로 <code>removeWorktree(directory, deleteDirectory)</code> 를 부르고, 성공했거나 <code>removeWorktree</code> 가 false 면 <code>closePanel(panelId)</code> 를 적용한다. git 이 실패하면 작업 공간은 그대로다. 패널이 없으면 실패, 워크트리 패널이 아니거나 폴더가 없는데 <code>removeWorktree</code> 면 git 을 부르지 않고 실패다.
   </dd>
   <dt>저장</dt><dd><code>TerminalPanelDto.parentId</code>·<code>branch</code>·<code>baseBranch</code>. 없는 키는 null 로 읽어 이전 파일이 그대로 읽힌다. 읽을 때 부모가 목록에 없으면 null 로 고친다(R9)</dd>
   <dt>상태</dt><dd>
     <code>TerminalViewModel.worktrees: StateFlow&lt;Map&lt;Long, GitWorktree&gt;&gt;</code> — 폴더가 있는 패널마다 <code>observeWorktree</code> 를 <code>combine</code> 한 것. 패널 id·폴더 짝이 바뀔 때만 다시 묶고(<code>distinctUntilChanged</code> + <code>flatMapLatest</code>), <code>stateIn(viewModelScope, WhileSubscribed(), emptyMap())</code>. + 는 이 맵에 있는 패널에만 보이고(R1), 워크트리 패널의 현재 브랜치와 창의 기준 브랜치 기본값도 이 맵의 <code>branch</code> 다(R2b·R8b).<br>
-    <code>suspend fun TerminalViewModel.addWorktreePanel(parentId, branch, baseBranch, path): Result&lt;Unit&gt;</code> — <code>viewModelScope.async { … }.await()</code>. 창이 사라져 호출이 취소돼도 git 명령과 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게. 창이 떠 있는지, 입력 중인 글자, 만드는 중인지, 오류 문구는 화면 안의 <code>remember</code> 다.
+    <code>suspend fun TerminalViewModel.addWorktreePanel(parentId, branch, baseBranch, path): Result&lt;Unit&gt;</code> — <code>viewModelScope.async { … }.await()</code>. 창이 사라져 호출이 취소돼도 git 명령과 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게. 창이 떠 있는지, 입력 중인 글자, 만드는 중인지, 오류 문구는 화면 안의 <code>remember</code> 다.<br>
+    <code>suspend fun TerminalViewModel.closeWorktreePanel(panelId, removeWorktree, deleteDirectory): Result&lt;Unit&gt;</code> — 같은 방식(<code>viewModelScope.async</code>)으로 <code>CloseWorktreePanelUseCase</code> 를 부르고 사라진 탭의 창을 놓는다. 창이 사라져도 지우기와 패널 닫기는 끝까지 간다 — 지워진 워크트리를 가리키는 패널이 남지 않게. 체크박스 값·지우는 중인지·오류 문구는 화면 안의 <code>remember</code> 다.
   </dd>
-  <dt>UI</dt><dd><code>feature/terminal/ui/.../NewWorktreeDialog.kt</code>(<code>NewWorktreeDialog</code> — 기준 브랜치 입력란은 창을 열 때의 <code>GitWorktree.branch</code> 로 시작한다), <code>TerminalPanelList.kt</code>(최상위 패널 → 그 워크트리 패널 순으로 그리고, 줄에 + 와 들여쓰기·아이콘·브랜치 줄을 둔다. 브랜치 줄의 현재 브랜치는 <code>worktrees[panel.id]?.branch ?: panel.branch</code>). <code>core/designsystem</code> 에 <code>JarvisIcons.GitBranch</code> 가 더해진다</dd>
+  <dt>UI</dt><dd><code>feature/terminal/ui/.../NewWorktreeDialog.kt</code>(<code>NewWorktreeDialog</code> — 기준 브랜치 입력란은 창을 열 때의 <code>GitWorktree.branch</code> 로 시작한다), <code>CloseWorktreeDialog.kt</code>(<code>CloseWorktreeDialog</code> — 창을 열 때의 <code>GitWorktree</code> 로 브랜치·폴더를 보인다), <code>TerminalPanelList.kt</code>(최상위 패널 → 그 워크트리 패널 순으로 그리고, 줄에 + 와 들여쓰기·아이콘·브랜치 줄을 둔다. 브랜치 줄의 현재 브랜치는 <code>worktrees[panel.id]?.branch ?: panel.branch</code>. 워크트리 패널의 ✕ 는 <code>worktrees[panel.id]</code> 가 있고 <code>isMain</code> 이 아니면 <code>CloseWorktreeDialog</code> 를, 아니면 곧바로 <code>closePanel</code> 을 부른다). <code>core/designsystem</code> 에 <code>JarvisIcons.GitBranch</code> 가 더해진다</dd>
   <dt>공급</dt><dd>
     <code>internal expect fun createGitDataSource(): GitDataSource</code> — <code>:feature:terminal:data</code>. <code>GitDataSource</code> 는 <code>GitWorktreeRepository</code> 와 같은 두 함수를 가진 internal 인터페이스이고, git 을 쓸 수 없는 타깃은 <code>UnsupportedGitDataSource</code>(늘 null, 늘 실패)다.
   </dd>
@@ -208,8 +245,13 @@ interface GitWorktreeRepository {
 </aside>
 
 <aside class="decision">
-  <strong>결정: 패널 닫기는 워크트리를 지우지 않는다</strong>
-  패널은 화면의 배치이고 워크트리는 디스크의 작업이다. 닫기 하나로 커밋하지 않은 변경이 사라지면 되돌릴 수 없다. 삭제는 셸에서 <code>git worktree remove</code> 로 한다(스코프에서 뺀 것).
+  <strong>결정: 워크트리 패널의 ✕ 만 묻고, 변경이 있는 폴더는 지우지 않는다</strong>
+  패널은 화면의 배치이고 워크트리는 디스크의 작업이다. 워크트리 패널의 ✕ 는 창에서 지울 것을 고르게 하고(R12), main 패널의 ✕ 는 묻지 않고 패널만 닫는다 — 지시는 "worktree x" 이고, 워크트리 여러 개를 한 번에 지우는 것은 한 번 더 확인해야 할 만큼 크다. 체크박스 기본값이 켜짐이라 창에서 "확인" 만 눌러도 지워지므로, 되돌릴 수 없는 것만 막는다: 커밋하지 않은 변경은 git 에도 남지 않으니 <code>--force</code> 를 쓰지 않아 git 이 거부하게 둔다(R15). 브랜치는 병합하지 않았어도 <code>-D</code> 로 지운다 — 커밋은 <code>git reflog</code> 에 남아 되살릴 수 있고, <code>-d</code> 로 두면 워크트리에서 커밋한 브랜치는 거의 늘 병합 전이라 지우기가 매번 실패한다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 폴더를 남길 때는 <code>.git</code> 파일을 지우고 <code>git worktree prune</code> 한다</strong>
+  <code>git worktree remove</code> 는 폴더를 늘 지운다(폴더를 남기는 옵션이 없다). 연결된 워크트리의 <code>.git</code> 은 저장소의 <code>.git/worktrees/&lt;이름&gt;</code> 을 가리키는 한 줄짜리 파일이라, 이것을 지우면 그 폴더는 보통 폴더가 되고 저장소 쪽 기록은 가리키는 곳이 없어져 <code>git worktree prune</code> 이 걷어낸다. 그 뒤 브랜치는 어느 워크트리도 체크아웃하지 않아 지울 수 있다. <code>.git/worktrees/&lt;이름&gt;</code> 을 직접 지우는 길은 버렸다 — git 의 내부 구조에 기대고, <code>prune</code> 이 같은 일을 공식으로 한다. <code>prune</code> 은 다른 이미 죽은 워크트리 기록(폴더가 사라진 것)도 함께 걷는다 — 어차피 쓸 수 없는 기록이고, <code>git worktree lock</code> 한 것은 건드리지 않는다.
 </aside>
 
 <h2 id="platforms">플랫폼별 판정</h2>
@@ -231,10 +273,11 @@ interface GitWorktreeRepository {
   <tbody>
     <tr><td><code>TerminalWorkspaceTest</code></td><td>R7, R8, R10. 워크트리 패널이 부모 뒤(형제들 뒤)에 탭 없이 들어가 선택되고 거기서 연 첫 탭이 그 폴더에서 시작함, 브랜치·기준 브랜치를 기억하고 빈 것은 null, 워크트리 패널에서 만든 것은 같은 부모의 형제, 모르는 부모는 무시, 부모를 닫으면 자식도 닫힘, 자식만 닫으면 부모는 남음, 마지막 가족은 닫히지 않음</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>GitWorktreeTest</code></td><td><code>defaultWorktreePath</code> 가 main 워크트리 옆 <code>-worktrees/&lt;브랜치&gt;</code></td><td>같음</td></tr>
+    <tr><td><code>CloseWorktreePanelUseCaseTest</code></td><td>R14, R16. 켜면 패널 폴더와 폴더 지우기 값으로 <code>removeWorktree</code> 를 부르고 성공하면 패널이 닫힘, 끄면 git 없이 닫힘, git 이 실패하면 작업 공간이 그대로, 워크트리 패널이 아니면 git 을 부르지 않고 실패</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>AddWorktreePanelUseCaseTest</code></td><td>R5–R7. 부모 폴더를 저장소로 <code>addWorktree</code> 를 기준 브랜치와 함께 부르고(빈 기준은 null), 성공하면 만든 path 를 폴더로 브랜치 이름의 빈 패널이 브랜치·기준 브랜치를 기억하며 붙고, 실패하면 작업 공간이 그대로</td><td>같음</td></tr>
     <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R9. <code>parentId</code>·<code>branch</code>·<code>baseBranch</code> 가 파일에 쓰이고 다시 읽힘, 부모가 없는 <code>parentId</code> 는 null 로 읽힘, 키가 없는 이전 파일은 null</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
-    <tr><td><code>GitDataSourceTest</code></td><td>R1, R5, R8b. 임시 저장소에서 <code>observeWorktree</code> 가 path·mainPath·현재 브랜치를 주고(detached 는 null, 커밋 없는 저장소도 브랜치를 줌) 저장소가 아닌 폴더는 null, <code>addWorktree</code> 가 새 브랜치를 HEAD 또는 기준 브랜치에서 만들고 기존 브랜치는 그대로 체크아웃하고, 없는 기준 브랜치와 git 의 거부는 stderr 가 오류 문구</td><td>같음</td></tr>
-    <tr><td><code>JarvisAppTerminalWorktreeTest</code></td><td>R1–R3, R6–R8b, R10. 가짜 저장소가 워크트리를 주는 패널에만 + 가 보임, 창에는 취소·확인뿐이고 기준 브랜치가 + 를 누른 패널의 현재 브랜치로 시작하며 기본 폴더가 브랜치를 따라감, 빈 브랜치는 확인 비활성, 실패 문구가 창에 남음, 성공하면 부모 아래 들여쓴 줄이 <code>기준 → 현재</code> 브랜치 줄과 함께 생기고 선택돼 오른쪽에 빈 패널 안내가 뜨며 + 로 연 셸이 워크트리 폴더에서 시작, 자식에서 + 는 형제이고 기준 브랜치 기본값이 그 자식의 브랜치, 관측한 브랜치가 바뀌면 브랜치 줄이 따라감, 부모 닫기가 자식을 닫음</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>GitDataSourceTest</code></td><td>R1, R5, R8b. 임시 저장소에서 <code>observeWorktree</code> 가 path·mainPath·현재 브랜치를 주고(detached 는 null, 커밋 없는 저장소도 브랜치를 줌) 저장소가 아닌 폴더는 null, <code>addWorktree</code> 가 새 브랜치를 HEAD 또는 기준 브랜치에서 만들고 기존 브랜치는 그대로 체크아웃하고, 없는 기준 브랜치와 git 의 거부는 stderr 가 오류 문구. R14·R15: <code>removeWorktree</code> 가 폴더·기록·(바뀐) 현재 브랜치를 지우고, 폴더를 남기면 파일이 남은 채 기록·브랜치만 사라지며, 변경이 있는 폴더는 거부해 모두 그대로, detached 는 브랜치를 건드리지 않고, main 워크트리는 거부</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalWorktreeTest</code></td><td>R1–R3, R6–R8b, R10. 가짜 저장소가 워크트리를 주는 패널에만 + 가 보임, 창에는 취소·확인뿐이고 기준 브랜치가 + 를 누른 패널의 현재 브랜치로 시작하며 기본 폴더가 브랜치를 따라감, 빈 브랜치는 확인 비활성, 실패 문구가 창에 남음, 성공하면 부모 아래 들여쓴 줄이 <code>기준 → 현재</code> 브랜치 줄과 함께 생기고 선택돼 오른쪽에 빈 패널 안내가 뜨며 + 로 연 셸이 워크트리 폴더에서 시작, 자식에서 + 는 형제이고 기준 브랜치 기본값이 그 자식의 브랜치, 관측한 브랜치가 바뀌면 브랜치 줄이 따라감, 부모 닫기가 창 없이 자식을 닫음. R12–R16: 워크트리 패널의 ✕ 가 두 체크박스가 켜진 창을 띄움, 워크트리·브랜치를 끄면 폴더가 꺼진 채 비활성이고 다시 켜면 돌아옴, 고른 값으로 지우고 패널·셸이 닫힘, 둘 다 끄면 git 없이 닫힘, 실패 문구가 창에 남고 패널이 그대로, 취소는 아무것도 안 함, 관측할 수 없는 워크트리 패널은 창 없이 닫힘</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 
@@ -245,7 +288,10 @@ interface GitWorktreeRepository {
 <ul>
   <li>+ 는 폴링 간격(<a href="../platform/jvm.html#terminal-worktree">JVM 스펙</a>) 뒤에 나타나거나 사라진다. <code>git init</code> 직후에는 잠깐 없다.</li>
   <li>워크트리 패널의 폴더는 만들 때 한 번 정한다. 워크트리를 옮기면(<code>git worktree move</code>) 패널은 옛 경로를 갖고 탭이 홈에서 열린다(R11).</li>
-  <li>패널을 닫아도 워크트리는 남는다. 정리는 셸에서 <code>git worktree remove</code> 로 한다.</li>
+  <li>main 패널을 닫으면 그 아래 워크트리는 모두 디스크에 남는다. 지우려면 워크트리 패널을 하나씩 ✕ 로 닫는다.</li>
+  <li>변경이 있는 워크트리 폴더는 앱에서 지울 수 없다(R15). 커밋·정리하거나 셸에서 <code>git worktree remove --force</code> 한다.</li>
+  <li>워크트리를 뗀 뒤 브랜치 지우기가 실패하면(드물다: 권한, 잠긴 ref) 워크트리는 이미 지워졌는데 패널이 남는다. 다시 "확인" 하면 워크트리가 없다는 오류가 나므로, "워크트리·브랜치 지우기" 를 끄고 닫은 뒤 브랜치는 셸에서 지운다.</li>
+  <li>창은 열 때 관측한 워크트리로 브랜치·폴더를 보이지만, 실제로 지우는 브랜치는 "확인" 하는 순간 다시 읽은 값이다(R14). 창을 연 채 셸에서 브랜치를 바꾸면 보이는 글자와 지워지는 브랜치가 다를 수 있다.</li>
   <li>기준 브랜치는 만들 때 적어 둔 글자다. 그 뒤 기준 브랜치가 지워지거나 이름이 바뀌어도 브랜치 줄은 그대로다. 현재 브랜치는 폴링 간격 뒤에 따라온다.</li>
   <li>이미 있는 브랜치를 골라 만들면 기준 브랜치는 git 에 넘기지 않고 패널에만 남는다(결정 참고).</li>
   <li>Android 에는 <code>git</code> 이 없어 + 가 없다(<a href="../platform/android.html#terminal-worktree">Android</a>).</li>

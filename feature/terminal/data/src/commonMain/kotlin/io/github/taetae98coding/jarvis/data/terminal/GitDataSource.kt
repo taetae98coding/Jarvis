@@ -9,6 +9,8 @@ internal interface GitDataSource {
     fun observeWorktree(directory: String): Flow<GitWorktree?>
 
     suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree>
+
+    suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result<Unit>
 }
 
 /** git 을 실행할 수 없는 타깃. 어떤 폴더도 저장소가 아니라서 패널에 + 가 없다. */
@@ -16,7 +18,11 @@ internal object UnsupportedGitDataSource : GitDataSource {
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = flowOf(null)
 
     override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> =
-        Result.failure(GitWorktreeException("이 플랫폼에서는 git 을 쓸 수 없습니다"))
+        unsupported()
+
+    override suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result<Unit> = unsupported()
+
+    private fun <T> unsupported(): Result<T> = Result.failure(GitWorktreeException("이 플랫폼에서는 git 을 쓸 수 없습니다"))
 }
 
 /**

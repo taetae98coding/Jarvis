@@ -6,6 +6,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.AddWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
+import io.github.taetae98coding.jarvis.domain.terminal.CloseWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
@@ -25,6 +26,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.UpdateTerminalWorkspaceUs
 import io.github.taetae98coding.jarvis.domain.terminal.claudeSessionIds
 import io.github.taetae98coding.jarvis.domain.terminal.claudeStatus
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
+import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,6 +58,7 @@ internal class TerminalViewModel(
     private val importChromeCookies: ImportChromeCookiesUseCase,
     private val observeGitWorktree: ObserveGitWorktreeUseCase,
     private val addWorktree: AddWorktreePanelUseCase,
+    private val closeWorktree: CloseWorktreePanelUseCase,
     observeClaudeActivities: ObserveClaudeActivitiesUseCase,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
@@ -142,6 +145,15 @@ internal class TerminalViewModel(
 
     fun closePanel(panelId: Long) = update { it.closePanel(panelId) }
 
+    /**
+     * [removeWorktree] 면 워크트리 패널의 워크트리·브랜치(와 [deleteDirectory] 면 폴더)를 지우고 패널을 닫는다. 창이 닫혀
+     * 취소돼도 끝까지 간다 — 지워진 워크트리를 가리키는 패널이 남지 않게.
+     */
+    suspend fun closeWorktreePanel(panelId: Long, removeWorktree: Boolean, deleteDirectory: Boolean): Result<Unit> =
+        viewModelScope.async {
+            closeWorktree(panelId, removeWorktree, deleteDirectory).map { change -> host.release(change.removedTabs.map { it.id }) }
+        }.await()
+
     fun selectPanel(panelId: Long) = update { it.selectPanel(panelId) }
 
     fun splitSideBySide() = update { it.split(SplitDirection.SideBySide, it.startDirectory()) }
@@ -161,8 +173,16 @@ internal class TerminalViewModel(
 
     fun setUrl(tabId: Long, url: String) = update { it.setUrl(tabId, url) }
 
-    fun addDeviceTab(groupId: Long?, deviceId: String, deviceName: String) =
-        update { it.addTab(groupId, TerminalProgram.Device, deviceId = deviceId, deviceName = deviceName) }
+    fun addDeviceTab(groupId: Long?, choice: DeviceChoice) =
+        update {
+            it.addTab(
+                groupId = groupId,
+                program = TerminalProgram.Device,
+                deviceId = choice.id,
+                deviceName = choice.name,
+                devicePlatform = choice.devicePlatform,
+            )
+        }
 
     /** 드롭다운을 열 때 지금 Chrome 프로필 목록을 읽는다(명령이 지금 값을 읽음). */
     suspend fun chromeProfiles(): List<ChromeProfile> = observeChromeProfiles().first()
@@ -173,6 +193,8 @@ internal class TerminalViewModel(
     fun closeFocusedTab() = update { it.closeFocusedTab() }
 
     fun closeTab(tabId: Long) = update { it.closeTab(tabId) }
+
+    fun renameTab(tabId: Long, name: String) = update { it.renameTab(tabId, name) }
 
     fun selectTab(tabId: Long) = update { it.selectTab(tabId) }
 

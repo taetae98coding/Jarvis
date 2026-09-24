@@ -22,8 +22,12 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  *
  * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
  * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만, [url] 은 [TerminalProgram.Browser] 탭에만,
- * [deviceId]·[deviceName] 은 [TerminalProgram.Device] 탭에만 있다. [deviceName] 은 고를 때의 이름이다.
+ * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만 있다. [deviceName]·[devicePlatform] 은
+ * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다.
+ *
  * [claudeCheckedAt] 은 사용자가 본 마지막 끝난 결과의 [ClaudeActivity.Finished.at] 이다(docs/common/terminal-claude-status.html).
+ *
+ * [name] 은 사용자가 정한 이름이다. null 이면 화면이 창의 제목이나 순번으로 자동 제목을 짓는다.
  */
 data class TerminalTab(
     val id: Long,
@@ -33,8 +37,22 @@ data class TerminalTab(
     val url: String? = null,
     val deviceId: String? = null,
     val deviceName: String? = null,
+    val devicePlatform: DevicePlatform? = null,
+    val name: String? = null,
     val claudeCheckedAt: Long? = null,
 ) {
+    val kind: TerminalTabKind
+        get() = when (program) {
+            TerminalProgram.Shell -> TerminalTabKind.Terminal
+            TerminalProgram.Claude -> TerminalTabKind.Claude
+            TerminalProgram.Browser -> TerminalTabKind.Browser
+            TerminalProgram.Device -> when (devicePlatform) {
+                DevicePlatform.Android -> TerminalTabKind.Android
+                DevicePlatform.IOS -> TerminalTabKind.IOS
+                null -> TerminalTabKind.Device
+            }
+        }
+
     companion object {
         const val DefaultBrowserUrl = "https://www.google.com"
     }
@@ -237,12 +255,13 @@ data class TerminalWorkspace(
         url: String? = null,
         deviceId: String? = null,
         deviceName: String? = null,
+        devicePlatform: DevicePlatform? = null,
     ): TerminalWorkspace {
         val panel = (if (groupId == null) selectedPanel else findPanel { panel -> panel.groups.any { it.id == groupId } })
             ?: return this
         val group = if (groupId == null) panel.focusedGroup else panel.groups.first { it.id == groupId }
         val tabId = nextId
-        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName)
+        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform)
 
         if (group == null) {
             val newGroupId = nextId + 1
@@ -380,6 +399,9 @@ data class TerminalWorkspace(
     fun setDirectory(tabId: Long, directory: String): TerminalWorkspace = replaceTab(tabId) { it.copy(directory = directory) }
 
     fun setUrl(tabId: Long, url: String): TerminalWorkspace = replaceTab(tabId) { it.copy(url = url) }
+
+    /** 앞뒤 공백을 뗀다. 비어 있으면 사용자가 정한 이름을 지워 자동 제목으로 돌아간다. */
+    fun renameTab(tabId: Long, name: String): TerminalWorkspace = replaceTab(tabId) { it.copy(name = name.trim().ifEmpty { null }) }
 
     /**
      * 지금 보이는 Claude 탭 중 끝난 결과가 있는 탭의 확인 기록을 그 결과로 올린다. 올릴 것이 없으면 자신이다.

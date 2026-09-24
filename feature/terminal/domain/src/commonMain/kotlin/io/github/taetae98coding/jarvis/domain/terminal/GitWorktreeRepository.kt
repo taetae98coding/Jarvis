@@ -15,4 +15,11 @@ interface GitWorktreeRepository {
      * 실패는 [GitWorktreeException] 이다.
      */
     suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String? = null): Result<GitWorktree>
+
+    /**
+     * [directory] 를 담고 있는 워크트리를 저장소에서 떼고, 지금 체크아웃하고 있는 브랜치를 병합 여부와 무관하게 지운다
+     * (detached 면 브랜치는 그대로). [deleteDirectory] 면 폴더도 지우되 커밋하지 않은 변경이 있으면 거부하고, 아니면 폴더의
+     * 파일을 git 과 무관한 보통 폴더로 남긴다. 워크트리가 아니거나 main 워크트리면 실패다. 실패는 [GitWorktreeException] 이다.
+     */
+    suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result<Unit>
 }

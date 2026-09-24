@@ -21,11 +21,6 @@ import androidx.compose.foundation.style.pressed
 import androidx.compose.foundation.style.rememberUpdatedStyleState
 import androidx.compose.foundation.style.selected
 import androidx.compose.foundation.style.styleable
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.text.input.selectAll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,7 +34,6 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,23 +42,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -97,7 +81,9 @@ fun terminalPanelClaudeStatusTestTag(id: Long): String = "terminal:panel-claude-
  * 왼쪽의 패널 목록. 최상위 패널마다 그 워크트리 패널을 바로 아래 들여써 그린다. 닫아서 패널이 하나도 남지 않게
  * 되는 줄에는 ✕ 가 없다. "새 패널" 은 [NewPanelDialog] 를 거쳐 [onAdd] 를, [worktrees] 에 있는 패널의 + 는
  * [NewWorktreeDialog] 를 거쳐 [onAddWorktree] 를 부른다. 워크트리 패널 줄의 현재 브랜치는 [worktrees] 에서
- * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다. [claudeStatuses] 에 있는 패널 줄에는 Claude 상태 표시가 있다.
+ * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다. 워크트리 패널의 ✕ 는 지울 워크트리가 관측되면
+ * [CloseWorktreeDialog] 를 거쳐 [onCloseWorktree] 를, 아니면 다른 줄처럼 곧바로 [onClose] 를 부른다. [claudeStatuses] 에
+ * 있는 패널 줄에는 Claude 상태 표시가 있다.
  */
 @Composable
 internal fun TerminalPanelList(
@@ -111,11 +97,13 @@ internal fun TerminalPanelList(
     onClose: (Long) -> Unit,
     onAdd: (name: String, directory: String) -> Unit,
     onAddWorktree: suspend (parentId: Long, branch: String, baseBranch: String?, directory: String) -> Result<Unit>,
+    onCloseWorktree: suspend (panelId: Long, removeWorktree: Boolean, deleteDirectory: Boolean) -> Result<Unit>,
     modifier: Modifier = Modifier,
 ) {
     var creating by remember { mutableStateOf(false) }
     // 창이 떠 있는 동안 폴링이 워크트리를 바꿔도 창은 열 때의 값으로 간다.
     var creatingWorktree by remember { mutableStateOf<Pair<TerminalPanel, GitWorktree>?>(null) }
+    var closingWorktree by remember { mutableStateOf<Pair<TerminalPanel, GitWorktree>?>(null) }
 
     Column(
         modifier = modifier.width(TerminalPanelListDefaults.width).fillMaxHeight(),
@@ -141,7 +129,9 @@ internal fun TerminalPanelList(
                     claudeStatus = claudeStatuses[panel.id],
                     onSelect = { onSelect(panel.id) },
                     onRename = { onRename(panel.id, it) },
-                    onClose = { onClose(panel.id) },
+                    onClose = {
+                        if (isWorktree && worktree != null && !worktree.isMain) closingWorktree = panel to worktree else onClose(panel.id)
+                    },
                     onAddWorktree = worktree?.let { { creatingWorktree = panel to it } },
                     modifier = Modifier.fillMaxWidth().testTag(terminalPanelTestTag(panel.id)),
                     renameModifier = Modifier.testTag(terminalPanelRenameTestTag(panel.id)),
@@ -187,6 +177,14 @@ internal fun TerminalPanelList(
             worktree = worktree,
             onCreate = { branch, baseBranch, directory -> onAddWorktree(parent.id, branch, baseBranch, directory) },
             onDismiss = { creatingWorktree = null },
+        )
+    }
+
+    closingWorktree?.let { (panel, worktree) ->
+        CloseWorktreeDialog(
+            worktree = worktree,
+            onClose = { removeWorktree, deleteDirectory -> onCloseWorktree(panel.id, removeWorktree, deleteDirectory) },
+            onDismiss = { closingWorktree = null },
         )
     }
 }
@@ -250,15 +248,16 @@ internal fun TerminalPanelItem(
             .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s)
 
         if (editing) {
-            PanelNameField(
+            TerminalNameField(
                 initial = name,
+                textStyle = TerminalPanelItemDefaults.nameStyle,
                 color = contentColor,
                 onDone = { value ->
                     editing = false
                     onRename(value)
                 },
                 onCancel = { editing = false },
-                modifier = nameModifier,
+                modifier = nameModifier.testTag(TerminalPanelNameFieldTestTag),
             )
             claudeStatus?.let { ClaudeStatusIndicator(it, contentColor, interactionSource, onSelect, claudeStatusModifier) }
         } else {
@@ -384,57 +383,6 @@ private fun ClaudeStatusIndicator(
             }
         }
     }
-}
-
-/** Enter·포커스를 잃으면 확정, Esc 는 취소. 들어올 때 이름 전체가 선택돼 곧바로 덮어쓸 수 있다. */
-@Composable
-private fun PanelNameField(
-    initial: String,
-    color: Color,
-    onDone: (String) -> Unit,
-    onCancel: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val state = rememberTextFieldState(initial)
-    val focusRequester = remember { FocusRequester() }
-    // 포커스를 받기 전의 "포커스 없음" 알림을 확정으로 읽지 않게, 한 번 포커스를 받은 뒤부터 본다.
-    var focused by remember { mutableStateOf(false) }
-    var finished by remember { mutableStateOf(false) }
-
-    fun finish(commit: Boolean) {
-        if (finished) return
-        finished = true
-        if (commit) onDone(state.text.toString()) else onCancel()
-    }
-
-    LaunchedEffect(Unit) {
-        state.edit { selectAll() }
-        focusRequester.requestFocus()
-    }
-
-    BasicTextField(
-        state = state,
-        lineLimits = TextFieldLineLimits.SingleLine,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        textStyle = TerminalPanelItemDefaults.nameStyle.copy(color = color),
-        cursorBrush = SolidColor(color),
-        onKeyboardAction = { finish(commit = true) },
-        modifier = modifier
-            .testTag(TerminalPanelNameFieldTestTag)
-            .focusRequester(focusRequester)
-            .onFocusChanged {
-                if (it.isFocused) focused = true else if (focused) finish(commit = true)
-            }
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (event.key) {
-                    Key.Enter, Key.NumPadEnter -> finish(commit = true)
-                    Key.Escape -> finish(commit = false)
-                    else -> return@onPreviewKeyEvent false
-                }
-                true
-            },
-    )
 }
 
 internal object ClaudeStatusIndicatorDefaults {
