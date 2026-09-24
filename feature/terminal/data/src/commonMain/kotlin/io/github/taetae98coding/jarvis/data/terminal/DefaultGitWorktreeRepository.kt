@@ -11,4 +11,7 @@ internal class DefaultGitWorktreeRepository(
 
     override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> =
         dataSource.addWorktree(repositoryDirectory, branch, path, baseBranch)
+
+    override suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result<Unit> =
+        dataSource.removeWorktree(directory, deleteDirectory)
 }

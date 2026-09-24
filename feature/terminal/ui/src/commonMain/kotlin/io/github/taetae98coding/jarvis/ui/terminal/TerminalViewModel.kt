@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.AddWorktreePanelUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.CloseWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
@@ -52,6 +53,7 @@ internal class TerminalViewModel(
     private val importChromeCookies: ImportChromeCookiesUseCase,
     private val observeGitWorktree: ObserveGitWorktreeUseCase,
     private val addWorktree: AddWorktreePanelUseCase,
+    private val closeWorktree: CloseWorktreePanelUseCase,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -110,6 +112,15 @@ internal class TerminalViewModel(
     fun renamePanel(panelId: Long, name: String) = update { it.renamePanel(panelId, name) }
 
     fun closePanel(panelId: Long) = update { it.closePanel(panelId) }
+
+    /**
+     * [removeWorktree] 면 워크트리 패널의 워크트리·브랜치(와 [deleteDirectory] 면 폴더)를 지우고 패널을 닫는다. 창이 닫혀
+     * 취소돼도 끝까지 간다 — 지워진 워크트리를 가리키는 패널이 남지 않게.
+     */
+    suspend fun closeWorktreePanel(panelId: Long, removeWorktree: Boolean, deleteDirectory: Boolean): Result<Unit> =
+        viewModelScope.async {
+            closeWorktree(panelId, removeWorktree, deleteDirectory).map { change -> host.release(change.removedTabs.map { it.id }) }
+        }.await()
 
     fun selectPanel(panelId: Long) = update { it.selectPanel(panelId) }
 

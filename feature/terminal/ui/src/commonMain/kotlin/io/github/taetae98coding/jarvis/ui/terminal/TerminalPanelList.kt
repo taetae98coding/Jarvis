@@ -67,7 +67,8 @@ fun terminalPanelBranchTestTag(id: Long): String = "terminal:panel-branch:$id"
  * 왼쪽의 패널 목록. 최상위 패널마다 그 워크트리 패널을 바로 아래 들여써 그린다. 닫아서 패널이 하나도 남지 않게
  * 되는 줄에는 ✕ 가 없다. "새 패널" 은 [NewPanelDialog] 를 거쳐 [onAdd] 를, [worktrees] 에 있는 패널의 + 는
  * [NewWorktreeDialog] 를 거쳐 [onAddWorktree] 를 부른다. 워크트리 패널 줄의 현재 브랜치는 [worktrees] 에서
- * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다.
+ * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다. 워크트리 패널의 ✕ 는 지울 워크트리가 관측되면
+ * [CloseWorktreeDialog] 를 거쳐 [onCloseWorktree] 를, 아니면 다른 줄처럼 곧바로 [onClose] 를 부른다.
  */
 @Composable
 internal fun TerminalPanelList(
@@ -80,11 +81,13 @@ internal fun TerminalPanelList(
     onClose: (Long) -> Unit,
     onAdd: (name: String, directory: String) -> Unit,
     onAddWorktree: suspend (parentId: Long, branch: String, baseBranch: String?, directory: String) -> Result<Unit>,
+    onCloseWorktree: suspend (panelId: Long, removeWorktree: Boolean, deleteDirectory: Boolean) -> Result<Unit>,
     modifier: Modifier = Modifier,
 ) {
     var creating by remember { mutableStateOf(false) }
     // 창이 떠 있는 동안 폴링이 워크트리를 바꿔도 창은 열 때의 값으로 간다.
     var creatingWorktree by remember { mutableStateOf<Pair<TerminalPanel, GitWorktree>?>(null) }
+    var closingWorktree by remember { mutableStateOf<Pair<TerminalPanel, GitWorktree>?>(null) }
 
     Column(
         modifier = modifier.width(TerminalPanelListDefaults.width).fillMaxHeight(),
@@ -109,7 +112,9 @@ internal fun TerminalPanelList(
                     baseBranch = if (isWorktree) panel.baseBranch else null,
                     onSelect = { onSelect(panel.id) },
                     onRename = { onRename(panel.id, it) },
-                    onClose = { onClose(panel.id) },
+                    onClose = {
+                        if (isWorktree && worktree != null && !worktree.isMain) closingWorktree = panel to worktree else onClose(panel.id)
+                    },
                     onAddWorktree = worktree?.let { { creatingWorktree = panel to it } },
                     modifier = Modifier.fillMaxWidth().testTag(terminalPanelTestTag(panel.id)),
                     renameModifier = Modifier.testTag(terminalPanelRenameTestTag(panel.id)),
@@ -154,6 +159,14 @@ internal fun TerminalPanelList(
             worktree = worktree,
             onCreate = { branch, baseBranch, directory -> onAddWorktree(parent.id, branch, baseBranch, directory) },
             onDismiss = { creatingWorktree = null },
+        )
+    }
+
+    closingWorktree?.let { (panel, worktree) ->
+        CloseWorktreeDialog(
+            worktree = worktree,
+            onClose = { removeWorktree, deleteDirectory -> onCloseWorktree(panel.id, removeWorktree, deleteDirectory) },
+            onDismiss = { closingWorktree = null },
         )
     }
 }
