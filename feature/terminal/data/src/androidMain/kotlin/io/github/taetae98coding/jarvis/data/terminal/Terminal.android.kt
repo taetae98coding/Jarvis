@@ -43,6 +43,9 @@ private class PipeTerminalDataSource(
 
     override suspend fun stopClaude(sessionId: String) = Unit
 
+    // Claude 탭이 없으니 알릴 턴도 없다. 알림 채널을 만들거나 권한을 묻지 않는다.
+    override suspend fun showNotification(title: String, message: String) = Unit
+
     override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = flowOf(emptyList())
 
     override suspend fun importChromeCookies(profileDirectory: String): List<BrowserCookie> = emptyList()

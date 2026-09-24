@@ -50,6 +50,7 @@ internal data class ClaudeJobState(
     val sessionId: String?,
     val state: String?,
     val tempo: String?,
+    val detail: String? = null,
     val hasBackgroundWork: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
@@ -60,13 +61,21 @@ internal data class ClaudeJobState(
      */
     val activity: ClaudeActivity
         get() = when {
-            state == "stopped" || state == "failed" -> ClaudeActivity.Finished(updatedAt)
+            state == "stopped" || state == "failed" -> finished
             tempo == "active" -> ClaudeActivity.Working
-            tempo == "blocked" -> ClaudeActivity.Finished(updatedAt)
+            tempo == "blocked" -> finished
             tempo == null && state == "working" -> ClaudeActivity.Working
             hasBackgroundWork -> ClaudeActivity.Monitoring
-            else -> ClaudeActivity.Finished(updatedAt)
+            else -> finished
         }
+
+    // 턴을 끝내고 답을 기다리면 state 가 blocked, 턴 도중 선택을 기다리면 state 는 working 이고 tempo 만 blocked 다.
+    private val finished: ClaudeActivity.Finished
+        get() = ClaudeActivity.Finished(
+            at = updatedAt,
+            needsInput = state == "blocked" || tempo == "blocked",
+            summary = detail?.takeIf { it.isNotBlank() },
+        )
 }
 
 /**
@@ -101,6 +110,7 @@ internal fun parseClaudeJobState(text: String): ClaudeJobState? {
         sessionId = string("sessionId"),
         state = string("state"),
         tempo = string("tempo"),
+        detail = string("detail"),
         hasBackgroundWork = count("tasks") > 0 || count("queued") > 0 || inFlight?.get("wake") is JsonObject || "session_cron" in kinds,
         createdAt = createdAt,
         updatedAt = time("updatedAt") ?: createdAt,

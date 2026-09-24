@@ -8,8 +8,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,12 +25,12 @@ import androidx.compose.foundation.style.selected
 import androidx.compose.foundation.style.styleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -58,6 +58,7 @@ import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisShapes
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
 
@@ -76,7 +77,7 @@ fun terminalWorktreePanelTestTag(id: Long): String = "terminal:worktree-panel:$i
 
 fun terminalPanelBranchTestTag(id: Long): String = "terminal:panel-branch:$id"
 
-fun terminalPanelClaudeStatusTestTag(id: Long): String = "terminal:panel-claude-status:$id"
+fun terminalPanelClaudeStatusTestTag(panelId: Long, tabId: Long): String = "terminal:panel-claude-status:$panelId:$tabId"
 
 /**
  * 왼쪽의 패널 목록. 최상위 패널마다 그 워크트리 패널을 바로 아래 들여써 그린다. 닫아서 패널이 하나도 남지 않게
@@ -84,7 +85,7 @@ fun terminalPanelClaudeStatusTestTag(id: Long): String = "terminal:panel-claude-
  * [NewWorktreeDialog] 를 거쳐 [onAddWorktree] 를 부른다. 워크트리 패널 줄의 현재 브랜치는 [worktrees] 에서
  * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다. 워크트리 패널의 ✕ 는 지울 워크트리가 관측되면
  * [CloseWorktreeDialog] 를 거쳐 [onCloseWorktree] 를, 아니면 다른 줄처럼 곧바로 [onClose] 를 부른다. [claudeStatuses] 에
- * 있는 패널 줄에는 Claude 상태 표시가 있다.
+ * 있는 패널 줄에는 Claude 탭마다 상태 표시가 있고, 누르면 [onSelectTab] 으로 그 탭을 고른다.
  */
 @Composable
 internal fun TerminalPanelList(
@@ -92,8 +93,9 @@ internal fun TerminalPanelList(
     selectedPanelId: Long?,
     nextPanelName: String,
     worktrees: Map<Long, GitWorktree>,
-    claudeStatuses: Map<Long, ClaudeStatus>,
+    claudeStatuses: Map<Long, List<ClaudeTabStatus>>,
     onSelect: (Long) -> Unit,
+    onSelectTab: (Long) -> Unit,
     onRename: (Long, String) -> Unit,
     onClose: (Long) -> Unit,
     onAdd: (name: String, directory: String) -> Unit,
@@ -127,8 +129,9 @@ internal fun TerminalPanelList(
                     isWorktree = isWorktree,
                     branch = if (isWorktree) worktree?.branch ?: panel.branch else null,
                     baseBranch = if (isWorktree) panel.baseBranch else null,
-                    claudeStatus = claudeStatuses[panel.id],
+                    claudeStatuses = claudeStatuses[panel.id].orEmpty(),
                     onSelect = { onSelect(panel.id) },
+                    onSelectClaudeTab = onSelectTab,
                     onRename = { onRename(panel.id, it) },
                     onClose = {
                         if (isWorktree && worktree != null && !worktree.isMain) closingWorktree = panel to worktree else onClose(panel.id)
@@ -140,7 +143,7 @@ internal fun TerminalPanelList(
                     addWorktreeModifier = Modifier.testTag(terminalNewWorktreeTestTag(panel.id)),
                     worktreeIconModifier = Modifier.testTag(terminalWorktreePanelTestTag(panel.id)),
                     branchModifier = Modifier.testTag(terminalPanelBranchTestTag(panel.id)),
-                    claudeStatusModifier = Modifier.testTag(terminalPanelClaudeStatusTestTag(panel.id)),
+                    claudeStatusModifier = { tabId -> Modifier.testTag(terminalPanelClaudeStatusTestTag(panel.id, tabId)) },
                 )
             }
 
@@ -152,7 +155,7 @@ internal fun TerminalPanelList(
             }
         }
 
-        TextButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth().testTag(TerminalNewPanelTestTag)) {
+        Button(onClick = { creating = true }, modifier = Modifier.fillMaxWidth().testTag(TerminalNewPanelTestTag)) {
             Icon(
                 imageVector = JarvisIcons.Add,
                 contentDescription = null,
@@ -194,9 +197,9 @@ internal fun TerminalPanelList(
  * 패널 한 줄. 이름을 바꾸는 동안은 이름 자리에 입력 필드가 온다. 편집 중인지는 이 줄만 아는 값이라
  * ViewModel 에 두지 않는다. [isWorktree] 면 들여쓰고 이름 앞에 브랜치 아이콘을 둔다. [branch] 가 있으면 이름과
  * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. 이름·브랜치·폴더 줄은 넘치면 말줄임 없이
- * 끝없이 옆으로 흐른다. 이름이 폭을 다 쓰도록 [claudeStatus] 표시와 버튼(+ · ✎ · ✕)은 글자 아래 따로 된 줄에 둔다 —
- * 표시는 왼쪽 끝, 버튼은 오른쪽 끝이다. 이름을 바꾸는 동안은 버튼이 없고 표시만 남는다. [onAddWorktree] 가 있으면
- * ✎ 앞에 + 가 있다.
+ * 끝없이 옆으로 흐른다. 이름이 폭을 다 쓰도록 [claudeStatuses] 표시와 버튼(+ · ✎ · ✕)은 글자 아래 따로 된 줄에 둔다 —
+ * 표시는 왼쪽부터 탭 순서로, 버튼은 오른쪽 끝이다. 표시가 버튼 앞 폭에 넘치면 다음 줄로 넘어가고 버튼은 첫 줄에 남는다.
+ * 이름을 바꾸는 동안은 버튼이 없고 표시만 남는다. [onAddWorktree] 가 있으면 ✎ 앞에 + 가 있다.
  */
 @Composable
 internal fun TerminalPanelItem(
@@ -217,8 +220,9 @@ internal fun TerminalPanelItem(
     addWorktreeModifier: Modifier = Modifier,
     worktreeIconModifier: Modifier = Modifier,
     branchModifier: Modifier = Modifier,
-    claudeStatus: ClaudeStatus? = null,
-    claudeStatusModifier: Modifier = Modifier,
+    claudeStatuses: List<ClaudeTabStatus> = emptyList(),
+    onSelectClaudeTab: (tabId: Long) -> Unit = {},
+    claudeStatusModifier: (tabId: Long) -> Modifier = { Modifier },
     style: Style = Style,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -303,18 +307,26 @@ internal fun TerminalPanelItem(
             }
         }
 
-        if (!editing || claudeStatus != null) {
+        if (!editing || claudeStatuses.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(JarvisTheme.shapes.small)
                     .then(select)
-                    // 표시의 아이콘이 이름(워크트리 줄은 브랜치 아이콘)과 같은 세로선에 오도록 안쪽 여백만큼 당긴다.
-                    .padding(start = if (isWorktree) spacing.m else spacing.m - spacing.s),
-                verticalAlignment = Alignment.CenterVertically,
+                    // 첫 표시의 아이콘이 이름(워크트리 줄은 브랜치 아이콘)과 같은 세로선에 오도록 표시의 안쪽 여백만큼 당긴다.
+                    .padding(start = (if (isWorktree) spacing.m + spacing.s else spacing.m) - ClaudeStatusIndicatorDefaults.horizontalPadding),
             ) {
-                claudeStatus?.let { ClaudeStatusIndicator(it, contentColor, interactionSource, onSelect, claudeStatusModifier) }
-                Spacer(modifier = Modifier.weight(1f))
+                FlowRow(modifier = Modifier.weight(1f)) {
+                    claudeStatuses.forEach { (tabId, status) ->
+                        ClaudeStatusIndicator(
+                            status = status,
+                            contentColor = contentColor,
+                            interactionSource = interactionSource,
+                            onClick = { onSelectClaudeTab(tabId) },
+                            modifier = claudeStatusModifier(tabId),
+                        )
+                    }
+                }
                 if (!editing) {
                     if (onAddWorktree != null) {
                         PanelItemIcon(JarvisIcons.Add, "워크트리 추가", contentColor, onClick = onAddWorktree, modifier = addWorktreeModifier)
@@ -353,8 +365,8 @@ private fun PanelItemIcon(
 }
 
 /**
- * 줄의 Claude 상태. 아이콘 버튼과 같은 칸·여백이라 + ✎ ✕ 와 줄이 맞는다. 마우스를 올리면 설명이 툴팁으로 뜨고,
- * 누르면 이름 칸처럼 그 패널을 고른다. 모양과 색은 docs/common/terminal-claude-status.html#behavior 에 있다.
+ * 줄의 Claude 탭 하나의 상태. 위아래는 아이콘 버튼과 같은 칸·여백이라 + ✎ ✕ 와 줄이 맞고, 좌우 여백은 좁혀 여럿이
+ * 한 줄에 더 들어간다. 마우스를 올리면 설명이 툴팁으로 뜨고, 누르면 그 탭을 고른다. 모양과 색은 docs/common/terminal-claude-status.html#behavior 에 있다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -378,7 +390,7 @@ private fun ClaudeStatusIndicator(
                 .semantics { contentDescription = description }
                 .clip(JarvisTheme.shapes.small)
                 .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-                .padding(JarvisTheme.dimens.spacing.s)
+                .padding(horizontal = ClaudeStatusIndicatorDefaults.horizontalPadding, vertical = JarvisTheme.dimens.spacing.s)
                 .size(size),
             contentAlignment = Alignment.Center,
         ) {
@@ -404,6 +416,7 @@ private fun ClaudeStatusIndicator(
 }
 
 internal object ClaudeStatusIndicatorDefaults {
+    val horizontalPadding: Dp = 4.dp
     val progressSize: Dp = 14.dp
     val progressStrokeWidth: Dp = 2.dp
     val dotSize: Dp = 8.dp

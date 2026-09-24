@@ -33,6 +33,7 @@ internal actual fun createTerminalDataSource(context: PlatformContext): Terminal
             }
         },
         claude = claude,
+        notifier = TrayNotifier(),
     )
 }
 
@@ -46,6 +47,7 @@ internal class PtyLaunch(
 internal class PtyTerminalDataSource(
     private val launch: suspend (TerminalTab) -> PtyLaunch,
     private val claude: ClaudeBackground? = null,
+    private val notifier: TrayNotifier? = null,
     private val readDirectory: (Long) -> String? = ::processDirectory,
 ) : TerminalDataSource {
     override val isSupported: Boolean = true
@@ -82,6 +84,10 @@ internal class PtyTerminalDataSource(
 
     override suspend fun stopClaude(sessionId: String) {
         claude?.stop(sessionId)
+    }
+
+    override suspend fun showNotification(title: String, message: String) {
+        notifier?.show(title, message)
     }
 }
 

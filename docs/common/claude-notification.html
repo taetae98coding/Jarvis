@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude 턴 알림 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>Claude 턴 알림</span></nav>
+
+<header>
+  <h1>Claude 턴 알림</h1>
+  <p class="lead">Claude 탭의 Claude 가 작업을 마치거나 사용자의 입력을 기다리기 시작하면 시스템 알림으로 알린다. 그 탭을 보고 있을 때는 알리지 않는다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>claude가 작업을 마쳤거나 유저의 input을 기다리면 notification을 보내서 알려주도록 구현해줘.</p>
+  <footer>2026-09-25 대화. "claude" 는 터미널 패널의 Claude 탭(<a href="terminal-claude.html">터미널에서 Claude 실행</a>)이 붙어 있는 Claude Code 백그라운드 세션으로 읽었다. Jarvis 밖에서 띄운 claude 는 넣지 않는다. "notification" 은 운영체제의 알림(macOS 알림 센터)으로 읽었다. "작업을 마쳤거나 유저의 input을 기다리면" 은 Claude 가 한 턴을 끝낸 순간이다. 이때 Claude Code 는 세션 상태를 <code>done</code>(마침)이나 <code>blocked</code>(사용자 입력 대기) 중 하나로 남기고, 이 문서는 둘을 알림 제목으로 가른다.</footer>
+</blockquote>
+
+<p>같은 날 먼저 들어온 <a href="terminal-claude-status.html">패널 줄의 Claude 상태 표시</a>가 세션 상태를 이미 읽고 있어서, 이 기능은 그 조회(<code>ClaudeActivityRepository</code>)와 "본다" 의 뜻을 그대로 쓴다. 그 문서의 "스코프에서 뺀 것" 에 있던 알림을 이 문서가 맡는다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 작업 공간(<a href="terminal-panels.html">패널</a>)에 있는 Claude 탭의 세션이 <strong>작업 중</strong>이나 <strong>모니터링 중</strong>에서 차례를 끝낸 상태(<a href="terminal-claude-status.html#requirements">상태 표시 R2</a> 의 응답 대기·확인함 쪽)로 바뀌면 알림을 하나 보낸다. 사용자의 답·선택을 기다리면 "Claude 입력 대기", 그 밖(답을 마침, 세션이 멈춤)은 "Claude 작업 완료" 다. 입력 대기는 턴을 끝내고 답을 기다리는 것과, 턴 도중에 선택을 기다리는 것 둘 다다. 작업 중에서 모니터링 중으로 넘어가는 것은 Claude 가 스스로 다시 깨어나므로 알리지 않는다.</li>
+  <li><strong>R2.</strong> 알림 본문 첫 부분은 탭의 자리다. 패널 이름이고, 사용자가 정한 탭 이름(<a href="terminal-tab-label.html#requirements">탭 이름 R8</a>)이 있으면 <code>패널 · 탭</code> 이다. 그 뒤에 Claude 가 세션에 남긴 한 줄 요약을 <code> — </code> 로 잇는다. 요약이 없으면 자리만 보인다. 요약은 앞뒤 공백을 떼고 200자에서 자른다.</li>
+  <li><strong>R3.</strong> 바뀌는 순간에만 알린다. 앱이 켜질 때 이미 끝나 있던 세션, 새로 만든 탭에서 첫 프롬프트를 기다리는 세션, 끝난 상태끼리 바뀌는 것(입력 대기 → 멈춤 등)은 알리지 않는다.</li>
+  <li><strong>R4.</strong> 사용자가 그 탭을 보고 있으면 알리지 않는다. 본다는 것은 <a href="terminal-claude-status.html#terms">상태 표시의 "본다"</a> 와 같고, 네 가지가 모두 참인 것이다: Jarvis 창에 포커스가 있다, 터미널 화면이 떠 있다, 탭의 패널이 선택돼 있다, 탭이 자기 그룹에서 선택된 탭이다(<a href="terminal-tab-groups.html">분할 그룹</a>). 창이 포커스를 잃었거나, 다른 화면·패널·탭을 보고 있으면 알린다.</li>
+  <li><strong>R5.</strong> 앱이 켜져 있는 동안이면 창이 가려지거나 최소화돼도, 터미널 화면을 한 번도 열지 않았어도 알린다. 앱이 꺼져 있는 동안 끝난 턴은 알리지 않는다(R3). 백그라운드 세션은 앱과 무관하게 돌지만 알림은 앱이 보낸다.</li>
+  <li><strong>R6.</strong> Claude 탭을 열 수 없는 플랫폼(<a href="terminal-claude.html#requirements">Claude R6</a>)에서는 아무 일도 하지 않는다. 알림 권한을 묻지도 않는다.</li>
+  <li><strong>R7.</strong> 알림을 보낼 수 없는 환경(알림을 끈 경우, 시스템 트레이가 없는 경우)에서는 조용히 넘어간다. 예외로 앱이나 다른 알림을 멈추지 않는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>알림을 끄고 켜는 설정, 소리 고르기. 지시가 알림을 보내는 것 하나다. 끄려면 운영체제의 알림 설정을 쓴다.</li>
+    <li>알림을 누르면 그 탭으로 이동하기. 알림을 눌렀을 때 무엇을 받는지가 플랫폼마다 달라서(<a href="#limits">한계</a>) 이번에는 운영체제의 기본 동작에 맡긴다.</li>
+    <li>Jarvis 밖에서 띄운 claude(다른 터미널, 다른 앱의 백그라운드 세션). 작업 공간에 없는 세션은 어느 탭인지 가리킬 수 없다.</li>
+    <li>탭 줄에 Claude 상태(일하는 중·대기)를 표시하기. 지시는 알림이다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌──────────────────────────────────────────────┐
+│ Jarvis                                       │
+│ Claude 작업 완료                              │   ← 마침(done)
+│ Jarvis · 리뷰 — merged to local main; tests green │   ← 패널 · 탭 — 요약
+└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ Claude 입력 대기                              │   ← 입력 대기(blocked)
+│ alarm — awaiting engine choice               │
+└──────────────────────────────────────────────┘</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>마침 "Claude 작업 완료", 입력 대기 "Claude 입력 대기"</td></tr>
+    <tr><td>본문</td><td><code>패널 이름[ · 탭 이름][ — 요약]</code>(R2)</td></tr>
+    <tr><td>보내는 곳</td><td>운영체제 알림. 앱 화면에는 아무것도 뜨지 않는다</td></tr>
+    <tr><td>늦음</td><td>세션 상태를 읽는 간격만큼(JVM 1초) 늦을 수 있다(<a href="../platform/jvm.html#claude-notification">JVM</a>)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인</dt><dd>
+    <code>ClaudeActivity.Finished(at, needsInput, summary)</code> — <a href="terminal-claude-status.html#implementation">상태 표시</a>의 끝난 상태에 알림 글자에 쓸 두 값을 더했다. 기본값이 있어 상태 표시 코드는 그대로다.<br>
+    <code>ClaudeTurnEnd(sessionId, result)</code>, <code>claudeTurnEnds(previous, current)</code> — 앞뒤 활동에서 <code>Working</code>·<code>Monitoring</code> → <code>Finished</code> 로 바뀐 세션만 고른다(R1, R3).<br>
+    <code>ClaudeNotification(title, message)</code>, <code>claudeNotification(end, panel, tab)</code> — R2 의 글자.<br>
+    <code>TerminalRepository.showNotification(notification)</code> — 명령. 보내지 못하면 no-op(R7).<br>
+    <code>NotifyClaudeTurnEndsUseCase(isWatching)</code> — 작업 공간의 <code>claudeSessionIds</code> 로 <code>ClaudeActivityRepository.observeActivities</code> 를 모으며 끝난 턴마다 탭을 찾고, <code>isWatching(sessionId)</code> 가 거짓이면 알린다. 탭이 늘거나 줄어 조회를 다시 묶어도 앞 상태는 이어 간다. <code>isClaudeSupported</code> 가 거짓이면 곧바로 돌아온다(R6). 끝나지 않는 suspend 다
+  </dd>
+  <dt>공급</dt><dd>상태는 상태 표시의 <code>createClaudeActivityDataSource()</code> 그대로(JVM 은 <code>needsInput</code>·<code>summary</code> 를 더 읽는다). 알림은 <code>TerminalDataSource.showNotification(title, message)</code>. expect 시그니처는 그대로고, 지원하지 않는 소스는 no-op 이다(R6)</dd>
+  <dt>UI</dt><dd>
+    <code>ClaudeAttention</code>(Koin single) — 지금 사용자가 보고 있는 Claude 탭의 <code>claudeSessionId</code> 모음(R4).<br>
+    <code>TerminalScreen</code> — 상태 표시가 이미 읽는 창 포커스(<code>LocalWindowInfo.current.isWindowFocused</code>)가 있으면 선택된 패널의 보이는 탭(<code>TerminalWorkspace.visibleTabs</code>) 중 Claude 탭을, 없으면 빈 모음을 <code>ClaudeAttention</code> 에 넣는다. 화면이 컴포지션에서 빠지면 비운다.<br>
+    <code>ClaudeNotificationEffectViewModel</code> — <code>viewModelScope</code> 에서 <code>NotifyClaudeTurnEndsUseCase(ClaudeAttention::isWatching)</code> 를 돌린다.<br>
+    <code>ClaudeTurnNotifications()</code> — 앱 루트(<code>JarvisApp</code>)가 부르는 한 줄. ViewModel 을 만들기만 한다
+  </dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 알림은 앱 루트의 ViewModel 이 수명 동안 보낸다</strong>
+  R5 때문에 터미널 화면의 <code>TerminalViewModel</code> 에 둘 수 없다 — 화면을 벗어나면 치워진다. 화면에서 <code>collectAsStateWithLifecycle</code> 로 모으는 것도 버렸다. 창을 최소화하면 수명 주기가 멈춰 수집이 끊기는데, 알림이 가장 필요한 때가 그때다. 그래서 화면 꺼짐 방지 효과(<code>ScreenAwakeEffectViewModel</code>, <a href="keep-screen-awake.html">화면 켜짐 유지</a>)와 같은 모양으로, 앱 루트 ViewModel 의 <code>viewModelScope</code> 가 앱이 떠 있는 동안 상태를 모은다. 구독과 무관하게 이어지는 작업이라는 <a href="state-observation.html#requirements">상태 조회 R13</a> 의 예외이고, 수집을 끝내는 것은 앱 루트가 사라지는 것이다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 턴의 끝은 "이전에 돌고 있었다" 로만 판정한다</strong>
+  <code>Finished</code> 로 바뀐 모든 경우를 알리면, 멈춘 세션에 다시 붙을 때(멈춤 → 첫 프롬프트 대기)나 앱을 켜서 처음 읽을 때 사용자가 한 일도 없는데 알림이 뜬다. 그래서 바로 앞에 본 상태가 <code>Working</code>·<code>Monitoring</code> 인 경우만 턴의 끝으로 본다. <code>Finished.at</code> 이 바뀐 것으로 가리는 안은 버렸다 — 끝난 상태에서도 서비스가 <code>updatedAt</code> 을 고쳐 쓴다(사용자 메시지가 도착한 순간 등). 처음 보는 세션은 비교할 앞 상태가 없어 알리지 않는다(R3). 대가로, 한 턴이 상태를 읽는 간격보다 짧게 끝나면 <code>Working</code> 을 보지 못해 알리지 않는다(<a href="#limits">한계</a>).
+</aside>
+
+<aside class="decision">
+  <strong>결정: "보고 있음" 은 화면이 알려 주고, 알릴 때 한 번 읽는다</strong>
+  상태 표시가 저장하는 확인 기록(<code>TerminalTab.claudeCheckedAt</code>)으로 가리는 안은 버렸다. 그 기록은 터미널 화면의 ViewModel 이 끝난 상태를 본 뒤에 쓰므로, 알림이 먼저 읽으면 보고 있던 탭도 알린다. 창 포커스와 지금 떠 있는 화면은 UI 만 안다. 도메인 유스케이스는 <code>isWatching: (sessionId) -&gt; Boolean</code> 함수만 받아 턴이 끝난 순간에 한 번 부른다. 상태로 흘려 <code>combine</code> 하면 탭을 옮길 때마다 판정을 다시 하게 되는데, 알림은 바뀌는 순간 한 번이라 그 값이 필요 없다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>Claude 탭이 없다(Claude Code CLI 가 Android 용으로 없다). 빈 지도 하나, 알림 no-op</td><td><a href="../platform/android.html#claude-notification">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 빈 지도 하나, 알림 no-op</td><td><a href="../platform/ios.html#claude-notification">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge workaround">우회</span></td><td>상태: 상태 표시와 같은 <code>state.json</code> 1초 폴링에 <code>needsInput</code>·<code>summary</code> 를 더 읽는다. 알림: AWT <code>TrayIcon.displayMessage</code> → macOS <code>NSUserNotificationCenter</code></td><td><a href="../platform/jvm.html#claude-notification">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 빈 지도 하나, 알림 no-op</td><td><a href="../platform/web.html#claude-notification">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>ClaudeTurnEndsTest</code></td><td>R1, R3. <code>Working</code>·<code>Monitoring</code> → <code>Finished</code> 만 턴의 끝이다. 처음 보는 세션, 끝난 상태끼리, 모니터링으로 넘어가는 것은 아니다. R2 의 제목·본문 모양과 200자 자르기</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>NotifyClaudeTurnEndsUseCaseTest</code></td><td>R1–R4, R6. 첫 값은 알리지 않고, 바뀐 뒤 제목·본문으로 알린다. 보고 있는 세션과 작업 공간에 없는 세션은 알리지 않는다. Claude 를 띄울 수 없으면 알리지 않는다</td><td>같음</td></tr>
+    <tr><td><code>ClaudeActivityDataSourceTest.aFinishedTurnCarriesWhetherItNeedsInputAndItsSummary</code></td><td>JVM 의 <code>state.json</code> 에서 <code>needsInput</code>(<code>state</code>·<code>tempo</code> 의 <code>blocked</code>)과 <code>summary</code>(<code>detail</code>)</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppClaudeNotificationTest</code></td><td>R4, R5. 보이는 Claude 탭이 마치면 알리지 않고, 다른 탭을 고른 뒤 마치면 알린다. 터미널 화면을 열지 않아도 알린다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+<p>알림이 실제로 macOS 알림 센터에 뜨는지, 창 포커스를 잃었을 때 알리는지는 자동으로 확인하지 못한다. <code>./gradlew :desktopApp:run</code> 으로 Claude 탭에 일을 시키고 다른 앱으로 옮겨 가 손으로 본다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>상태를 읽는 간격(JVM 1초)보다 짧게 끝난 턴은 알리지 않는다. 앞 상태에서 <code>Working</code> 을 보지 못하기 때문이다. 탭을 새로 열어 조회를 다시 묶는 순간에 끝난 턴도 같은 이유로 놓칠 수 있다. Claude 의 턴은 모델 응답 한 번에도 보통 1초를 넘는다.</li>
+  <li>앱이 꺼져 있던 동안 끝난 턴은 켤 때 알리지 않는다(R3).</li>
+  <li>백그라운드 세션을 만들지 못해 앱 안에서 직접 띄운 Claude(<a href="terminal-panels.html#requirements">패널</a>의 대체 실행)는 세션 상태를 남기지 않아 알리지 않는다.</li>
+  <li>일하던 세션이 멈추거나 뜨지 못하면(<code>stopped</code>·<code>failed</code>) 상태 표시처럼 끝난 것으로 보고 "Claude 작업 완료" 로 알린다. 탭을 닫아 멈춘 세션은 작업 공간에 없어 알리지 않는다.</li>
+  <li>알림을 누르면 운영체제의 기본 동작대로 Jarvis 가 앞으로 올 뿐, 그 탭으로 옮겨 가지 않는다.</li>
+  <li>세션 상태의 모양은 Claude Code 2.1.282 의 백그라운드 서비스가 쓰는 파일을 기준으로 한다. 공개 API 가 아니라서 버전이 바뀌면 읽지 못할 수 있고, 그때는 알림이 오지 않을 뿐 다른 기능은 그대로다(<a href="../platform/jvm.html#claude-notification">JVM</a>).</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

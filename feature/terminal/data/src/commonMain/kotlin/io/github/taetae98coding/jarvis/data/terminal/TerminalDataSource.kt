@@ -22,6 +22,8 @@ internal interface TerminalDataSource {
 
     suspend fun stopClaude(sessionId: String)
 
+    suspend fun showNotification(title: String, message: String)
+
     fun observeChromeProfiles(): Flow<List<ChromeProfile>>
 
     suspend fun importChromeCookies(profileDirectory: String): List<BrowserCookie>
@@ -41,6 +43,8 @@ internal object UnsupportedTerminalDataSource : TerminalDataSource {
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? = null
 
     override suspend fun stopClaude(sessionId: String) = Unit
+
+    override suspend fun showNotification(title: String, message: String) = Unit
 
     override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = flowOf(emptyList())
 

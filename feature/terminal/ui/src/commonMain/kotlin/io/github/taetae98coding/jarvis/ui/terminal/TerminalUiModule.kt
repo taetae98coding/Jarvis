@@ -16,6 +16,8 @@ import org.koin.dsl.navigation3.navigation
 val terminalUiModule = module {
     viewModelOf(::TerminalCardViewModel)
     viewModelOf(::TerminalViewModel)
+    viewModelOf(::ClaudeNotificationEffectViewModel)
+    singleOf(::ClaudeAttention)
     singleOf(::TerminalPaneHost) withOptions { onClose { it?.close() } }
 
     navigation<TerminalRoute> {
