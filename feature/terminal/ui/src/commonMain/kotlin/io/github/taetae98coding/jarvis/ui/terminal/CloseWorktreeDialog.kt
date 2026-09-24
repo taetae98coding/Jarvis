@@ -4,12 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -107,20 +105,12 @@ internal fun CloseWorktreeDialog(
             }
         },
         confirmButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
+            Button(
+                onClick = ::close,
+                enabled = !closing,
+                modifier = Modifier.testTag(TerminalCloseWorktreeConfirmTestTag),
             ) {
-                if (closing) {
-                    CircularProgressIndicator(modifier = Modifier.size(JarvisTheme.dimens.iconSize.small))
-                }
-                Button(
-                    onClick = ::close,
-                    enabled = !closing,
-                    modifier = Modifier.testTag(TerminalCloseWorktreeConfirmTestTag),
-                ) {
-                    Text("확인")
-                }
+                ProgressButtonContent(text = "확인", inProgress = closing)
             }
         },
         dismissButton = {
