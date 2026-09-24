@@ -50,11 +50,11 @@ internal fun TerminalFileTree(
         is FileTreeState.Loaded -> Column(modifier = modifier) {
             FileTreeRoot(state.root)
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                items(state.rows, key = { it.entry.path }) { row ->
+                items(state.rows, key = { it.first.path }) { row ->
                     FileTreeItem(
                         row = row,
-                        onClick = { if (row.entry.isDirectory) onToggle(row.entry.path) else onOpen(row.entry.path) },
-                        modifier = Modifier.fillMaxWidth().testTag(terminalFileEntryTestTag(row.entry.path)),
+                        onClick = { if (row.last.isDirectory) onToggle(row.toggleTarget) else onOpen(row.last.path) },
+                        modifier = Modifier.fillMaxWidth().testTag(terminalFileEntryTestTag(row.first.path)),
                     )
                 }
             }
@@ -91,7 +91,7 @@ private fun FileTreeItem(row: FileTreeRow, onClick: () -> Unit, modifier: Modifi
         horizontalArrangement = Arrangement.spacedBy(spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (row.entry.isDirectory) {
+        if (row.last.isDirectory) {
             Icon(
                 imageVector = if (row.expanded) JarvisIcons.ChevronDown else JarvisIcons.ChevronRight,
                 contentDescription = null,
@@ -102,13 +102,13 @@ private fun FileTreeItem(row: FileTreeRow, onClick: () -> Unit, modifier: Modifi
             Spacer(modifier = Modifier.size(iconSize))
         }
         Icon(
-            imageVector = if (row.entry.isDirectory) JarvisIcons.Folder else JarvisIcons.File,
+            imageVector = if (row.last.isDirectory) JarvisIcons.Folder else JarvisIcons.File,
             contentDescription = null,
             modifier = Modifier.size(iconSize),
             tint = color,
         )
         Text(
-            text = row.entry.name,
+            text = row.name,
             style = JarvisTheme.typography.bodySmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

@@ -188,14 +188,50 @@ class JarvisAppTerminalSideBarTest {
 
         awaitTag(terminalFileEntryTestTag(notes.path))
         awaitTag(terminalFileEntryTestTag(e.path))
-        onNodeWithTag(terminalFileEntryTestTag(d.path)).assertIsDisplayed()
         // d 는 폴더와 파일을 함께 가지므로 거기서 멈춘다.
         assertEquals(0, count(terminalFileEntryTestTag(f.path)))
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).assertTextEquals("a/b/c/d")
+        listOf(b, c, d).forEach { assertEquals(0, count(terminalFileEntryTestTag(it.path))) }
+        val chainLeft = onNodeWithTag(terminalFileEntryTestTag(a.path)).fetchSemanticsNode().boundsInRoot.left
+        val readmeLeft = onNodeWithTag(terminalFileEntryTestTag(readme.path)).fetchSemanticsNode().boundsInRoot.left
+        assertEquals(readmeLeft, chainLeft)
 
         onNodeWithTag(terminalFileEntryTestTag(a.path)).performClick()
-        awaitTag(terminalFileEntryTestTag(b.path), count = 0)
+        awaitTag(terminalFileEntryTestTag(notes.path), count = 0)
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).assertTextEquals("a")
         onNodeWithTag(terminalFileEntryTestTag(a.path)).performClick()
         awaitTag(terminalFileEntryTestTag(notes.path))
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).assertTextEquals("a/b/c/d")
+    }
+
+    @Test
+    fun aChainEndingInACollapsedFolderOpensThatFolder() = runComposeUiTest {
+        val a = FileEntry("a", "$Root/a", isDirectory = true)
+        val b = FileEntry("b", "${a.path}/b", isDirectory = true)
+        val note = FileEntry("note.txt", "${a.path}/note.txt", isDirectory = false)
+        val inner = FileEntry("Inner.kt", "${b.path}/Inner.kt", isDirectory = false)
+        val files = FakeFileRepository(
+            directories = mapOf(Root to listOf(a, readme), a.path to listOf(b, note), b.path to listOf(inner)),
+            files = emptyMap(),
+        )
+        openTerminal(files = files)
+        awaitTag(terminalFileEntryTestTag(a.path))
+
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).performClick()
+        awaitTag(terminalFileEntryTestTag(b.path))
+
+        // 파일이 사라지면 a 는 접힌 b 하나뿐이 되어 한 줄로 합쳐진다.
+        files.directories.value = files.directories.value + (a.path to listOf(b))
+        awaitTag(terminalFileEntryTestTag(b.path), count = 0)
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).assertTextEquals("a/b")
+        assertEquals(0, count(terminalFileEntryTestTag(inner.path)))
+
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).performClick()
+        awaitTag(terminalFileEntryTestTag(inner.path))
+
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).performClick()
+        awaitTag(terminalFileEntryTestTag(inner.path), count = 0)
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).assertTextEquals("a")
     }
 
     @Test
