@@ -20,9 +20,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.withKeyDown
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
@@ -549,6 +552,23 @@ class JarvisAppTerminalTest {
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) {
             terminal.sessions.single().written.joinToString("") { it.decodeToString() } == "ls"
+        }
+    }
+
+    @Test
+    fun commandArrowsMoveToTheStartAndEndOfTheLine() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        openTerminal(terminal)
+
+        onNode(hasSetTextAction() and hasAnyAncestor(pane)).performKeyInput {
+            withKeyDown(Key.MetaLeft) {
+                pressKey(Key.DirectionLeft)
+                pressKey(Key.DirectionRight)
+            }
+        }
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            terminal.sessions.single().written.joinToString("") { it.decodeToString() } == "\u0001\u0005"
         }
     }
 

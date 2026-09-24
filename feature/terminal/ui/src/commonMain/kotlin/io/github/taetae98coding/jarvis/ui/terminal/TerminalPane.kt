@@ -188,8 +188,17 @@ private fun committedBytes(text: String, state: TerminalPaneState): ByteArray {
 
 private fun onKey(event: KeyEvent, composing: Boolean, state: TerminalPaneState): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
-    // ⌘ 조합은 화면의 분할·탭 단축키와 붙여넣기에 남긴다.
-    if (event.isMetaPressed) return false
+    if (event.isMetaPressed) {
+        // 넘기지 않으면 입력 필드가 비어 있는 자기 안에서 커서를 옮기고 끝난다.
+        val bytes = CommandArrowKeys[event.key]
+        if (bytes == null || composing || event.isShiftPressed || event.isAltPressed || event.isCtrlPressed) {
+            // 나머지 ⌘ 조합은 화면의 분할·탭 단축키와 붙여넣기에 남긴다.
+            return false
+        }
+
+        state.input(bytes)
+        return true
+    }
 
     val modifiers = TerminalKeyModifiers(shift = event.isShiftPressed, alt = event.isAltPressed, ctrl = event.isCtrlPressed)
 
@@ -243,6 +252,12 @@ private val SpecialKeys: Map<Key, TerminalKey> = mapOf(
     Key.F10 to TerminalKey.F10,
     Key.F11 to TerminalKey.F11,
     Key.F12 to TerminalKey.F12,
+)
+
+// Home/End 바이트가 아니라 Ctrl+A/Ctrl+E 다. macOS 기본 zsh 는 일반 모드의 Home/End 를 묶지 않는다(스펙의 결정).
+private val CommandArrowKeys: Map<Key, ByteArray> = mapOf(
+    Key.DirectionLeft to byteArrayOf(0x01),
+    Key.DirectionRight to byteArrayOf(0x05),
 )
 
 private val ImeKeys = setOf(

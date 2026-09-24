@@ -42,6 +42,11 @@
   <footer>2026-09-24 대화. 뒤따른 지시다. R4 와 <a href="#shift-enter">결정: Shift+Enter</a> 에 반영했다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>mac에서 터미널 claude 입력할 때 command + 방향키 누르면 아무 동작이 없어. 내가 기대한 것은 command + 왼쪽으로 하면 Home 누른 것 처럼 커서가 제일 앞으로 가고 command + 오른쪽 하면 End 누른 것 처럼 커서가 제일 뒤로 가야해.</p>
+  <footer>2026-09-25 대화. 뒤따른 지시다. R4 와 <a href="#cmd-arrows">결정: ⌘← / ⌘→</a> 에 반영했다.</footer>
+</blockquote>
+
 <p>같은 날 뒤따른 지시로 탭 위에 패널 층이 생기고 배치와 세션이 앱을 다시 켜도 남게 됐다. 그 지시와 요구사항은 <a href="terminal-panels.html">터미널 패널과 세션 유지</a>에 있고, 이 문서에서 분할된 한 칸을 부르던 "패널" 은 그때부터 "창" 이다(<a href="terminal-panels.html#terms">용어</a>). 아래 R2·R10·R13·R15 는 그 지시에 맞춰 고쳤다. 다시 뒤따른 <a href="terminal-tab-dock.html">탭 끌어 놓기</a> 지시로 상단 막대의 동작 버튼이 없어지고 새 탭(+)은 탭 줄 끝으로, 분할은 탭을 끌어 놓는 것으로 바뀌었다. R5·R6·R7·R10 의 버튼 부분이 그렇게 고쳐졌다. 다시 뒤따른 <a href="terminal-tab-groups.html">분할 그룹</a> 지시로 분할 트리가 탭이 아니라 패널에 붙고 나뉜 칸(그룹)마다 탭 줄을 가지게 됐다. R5–R8·R10·R12·R13 은 그룹 기준으로 고쳤다.</p>
 
 <h2 id="requirements">요구사항</h2>
@@ -50,7 +55,7 @@
   <li><strong>R1.</strong> 홈 그리드에 "터미널" 카드가 있다. 누르면 터미널 화면으로 이동한다. 셸을 띄울 수 없는 타깃에서는 카드가 같은 자리에 잠긴 채로 남고 이유를 보여준다(<a href="index.html#contract">공통 규약</a>).</li>
   <li><strong>R2.</strong> 처음 터미널 화면에 들어가면 패널 하나에 탭 하나, 창 하나가 있고 그 창에 셸이 떠 있다. 그 뒤로는 저장된 배치가 복원된다(<a href="terminal-panels.html#requirements">패널 R9</a>).</li>
   <li><strong>R3.</strong> 셸 출력은 xterm 호환 제어 시퀀스로 해석해 글자 격자로 그린다. 해석 범위는 <a href="#emulation">아래 표</a>다. 한글 같은 전각 문자는 두 칸을 차지한다.</li>
-  <li><strong>R4.</strong> 포커스된 창의 키 입력이 그 셸로 간다. 문자(IME 로 조합한 한글 포함), Enter, Shift+Enter(줄바꿈, <a href="#shift-enter">결정</a>), Backspace, Tab, Shift+Tab, Esc, 방향키, Home/End/PageUp/PageDown/Insert/Delete, F1–F12, Ctrl+문자.</li>
+  <li><strong>R4.</strong> 포커스된 창의 키 입력이 그 셸로 간다. 문자(IME 로 조합한 한글 포함), Enter, Shift+Enter(줄바꿈, <a href="#shift-enter">결정</a>), ⌘← / ⌘→(입력 중인 줄의 맨 앞·맨 끝, <a href="#cmd-arrows">결정</a>), Backspace, Tab, Shift+Tab, Esc, 방향키, Home/End/PageUp/PageDown/Insert/Delete, F1–F12, Ctrl+문자.</li>
   <li><strong>R5.</strong> <strong>좌우 분할</strong> — 포커스된 그룹을 좌우로 나누고 오른쪽에 새 셸 탭 하나짜리 그룹을 둔다. 새 그룹이 포커스를 가져간다. 단축키 ⌘D. 탭을 그룹의 왼쪽·오른쪽 변에 끌어 놓아도 좌우로 나뉜다(<a href="terminal-tab-groups.html#requirements">분할 그룹 R7</a>).</li>
   <li><strong>R6.</strong> <strong>상하 분할</strong> — 포커스된 그룹을 위아래로 나누고 아래에 새 셸 탭 하나짜리 그룹을 둔다. 새 그룹이 포커스를 가져간다. 단축키 ⌘⇧D. 탭을 그룹의 위·아래 변에 끌어 놓아도 상하로 나뉜다(<a href="terminal-tab-groups.html#requirements">분할 그룹 R7</a>).</li>
   <li><strong>R7.</strong> <strong>새 탭</strong> — 포커스된 그룹의 탭 줄 끝에 탭이 붙고 선택된다. 그룹마다 있는 + 버튼(<code>Add</code>, contentDescription "새 탭", <a href="terminal-tab-groups.html#requirements">분할 그룹 R2</a>), 단축키 ⌘T.</li>
@@ -150,6 +155,14 @@
   소프트 키보드의 Enter 는 키 이벤트가 아니라 줄바꿈 글자로 와서 Shift 를 알 수 없다. 하드웨어 키보드에서만 성립한다.
 </aside>
 
+<aside class="decision" id="cmd-arrows">
+  <strong>결정: ⌘← 는 Ctrl+A(<code>0x01</code>), ⌘→ 는 Ctrl+E(<code>0x05</code>) 를 보낸다</strong>
+  터미널에는 ⌘ 에 해당하는 수정자가 없다. xterm 의 수정자 인자(<code>ESC [1;9D</code> 같은 Meta 비트)는 받는 프로그램 대부분이 모른다. 그래서 ⌘ 조합은 셸로 보내지 않고 화면 단축키에 남겨 왔고(R12), 창의 입력 필드가 ⌘← / ⌘→ 를 받아 비어 있는 자기 안에서 커서를 옮기느라 아무 일도 일어나지 않았다.<br>
+  Orca(2026-09 설치본의 <code>app.asar</code> 에서 확인)는 수정자가 ⌘ 뿐인 ← / → 를 가로채 <code>0x01</code> / <code>0x05</code> 를 보낸다. iTerm2 의 기본 키 매핑도 같다. 같은 방식을 따른다. readline·zsh 의 emacs 키맵과 Claude Code 가 이 두 바이트를 줄 맨 앞·맨 끝으로 받는다. 수정자가 ⌘ 말고 더 있으면(⌘⇧← 등) 지금처럼 셸로 보내지 않는다. IME 조합 중에는 방향키와 같이 IME 에 양보한다.<br>
+  버린 후보: Home / End 의 xterm 바이트(<code>ESC [H</code> / <code>ESC [F</code>, 애플리케이션 모드면 <code>ESC OH</code> / <code>ESC OF</code>) 보내기 — Claude Code 는 받지만 macOS 기본 zsh 는 받지 않는다. <code>/etc/zshrc</code> 는 terminfo 의 <code>khome</code>·<code>kend</code>(<code>xterm-256color</code> 에서 <code>ESC OH</code> / <code>ESC OF</code>)만 줄 맨 앞·맨 끝에 묶고 애플리케이션 커서 모드(<code>smkx</code>)는 켜지 않아서, 프롬프트에서 가는 <code>ESC [H</code> / <code>ESC [F</code> 는 아무 위젯에도 묶이지 않는다(2026-09-25, macOS 26 에서 확인). Ctrl+A / Ctrl+E 는 키맵 설정 없이 둘 다에서 된다. 대가로 <code>vim</code> 일반 모드에서 ⌘← 는 숫자 증가(Ctrl+A)가 된다 — Orca·iTerm2 와 같다.<br>
+  ⌘⌫(줄 지우기, Orca 는 <code>0x15</code>) 와 ⌘↑ / ⌘↓(스크롤) 는 지시에 없어 넣지 않았다.
+</aside>
+
 <aside class="decision">
   <strong>결정: 에뮬레이터는 메인 스레드에서만 만진다</strong>
   데이터 소스가 IO 스레드에서 읽은 덩어리를 <code>viewModelScope</code>(Main)에서 해석한다. 그리기도 메인이라 잠금이 필요 없다. 초당 수 MB 를 쏟는 명령(<code>yes</code>, 큰 파일 <code>cat</code>)에서는 해석이 프레임을 먹는다. 스냅숏을 복사해 넘기는 쪽은 한 화면 격자를 매 덩어리마다 복사해야 해서 지금 규모에서는 버렸다.
@@ -204,7 +217,7 @@
   </tbody>
 </table>
 
-<p>자동으로 확인하지 못하는 것: 경계선 드래그(R8 의 화면 쪽), 단축키(R12), 실제 키보드·IME 입력 경로(R4), 실제 글자 그리기 모양. 데스크톱 앱을 띄워 손으로 확인한다. 2026-09-24 에 macOS 에서 zsh 프롬프트, 색 출력(<code>ls -G</code>, SGR 31), 한글 출력, 좌우→상하 중첩 분할과 <code>tput cols</code>/<code>lines</code> 반영(50×15), ⌘T, <code>vim</code> 진입·종료 후 화면 복원을 확인했다. 경계선 드래그와 IME 조합은 아직 손으로 확인하지 않았다.</p>
+<p>자동으로 확인하지 못하는 것: 경계선 드래그(R8 의 화면 쪽), 단축키(R12), 실제 키보드·IME 입력 경로(R4), 실제 글자 그리기 모양. 데스크톱 앱을 띄워 손으로 확인한다. 2026-09-24 에 macOS 에서 zsh 프롬프트, 색 출력(<code>ls -G</code>, SGR 31), 한글 출력, 좌우→상하 중첩 분할과 <code>tput cols</code>/<code>lines</code> 반영(50×15), ⌘T, <code>vim</code> 진입·종료 후 화면 복원을 확인했다. 경계선 드래그와 IME 조합은 아직 손으로 확인하지 않았다. ⌘← / ⌘→ 가 Ctrl+A / Ctrl+E 로 가는 것은 <code>JarvisAppTerminalTest.commandArrowsMoveToTheStartAndEndOfTheLine</code> 이 가짜 세션으로 확인한다. 실제 zsh·Claude Code 프롬프트에서의 커서 이동은 아직 손으로 확인하지 않았다.</p>
 
 <h2 id="limits">한계</h2>
 
