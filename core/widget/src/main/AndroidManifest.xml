@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <service
+            android:name="io.github.taetae98coding.jarvis.widget.WidgetRefreshJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- 위젯 버튼의 PendingIntent 가 앱 자신의 이름으로 여니 exported 가 필요 없다. -->
+        <activity
+            android:name="io.github.taetae98coding.jarvis.widget.WriteSettingsPermissionActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+
+</manifest>

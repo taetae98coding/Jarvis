@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <receiver
+            android:name="io.github.taetae98coding.jarvis.widget.rotation.DeviceRotationWidgetReceiver"
+            android:exported="true"
+            android:label="@string/device_rotation_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/device_rotation_widget_info" />
+        </receiver>
+    </application>
+
+</manifest>

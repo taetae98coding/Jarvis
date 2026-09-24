@@ -1,10 +1,7 @@
 package io.github.taetae98coding.jarvis.domain.rotation
 
 /**
- * 기기 natural 방향에서 화면이 반시계로 돌아간 각도.
- *
- * Android 의 `Surface.ROTATION_*` 와 Web 의 `ScreenOrientation.angle` 이 이미 이 기준을 쓴다.
- * iOS 만 방향 상수로 옮겨야 한다.
+ * 기기 natural 방향에서 화면이 반시계로 돌아간 각도. Android 의 `Surface.ROTATION_*` 와 같은 기준이다.
  */
 enum class RotationAngle(val degrees: Int) {
     Degrees0(0),

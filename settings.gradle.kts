@@ -39,6 +39,7 @@ plugins {
 include(":core:data")
 include(":core:designsystem")
 include(":core:ui")
+include(":core:widget")
 
 include(":feature:appinfo:domain")
 include(":feature:appinfo:data")
@@ -51,10 +52,12 @@ include(":feature:emulator:ui")
 include(":feature:screen:domain")
 include(":feature:screen:data")
 include(":feature:screen:ui")
+include(":feature:screen:widget")
 
 include(":feature:rotation:domain")
 include(":feature:rotation:data")
 include(":feature:rotation:ui")
+include(":feature:rotation:widget")
 
 include(":feature:terminal:domain")
 include(":feature:terminal:data")

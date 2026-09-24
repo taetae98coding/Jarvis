@@ -51,6 +51,7 @@
   <li><strong>R6.</strong> 기능 모듈은 자기 조립을 스스로 들고 있다. <code>domain</code>은 유스케이스를, <code>data</code>는 리포지토리를, <code>ui</code>는 ViewModel·화면·라우트를 각각 자기 Koin 모듈에 등록한다.</li>
   <li><strong>R7.</strong> 앱 셸(<code>:app:ui</code>)은 어떤 화면이 있는지 모른다. 라우트는 각 기능의 Koin 모듈이 등록하고, 백스택 키의 직렬화 등록도 기능이 함께 낸다.</li>
   <li><strong>R8.</strong> 기능을 하나 더할 때 고치는 기존 파일은 <code>settings.gradle.kts</code>와 <code>:shared</code>의 모듈 목록, 그리고 카드를 놓는 <code>FeatureGrid</code> 뿐이다.</li>
+  <li><strong>R12.</strong> (2026-09-24) Android 홈 화면 위젯이 있는 기능은 <code>:feature:&lt;기능&gt;:widget</code>을 하나 더 갖는다. Android 전용 <code>com.android.library</code> 모듈이고, <code>ui</code>와 같은 방향(<code>widget → domain</code>)만 의존한다. 두 위젯이 함께 쓰는 갱신 장치는 <code>:core:widget</code>에 둔다(R4). 근거는 <a href="home-screen-widget.html#implementation">홈 화면 위젯</a>에 있다.</li>
   <li><strong>R9.</strong> 패키지 루트는 모듈마다 다르다. 기능 분리 전의 패키지(<code>…jarvis.&lt;계층&gt;.&lt;기능&gt;</code>)를 그대로 쓴다.</li>
   <li><strong>R10.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 분리 전 테스트가 검증하던 내용은 분리 후에도 전부 검증된다.</li>
   <li><strong>R11.</strong> 타깃 선언(android/jvm/iosArm64/iosSimulatorArm64/wasmJs)은 한곳에만 있다. 모듈 빌드 파일은 자기와 다른 것만 적는다.</li>
@@ -94,7 +95,7 @@
   :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation  :feature:terminal
         │  ui → domain ← data (기능마다 셋)
         └──────────────┴──────────────┴──────────────┴──────────────┘
-                 :core:ui        :core:data           ← 두 기능 이상이 쓰는 것만
+                 :core:ui        :core:data   :core:widget(android)   ← 두 기능 이상이 쓰는 것만
                     │
               :core:designsystem                        ← JarvisTheme, JarvisIcons, Jarvis* 컴포넌트</code></pre>
 
@@ -107,6 +108,8 @@
     <tr><td><code>:feature:&lt;기능&gt;:domain</code></td><td><code>…domain.&lt;기능&gt;</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, <code>&lt;기능&gt;DomainModule</code></td><td>없음</td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:data</code></td><td><code>…data.&lt;기능&gt;</code></td><td>리포지토리 구현, <code>expect</code>/<code>actual</code>, DTO, <code>&lt;기능&gt;DataModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:data</code></td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:ui</code></td><td><code>…ui.&lt;기능&gt;</code></td><td>카드·화면, ViewModel, 라우트, <code>&lt;기능&gt;UiModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
+    <tr><td><code>:feature:&lt;기능&gt;:widget</code> (Android 전용, <code>rotation</code>·<code>screen</code>만)</td><td><code>…widget.&lt;기능&gt;</code></td><td>Glance 위젯, 리시버, <code>ActionCallback</code></td><td>같은 기능 <code>domain</code>, <code>:core:widget</code></td></tr>
+    <tr><td><code>:core:widget</code> (Android 전용)</td><td><code>…widget</code></td><td><code>WidgetRefresh</code>(설정 변경 시 위젯 갱신 job, 전체 다시 그리기), <code>WriteSettingsPermissionActivity</code></td><td>없음</td></tr>
     <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>다섯 기능의 <code>ui</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
     <tr><td><code>:shared</code></td><td><code>…shared</code></td><td><code>startJarvisKoin()</code>, <code>platformModule</code>, <code>App()</code>, <code>MainViewController()</code></td><td><code>:app:ui</code>, 다섯 기능의 <code>data</code>·<code>domain</code></td></tr>
   </tbody>
@@ -138,7 +141,7 @@
 │   ├── appinfo    platformName(expect), APP_VERSION(생성), DefaultAppInfoRepository
 │   ├── emulator   EmulatorDataSource(expect), 리포지토리, agent(주소·DTO·클라이언트·서버)
 │   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), SettingsStore(expect)
-│   ├── rotation   DeviceRotationDataSource(expect), DeviceRotationGate(ios)
+│   ├── rotation   DeviceRotationDataSource(expect)
 │   └── terminal   TerminalDataSource(expect), 리포지토리
 ├── designsystem
 │   ├── theme      JarvisTheme, 색·글꼴·모양·치수 토큰   ← :core:designsystem
@@ -153,6 +156,10 @@
 │   ├── rotation   DeviceRotationCard, DeviceRotationViewModel
 │   ├── terminal   TerminalCard, TerminalScreen, TerminalPane, TerminalViewModel, TerminalRoute
 │   └── app        JarvisApp, HomeRoute, HomeScreen, FeatureGrid   ← :app:ui
+├── widget                                            (Android 전용)
+│   ├── WidgetRefresh, WidgetRefreshJobService, WriteSettingsPermissionActivity   ← :core:widget
+│   ├── rotation   DeviceRotationWidget, 리시버, 액션 셋   ← :feature:rotation:widget
+│   └── screen     SystemScreenAwakeWidget, 리시버, 액션    ← :feature:screen:widget
 └── shared         App, startJarvisKoin(플랫폼별), platformModule,
                    MainViewController(ios), startEmulatorHostAgent(jvm)</code></pre>
 
@@ -217,6 +224,7 @@ val emulatorUiModule = module {
     <tr><td><code>jarvis.kmp.library</code></td><td>KMP + AGP KMP 라이브러리, <code>jvmToolchain(21)</code>, 타깃 다섯, 경로에서 만든 namespace, <code>kotlinx-coroutines-core</code>·<code>koin-core</code></td><td>모든 공용 모듈(<code>compose</code> 플러그인이 이것을 적용한다)</td></tr>
     <tr><td><code>jarvis.kmp.compose</code></td><td>위에 더해 Compose 플러그인, Compose·Koin·Navigation3 의존성, skiko 소스셋 묶음, <code>binaries.executable()</code>, Style API opt-in(<code>ExperimentalFoundationStyleApi</code>)</td><td><code>ui</code>·<code>:core:ui</code>·<code>:core:designsystem</code>·<code>:app:ui</code></td></tr>
     <tr><td><code>jarvis.kmp.test</code></td><td><code>withHostTest</code> 와 테스트 의존성. 테스트가 있는 모듈만 적용한다</td><td>테스트가 있는 모듈</td></tr>
+    <tr><td><code>jarvis.android.library</code></td><td>Android 전용 <code>com.android.library</code> + 경로에서 만든 namespace + SDK 버전. AGP 9 내장 Kotlin 을 쓰고 KMP 타깃은 선언하지 않는다</td><td><code>:core:widget</code>, <code>:feature:*:widget</code> (<a href="home-screen-widget.html">홈 화면 위젯</a>)</td></tr>
   </tbody>
 </table>
 
@@ -246,7 +254,7 @@ val emulatorUiModule = module {
 
 <aside class="decision">
   <strong>결정: 전역 <code>Context</code> 대신 <code>PlatformContext</code>를 넘긴다</strong>
-  <code>androidx.startup</code>이나 <code>ContentProvider</code>로 애플리케이션 컨텍스트를 몰래 잡아 두는 방법도 있다. 의존성이 늘고, <code>data</code> 가 초기화 순서에 의존하게 되고, 테스트에서 갈아끼울 수 없어서 버렸다. 컨텍스트를 요구하는 것은 <code>PlatformContext</code>를 받는 Koin 정의들뿐이고, 그 값은 <code>MainActivity</code>가 <code>startJarvisKoin(applicationContext)</code>로 명시적으로 넘긴다.
+  <code>androidx.startup</code>이나 <code>ContentProvider</code>로 애플리케이션 컨텍스트를 몰래 잡아 두는 방법도 있다. 의존성이 늘고, <code>data</code> 가 초기화 순서에 의존하게 되고, 테스트에서 갈아끼울 수 없어서 버렸다. 컨텍스트를 요구하는 것은 <code>PlatformContext</code>를 받는 Koin 정의들뿐이고, 그 값은 <code>JarvisApplication</code>이 <code>startJarvisKoin(this)</code>로 명시적으로 넘긴다. <code>Application</code> 서브클래스는 <a href="home-screen-widget.html">위젯</a>이 Activity 없이 프로세스를 띄우게 되어 들였고, 하는 일은 그 한 줄이다.
 </aside>
 
 <h3 id="visibility">가시성</h3>
@@ -259,6 +267,8 @@ val emulatorUiModule = module {
     <tr><td><code>domain</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, Koin 모듈</td><td>없음</td></tr>
     <tr><td><code>data</code></td><td>Koin 모듈, <code>emulator</code> 만 추가로 <code>startEmulatorHostAgent()</code></td><td>리포지토리 구현, 데이터 소스, DTO, <code>expect</code> 선언</td></tr>
     <tr><td><code>ui</code></td><td>카드·화면 진입 컴포저블, Koin 모듈</td><td>ViewModel, 라우트, 테스트 태그</td></tr>
+    <tr><td><code>widget</code> (android)</td><td>매니페스트가 가리키는 리시버·<code>ActionCallback</code> 클래스. 매니페스트와 Glance 가 리플렉션으로 만들어 <code>public</code>이어야 한다</td><td>위젯 컴포저블, job id</td></tr>
+    <tr><td><code>:core:widget</code> (android)</td><td><code>WidgetRefresh</code>, <code>WidgetRefreshJobService</code>·<code>WriteSettingsPermissionActivity</code>(매니페스트)</td><td>없음</td></tr>
     <tr><td><code>:core:data</code></td><td><code>PlatformContext</code>, 조회 규칙 3종</td><td>없음</td></tr>
     <tr><td><code>:core:designsystem</code></td><td><code>JarvisTheme</code>·토큰 타입, <code>JarvisIcons</code>, <code>Jarvis*</code> 컴포넌트와 <code>*Defaults</code></td><td>라이트·다크 색 정의값, 아이콘 경로 문자열</td></tr>
     <tr><td><code>:core:ui</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>, <code>LocalNavigator</code>, <code>NavKeySerializers</code></td><td>없음</td></tr>

@@ -11,4 +11,5 @@ val screenDomainModule = module {
     factoryOf(::SetKeepSystemScreenAwakeUseCase)
     factoryOf(::ApplyKeepScreenAwakeUseCase)
     factoryOf(::ApplySystemScreenAwakeUseCase)
+    factoryOf(::SyncSystemScreenAwakeUseCase)
 }

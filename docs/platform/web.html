@@ -42,6 +42,7 @@
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
+    <li><a href="#home-screen-widget">홈 화면 위젯</a></li>
     <li><a href="#card-ripple">카드 물결 효과</a></li>
     <li><a href="#home-staggered-grid">홈 그리드 세로 배치</a></li>
     <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
@@ -392,44 +393,70 @@
 </section>
 
 <section class="feature" id="device-rotation">
-<h2>화면 회전 <span class="badge partial">조건부</span> <span class="badge untested">미검증</span></h2>
+<h2>화면 회전 <span class="badge no">불가</span></h2>
 <p>공통 스펙: <a href="../common/device-rotation.html">화면 회전</a></p>
 
 <h3>기술 조사</h3>
+<p>기능이 요구하는 것은 OS 의 자동 회전·회전잠금 설정을 바꾸는 <strong>기기 전역</strong> 회전이다(<a href="../common/device-rotation.html#requirements">R9</a>). 브라우저 문서는 OS 설정에 닿을 수 없다. 있는 것은 우리 탭의 방향을 잠그는 API 뿐이고, 그것은 요구사항이 아니다.</p>
 <table>
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
-    <tr><td><code>screen.orientation.lock(type)</code> / <code>unlock()</code></td><td><strong>채택.</strong> 잠금과 회전이 한 호출이다. 인자는 각도가 아니라 <code>portrait-primary</code> 같은 이름이고, Promise를 돌려준다. 실패는 예외가 아니라 거절로 온다</td></tr>
-    <tr><td><code>screen.orientation.angle</code> / <code>.type</code>, <code>change</code> 이벤트</td><td><strong>채택(관찰).</strong> <code>angle</code>이 <a href="../common/device-rotation.html#angle">공통 각도 기준</a>과 그대로 같다. 콜백이 있으므로 폴링하지 않는다(<a href="#state-observation">상태 조회 규칙</a>)</td></tr>
-    <tr><td>전체화면 없이 <code>lock()</code></td><td>브라우저마다 다르다. Chrome/Android는 문서가 전체화면일 때만 허용하고 아니면 <code>NotSupportedError</code>로 거절한다. 데스크톱 브라우저는 전체화면이어도 거절한다. iOS Safari는 API 자체가 없다</td></tr>
-    <tr><td>잠글 때 자동으로 <code>requestFullscreen()</code></td><td>버렸다. 성공률은 오르지만 버튼 하나가 화면 전체를 덮어 버린다. 사용자가 요청하지 않은 모드 전환이라 카드 하나의 권한을 넘는다. 대신 거절당하면 그 사실을 설명에 적는다</td></tr>
-    <tr><td><code>kotlinx-browser</code>의 <code>Screen</code></td><td>0.5.0의 <code>org.w3c.dom.Screen</code>에는 <code>orientation</code>이 없다. <code>external interface</code>와 <code>js(&quot;…&quot;)</code>로 직접 잡는다. <a href="#settings">설정 저장</a>이 <code>localStorage</code>를 쓰는 것과 같은 모듈 안이지만 선언은 이 파일에서만 쓴다</td></tr>
-    <tr><td><code>CSS</code> <code>transform: rotate()</code> 로 캔버스를 돌리기</td><td>버렸다. JVM의 창 변환과 같은 이유다. 브라우저 UI와 입력 좌표가 따라오지 않는다</td></tr>
+    <tr><td>OS 자동 회전 설정 읽기·쓰기</td><td><strong>없다.</strong> Web 플랫폼에는 시스템 설정에 닿는 API 자체가 없다. Android 의 <code>Settings.System</code> 에 대응하는 것이 브라우저 샌드박스 안에 없고, 권한 프롬프트로 열어 주는 길도 없다</td></tr>
+    <tr><td><code>screen.orientation.lock(type)</code> / <code>unlock()</code></td><td>2026-09-22 에 채택했다가 <strong>R9 로 버렸다.</strong> 잠금과 회전을 한 호출로 하고 <code>angle</code> 이 <a href="../common/device-rotation.html#angle">공통 각도 기준</a>과 같아 편했지만, 도는 것은 브라우저 문서(탭)지 기기가 아니다. OS 회전잠금은 그대로다. 그 밖에도 Chrome/Android 는 전체화면일 때만 허용하고, 데스크톱 브라우저는 전체화면이어도 거절하고, iOS Safari 는 <code>lock</code> 이 없다. 다시 필요해지면 <code>git log -- feature/rotation/data/src/wasmJsMain</code> 에 구현이 있다</td></tr>
+    <tr><td><code>screen.orientation.angle</code> / <code>.type</code>, <code>orientationchange</code></td><td>버렸다. 탭이 지금 어느 방향인지는 알려주지만 우리가 바꿀 수 있는 상태가 없어 관찰할 것도 없다</td></tr>
+    <tr><td>잠글 때 자동으로 <code>requestFullscreen()</code></td><td>버렸다. <code>lock()</code> 성공률을 올리는 수단이었는데 <code>lock()</code> 자체를 버렸다. 사용자가 요청하지 않은 모드 전환이라는 문제도 그대로다</td></tr>
+    <tr><td><code>kotlinx-browser</code>의 <code>Screen</code></td><td>0.5.0의 <code>org.w3c.dom.Screen</code>에는 <code>orientation</code>이 없어 <code>external interface</code>와 <code>js(&quot;…&quot;)</code>로 직접 잡았었다. 선언과 함께 이 모듈의 <code>kotlinx-browser</code> 의존도 걷어냈다</td></tr>
+    <tr><td><code>CSS</code> <code>transform: rotate()</code> 로 캔버스를 돌리기</td><td>버렸다. JVM의 창 변환과 같은 이유다. 브라우저 UI와 입력 좌표가 따라오지 않고, 기기는 물론 돌지 않는다</td></tr>
   </tbody>
 </table>
 
-<h3>구현</h3>
-<dl class="meta">
-  <dt>파일</dt><dd><code>feature/rotation/data/src/wasmJsMain/.../rotation/DeviceRotation.wasmJs.kt</code></dd>
-  <dt>잠금</dt><dd>현재 각도의 방향 이름으로 <code>lock()</code>, 해제는 <code>unlock()</code></dd>
-  <dt>각도</dt><dd>목표 각도를 방향 이름으로 바꿔 <code>lock()</code>. natural이 세로인지는 지금의 <code>type</code>과 <code>angle</code> 조합에서 역산한다(세로 이름인데 각도가 90·270이면 natural은 가로다)</dd>
-  <dt>읽기</dt><dd><code>screen.orientation.angle</code>. <code>screen.orientation</code>이 없으면 <code>supported = false</code></dd>
-  <dt>실패</dt><dd><code>lock()</code>의 Promise가 거절되면 <code>permitted = false</code>로 흘려 카드 설명을 바꾼다. 거절 사유(전체화면 필요, 데스크톱 미지원)는 브라우저마다 달라 그대로 옮기지 않는다</dd>
-</dl>
+<p>각도와 <code>OrientationType</code> 의 대응은 걷어낸 구현이 쓰던 것이다. natural 이 세로일 때 0° <code>portrait-primary</code>, 90° <code>landscape-primary</code>, 180° <code>portrait-secondary</code>, 270° <code>landscape-secondary</code>. natural 이 가로인 기기에서는 이름이 각도를 그대로 담지 못해 역산이 필요했다.</p>
 
-<p>권한이라는 말은 여기서 브라우저 정책을 가리킨다. Android의 <code>WRITE_SETTINGS</code>처럼 사용자가 허용할 대상이 아니라서, 카드는 권한 화면을 여는 대신 왜 거절됐는지만 보여준다(<code>requestPermission()</code>이 no-op이다).</p>
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>없다. <code>feature/rotation/data/src/wasmJsMain/.../rotation/DeviceRotation.wasmJs.kt</code>가 <code>UnsupportedDeviceRotationDataSource</code>를 돌려준다</dd>
+  <dt>동작</dt><dd><code>supported = false</code>, 각도는 <code>null</code>. 카드는 같은 자리에 남고 컨트롤이 전부 잠긴다. 설명에 "이 플랫폼에서는 화면을 돌릴 수 없습니다."가 나온다</dd>
+  <dt>실패</dt><dd>해당 없음. 부를 브라우저 API가 없어 예외가 날 자리도 없다</dd>
+</dl>
 
 <h3>한계</h3>
 <ul>
-  <li><strong>데스크톱 브라우저에서는 거의 항상 거절된다.</strong> 카드는 현재 각도(대개 0°)를 보여주고, 버튼을 누르면 설명이 "브라우저가 회전 고정을 거부했습니다"로 바뀐다.</li>
-  <li><strong>iOS Safari에는 API가 없다.</strong> <code>screen.orientation</code>은 있어도 <code>lock</code>이 없어 <code>supported = false</code>로 떨어진다.</li>
-  <li><strong>전체화면을 벗어나면 잠금이 풀린다.</strong> 브라우저가 자동으로 해제하고, <code>change</code> 이벤트로 그 사실이 카드에 반영된다.</li>
-  <li><strong>natural이 가로인 기기에서 각도와 이름의 대응이 어긋날 수 있다.</strong> <code>lock()</code>이 각도를 받지 않아서 생기는 한계다. 역산이 틀리면 90°와 270°가 뒤바뀐다.</li>
-  <li>돌아가는 것은 브라우저 문서(탭)지 기기가 아니다. OS 회전잠금은 그대로다.</li>
+  <li>기능 자체가 없다. 카드가 왜 잠겼는지만 보여준다.</li>
+  <li>탭만 돌리는 것은 모바일 Chrome 전체화면에서 가능하지만 요구사항(R9)이 아니라서 하지 않는다. 필요해지면 공통 스펙부터 고친다.</li>
 </ul>
 
 <h3>검증</h3>
-<p>자동 테스트가 없다. <code>wasmJsTest</code>는 헤드리스 Chrome에서 도는데 데스크톱 브라우저라 <code>lock()</code>이 거절되고, 돌아갈 화면도 없다. 규칙과 카드 표시는 <code>:feature:rotation:domain</code>·<code>:app:ui</code> 테스트가 검증한다(<code>:app:ui</code>의 <code>wasmJsBrowserTest</code>도 그 중 하나다). 실제 회전은 안드로이드 크롬에서 전체화면으로 열어 수동 확인한다.</p>
+<p><code>JarvisAppTest.deviceRotationIsLockedWhereItIsNotSupported</code>가 <code>:app:ui</code> <code>wasmJsBrowserTest</code>에서 돈다. 이 타깃의 실제 판정(지원하지 않음)과 테스트가 쓰는 가짜 상태의 기본값이 같아서, Web에서는 이 테스트가 실제 동작을 그대로 검증한다.</p>
+</section>
+
+<section class="feature" id="home-screen-widget">
+<h2>홈 화면 위젯 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/home-screen-widget.html">홈 화면 위젯</a></p>
+
+<h3>기술 조사</h3>
+<p>지시가 Android 한정이다(<a href="../common/home-screen-widget.html#requirements">R8</a>). 웹에는 홈 화면 위젯에 대응하는 개념 자체가 없다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>PWA <code>shortcuts</code> (매니페스트)</td><td>버렸다. 앱 아이콘 길게 누르기 메뉴에 항목을 더할 뿐이고, 누르면 앱이 열린다. 앱을 열지 않고 조작한다는 위젯의 뜻이 아니다</td></tr>
+    <tr><td>Windows 11 "Web Widgets" (PWA <code>widgets</code> 매니페스트)</td><td>버렸다. Edge + Windows 전용 실험 기능이고, 데스크톱 브라우저에서는 두 기능이 어차피 불가다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>없다. 위젯 모듈은 <code>com.android.library</code>라 wasmJs 번들에 들어오지 않는다</dd>
+  <dt>동작</dt><dd>없다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>기능 자체가 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>해당 없음. <code>:shared</code>의 <code>wasmJsMain</code>이 위젯 모듈을 의존하지 않는다.</p>
 </section>
 
 <section class="feature" id="card-ripple">
