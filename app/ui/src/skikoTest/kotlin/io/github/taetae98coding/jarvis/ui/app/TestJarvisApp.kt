@@ -45,6 +45,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.FileRepository
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangesRepository
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
@@ -439,8 +440,9 @@ internal class FakeFileRepository(
 }
 
 /**
- * 폴더마다 정해 둔 git 상태와 그래프를 답한다. 기본값은 어느 폴더도 저장소가 아닌 것이다. stage·unstage 는 요청을 기록하고
+ * 폴더마다 정해 둔 git 상태와 그래프를 답한다. 기본값은 어느 폴더도 저장소가 아닌 것이다. stage·unstage·push 는 요청을 기록하고
  * [failure] 가 있으면 그것으로 실패한다. 상태는 바꾸지 않는다 — 결과는 테스트가 [statuses] 로 정한다.
+ * [gate] 가 있으면 push 는 요청을 기록한 뒤 그것이 끝날 때까지 기다린다.
  */
 internal class FakeGitChangesRepository(
     statuses: Map<String, GitStatus> = emptyMap(),
@@ -455,6 +457,10 @@ internal class FakeGitChangesRepository(
 
     val unstaged = mutableListOf<Pair<String, List<GitChange>>>()
 
+    val pushed = mutableListOf<Pair<String, GitPushTarget>>()
+
+    var gate: CompletableDeferred<Unit>? = null
+
     override fun observeStatus(directory: String): Flow<GitStatus?> = statuses.map { it[directory] }
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = graphs.map { it[directory].orEmpty() }
@@ -466,6 +472,12 @@ internal class FakeGitChangesRepository(
 
     override suspend fun unstage(root: String, changes: List<GitChange>): Result<Unit> {
         unstaged += root to changes
+        return failure?.let { Result.failure(GitWorktreeException(it)) } ?: Result.success(Unit)
+    }
+
+    override suspend fun push(root: String, target: GitPushTarget): Result<Unit> {
+        pushed += root to target
+        gate?.await()
         return failure?.let { Result.failure(GitWorktreeException(it)) } ?: Result.success(Unit)
     }
 }

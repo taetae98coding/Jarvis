@@ -71,12 +71,15 @@ internal fun TerminalSideBar(
                         val status by viewModel.gitStatus.collectAsStateWithLifecycle()
                         val graph by viewModel.gitGraph.collectAsStateWithLifecycle()
                         val error by viewModel.gitError.collectAsStateWithLifecycle()
+                        val pushing by viewModel.pushing.collectAsStateWithLifecycle()
                         TerminalGitPanel(
                             state = status,
                             graph = graph,
                             error = error,
+                            pushing = pushing,
                             onStage = viewModel::stage,
                             onUnstage = viewModel::unstage,
+                            onPush = viewModel::push,
                             onOpen = onOpenFile,
                             modifier = Modifier.fillMaxSize(),
                         )

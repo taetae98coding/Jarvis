@@ -3,6 +3,8 @@ package io.github.taetae98coding.jarvis.ui.app
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -16,6 +18,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
@@ -25,6 +28,8 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitBranchTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitErrorTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitNoCommitsTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitNotRepositoryTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitPushTargetTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitPushTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitStageAllTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitUnstageAllTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarContentTestTag
@@ -44,6 +49,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.terminalGitUnstagedTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalGroupTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalTabTitleTestTag
+import kotlinx.coroutines.CompletableDeferred
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -382,6 +388,81 @@ class JarvisAppTerminalSideBarTest {
         awaitTag(TerminalGitNoCommitsTestTag)
         onNodeWithTag(TerminalGitBranchTestTag).assertTextEquals("HEAD (detached)")
         assertEquals(0, count(TerminalGitStageAllTestTag))
+    }
+
+    private fun ComposeUiTest.openGitWithPushTarget(target: GitPushTarget?, git: FakeGitChangesRepository = git()): FakeGitChangesRepository {
+        git.statuses.value = mapOf(Root to git.statuses.value.getValue(Root).copy(pushTarget = target))
+        openTerminal(git = git)
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(TerminalGitBranchTestTag)
+        return git
+    }
+
+    @Test
+    fun aBranchAheadOfItsRemoteBranchCanBePushed() = runComposeUiTest {
+        val target = GitPushTarget("origin", "main", exists = true, ahead = 2)
+        val git = openGitWithPushTarget(target)
+
+        onNodeWithTag(TerminalGitPushTargetTestTag).assertTextEquals("origin/main")
+        onNodeWithTag(TerminalGitPushTestTag).assertTextEquals("push ↑2").assertIsEnabled()
+
+        onNodeWithTag(TerminalGitPushTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { git.pushed.size == 1 }
+        assertEquals(Root to target, git.pushed.single())
+        assertEquals(0, count(TerminalGitErrorTestTag))
+    }
+
+    @Test
+    fun aBranchWithNothingToPushShowsADisabledButtonAndBehindCommits() = runComposeUiTest {
+        val git = openGitWithPushTarget(GitPushTarget("origin", "main", exists = true, ahead = 0, behind = 3))
+
+        onNodeWithTag(TerminalGitPushTestTag).assertTextEquals("push").assertIsNotEnabled()
+
+        git.statuses.value = mapOf(Root to git.statuses.value.getValue(Root).copy(pushTarget = GitPushTarget("origin", "main", exists = true, ahead = 1, behind = 3)))
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("push ↑1 ↓3").fetchSemanticsNodes().size == 1 }
+        onNodeWithTag(TerminalGitPushTestTag).assertIsEnabled()
+    }
+
+    // 워크트리로 새로 만든 브랜치는 원격에 아직 없다.
+    @Test
+    fun aBranchMissingOnTheRemoteIsPublished() = runComposeUiTest {
+        val target = GitPushTarget("origin", "feature/login", exists = false)
+        val git = openGitWithPushTarget(target)
+
+        onNodeWithTag(TerminalGitPushTargetTestTag).assertTextEquals("origin 에 없음")
+        onNodeWithTag(TerminalGitPushTestTag).assertTextEquals("새 브랜치 push").assertIsEnabled()
+
+        onNodeWithTag(TerminalGitPushTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { git.pushed.size == 1 }
+        assertEquals(Root to target, git.pushed.single())
+    }
+
+    @Test
+    fun thereIsNoPushButtonWithoutAPushTarget() = runComposeUiTest {
+        openGitWithPushTarget(null)
+
+        assertEquals(0, count(TerminalGitPushTestTag))
+        assertEquals(0, count(TerminalGitPushTargetTestTag))
+    }
+
+    @Test
+    fun theButtonIsDisabledWhilePushingAndAFailureStays() = runComposeUiTest {
+        val gate = CompletableDeferred<Unit>()
+        val git = git().apply {
+            this.gate = gate
+            failure = "! [rejected] main -> main (fetch first)"
+        }
+        openGitWithPushTarget(GitPushTarget("origin", "main", exists = true, ahead = 1), git)
+
+        onNodeWithTag(TerminalGitPushTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("push 중…").fetchSemanticsNodes().size == 1 }
+        onNodeWithTag(TerminalGitPushTestTag).assertIsNotEnabled()
+
+        gate.complete(Unit)
+        awaitTag(TerminalGitErrorTestTag)
+        onNodeWithTag(TerminalGitErrorTestTag).assertTextEquals("! [rejected] main -> main (fetch first)")
+        onNodeWithTag(TerminalGitPushTestTag).assertTextEquals("push ↑1").assertIsEnabled()
+        assertEquals(1, git.pushed.size)
     }
 
     private companion object {

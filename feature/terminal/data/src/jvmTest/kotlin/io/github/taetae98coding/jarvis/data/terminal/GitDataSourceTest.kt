@@ -2,6 +2,7 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
+import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import kotlinx.coroutines.flow.first
@@ -353,6 +354,150 @@ class GitDataSourceTest {
         assertNull(source.observeStatus(outside.path).first())
         assertEquals(emptyList(), source.observeGraph(outside.path).first())
         assertEquals(emptyList(), source.observeGraph(unborn.path).first())
+    }
+
+    /** [repository] 에 `origin` 으로 붙인 빈 bare 저장소. */
+    private fun addRemote(repository: File, name: String = "origin"): File =
+        newDirectory().also {
+            git(it, "init", "-q", "--bare")
+            git(repository, "remote", "add", name, it.path)
+        }
+
+    private suspend fun pushTarget(directory: File): GitPushTarget? = source.observeStatus(directory.path).first()!!.pushTarget
+
+    @Test
+    fun aBranchNotYetOnTheRemoteIsPublishedAndTracksIt() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val remote = addRemote(repository)
+        val target = pushTarget(repository)
+        assertEquals(GitPushTarget("origin", "main", exists = false), target)
+
+        assertTrue(source.push(repository.path, target!!).isSuccess)
+
+        assertEquals(revision(repository, "HEAD"), revision(remote, "main"))
+        assertEquals("origin/main", read(repository, "rev-parse", "--abbrev-ref", "main@{upstream}"))
+        assertEquals(GitPushTarget("origin", "main", exists = true), pushTarget(repository))
+    }
+
+    @Test
+    fun newCommitsAreAheadAndPushingCatchesUp() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val remote = addRemote(repository)
+        git(repository, "push", "-q", "-u", "origin", "main")
+        commit(repository, "one")
+        commit(repository, "two")
+
+        val target = pushTarget(repository)!!
+        assertEquals(GitPushTarget("origin", "main", exists = true, ahead = 2), target)
+        assertTrue(target.canPush)
+
+        assertTrue(source.push(repository.path, target).isSuccess)
+
+        assertEquals(revision(repository, "HEAD"), revision(remote, "main"))
+        assertEquals(GitPushTarget("origin", "main", exists = true, ahead = 0), pushTarget(repository))
+    }
+
+    @Test
+    fun aNewWorktreeBranchIsPublishedFromTheWorktree() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val remote = addRemote(repository)
+        git(repository, "push", "-q", "-u", "origin", "main")
+        val worktree = newWorktree(repository, "feature/login")
+        commit(worktree, "login")
+
+        val target = pushTarget(worktree)!!
+        assertEquals(GitPushTarget("origin", "feature/login", exists = false), target)
+
+        assertTrue(source.push(worktree.path, target).isSuccess)
+
+        assertEquals(revision(worktree, "HEAD"), revision(remote, "feature/login"))
+        assertEquals(revision(repository, "main"), revision(remote, "main"))
+        assertEquals("origin/feature/login", read(worktree, "rev-parse", "--abbrev-ref", "feature/login@{upstream}"))
+    }
+
+    // 원격 추적 브랜치에서 갈라 만든 워크트리는 upstream 이 origin/main 이다. 비교·push 는 같은 이름 브랜치로 한다.
+    @Test
+    fun aBranchTrackingAnotherNameIsComparedWithItsOwnNameAndRetracked() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        addRemote(repository)
+        git(repository, "push", "-q", "-u", "origin", "main")
+        val worktree = File(repository.parentFile, "${repository.name}-worktrees/feat")
+        git(repository, "worktree", "add", "-q", "-b", "feat", worktree.path, "origin/main")
+        commit(worktree, "feat")
+        assertEquals("origin/main", read(worktree, "rev-parse", "--abbrev-ref", "feat@{upstream}"))
+
+        val target = pushTarget(worktree)!!
+        assertEquals(GitPushTarget("origin", "feat", exists = false), target)
+        assertTrue(source.push(worktree.path, target).isSuccess)
+
+        assertEquals("origin/feat", read(worktree, "rev-parse", "--abbrev-ref", "feat@{upstream}"))
+        commit(worktree, "more")
+        assertEquals(GitPushTarget("origin", "feat", exists = true, ahead = 1), pushTarget(worktree))
+    }
+
+    @Test
+    fun aRemoteThatMovedAheadRejectsThePushWithGitsMessage() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val remote = addRemote(repository)
+        git(repository, "push", "-q", "-u", "origin", "main")
+        val other = newDirectory().also { git(it.parentFile, "clone", "-q", remote.path, it.path) }
+        commit(other, "elsewhere")
+        git(other, "push", "-q", "origin", "main")
+        commit(repository, "here")
+        git(repository, "fetch", "-q")
+
+        val target = pushTarget(repository)!!
+        assertEquals(GitPushTarget("origin", "main", exists = true, ahead = 1, behind = 1), target)
+
+        val failure = source.push(repository.path, target).exceptionOrNull()
+
+        assertIs<GitWorktreeException>(failure)
+        assertTrue(failure.message!!.contains("rejected"), failure.message)
+        assertEquals(revision(other, "HEAD"), revision(remote, "main"))
+    }
+
+    @Test
+    fun theUpstreamRemoteWinsOverOrigin() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        addRemote(repository)
+        addRemote(repository, name = "fork")
+        git(repository, "push", "-q", "-u", "fork", "main")
+
+        assertEquals(GitPushTarget("fork", "main", exists = true), pushTarget(repository))
+    }
+
+    @Test
+    fun noRemoteDetachedAndUnbornHaveNoPushTarget() = runTest {
+        if (!gitAvailable) return@runTest
+        assertNull(pushTarget(newRepository()))
+
+        val detached = newRepository().also { addRemote(it) }
+        git(detached, "switch", "-q", "--detach")
+        assertNull(pushTarget(detached))
+
+        val unborn = newDirectory().also { git(it, "init", "-q", "-b", "main") }
+        addRemote(unborn)
+        assertNull(pushTarget(unborn))
+    }
+
+    @Test
+    fun pushingRefreshesTheObservationWithoutWaitingForPolling() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        addRemote(repository)
+        val slow = ProcessGitDataSource(home = System.getProperty("user.home"), changesPollInterval = 1.hours)
+        val values = slow.observeStatus(repository.path).produceIn(backgroundScope)
+        val target = values.receive()!!.pushTarget!!
+
+        assertTrue(slow.push(repository.path, target).isSuccess)
+
+        assertEquals(GitPushTarget("origin", "main", exists = true), values.receive()!!.pushTarget)
     }
 
     @Test

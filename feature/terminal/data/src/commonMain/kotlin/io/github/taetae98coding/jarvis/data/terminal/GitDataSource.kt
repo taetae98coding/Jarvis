@@ -2,6 +2,7 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
@@ -22,6 +23,8 @@ internal interface GitDataSource {
     suspend fun stage(root: String, changes: List<GitChange>): Result<Unit>
 
     suspend fun unstage(root: String, changes: List<GitChange>): Result<Unit>
+
+    suspend fun push(root: String, target: GitPushTarget): Result<Unit>
 }
 
 /** git 을 실행할 수 없는 타깃. 어떤 폴더도 저장소가 아니라서 패널에 + 가 없고 사이드 바의 Git 구획은 "git 저장소가 아닙니다" 다. */
@@ -40,6 +43,8 @@ internal object UnsupportedGitDataSource : GitDataSource {
     override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> = unsupported()
 
     override suspend fun unstage(root: String, changes: List<GitChange>): Result<Unit> = unsupported()
+
+    override suspend fun push(root: String, target: GitPushTarget): Result<Unit> = unsupported()
 
     private fun <T> unsupported(): Result<T> = Result.failure(GitWorktreeException("이 플랫폼에서는 git 을 쓸 수 없습니다"))
 }

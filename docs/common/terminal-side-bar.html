@@ -12,7 +12,7 @@
 
 <header>
   <h1>터미널 오른쪽 사이드 바 (파일·Git)</h1>
-  <p class="lead">터미널 화면 오른쪽 끝에 접었다 펼 수 있는 사이드 바가 있다. "파일" 구획은 선택된 패널 폴더의 파일 트리를 보이고, 파일을 누르면 그 내용을 읽기 전용 파일 탭으로 연다. "Git" 구획은 위에 스테이지된 변경과 스테이지되지 않은 변경을 보이며 항목마다 stage·unstage 하고, 아래에 커밋 그래프(선 그림·ref·메시지)를 보인다.</p>
+  <p class="lead">터미널 화면 오른쪽 끝에 접었다 펼 수 있는 사이드 바가 있다. "파일" 구획은 선택된 패널 폴더의 파일 트리를 보이고, 파일을 누르면 그 내용을 읽기 전용 파일 탭으로 연다. "Git" 구획은 위에 스테이지된 변경과 스테이지되지 않은 변경을 보이며 항목마다 stage·unstage 하고, 아래에 커밋 그래프(선 그림·ref·메시지)를 보인다. 브랜치 줄의 push 버튼은 원격 브랜치보다 앞선 커밋을 올리고, 원격에 아직 없는 브랜치(새로 만든 워크트리의 브랜치)는 새로 올린다.</p>
 </header>
 
 <nav class="toc">
@@ -54,6 +54,13 @@
   <footer>2026-09-25 대화. R8b.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>sideTab에 push 기능도 추가해줘.<br>
+  - 워크트리는 새로 브랜치 올리면서 푸시도 가능해야해.<br>
+  - local과 remote branch 비교해서 commit 변경이 있으면 푸시 가능해야해.</p>
+  <footer>2026-09-25 대화. R20–R24. "sideTab" 은 이 문서의 사이드 바, 그중 Git 구획이다.</footer>
+</blockquote>
+
 <h2 id="terms">용어</h2>
 
 <dl class="meta">
@@ -63,6 +70,8 @@
   <dt>파일 탭</dt><dd>파일 하나의 내용을 읽기 전용으로 보이는 탭(<code>TerminalProgram.File</code>). 셸을 열지 않는다</dd>
   <dt>스테이지된 변경</dt><dd><code>git status</code> 의 index 쪽(porcelain 의 X 글자) 변경. 다음 커밋에 들어간다</dd>
   <dt>변경</dt><dd>작업 트리 쪽(porcelain 의 Y 글자) 변경과 추적하지 않는 파일. 아직 index 에 없다</dd>
+  <dt>올릴 곳</dt><dd>push 할 원격과 브랜치. 원격은 지금 브랜치의 upstream 이 가리키는 원격, 없으면 <code>origin</code>, 그것도 없으면 <code>git remote</code> 의 첫째다. 브랜치는 지금 브랜치와 <strong>같은 이름</strong>이다. 지시의 "remote branch" 는 그 원격 추적 ref <code>&lt;원격&gt;/&lt;브랜치&gt;</code> 다</dd>
+  <dt>앞선 커밋 ↑n · 뒤진 커밋 ↓m</dt><dd>HEAD 에서 닿지만 원격 브랜치에서 닿지 않는 커밋 수와 그 반대. 지시의 "commit 변경" 은 ↑n 이다</dd>
   <dt>커밋 그래프</dt><dd><code>git log --graph</code> 가 그리는 선 그림과 커밋 줄. 지시의 "커밋 상태랑 메시지 같은 그래프" 다</dd>
 </dl>
 
@@ -101,9 +110,18 @@
   <li><strong>R19.</strong> 두 목록과 그래프는 셸에서 git 을 쓰거나 파일을 고치면 플랫폼 스펙의 간격 안에 따라간다.</li>
 </ol>
 
+<h3>Push</h3>
+<ol start="20">
+  <li><strong>R20.</strong> Git 구획의 브랜치 줄 오른쪽에 push 버튼이 있고, 브랜치 이름 아래 줄에 올릴 곳(<code>origin/main</code>)이 보인다. 둘은 지금 브랜치가 있고(detached 가 아니고), 커밋이 하나 이상 있고, 원격이 하나 이상 있을 때만 보인다. 아니면 둘 다 없다.</li>
+  <li><strong>R21.</strong> 원격 브랜치가 있으면 HEAD 와 비교해 버튼은 "push ↑n" 이고, 뒤진 커밋이 있으면 " ↓m" 이 붙는다. ↑n 이 1 이상일 때만 누를 수 있다. 0 이면 "push" 로 보이되 누를 수 없다.</li>
+  <li><strong>R22.</strong> 원격 브랜치가 없으면(워크트리로 새로 만들어 아직 올리지 않은 브랜치, 원격에서 지워진 브랜치) 버튼은 "새 브랜치 push" 이고 늘 누를 수 있다. 올릴 곳 줄은 "origin 에 없음" 처럼 원격 이름과 함께 없다고 보인다. upstream 이 다른 이름의 원격 브랜치(<code>origin/main</code>)여도 같은 이름 브랜치가 없으면 이것이다.</li>
+  <li><strong>R23.</strong> 누르면 올릴 곳의 같은 이름 브랜치로 올리고, 성공하면 지금 브랜치의 upstream 을 그 원격 브랜치로 맞춘다. 강제로 올리지 않는다 — 원격이 앞서 있어 거절되면 그대로 실패다. 도는 동안 버튼은 "push 중…" 으로 누를 수 없다. 끝나면 폴링 간격을 기다리지 않고 두 목록·버튼·그래프를 다시 읽는다. 실패하면 R16 과 같이 git 의 오류 문구가 구획 위에 남고, 다음 명령이 성공하면 사라진다.</li>
+  <li><strong>R24.</strong> 비교는 마지막으로 받아 온(fetch) 원격 추적 ref 기준이다. 앱은 fetch 하지 않는다. 셸에서 커밋·fetch·push 하면 버튼이 R19 의 간격 안에 따라간다. 인증은 묻지 않는다 — 자격 증명 도우미(키체인)·ssh-agent 로 물음 없이 되는 원격만 올릴 수 있고, 아니면 git 의 인증 실패 문구가 남는다.</li>
+</ol>
+
 <aside class="warn">
   <strong>스코프에서 뺀 것</strong>
-  지시에 없는 것: 커밋 만들기, diff 보기, 줄 단위(hunk) stage, 브랜치 전환, 파일 편집·만들기·지우기·이름 바꾸기, 사이드 바 폭 조절, 접힘·구획·펼친 폴더 저장. 지시가 "일단 2가지" 라고 해서 나중 기능으로 둔다. 커밋은 셸이나 Claude 탭에서 하면 그래프가 따라온다(R19).
+  지시에 없는 것: 커밋 만들기, pull·fetch, 강제 push, 올릴 원격·브랜치 고르기, diff 보기, 줄 단위(hunk) stage, 브랜치 전환, 파일 편집·만들기·지우기·이름 바꾸기, 사이드 바 폭 조절, 접힘·구획·펼친 폴더 저장. 지시가 "일단 2가지" 라고 해서 나중 기능으로 둔다. 커밋은 셸이나 Claude 탭에서 하면 그래프가 따라온다(R19).
 </aside>
 
 <h2 id="behavior">화면·동작</h2>
@@ -118,7 +136,8 @@
 
 Git 구획
 ┌──────────────────────────────┐
-│ ⑂ main                        │
+│ ⑂ main                push ↑2 │
+│   origin/main                 │
 │ 스테이지된 변경 (1)  모두 unstage │
 │  M  Foo.kt  app/src      −    │
 │ 변경 (2)            모두 stage │
@@ -141,14 +160,15 @@ Git 구획
     <tr><td>내용 폭</td><td><code>TerminalSideBarDefaults.width</code> 280dp 고정</td></tr>
     <tr><td>파일 줄</td><td>들여쓰기(단계마다 <code>spacing.l</code>), 폴더면 <code>ChevronRight</code>(펼치면 <code>ChevronDown</code>) + <code>Folder</code>, 파일이면 빈칸 + <code>File</code>, 이름 한 줄 말줄임. 합친 폴더 줄(R8b)은 이름을 <code>a/b/c</code> 로 잇는다</td></tr>
     <tr><td>파일 탭</td><td>종류 아이콘 <code>File</code>, 설명 "파일". 내용은 <code>codeTextStyle</code>, 줄 번호는 <code>onSurfaceVariant</code></td></tr>
+    <tr><td>push 버튼</td><td>브랜치 줄 오른쪽 <code>TextButton</code>, 글자 <code>labelSmall</code>. "push ↑n"(+" ↓m") / "push"(누를 수 없음) / "새 브랜치 push" / "push 중…"(누를 수 없음). 올릴 곳 줄은 <code>labelSmall</code> <code>onSurfaceVariant</code> 로 "origin/main" 또는 "origin 에 없음"</td></tr>
     <tr><td>변경 줄</td><td>상태 글자(고정폭, 색: A·? success, D·U error, 나머지 warning), 이름, 상위 폴더(<code>onSurfaceVariant</code>), 오른쪽 <code>Add</code> "stage" 또는 <code>Remove</code> "unstage"</td></tr>
     <tr><td>그래프 줄</td><td>선 그림(<code>codeTextStyle</code>, 글자 칸 두 개마다 다른 색 6가지를 돈다), ref 는 <code>labelSmall</code> 배경 칩(HEAD 는 <code>primaryContainer</code>, 나머지 <code>secondaryContainer</code>), 제목은 <code>bodySmall</code>, 둘째 줄의 짧은 해시·작성자·날짜는 <code>labelSmall</code> <code>onSurfaceVariant</code></td></tr>
-    <tr><td>문구</td><td>"폴더가 없는 패널입니다", "폴더를 읽을 수 없습니다", "git 저장소가 아닙니다", "HEAD (detached)", "스테이지된 변경 (n)", "변경 (n)", "모두 stage", "모두 unstage", "커밋 그래프", "커밋이 없습니다", "앞 512 KiB 만 보입니다", "텍스트가 아닌 파일이라 보일 수 없습니다", "파일을 읽을 수 없습니다"</td></tr>
+    <tr><td>문구</td><td>"폴더가 없는 패널입니다", "폴더를 읽을 수 없습니다", "git 저장소가 아닙니다", "HEAD (detached)", "스테이지된 변경 (n)", "변경 (n)", "모두 stage", "모두 unstage", "push ↑n ↓m", "push", "새 브랜치 push", "push 중…", "&lt;원격&gt; 에 없음", "커밋 그래프", "커밋이 없습니다", "앞 512 KiB 만 보입니다", "텍스트가 아닌 파일이라 보일 수 없습니다", "파일을 읽을 수 없습니다"</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:side-bar</code>, <code>terminal:side-bar:toggle</code>, <code>terminal:side-bar:content</code>,
       <code>terminal:side-bar:section:files</code>, <code>terminal:side-bar:section:git</code>, <code>terminal:side-bar:no-folder</code>,
       <code>terminal:files:root</code>, <code>terminal:files:unreadable</code>, <code>terminal:files:entry:&lt;경로&gt;</code>,
-      <code>terminal:git:not-repository</code>, <code>terminal:git:branch</code>, <code>terminal:git:error</code>,
+      <code>terminal:git:not-repository</code>, <code>terminal:git:branch</code>, <code>terminal:git:error</code>, <code>terminal:git:push</code>, <code>terminal:git:push-target</code>,
       <code>terminal:git:staged:&lt;경로&gt;</code>, <code>terminal:git:unstaged:&lt;경로&gt;</code>, <code>terminal:git:stage:&lt;경로&gt;</code>, <code>terminal:git:unstage:&lt;경로&gt;</code>,
       <code>terminal:git:stage-all</code>, <code>terminal:git:unstage-all</code>, <code>terminal:git:graph</code>, <code>terminal:git:commit:&lt;해시&gt;</code>, <code>terminal:git:no-commits</code>,
       <code>terminal:file-viewer:&lt;탭 id&gt;</code>, <code>terminal:file-viewer:notice</code></td></tr>
@@ -160,17 +180,19 @@ Git 구획
 <dl class="meta">
   <dt>domain</dt><dd>
     <code>FileEntry</code>(name, path, isDirectory)·<code>FileContent</code>(Text / Binary / Unreadable)·<code>FileRepository</code>(<code>observeDirectory</code>, <code>observeFile</code>),
-    <code>GitChange</code>·<code>GitChangeKind</code>·<code>GitStatus</code>(root, branch, staged, unstaged)·<code>GitGraphLine</code>·<code>GitCommit</code>·<code>GitChangesRepository</code>(<code>observeStatus</code>, <code>observeGraph</code>, <code>stage</code>, <code>unstage</code>),
-    유스케이스 <code>ObserveDirectoryUseCase</code>·<code>ObserveFileUseCase</code>·<code>ObserveGitStatusUseCase</code>·<code>ObserveGitGraphUseCase</code>·<code>StageGitChangesUseCase</code>·<code>UnstageGitChangesUseCase</code>.
+    <code>GitChange</code>·<code>GitChangeKind</code>·<code>GitStatus</code>(root, branch, staged, unstaged, pushTarget)·<code>GitPushTarget</code>(remote, branch, exists, ahead, behind, <code>canPush</code>)·<code>GitGraphLine</code>·<code>GitCommit</code>·<code>GitChangesRepository</code>(<code>observeStatus</code>, <code>observeGraph</code>, <code>stage</code>, <code>unstage</code>, <code>push</code>),
+    유스케이스 <code>ObserveDirectoryUseCase</code>·<code>ObserveFileUseCase</code>·<code>ObserveGitStatusUseCase</code>·<code>ObserveGitGraphUseCase</code>·<code>StageGitChangesUseCase</code>·<code>UnstageGitChangesUseCase</code>·<code>PushGitBranchUseCase</code>(<code>canPush</code> 가 아니면 부르지 않고 성공).
     <code>TerminalProgram.File</code>, <code>TerminalTab.filePath</code>, <code>TerminalTabKind.File</code>, <code>TerminalWorkspace.openFile(path)</code>(R9), <code>TerminalWorkspace.sideBarDirectory</code>(R5)</dd>
   <dt>data</dt><dd>
     <code>FileDataSource</code> 와 공통 구현 <code>OkioFileDataSource(fileSystem, home, changes)</code> — okio <code>FileSystem</code> 으로 목록·메타데이터·앞부분 읽기를 하고, 다시 읽을 신호 <code>changes(path)</code> 는 플랫폼이 준다.
     파일 탭 내용은 신호마다 <code>(크기, 수정 시각)</code> 만 다시 읽고 달라졌을 때만 내용을 읽는다.
     git 은 기존 <code>GitDataSource</code> 에 <code>observeStatus</code>·<code>observeGraph</code>·<code>stage</code>·<code>unstage</code> 를 더하고, porcelain·그래프 해석(<code>parseGitStatus</code>, <code>parseGitGraph</code>)은 공통 함수다.
-    stage·unstage 가 끝나면 데이터 소스 안의 신호로 같은 저장소의 관측을 곧바로 다시 읽는다(R16)</dd>
+    stage·unstage·push 가 끝나면 데이터 소스 안의 신호로 같은 저장소의 관측을 곧바로 다시 읽는다(R16, R23).
+    <code>GitStatus.pushTarget</code> 은 <code>observeStatus</code> 가 함께 채운다 — porcelain 머리(<code>parseGitBranchHeader</code>: 브랜치·upstream·ahead·behind·커밋 없음)에서 읽고, 모자랄 때만 git 을 더 부른다</dd>
   <dt>공급</dt><dd><code>internal expect fun createFileDataSource(context: PlatformContext): FileDataSource</code>, 기존 <code>createGitDataSource()</code></dd>
   <dt>UI</dt><dd>
     <code>TerminalSideBar.kt</code>(레일·내용·구획 전환), <code>TerminalFileTree.kt</code>, <code>TerminalGitPanel.kt</code>, <code>TerminalFileViewer.kt</code>.
+    push 가 도는 동안은 <code>TerminalSideBarViewModel.pushing</code> 이 true 이고 그동안 <code>push</code> 는 무시된다.
     상태는 <code>TerminalSideBarViewModel</code>: 화면이 <code>setDirectory</code> 로 기준 폴더를 넘기고, 펼친 폴더 집합을 들고, 트리·git 상태·그래프를 <code>stateIn(viewModelScope, WhileSubscribed(replayExpirationMillis = 0), …)</code> 으로 내놓는다.
     파일 탭 내용은 <code>TerminalViewModel.fileContent(path)</code> 가 경로마다 같은 방식으로 내놓는다. 접힘·구획은 <code>rememberSaveable</code></dd>
 </dl>
@@ -178,6 +200,18 @@ Git 구획
 <aside class="decision">
   <strong>결정: 그래프는 <code>git log --graph</code> 의 글자 그림을 그대로 쓴다.</strong>
   부모 목록(<code>%P</code>)으로 레인을 직접 배치해 선으로 그리는 방법을 버렸다. 병합·교차 배치 알고리즘을 새로 짜야 하고 git 과 모양이 달라진다. git 의 그림은 셸에서 보던 것과 같고, 칸마다 색을 입히면 레인이 구분된다. 형식은 <code>%x1f</code> 로 구분한 필드 뒤에 <code>%n%x1e</code> 를 붙여 커밋마다 둘째 줄을 만든다. git 은 여러 줄 형식의 이음선을 스스로 그리므로, 둘째 줄에 작성자·날짜를 놓아도 선이 끊기지 않는다. 둘 다 없는 줄은 선만 있는 줄이다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: push 는 upstream 이 아니라 같은 이름의 원격 브랜치와 비교하고, 올릴 때 upstream 을 그리로 맞춘다.</strong>
+  porcelain 머리의 <code>[ahead n]</code>(upstream 비교)만 쓰는 방법을 버렸다. <a href="terminal-worktree.html">워크트리</a>를 원격 추적 브랜치(<code>origin/main</code>)에서 갈라 만들면 git 이 upstream 을 <code>origin/main</code> 으로 잡아서, 새 브랜치인데 "main 보다 n 앞섬" 으로 보이고 <code>git push</code> 는 <code>push.default=simple</code> 에서 이름이 달라 거절된다. 지시의 "워크트리는 새로 브랜치 올리면서" 는 같은 이름 브랜치를 원격에 새로 만드는 것이다.
+  그래서 비교 대상은 늘 <code>&lt;원격&gt;/&lt;브랜치&gt;</code> 이고, upstream 이 마침 그것이면 머리의 값을 그대로 쓰고(흔한 경우, git 을 더 부르지 않는다) 아니면 그 ref 와 HEAD 를 따로 센다. 올릴 때 <code>-u</code> 를 늘 붙인다 — 이미 같은 곳이면 바뀌는 것이 없고, 다른 곳이면 다음부터 셸의 <code>git push</code>·<code>git pull</code> 도 올린 브랜치를 따른다.
+  원격 고르기는 upstream 의 원격 → <code>origin</code> → 첫 원격이다. <code>remote.pushDefault</code>·<code>branch.&lt;이름&gt;.pushRemote</code> 는 따르지 않는다(<a href="#limits">한계</a>).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 앱은 fetch 하지 않는다.</strong>
+  폴링마다 fetch 하면 3초마다 네트워크·인증이 돈다. 지시는 "비교해서 변경이 있으면 푸시" 이고 올릴 커밋은 로컬에서 셀 수 있다. 원격이 앞서 있으면 push 가 거절되고 그 문구가 남는다(R23). 강제 push·pull 은 지시에 없다.
 </aside>
 
 <aside class="decision">
@@ -215,7 +249,7 @@ Git 구획
   <tbody>
     <tr><td>Android</td><td><span class="badge partial">조건부</span> <span class="badge untested">미검증</span></td><td>파일은 구현: okio <code>FileSystem.SYSTEM</code> + <code>FileObserver</code>(inotify) 콜백. 앱이 읽을 수 있는 폴더만 보인다. Git 은 기기에 <code>git</code> 이 없어 "git 저장소가 아닙니다"</td><td><a href="../platform/android.html#terminal-side-bar">android.html</a></td></tr>
     <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다. 빈 목록·"git 저장소가 아닙니다" 로 컴파일만 된다</td><td><a href="../platform/ios.html#terminal-side-bar">ios.html</a></td></tr>
-    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. okio <code>FileSystem.SYSTEM</code> + 폴링, <code>git status --porcelain=v1 -z</code>·<code>git log --graph</code>·<code>git add</code>·<code>git restore --staged</code></td><td><a href="../platform/jvm.html#terminal-side-bar">jvm.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. okio <code>FileSystem.SYSTEM</code> + 폴링, <code>git status --porcelain=v1 -z</code>·<code>git log --graph</code>·<code>git add</code>·<code>git restore --staged</code>·<code>git push -u</code></td><td><a href="../platform/jvm.html#terminal-side-bar">jvm.html</a></td></tr>
     <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-side-bar">web.html</a></td></tr>
   </tbody>
 </table>
@@ -228,9 +262,9 @@ Git 구획
     <tr><td><code>TerminalWorkspaceTest</code></td><td>R5, R9. <code>openFile</code> 이 포커스된 그룹 끝에 파일 탭을 열어 고르고, 빈 패널이면 그룹을 만들고, 같은 패널의 같은 경로는 다시 고르기만 하고, 다른 패널의 같은 경로는 새로 연다. <code>sideBarDirectory</code> 가 패널 폴더 → 포커스된 탭 디렉터리 순</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R12. 파일 탭이 경로와 함께 쓰이고 다시 읽힘, 경로가 없는 파일 탭은 셸로 읽힘</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
     <tr><td><code>OkioFileDataSourceTest</code></td><td>R7, R11, R13. 임시 폴더에서 폴더 먼저·이름순, <code>.git</code> 숨김, 없는 폴더 null, <code>~</code> 펴기, 텍스트·512 KiB 자르기·NUL 바이너리·없는 파일, 신호가 오면 바뀐 목록·내용을 다시 줌, 크기·시각이 같으면 내용을 다시 읽지 않음</td><td>같음</td></tr>
-    <tr><td><code>GitStatusParserTest</code></td><td>R15, R18. porcelain v1 <code>-z</code> 의 수정·추가·삭제·이름 바꿈(옛 경로)·추적 안 함·충돌·<code>MM</code> 분류와 경로순, 브랜치 머리(<code>## main...origin/main</code>, detached, <code>No commits yet</code>), 그래프의 커밋 줄·선 줄·ref·HEAD 해석</td><td>같음</td></tr>
-    <tr><td><code>GitDataSourceTest</code></td><td>R14–R16, R18. 임시 저장소에서 상태·그래프를 읽고, stage·unstage(이름 바꿈, 커밋 없는 저장소 포함)가 index 를 바꾸고 관측이 폴링 간격 전에 따라감, 저장소가 아닌 폴더는 null·빈 그래프, 실패는 stderr 문구</td><td>같음</td></tr>
-    <tr><td><code>JarvisAppTerminalSideBarTest</code></td><td>R1–R5, R7–R11, R8a, R8b, R14–R18. 접기·펼치기·구획 아이콘 전환과 탭 영역이 그대로임, 폴더 없는 패널 문구, 트리 순서와 폴더 펼치기, 폴더 하나뿐인 폴더 이어 펼치기(R8a), 이어진 폴더를 한 줄 <code>a/b/c/d</code> 로 보이고 누르면 <code>a</code> 로 접히며 끝 폴더만 접혀 있으면 끝 폴더를 펼침(R8b), 파일을 누르면 파일 탭이 열려 내용·줄 번호가 보이고 다시 누르면 같은 탭, 바이너리·자름 문구, 두 목록과 stage·unstage·모두 버튼이 저장소를 부름, 실패 문구, 변경 줄을 누르면 파일 탭, 그래프 줄, 저장소가 아닌 폴더 문구</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>GitStatusParserTest</code></td><td>R15, R18, R21, R22. 브랜치 머리의 upstream·<code>[ahead n, behind m]</code>·<code>[gone]</code>·커밋 없음 해석. porcelain v1 <code>-z</code> 의 수정·추가·삭제·이름 바꿈(옛 경로)·추적 안 함·충돌·<code>MM</code> 분류와 경로순, 브랜치 머리(<code>## main...origin/main</code>, detached, <code>No commits yet</code>), 그래프의 커밋 줄·선 줄·ref·HEAD 해석</td><td>같음</td></tr>
+    <tr><td><code>GitDataSourceTest</code></td><td>R14–R16, R18, R20–R23. 임시 bare 원격으로: 올리지 않은 브랜치는 원격 브랜치 없음, push 하면 원격에 생기고 upstream 이 맞춰짐, 커밋하면 ↑1, 워크트리의 새 브랜치 push, upstream 이 <code>origin/main</code> 인 새 브랜치도 같은 이름과 비교, 원격이 앞서면 거절 문구, 원격 없음·detached·커밋 없음은 올릴 곳 없음, push 뒤 관측이 폴링 간격 전에 따라감. 임시 저장소에서 상태·그래프를 읽고, stage·unstage(이름 바꿈, 커밋 없는 저장소 포함)가 index 를 바꾸고 관측이 폴링 간격 전에 따라감, 저장소가 아닌 폴더는 null·빈 그래프, 실패는 stderr 문구</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalSideBarTest</code></td><td>R1–R5, R7–R11, R8a, R8b, R14–R18, R20–R23. push 버튼의 네 모양("push ↑n ↓m"·누를 수 없는 "push"·"새 브랜치 push"·"push 중…")과 올릴 곳 줄, 누르면 저장소 최상위·올릴 곳으로 부름, 올릴 곳이 없으면 버튼 없음, push 실패 문구, 접기·펼치기·구획 아이콘 전환과 탭 영역이 그대로임, 폴더 없는 패널 문구, 트리 순서와 폴더 펼치기, 폴더 하나뿐인 폴더 이어 펼치기(R8a), 이어진 폴더를 한 줄 <code>a/b/c/d</code> 로 보이고 누르면 <code>a</code> 로 접히며 끝 폴더만 접혀 있으면 끝 폴더를 펼침(R8b), 파일을 누르면 파일 탭이 열려 내용·줄 번호가 보이고 다시 누르면 같은 탭, 바이너리·자름 문구, 두 목록과 stage·unstage·모두 버튼이 저장소를 부름, 실패 문구, 변경 줄을 누르면 파일 탭, 그래프 줄, 저장소가 아닌 폴더 문구</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 
@@ -241,6 +275,9 @@ Git 구획
 <ul>
   <li>파일 탭은 앞 512 KiB 만 보이고 UTF-8 이 아닌 인코딩은 글자가 깨진다(잘못된 바이트는 U+FFFD).</li>
   <li>그래프는 최근 200개 커밋까지다. 그보다 오래된 커밋은 셸에서 본다.</li>
+  <li>push 의 앞선·뒤진 커밋 수는 마지막 fetch 기준이다. 원격이 앞서 있으면 셸에서 pull 한 뒤 올린다.</li>
+  <li>push 는 원격을 고르지 않는다(upstream 의 원격 → <code>origin</code> → 첫 원격). <code>remote.pushDefault</code>·<code>pushRemote</code> 설정과 다른 이름의 원격 브랜치로 올리기는 셸에서 한다.</li>
+  <li>push 는 인증을 묻지 않는다. 암호·passphrase 를 물어야 하는 원격은 실패 문구만 남는다.</li>
   <li>stage·unstage 는 파일 단위다. 줄 단위는 셸에서 <code>git add -p</code> 한다.</li>
   <li>기준 폴더가 저장소의 하위 폴더여도 Git 구획은 저장소 전체의 변경을 보인다(git 의 porcelain 경로는 최상위 기준이다).</li>
   <li>큰 저장소는 폴링마다 <code>git status</code> 가 느릴 수 있다. Git 구획이 보이는 동안만 돈다(R6).</li>

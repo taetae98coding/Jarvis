@@ -20,7 +20,7 @@ internal fun parseGitStatus(root: String, output: String): GitStatus {
     while (index < fields.size) {
         val field = fields[index++]
         if (field.startsWith(BranchHeader)) {
-            branch = parseBranch(field.removePrefix(BranchHeader))
+            branch = parseBranchHeader(field.removePrefix(BranchHeader)).branch
             continue
         }
         if (field.length < 4) continue
@@ -44,12 +44,38 @@ internal fun parseGitStatus(root: String, output: String): GitStatus {
     return GitStatus(root = root, branch = branch, staged = staged.sortedBy { it.path }, unstaged = unstaged.sortedBy { it.path })
 }
 
-// `main...origin/main [ahead 1]`, `No commits yet on main`(옛 git 은 `Initial commit on main`), `HEAD (no branch)`.
-private fun parseBranch(header: String): String? {
-    val name = UnbornPrefixes.firstOrNull { header.startsWith(it) }?.let { header.removePrefix(it) }
-        ?: header.substringBefore("...").substringBefore(' ')
+/**
+ * `git status -b` 의 머리. [upstream] 은 `origin/main` 이고, upstream 이 없거나 원격에서 지워졌으면(`[gone]`) null 이다.
+ * [ahead]·[behind] 는 upstream 과 비교한 커밋 수다. [unborn] 은 커밋이 아직 없는 브랜치다.
+ */
+internal data class GitBranchHeader(
+    val branch: String?,
+    val upstream: String? = null,
+    val ahead: Int = 0,
+    val behind: Int = 0,
+    val unborn: Boolean = false,
+)
 
-    return name.takeIf { header != DetachedHeader && it.isNotEmpty() }
+/** [parseGitStatus] 와 같은 출력에서 머리만 읽는다. `-b` 없이 받은 출력이면 null 이다. */
+internal fun parseGitBranchHeader(output: String): GitBranchHeader? =
+    output.split('\u0000').firstOrNull { it.startsWith(BranchHeader) }?.let { parseBranchHeader(it.removePrefix(BranchHeader)) }
+
+// `main...origin/main [ahead 1, behind 2]`, `main...origin/main [gone]`, `No commits yet on main`(옛 git 은 `Initial commit on main`),
+// `HEAD (no branch)`. 브랜치 이름에는 공백도 `..` 도 들어갈 수 없어서 첫 공백과 `...` 로 가를 수 있다.
+private fun parseBranchHeader(header: String): GitBranchHeader {
+    if (header == DetachedHeader) return GitBranchHeader(branch = null)
+
+    val unbornPrefix = UnbornPrefixes.firstOrNull { header.startsWith(it) }
+    val names = (unbornPrefix?.let { header.removePrefix(it) } ?: header).substringBefore(' ')
+    val tracking = header.substringAfter(' ', missingDelimiterValue = "").takeIf { unbornPrefix == null }.orEmpty()
+
+    return GitBranchHeader(
+        branch = names.substringBefore("...").ifEmpty { null },
+        upstream = names.substringAfter("...", missingDelimiterValue = "").ifEmpty { null }?.takeIf { tracking != GoneTracking },
+        ahead = AheadPattern.find(tracking)?.groupValues?.get(1)?.toInt() ?: 0,
+        behind = BehindPattern.find(tracking)?.groupValues?.get(1)?.toInt() ?: 0,
+        unborn = unbornPrefix != null,
+    )
 }
 
 private fun changeKind(code: Char): GitChangeKind? = GitChangeKind.entries.firstOrNull { it.symbol == code && code != '?' }
@@ -57,6 +83,9 @@ private fun changeKind(code: Char): GitChangeKind? = GitChangeKind.entries.first
 private const val BranchHeader = "## "
 private const val DetachedHeader = "HEAD (no branch)"
 private val UnbornPrefixes = listOf("No commits yet on ", "Initial commit on ")
+private const val GoneTracking = "[gone]"
+private val AheadPattern = Regex("""ahead (\d+)""")
+private val BehindPattern = Regex("""behind (\d+)""")
 private val RenameCodes = setOf('R', 'C')
 private val ConflictCodes = setOf("DD", "AU", "UD", "UA", "DU", "AA", "UU")
 

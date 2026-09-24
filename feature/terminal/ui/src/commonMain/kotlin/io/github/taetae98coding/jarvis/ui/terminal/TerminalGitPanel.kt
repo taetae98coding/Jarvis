@@ -39,11 +39,14 @@ import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 
 const val TerminalGitNotRepositoryTestTag = "terminal:git:not-repository"
 const val TerminalGitBranchTestTag = "terminal:git:branch"
 const val TerminalGitErrorTestTag = "terminal:git:error"
+const val TerminalGitPushTestTag = "terminal:git:push"
+const val TerminalGitPushTargetTestTag = "terminal:git:push-target"
 const val TerminalGitStageAllTestTag = "terminal:git:stage-all"
 const val TerminalGitUnstageAllTestTag = "terminal:git:unstage-all"
 const val TerminalGitGraphTestTag = "terminal:git:graph"
@@ -65,8 +68,10 @@ internal fun TerminalGitPanel(
     state: GitPanelState,
     graph: List<GitGraphLine>?,
     error: String?,
+    pushing: Boolean,
     onStage: (root: String, changes: List<GitChange>) -> Unit,
     onUnstage: (root: String, changes: List<GitChange>) -> Unit,
+    onPush: (root: String, target: GitPushTarget) -> Unit,
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -95,7 +100,9 @@ internal fun TerminalGitPanel(
 
             GitChanges(
                 status = state.status,
+                pushing = pushing,
                 onStage = { onStage(state.status.root, it) },
+                onPush = { onPush(state.status.root, it) },
                 onUnstage = { onUnstage(state.status.root, it) },
                 onOpen = { onOpen("${state.status.root.trimEnd('/')}/${it.path}") },
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -111,31 +118,15 @@ internal fun TerminalGitPanel(
 @Composable
 private fun GitChanges(
     status: GitStatus,
+    pushing: Boolean,
     onStage: (List<GitChange>) -> Unit,
     onUnstage: (List<GitChange>) -> Unit,
+    onPush: (GitPushTarget) -> Unit,
     onOpen: (GitChange) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
-        Row(
-            modifier = Modifier.padding(JarvisTheme.dimens.spacing.s),
-            horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = JarvisIcons.GitBranch,
-                contentDescription = null,
-                modifier = Modifier.size(JarvisTheme.dimens.iconSize.small),
-                tint = JarvisTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = status.branch ?: "HEAD (detached)",
-                style = JarvisTheme.typography.labelLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag(TerminalGitBranchTestTag),
-            )
-        }
+        GitBranchHeader(status = status, pushing = pushing, onPush = onPush)
 
         GitChangeSection(
             title = "스테이지된 변경",
@@ -171,6 +162,61 @@ private fun GitChanges(
                 modifier = Modifier.testTag(terminalGitUnstagedTestTag(change.path)),
                 actionModifier = Modifier.testTag(terminalGitStageTestTag(change.path)),
             )
+        }
+    }
+}
+
+@Composable
+private fun GitBranchHeader(
+    status: GitStatus,
+    pushing: Boolean,
+    onPush: (GitPushTarget) -> Unit,
+) {
+    val spacing = JarvisTheme.dimens.spacing
+    val target = status.pushTarget
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = spacing.s, top = spacing.xs, bottom = spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = JarvisIcons.GitBranch,
+                    contentDescription = null,
+                    modifier = Modifier.size(JarvisTheme.dimens.iconSize.small),
+                    tint = JarvisTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = status.branch ?: "HEAD (detached)",
+                    style = JarvisTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag(TerminalGitBranchTestTag),
+                )
+            }
+            if (target != null) {
+                Text(
+                    text = if (target.exists) "${target.remote}/${target.branch}" else "${target.remote} 에 없음",
+                    style = JarvisTheme.typography.labelSmall,
+                    color = JarvisTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(start = JarvisTheme.dimens.iconSize.small + spacing.xs)
+                        .testTag(TerminalGitPushTargetTestTag),
+                )
+            }
+        }
+
+        if (target != null) {
+            TextButton(
+                onClick = { onPush(target) },
+                enabled = !pushing && target.canPush,
+                modifier = Modifier.testTag(TerminalGitPushTestTag),
+            ) {
+                Text(text = TerminalGitPanelDefaults.pushLabel(target, pushing), style = JarvisTheme.typography.labelSmall)
+            }
         }
     }
 }
@@ -349,6 +395,15 @@ private fun graphText(graph: String): AnnotatedString =
     }
 
 internal object TerminalGitPanelDefaults {
+    fun pushLabel(target: GitPushTarget, pushing: Boolean): String =
+        when {
+            pushing -> "push 중…"
+            !target.exists -> "새 브랜치 push"
+            target.ahead == 0 -> "push"
+            target.behind > 0 -> "push ↑${target.ahead} ↓${target.behind}"
+            else -> "push ↑${target.ahead}"
+        }
+
     // 테마와 무관한 고정 색이다. 밝은·어두운 배경 모두에서 서로 구분되는 색을 골랐다.
     val laneColors: List<Color> = listOf(
         Color(0xFF3B8EEA),

@@ -63,6 +63,32 @@ class GitStatusParserTest {
         assertEquals("work", status("## work").branch)
     }
 
+    private fun header(field: String) = parseGitBranchHeader("## $field\u0000 M a.kt\u0000")
+
+    @Test
+    fun branchHeaderCarriesTheUpstreamAndTheCommitCounts() {
+        assertEquals(GitBranchHeader("main", "origin/main", ahead = 1, behind = 2), header("main...origin/main [ahead 1, behind 2]"))
+        assertEquals(GitBranchHeader("main", "origin/main", ahead = 3), header("main...origin/main [ahead 3]"))
+        assertEquals(GitBranchHeader("main", "origin/main", behind = 4), header("main...origin/main [behind 4]"))
+        assertEquals(GitBranchHeader("feature/x", "origin/main"), header("feature/x...origin/main"))
+        assertEquals(GitBranchHeader("main"), header("main"))
+    }
+
+    // 원격에서 지워진 upstream 은 비교할 수 없어서 없는 것으로 읽는다.
+    @Test
+    fun aGoneUpstreamIsNoUpstream() {
+        assertEquals(GitBranchHeader("main"), header("main...origin/main [gone]"))
+    }
+
+    @Test
+    fun branchHeaderMarksUnbornAndDetachedHeads() {
+        assertEquals(GitBranchHeader("main", unborn = true), header("No commits yet on main"))
+        assertEquals(GitBranchHeader("main", "origin/main", unborn = true), header("No commits yet on main...origin/main"))
+        assertEquals(GitBranchHeader("main", unborn = true), header("Initial commit on main"))
+        assertEquals(GitBranchHeader(null), header("HEAD (no branch)"))
+        assertNull(parseGitBranchHeader(" M a.kt\u0000"))
+    }
+
     @Test
     fun graphLinesAreCommitsDetailsOrEdges() {
         val output = listOf(

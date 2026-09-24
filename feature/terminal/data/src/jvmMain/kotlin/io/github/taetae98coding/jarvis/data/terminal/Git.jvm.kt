@@ -4,6 +4,7 @@ import io.github.taetae98coding.jarvis.data.state.observeByPolling
 import io.github.taetae98coding.jarvis.data.state.observeOnSignals
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
@@ -20,6 +21,7 @@ import java.io.IOException
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 internal actual fun createGitDataSource(): GitDataSource = ProcessGitDataSource()
@@ -34,6 +36,12 @@ internal const val GitGraphMaxCommits = 200
 
 internal val GitCommandTimeout: Duration = 30.seconds
 
+/** 올릴 커밋이 많거나 느린 원격이면 30초를 넘는다. 인증을 기다리며 멈춘 push 도 여기서 끝난다. */
+internal val GitPushTimeout: Duration = 5.minutes
+
+// upstream 도 없고 원격을 고를 단서가 없을 때 먼저 찾는 원격(docs/common/terminal-side-bar.html 용어 "올릴 곳").
+private const val DefaultRemote = "origin"
+
 internal class GitResult(
     val exitCode: Int,
     val output: String,
@@ -42,15 +50,17 @@ internal class GitResult(
 
 /**
  * `git` CLI 로 저장소를 판정하고 워크트리를 만든다. JGit 을 버린 이유는 docs/platform/jvm.html#terminal-worktree 에 있다.
- * [run] 은 테스트가 갈아 끼운다.
+ * [runCommand] 는 테스트가 갈아 끼운다.
  */
 internal class ProcessGitDataSource(
     private val home: String = System.getProperty("user.home"),
-    private val run: suspend (command: List<String>) -> GitResult = ::runGit,
+    private val runCommand: suspend (command: List<String>, timeout: Duration) -> GitResult = ::runGit,
     private val changesPollInterval: Duration = GitChangesPollInterval,
 ) : GitDataSource {
-    // stage·unstage 가 끝나면 폴링 간격을 기다리지 않고 상태·그래프를 다시 읽는다.
-    private val indexChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    // stage·unstage·push 가 끝나면 폴링 간격을 기다리지 않고 상태·그래프를 다시 읽는다.
+    private val repositoryChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    private suspend fun run(command: List<String>): GitResult = runCommand(command, GitCommandTimeout)
 
     override fun observeWorktree(directory: String): Flow<GitWorktree?> =
         observeByPolling(interval = GitWorktreePollInterval) { readWorktree(directory) }.flowOn(Dispatchers.IO)
@@ -112,7 +122,7 @@ internal class ProcessGitDataSource(
             val paths = changes.map { it.path }.distinct()
             // -A 는 지운 파일도 index 에서 지운다.
             val result = run(git(File(root), "add", "-A", "--", *paths.toTypedArray()))
-            indexChanges.tryEmit(Unit)
+            repositoryChanges.tryEmit(Unit)
             result.failure()?.let { Result.failure(it) } ?: Result.success(Unit)
         }
 
@@ -127,11 +137,20 @@ internal class ProcessGitDataSource(
             } else {
                 run(git(repository, "rm", "--cached", "-r", "-q", "--", *paths))
             }
-            indexChanges.tryEmit(Unit)
+            repositoryChanges.tryEmit(Unit)
             result.failure()?.let { Result.failure(it) } ?: Result.success(Unit)
         }
 
-    private fun changeSignals(): Flow<Unit> = merge(pollingTicks(changesPollInterval), indexChanges)
+    // -u 는 이미 같은 곳이면 바뀌는 것이 없고, 원격 추적 브랜치에서 갈라 만든 워크트리처럼 upstream 이 다른 이름이면 올린 브랜치로 옮긴다.
+    override suspend fun push(root: String, target: GitPushTarget): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            val ref = "refs/heads/${target.branch}"
+            val result = runCommand(git(File(root), "push", "-u", target.remote, "$ref:$ref"), GitPushTimeout)
+            repositoryChanges.tryEmit(Unit)
+            result.failure()?.let { Result.failure(it) } ?: Result.success(Unit)
+        }
+
+    private fun changeSignals(): Flow<Unit> = merge(pollingTicks(changesPollInterval), repositoryChanges)
 
     private suspend fun readStatus(directory: String): GitStatus? {
         val root = readRoot(directory) ?: return null
@@ -139,7 +158,36 @@ internal class ProcessGitDataSource(
         val result = run(listOf("git", "--no-optional-locks", "-C", root, "status", "--porcelain=v1", "-z", "-b", "--untracked-files=all"))
         if (result.exitCode != 0) return null
 
-        return parseGitStatus(root, result.output)
+        val status = parseGitStatus(root, result.output)
+        val header = parseGitBranchHeader(result.output) ?: return status
+        return status.copy(pushTarget = readPushTarget(root, header))
+    }
+
+    // 비교 대상은 upstream 이 아니라 같은 이름의 원격 브랜치다(docs/common/terminal-side-bar.html 결정). upstream 이 마침
+    // 그것이면 머리의 수를 그대로 쓰고, 아닐 때만 따로 센다.
+    private suspend fun readPushTarget(root: String, header: GitBranchHeader): GitPushTarget? {
+        val branch = header.branch?.takeUnless { header.unborn } ?: return null
+        val repository = File(root)
+        val remotes = run(git(repository, "remote"))
+            .takeIf { it.exitCode == 0 }
+            ?.output?.lines()?.map { it.trim() }?.filter { it.isNotEmpty() }
+            .orEmpty()
+        // 원격 이름에 `/` 가 들어갈 수 있어서 upstream 앞부분과 겹치는 가장 긴 이름이 그 원격이다.
+        val remote = remotes.filter { header.upstream?.startsWith("$it/") == true }.maxByOrNull { it.length }
+            ?: DefaultRemote.takeIf { it in remotes }
+            ?: remotes.firstOrNull()
+            ?: return null
+
+        if (header.upstream == "$remote/$branch") {
+            return GitPushTarget(remote, branch, exists = true, ahead = header.ahead, behind = header.behind)
+        }
+
+        // `<원격 브랜치>...HEAD` 의 --left-right 는 `뒤진수\t앞선수` 다. ref 가 없으면 128 로 끝난다.
+        val counts = run(git(repository, "rev-list", "--count", "--left-right", "refs/remotes/$remote/$branch...HEAD"))
+        val numbers = counts.output.trim().split('\t').mapNotNull { it.toIntOrNull() }
+        if (counts.exitCode != 0 || numbers.size != 2) return GitPushTarget(remote, branch, exists = false)
+
+        return GitPushTarget(remote, branch, exists = true, ahead = numbers[1], behind = numbers[0])
     }
 
     // 커밋이 없는 저장소는 HEAD 를 풀지 못해 git log 가 128 로 끝난다. 그것도 빈 그래프다.
@@ -207,20 +255,24 @@ internal fun parseWorktree(output: String, directory: File): GitWorktree? {
 }
 
 // 출력을 파이프로 읽으면 stderr 가 파이프를 채우는 동안 stdout 읽기가 막힐 수 있어 임시 파일로 받는다.
-private suspend fun runGit(command: List<String>): GitResult =
+private suspend fun runGit(command: List<String>, timeout: Duration): GitResult =
     runInterruptible(Dispatchers.IO) {
         val output = Files.createTempFile("jarvis-git", ".out").toFile()
         val error = Files.createTempFile("jarvis-git", ".err").toFile()
         try {
-            val process = ProcessBuilder(command)
+            val builder = ProcessBuilder(command)
+            // 앱을 터미널에서 띄우면 push 가 /dev/tty 로 사용자 이름·암호를 물으며 시간 초과까지 멈춘다. 묻지 않고 곧바로 실패하게 한다.
+            // 자격 증명 도우미(osxkeychain)는 그대로 돈다.
+            builder.environment()["GIT_TERMINAL_PROMPT"] = "0"
+            val process = builder
                 .redirectInput(ProcessBuilder.Redirect.from(File("/dev/null")))
                 .redirectOutput(output)
                 .redirectError(error)
                 .start()
 
-            if (!process.waitFor(GitCommandTimeout.inWholeSeconds, TimeUnit.SECONDS)) {
+            if (!process.waitFor(timeout.inWholeSeconds, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
-                return@runInterruptible GitResult(-1, "", "git 이 $GitCommandTimeout 안에 끝나지 않았습니다")
+                return@runInterruptible GitResult(-1, "", "git 이 $timeout 안에 끝나지 않았습니다")
             }
 
             GitResult(process.exitValue(), output.readText(), error.readText())
