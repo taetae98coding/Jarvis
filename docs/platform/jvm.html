@@ -16,7 +16,7 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>:desktopApp</code> + <code>:shared</code> → <code>:app:ui</code> → 기능 모듈 열둘 + <code>:core:*</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
+  <dt>모듈</dt><dd><code>:desktopApp</code> + <code>:shared</code> → <code>:app:ui</code> → 기능 모듈 열다섯 + <code>:core:*</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
   <dt>Kotlin 타깃</dt><dd><code>jvm()</code></dd>
   <dt>Java toolchain</dt><dd>21</dd>
   <dt>진입점</dt><dd><code>io.github.taetae98coding.jarvis.desktop.MainKt</code> — 900 × 640 dp 창</dd>
@@ -44,6 +44,7 @@
     <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
     <li><a href="#emulator-launch">꺼진 에뮬레이터 실행</a></li>
     <li><a href="#emulator-wake">꺼진 화면 깨우기</a></li>
+    <li><a href="#terminal">터미널</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -506,7 +507,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 </ul>
 
 <h3>검증</h3>
-<p><code>JarvisAppTest</code> 가 <code>jvmTest</code>(skikoTest) 에서 돌며 카드 넷이 보이고 눌리는 것을 확인한다. 배치와 창 크기에 따른 열 수 변화는 <span class="badge untested">미검증</span>이고, <code>./gradlew :desktopApp:run</code> 으로 창을 늘렸다 줄여 수동 확인한다.</p>
+<p><code>JarvisAppTest</code> 가 <code>jvmTest</code>(skikoTest) 에서 돌며 카드 다섯이 보이고 눌리는 것을 확인한다. 배치와 창 크기에 따른 열 수 변화는 <span class="badge untested">미검증</span>이고, <code>./gradlew :desktopApp:run</code> 으로 창을 늘렸다 줄여 수동 확인한다.</p>
 </section>
 
 <section class="feature" id="emulator-control">
@@ -645,6 +646,45 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>EmulatorParsingTest.readsTheScreenState</code> 가 출력 해석을, <code>HostAgentServerTest.forwardsWakeRequests</code> 가 엔드포인트를 확인한다. <code>adb</code> 를 실제로 부르는 부분은 <span class="badge untested">미검증</span>이지만, 위 표의 두 명령은 개발 머신에 연결된 실물 기기에서 직접 돌려 확인했다.</p>
+</section>
+
+<section class="feature" id="terminal">
+<h2>터미널 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal.html">터미널</a></p>
+
+<h3>기술 조사</h3>
+<p>셸이 "터미널에 붙어 있다" 고 믿게 하려면 pty 가 있어야 한다. pty 가 없으면 zsh 가 프롬프트 편집(ZLE)을 끄고, <code>vim</code>·<code>less</code> 가 화면 크기를 모르고, Ctrl+C 가 신호가 되지 않는다. JDK 에는 pty 를 여는 API 가 없다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>org.jetbrains.pty4j:pty4j</code> 0.13.13</td><td>채택. IntelliJ 터미널이 쓰는 라이브러리다. macOS 에서는 JNA 로 <code>posix_openpt</code>·<code>grantpt</code>·<code>unlockpt</code> 를 부르고, 번들된 <code>libpty.dylib</code>(arm64·x86_64) 가 <code>fork</code> → <code>setsid</code> → 슬레이브를 제어 터미널로 → <code>execve</code> 를 한다. <code>PtyProcess.setWinSize()</code> 가 <code>ioctl(TIOCSWINSZ)</code> 를 불러 셸에 <code>SIGWINCH</code> 가 간다. Maven Central 에 있다. 런타임 의존은 JNA 5.14, slf4j-api(바인딩이 없으면 경고 한 줄만 찍는다)</td></tr>
+    <tr><td>JediTerm(<code>org.jetbrains.jediterm</code>) + <code>SwingPanel</code></td><td>버렸다. 해석기와 그리기를 통째로 얻지만 Swing 위젯이 포커스를 쥐어 분할·탭 단축키가 Compose 에 오지 않는다. 이유는 <a href="../common/terminal.html#implementation">공통 스펙의 결정</a>에 있다</td></tr>
+    <tr><td><code>/usr/bin/script -q /dev/null $SHELL</code></td><td>버렸다. 네이티브 의존 없이 pty 를 얻지만 그 pty 의 마스터가 <code>script</code> 안에 있어 창 크기를 바꿀 방법이 없다. 분할할 때마다 크기가 바뀌므로 치명적이다</td></tr>
+    <tr><td><code>ProcessBuilder</code> 파이프</td><td>버렸다. pty 가 아니라 위의 증상이 전부 난다. Android 가 어쩔 수 없이 이 길을 간다(<a href="android.html#terminal">Android</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../data/terminal/Terminal.jvm.kt</code></dd>
+  <dt>명령</dt><dd><code>$SHELL -l</code>. <code>SHELL</code> 이 없으면 <code>/bin/zsh</code>. 로그인 셸로 띄워야 <code>~/.zprofile</code> 의 <code>PATH</code>(Homebrew 등)가 들어온다 — Finder 로 띄운 앱은 <code>launchd</code> 의 최소 <code>PATH</code> 만 물려받는다</dd>
+  <dt>환경</dt><dd>현재 환경에 <code>TERM=xterm-256color</code>, <code>COLORTERM=truecolor</code> 를 덮어쓴다. <code>LANG</code> 이 없으면 <code>en_US.UTF-8</code> 을 넣는다 — Finder 로 띄운 앱에는 <code>LANG</code> 이 없고, 그러면 zsh 가 한글을 바이트 단위로 지운다. 작업 디렉터리는 <code>user.home</code></dd>
+  <dt>입출력</dt><dd>pty 마스터의 <code>inputStream</code> 을 <code>Dispatchers.IO</code> 에서 8 KB 씩 읽어 <code>Flow</code> 로 낸다. 읽기가 -1 이거나 예외면 흐름이 끝난다(R11). 쓰기도 IO 에서 한다</dd>
+  <dt>종료</dt><dd><code>close()</code> 가 <code>PtyProcess.destroy()</code>(SIGTERM 뒤 SIGKILL)를 부른다</dd>
+  <dt>실패</dt><dd>셸 실행이 예외를 던지면 <code>open()</code> 이 null 이다. 화면에는 "[셸을 시작할 수 없습니다]" 가 찍힌다</dd>
+</dl>
+
+<p>Linux·Windows 분기는 만들지 않는다. pty4j 가 두 OS 도 지원하지만 이 프로젝트가 확인하지 않는 경로라, 셸 경로를 OS 마다 고르는 코드를 두지 않는다. 다른 OS 에서 <code>/bin/zsh</code> 가 없으면 실행이 실패하고 null 로 빠진다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li><a href="../common/terminal.html#limits">공통 한계</a>가 그대로 든다.</li>
+  <li>pty4j 는 네이티브 라이브러리를 첫 실행 때 임시 디렉터리에 풀어 쓴다. 그 디렉터리에 실행 권한이 없는 머신에서는 셸이 뜨지 않는다.</li>
+  <li>Option 키를 Meta 로 쓰는 설정이 없다. Option+문자는 macOS 가 만든 특수 문자로 들어간다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>PtyTerminalDataSourceTest</code>(<code>:feature:terminal:data:jvmTest</code>)가 실제 pty 로 <code>/bin/sh</code> 를 띄운다. 로그인 셸이 아니라 <code>/bin/sh</code> 인 이유는 개발자의 셸 설정이 테스트 결과를 바꾸지 않게 하려는 것이다. 해석기와 작업 공간 규칙은 <code>:feature:terminal:domain</code> 의 <code>jvmTest</code> 로도 돈다. 화면은 <code>JarvisAppTest</code> 가 가짜 세션으로 확인하고, 단축키·경계선 드래그·IME 는 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다. 확인한 항목은 <a href="../common/terminal.html#verification">공통 스펙의 검증</a>에 적었다.</p>
 </section>
 
 <section class="feature" id="build">

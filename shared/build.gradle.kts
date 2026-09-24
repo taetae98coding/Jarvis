@@ -26,6 +26,7 @@ kotlin {
             implementation(projects.feature.emulator.data)
             implementation(projects.feature.screen.data)
             implementation(projects.feature.rotation.data)
+            implementation(projects.feature.terminal.data)
         }
 
         jvmMain.dependencies {

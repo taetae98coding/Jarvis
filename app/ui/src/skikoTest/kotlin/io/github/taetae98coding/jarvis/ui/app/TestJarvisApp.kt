@@ -21,14 +21,21 @@ import io.github.taetae98coding.jarvis.domain.appinfo.appInfoDomainModule
 import io.github.taetae98coding.jarvis.domain.emulator.emulatorDomainModule
 import io.github.taetae98coding.jarvis.domain.rotation.rotationDomainModule
 import io.github.taetae98coding.jarvis.domain.screen.screenDomainModule
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
+import io.github.taetae98coding.jarvis.domain.terminal.terminalDomainModule
 import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
+import io.github.taetae98coding.jarvis.ui.terminal.terminalUiModule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.emptyFlow
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
@@ -57,6 +64,7 @@ internal fun TestJarvisApp(
     emulator: EmulatorRepository = FakeEmulatorRepository(),
     deviceRotation: DeviceRotationRepository = FakeDeviceRotationRepository(),
     screenAwake: ScreenAwakeRepository = ScreenAwakeRepository { },
+    terminal: TerminalRepository = FakeTerminalRepository(),
     appInfo: AppInfo = TestAppInfo,
 ) {
     // 앱 수명 스코프. 프로덕션에서는 진입점이 만들고 platformModule 이 등록한다.
@@ -71,6 +79,7 @@ internal fun TestJarvisApp(
             single<ScreenAwakeRepository> { screenAwake }
             single<SystemScreenAwakeRepository> { systemScreenAwake }
             single<DeviceRotationRepository> { deviceRotation }
+            single<TerminalRepository> { terminal }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -84,6 +93,7 @@ internal fun TestJarvisApp(
                 emulatorDomainModule, emulatorUiModule,
                 screenDomainModule, screenUiModule,
                 rotationDomainModule, rotationUiModule,
+                terminalDomainModule, terminalUiModule,
                 appUiModule,
             )
         }
@@ -185,4 +195,51 @@ internal class FakeDeviceRotationRepository(
     }
 
     override fun requestPermission() = Unit
+}
+
+// 셸 대신 테스트가 출력을 흘려 넣고 종료를 정한다. 기본값은 JVM·Android 처럼 셸을 띄울 수 있는 타깃이다.
+internal class FakeTerminalRepository(
+    override val isSupported: Boolean = true,
+) : TerminalRepository {
+    val sessions = mutableListOf<FakeTerminalSession>()
+
+    override suspend fun open(size: TerminalSize): TerminalSession =
+        FakeTerminalSession(size).also { sessions += it }
+}
+
+internal class FakeTerminalSession(
+    var size: TerminalSize,
+) : TerminalSession {
+    private val channel = Channel<ByteArray>(Channel.UNLIMITED)
+
+    val written = mutableListOf<ByteArray>()
+
+    var closed = false
+        private set
+
+    override val isPty: Boolean = true
+
+    override val output: Flow<ByteArray> = channel.consumeAsFlow()
+
+    fun emit(text: String) {
+        channel.trySend(text.encodeToByteArray())
+    }
+
+    /** 셸이 스스로 끝난 것처럼 출력을 닫는다. */
+    fun exit() {
+        channel.close()
+    }
+
+    override suspend fun write(bytes: ByteArray) {
+        written += bytes
+    }
+
+    override fun resize(size: TerminalSize) {
+        this.size = size
+    }
+
+    override fun close() {
+        closed = true
+        channel.close()
+    }
 }

@@ -10,6 +10,7 @@ import io.github.taetae98coding.jarvis.ui.emulator.EmulatorCard
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationCard
 import io.github.taetae98coding.jarvis.ui.screen.ScreenAwakeCard
 import io.github.taetae98coding.jarvis.ui.screen.SystemScreenAwakeCard
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalCard
 
 /**
  * 기능이 늘 때 앱 셸에서 고치는 유일한 파일이다.
@@ -35,5 +36,7 @@ internal fun FeatureGrid(modifier: Modifier = Modifier) {
         item { EmulatorCard() }
 
         item { DeviceRotationCard() }
+
+        item { TerminalCard() }
     }
 }

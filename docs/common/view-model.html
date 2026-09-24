@@ -12,7 +12,7 @@
 
 <header>
   <h1>화면 상태 소유 (ViewModel)</h1>
-  <p class="lead">화면 하나가 쓰는 상태와 유스케이스 호출을 <code>androidx.lifecycle.ViewModel</code>이 소유한다. 앱 전체 상태 하나였던 <code>JarvisAppState</code>가 기능별·화면별 ViewModel 일곱으로 갈라진다.</p>
+  <p class="lead">화면 하나가 쓰는 상태와 유스케이스 호출을 <code>androidx.lifecycle.ViewModel</code>이 소유한다. 앱 전체 상태 하나였던 <code>JarvisAppState</code>가 기능별·화면별 ViewModel 여덟로 갈라진다.</p>
 </header>
 
 <nav class="toc">
@@ -74,7 +74,7 @@
 
 <h2 id="implementation">공통 구현</h2>
 
-<h3 id="viewmodels">ViewModel 일곱</h3>
+<h3 id="viewmodels">ViewModel 여덟</h3>
 
 <table>
   <thead><tr><th>ViewModel</th><th>수명</th><th>상태</th><th>동작</th></tr></thead>
@@ -121,6 +121,12 @@
       <td><code>device: StateFlow&lt;EmulatorDevice?&gt;</code>(목록에서 <code>id</code>로 찾는다), <code>frames: Flow&lt;ByteArray?&gt;</code>(cold)</td>
       <td>제스처 전달</td>
     </tr>
+    <tr>
+      <td><code>TerminalViewModel</code><br><code>:feature:terminal:ui</code></td>
+      <td>터미널 화면. 엔트리가 빠질 때 셸을 전부 닫는다</td>
+      <td><code>workspace: StateFlow&lt;TerminalWorkspace&gt;</code>, 패널마다 <code>TerminalPaneState</code>, <code>closed: StateFlow&lt;Boolean&gt;</code></td>
+      <td>분할·탭 추가·닫기·포커스·비율, 키 입력 전달(<a href="terminal.html">터미널</a>)</td>
+    </tr>
   </tbody>
 </table>
 
@@ -129,9 +135,10 @@
    └─ MaterialTheme
       └─ Surface(Modifier.appScreenAwake())  ← ScreenAwakeEffectViewModel (앱 수명)
          └─ NavDisplay(backStack, entryProvider = koinEntryProvider())
-            ├─ Home                   → HomeScreen() → 기능 카드 넷이 각자 koinViewModel()
+            ├─ Home                   → HomeScreen() → 기능 카드 다섯이 각자 koinViewModel()
             ├─ EmulatorRoute.Devices  → EmulatorListScreen(koinViewModel())
-            └─ EmulatorRoute.Screen   → EmulatorStreamScreen(koinViewModel { parametersOf(deviceId) })</code></pre>
+            ├─ EmulatorRoute.Screen   → EmulatorStreamScreen(koinViewModel { parametersOf(deviceId) })
+            └─ TerminalRoute          → TerminalScreen(koinViewModel())</code></pre>
 
 <aside class="decision">
   <strong>결정: 앱 수명 상태도 ViewModel 에 둔다</strong>

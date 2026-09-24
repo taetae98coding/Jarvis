@@ -16,7 +16,7 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>:webApp</code> + <code>:shared</code> → <code>:app:ui</code> → 기능 모듈 열둘 + <code>:core:*</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
+  <dt>모듈</dt><dd><code>:webApp</code> + <code>:shared</code> → <code>:app:ui</code> → 기능 모듈 열다섯 + <code>:core:*</code>. <a href="#module-architecture">모듈 구조</a> 참고</dd>
   <dt>Kotlin 타깃</dt><dd><code>wasmJs</code> (Kotlin/Wasm, WasmGC)</dd>
   <dt>진입점</dt><dd><code>main()</code> → <code>ComposeViewport(document.body!!)</code></dd>
   <dt>번들</dt><dd>webpack, <code>webApp.js</code> + <code>.wasm</code> 두 개 (앱 ~2 MB, Skiko ~8 MB)</dd>
@@ -47,6 +47,7 @@
     <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
     <li><a href="#emulator-launch">꺼진 에뮬레이터 실행</a></li>
     <li><a href="#emulator-wake">꺼진 화면 깨우기</a></li>
+    <li><a href="#terminal">터미널</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -61,7 +62,7 @@
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
     <tr><td>모듈마다 <code>wasmJs { browser() }</code></td><td>필수다. <code>browser()</code>를 빠뜨린 모듈은 wasmJs 타깃의 테스트·번들 설정이 없어 의존하는 쪽에서 링크가 깨진다. 컨벤션 플러그인이 선언하므로 모듈을 추가할 때 빠뜨릴 수 없다</td></tr>
-    <tr><td><code>binaries.executable()</code></td><td>Compose 를 쓰는 모듈(<code>:core:ui</code>, 기능의 <code>ui</code> 넷, <code>:app:ui</code>, <code>:shared</code>)에 컨벤션 플러그인이 넣는다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 브라우저 UI 테스트가 렌더링하지 못하고, Compose 플러그인의 <code>checkComposeUiTestConfigurationForWasmJs</code>가 테스트가 없는 모듈에도 예외 없이 요구한다(<a href="https://youtrack.jetbrains.com/issue/CMP-4906">CMP-4906</a>). <code>domain</code>·<code>data</code> 모듈은 Compose 를 쓰지 않아 검사 대상이 아니다</td></tr>
+    <tr><td><code>binaries.executable()</code></td><td>Compose 를 쓰는 모듈(<code>:core:ui</code>, 기능의 <code>ui</code> 다섯, <code>:app:ui</code>, <code>:shared</code>)에 컨벤션 플러그인이 넣는다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 브라우저 UI 테스트가 렌더링하지 못하고, Compose 플러그인의 <code>checkComposeUiTestConfigurationForWasmJs</code>가 테스트가 없는 모듈에도 예외 없이 요구한다(<a href="https://youtrack.jetbrains.com/issue/CMP-4906">CMP-4906</a>). <code>domain</code>·<code>data</code> 모듈은 Compose 를 쓰지 않아 검사 대상이 아니다</td></tr>
     <tr><td>번들 개수</td><td>하나다. <code>:webApp</code>의 <code>outputModuleName = "webApp"</code>이 의존 klib 열여섯 개를 한 <code>webApp.js</code>로 묶는다. 기능을 나눠도 브라우저가 받는 파일 수는 그대로다</td></tr>
     <tr><td><code>kotlinx.browser</code>(<code>window</code>, <code>localStorage</code>, <code>fetch</code>)</td><td>기능의 <code>data</code> 모듈 <code>wasmJsMain</code>에서만 쓴다. <code>ui</code> 모듈은 브라우저 API를 직접 부르지 않고 Compose의 <code>Modifier.keepScreenOn()</code>만 쓴다</td></tr>
     <tr><td>Wasm 코드 분할(기능별 지연 로딩)</td><td>버렸다. Kotlin/Wasm에는 아직 klib 단위 코드 분할이 없다. 기능 분리는 소스 구조에만 영향을 주고 번들 크기·로딩 방식은 바뀌지 않는다</td></tr>
@@ -480,7 +481,7 @@
 </ul>
 
 <h3>검증</h3>
-<p><code>JarvisAppTest</code> 가 <code>wasmJsBrowserTest</code> 에서 돌며 카드 넷이 보이고 눌리는 것을 확인한다. 배치는 <span class="badge untested">미검증</span>이고 브라우저 창 너비를 바꿔 수동 확인한다.</p>
+<p><code>JarvisAppTest</code> 가 <code>wasmJsBrowserTest</code> 에서 돌며 카드 다섯이 보이고 눌리는 것을 확인한다. 배치는 <span class="badge untested">미검증</span>이고 브라우저 창 너비를 바꿔 수동 확인한다.</p>
 </section>
 
 <section class="feature" id="emulator-control">
@@ -572,6 +573,36 @@
 
 <h3>검증</h3>
 <p><code>HostAgentTest.wakeRequestsAreSentToTheAgent</code> 가 <code>wasmJsBrowserTest</code> 에서 경로와 본문을 확인한다. 실제 왕복은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="terminal">
+<h2>터미널 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal.html">터미널</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>브라우저 API</td><td>불가. 페이지가 로컬 프로세스를 띄울 수 있는 API 는 없다</td></tr>
+    <tr><td>로컬 에이전트에 WebSocket 으로 셸 붙이기</td><td>버렸다. 이유는 <a href="ios.html#terminal">iOS</a> 와 같다. 게다가 Web 은 에이전트에 닿는 것 자체가 브라우저 페이지이므로, 인증 없는 셸 엔드포인트는 곧 아무 웹사이트에 셸을 여는 일이다</td></tr>
+    <tr><td>Wasm 안의 가상 머신(v86, WebVM)</td><td>버렸다. 브라우저 안에 따로 도는 리눅스라 사용자 머신의 셸이 아니다. 이미지가 수십 MB 다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/wasmJsMain/.../data/terminal/Terminal.wasmJs.kt</code> — <code>UnsupportedTerminalDataSource</code></dd>
+  <dt>동작</dt><dd><a href="ios.html#terminal">iOS</a> 와 같다. 카드가 잠기고 이유를 보여준다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>기능 자체가 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>JarvisAppTest.terminalCardIsLockedWhereItIsNotSupported</code> 가 <code>:app:ui:wasmJsBrowserTest</code> 로 돈다.</p>
 </section>
 
 <section class="feature" id="build">

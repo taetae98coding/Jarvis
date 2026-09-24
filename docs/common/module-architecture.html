@@ -43,7 +43,7 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 공용 코드는 기능마다 <code>:feature:&lt;기능&gt;:domain</code> · <code>:feature:&lt;기능&gt;:data</code> · <code>:feature:&lt;기능&gt;:ui</code> 셋으로 나뉜다. 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code> 넷이다.</li>
+  <li><strong>R1.</strong> 공용 코드는 기능마다 <code>:feature:&lt;기능&gt;:domain</code> · <code>:feature:&lt;기능&gt;:data</code> · <code>:feature:&lt;기능&gt;:ui</code> 셋으로 나뉜다. 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code>, <code>terminal</code> 다섯이다.</li>
   <li><strong>R2.</strong> 계층 의존은 기능 안에서 한 방향이다. <code>ui → domain</code>, <code>data → domain</code>. 어느 기능에서도 <code>ui</code>가 <code>data</code>를, <code>data</code>가 <code>ui</code>를 컴파일 타임에 볼 수 없다.</li>
   <li><strong>R3.</strong> 기능은 서로를 의존하지 않는다. 기능 사이에 필요한 것은 <code>:core:*</code>로 내려가고, 기능 하나가 다른 기능의 타입을 import 하면 그 구조는 틀린 것이다.</li>
   <li><strong>R4.</strong> <code>:core:*</code>에는 두 기능 이상이 쓰는 것만 둔다. 한 기능만 쓰는 것은 그 기능이 갖는다.</li>
@@ -90,10 +90,10 @@
                     :shared              ← Koin 시작, App(), 진입점
                        │
                     :app:ui              ← JarvisApp, Home 화면, FeatureGrid, 백스택
-        ┌──────────────┼──────────────┬──────────────┐
-  :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation
+        ┌──────────────┬──────────────┼──────────────┬──────────────┐
+  :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation  :feature:terminal
         │  ui → domain ← data (기능마다 셋)
-        └──────────────┴──────────────┴──────────────┘
+        └──────────────┴──────────────┴──────────────┴──────────────┘
                  :core:ui        :core:data           ← 두 기능 이상이 쓰는 것만</code></pre>
 
 <table>
@@ -104,15 +104,15 @@
     <tr><td><code>:feature:&lt;기능&gt;:domain</code></td><td><code>…domain.&lt;기능&gt;</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, <code>&lt;기능&gt;DomainModule</code></td><td>없음</td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:data</code></td><td><code>…data.&lt;기능&gt;</code></td><td>리포지토리 구현, <code>expect</code>/<code>actual</code>, DTO, <code>&lt;기능&gt;DataModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:data</code></td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:ui</code></td><td><code>…ui.&lt;기능&gt;</code></td><td>카드·화면, ViewModel, 라우트, <code>&lt;기능&gt;UiModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:ui</code></td></tr>
-    <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>네 기능의 <code>ui</code>, <code>:core:ui</code></td></tr>
-    <tr><td><code>:shared</code></td><td><code>…shared</code></td><td><code>startJarvisKoin()</code>, <code>platformModule</code>, <code>App()</code>, <code>MainViewController()</code></td><td><code>:app:ui</code>, 네 기능의 <code>data</code>·<code>domain</code></td></tr>
+    <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>다섯 기능의 <code>ui</code>, <code>:core:ui</code></td></tr>
+    <tr><td><code>:shared</code></td><td><code>…shared</code></td><td><code>startJarvisKoin()</code>, <code>platformModule</code>, <code>App()</code>, <code>MainViewController()</code></td><td><code>:app:ui</code>, 다섯 기능의 <code>data</code>·<code>domain</code></td></tr>
   </tbody>
 </table>
 
 <p>의존 방향은 Gradle 이 강제한다. <code>:feature:emulator:ui</code>의 빌드 파일에 <code>:feature:emulator:data</code>가 없으므로 화면에서 <code>adb</code>를 부르려면 컴파일이 깨진다. <code>:feature:screen:ui</code>에는 <code>:feature:emulator:domain</code>이 없어서 기능을 가로지르는 참조도 컴파일 단계에서 막힌다(R3).</p>
 
 <aside class="decision" id="decision-feature">
-  <strong>결정: 기능 × 계층으로 나눈다 (모듈 16개)</strong>
+  <strong>결정: 기능 × 계층으로 나눈다 (분리 당시 모듈 16개, 터미널을 더해 지금 19개)</strong>
   기능이 넷이고 계층이 셋이라 <code>:core</code> 둘과 <code>:app:ui</code>, <code>:shared</code> 를 더해 16개가 된다. 모듈 수가 늘어나는 대신 얻는 것은 두 가지다. 기능 사이 결합이 컴파일 단계에서 막히고(예전에는 <code>:ui</code> 한 모듈 안이라 <code>screen</code> 코드가 <code>emulator</code> 를 import 해도 빌드가 통과했다), 기능 하나를 통째로 잘라내거나 다른 앱에 끼우는 일이 가능해진다. 지금 실제 교차 참조는 없었으므로 이 분리는 <em>예방</em>이 목적이고, 그 사실을 여기 적어 둔다.
   <br><br>
   분리가 지금 가능해진 이유는 <a href="dependency-injection.html">Koin</a>과 <a href="navigation.html">Navigation3</a> 때문이다. 손으로 조립하던 시절에는 <code>JarvisContainer</code> 가 모든 유스케이스를 알아야 해서 기능이 자기 조립을 가질 수 없었다.
@@ -127,14 +127,16 @@
 │   ├── appinfo    AppInfo, AppInfoRepository, GetAppInfoUseCase, appInfoDomainModule
 │   ├── emulator   EmulatorDevice, EmulatorRepository, 유스케이스 6개, emulatorDomainModule
 │   ├── screen     ScreenAwakeRepository, SystemScreenAwakeStatus, 유스케이스 7개, screenDomainModule
-│   └── rotation   RotationAngle, DeviceRotationRepository, 유스케이스 4개, rotationDomainModule
+│   ├── rotation   RotationAngle, DeviceRotationRepository, 유스케이스 4개, rotationDomainModule
+│   └── terminal   TerminalRepository, TerminalWorkspace, TerminalEmulator, LineDiscipline, 유스케이스 2개
 ├── data
 │   ├── PlatformContext(expect)                      ← :core:data
 │   ├── state      observeByPolling / observeOnSignals / observeSystemState   ← :core:data
 │   ├── appinfo    platformName(expect), APP_VERSION(생성), DefaultAppInfoRepository
 │   ├── emulator   EmulatorDataSource(expect), 리포지토리, agent(주소·DTO·클라이언트·서버)
 │   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), SettingsStore(expect)
-│   └── rotation   DeviceRotationDataSource(expect), DeviceRotationGate(ios)
+│   ├── rotation   DeviceRotationDataSource(expect), DeviceRotationGate(ios)
+│   └── terminal   TerminalDataSource(expect), 리포지토리
 ├── ui
 │   ├── component  ToggleFeatureCard                  ← :core:ui
 │   ├── navigation Navigator, LocalNavigator, NavKeySerializers   ← :core:ui
@@ -142,6 +144,7 @@
 │   ├── emulator   EmulatorCard, 목록·화면, ViewModel 셋, EmulatorRoute, EmulatorFrameState
 │   ├── screen     ScreenAwakeCard, SystemScreenAwakeCard, Modifier.appScreenAwake, ViewModel 둘
 │   ├── rotation   DeviceRotationCard, DeviceRotationViewModel
+│   ├── terminal   TerminalCard, TerminalScreen, TerminalPane, TerminalViewModel, TerminalRoute
 │   └── app        JarvisApp, HomeRoute, HomeScreen, FeatureGrid   ← :app:ui
 └── shared         App, startJarvisKoin(플랫폼별), platformModule,
                    MainViewController(ios), startEmulatorHostAgent(jvm)</code></pre>
@@ -198,7 +201,7 @@ val emulatorUiModule = module {
 
 <h3 id="build-logic">빌드 컨벤션 플러그인</h3>
 
-<p>모듈 16개가 타깃 선언을 반복할 수 없어서 <code>build-logic</code> 포함 빌드를 만든다. 플러그인은 셋이다.</p>
+<p>모듈 19개가 타깃 선언을 반복할 수 없어서 <code>build-logic</code> 포함 빌드를 만든다. 플러그인은 셋이다.</p>
 
 <table>
   <thead><tr><th>플러그인</th><th>하는 일</th><th>쓰는 곳</th></tr></thead>
@@ -291,7 +294,7 @@ val emulatorUiModule = module {
 <ul>
   <li>화면 테스트 전부(<code>JarvisAppTest</code> 34개와 가짜 리포지토리·픽스처)가 <code>:app:ui</code> 에 모여 있다. 앱 조립을 통째로 띄우는 테스트라 기능 모듈에 둘 자리가 없고, KMP 에는 테스트 코드를 모듈 사이에 공유하는 깔끔한 수단이 없다. 기능 단위 화면 테스트가 필요해지면 기능 모듈마다 가짜를 다시 만들거나 테스트 전용 모듈을 만들어야 한다.</li>
   <li>기능 모듈 자체에는 아직 화면 테스트가 없다. 기능의 ViewModel 규칙을 보는 테스트(<code>EmulatorDevicesViewModelTest</code>)도 픽스처 때문에 <code>:app:ui</code> 의 <code>jvmTest</code> 에 있다.</li>
-  <li>모듈이 16개라 콜드 빌드 태스크 수가 세 배 남짓 늘었다. 증분 빌드와 병렬성은 좋아지지만 CI 의 첫 빌드는 느려진다.</li>
+  <li>모듈이 19개라 콜드 빌드 태스크 수가 세 배 남짓 늘었다. 증분 빌드와 병렬성은 좋아지지만 CI 의 첫 빌드는 느려진다.</li>
   <li><code>expect</code>/<code>actual</code> 은 한 모듈 안에서만 짝이 맞는다. 그래서 플랫폼 구현이 필요한 기능은 반드시 자기 <code>data</code> 모듈(또는 <code>:core:data</code>)을 거친다.</li>
   <li>모듈 경계를 넘는 선언은 <code>public</code> 이 된다. 기능의 Koin 모듈은 앱 코드에서도 보인다. Kotlin 에 "이 모듈에게만 공개" 가 없어서 규약으로만 막는다.</li>
   <li>패키지 순서가 모듈 순서와 반대다(<a href="#decision-package">결정</a>). IDE 의 프로젝트 트리와 패키지 트리가 다르게 보인다.</li>

@@ -25,6 +25,9 @@ import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeSettingsReposito
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepSystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeRepository
+import io.github.taetae98coding.jarvis.domain.terminal.IsTerminalSupportedUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.OpenTerminalSessionUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import kotlinx.coroutines.CoroutineScope
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
@@ -61,6 +64,7 @@ class JarvisKoinTest {
         assertNotNull(koin.get<ScreenAwakeRepository>())
         assertNotNull(koin.get<SystemScreenAwakeRepository>())
         assertNotNull(koin.get<DeviceRotationRepository>())
+        assertNotNull(koin.get<TerminalRepository>())
 
         assertNotNull(koin.get<GetAppInfoUseCase>())
         assertNotNull(koin.get<ObserveEmulatorStatusUseCase>())
@@ -80,6 +84,8 @@ class JarvisKoinTest {
         assertNotNull(koin.get<SetDeviceRotationAngleUseCase>())
         assertNotNull(koin.get<SetDeviceRotationLockUseCase>())
         assertNotNull(koin.get<RotateDeviceUseCase>())
+        assertNotNull(koin.get<IsTerminalSupportedUseCase>())
+        assertNotNull(koin.get<OpenTerminalSessionUseCase>())
 
         assertNotNull(koin.get<PlatformContext>())
         assertNotNull(koin.get<CoroutineScope>())

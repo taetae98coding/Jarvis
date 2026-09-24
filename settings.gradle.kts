@@ -55,6 +55,10 @@ include(":feature:rotation:domain")
 include(":feature:rotation:data")
 include(":feature:rotation:ui")
 
+include(":feature:terminal:domain")
+include(":feature:terminal:data")
+include(":feature:terminal:ui")
+
 include(":app:ui")
 include(":shared")
 include(":androidApp")
