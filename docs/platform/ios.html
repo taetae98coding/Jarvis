@@ -139,7 +139,7 @@
   <tbody>
     <tr><td>Compose Multiplatform 의 기본 owner</td><td>채택. skiko 타깃의 <code>compose-ui</code>에 <code>findComposeDefaultViewModelStoreOwner()</code>가 있고, <code>ComposeUIViewController</code>가 만든 컴포지션이 그것을 <code>LocalViewModelStoreOwner</code>로 제공한다. 앱 코드가 owner 를 만들지 않는다</td></tr>
     <tr><td><code>lifecycle-viewmodel-compose</code>의 iOS 아티팩트</td><td><code>org.jetbrains.androidx.lifecycle</code> 2.11.0 이 <code>iosArm64</code>·<code>iosSimulatorArm64</code>를 퍼블리시한다. <code>viewModelScope</code>의 <code>Dispatchers.Main</code>은 메인 큐다</td></tr>
-    <tr><td>UIKit 호출 스레드</td><td>확인해 둘 것. <a href="#device-rotation">회전</a>과 <a href="#keep-screen-awake">화면 꺼짐 방지</a>는 UIKit 을 부르고 메인 스레드를 요구한다. ViewModel 의 동작은 <code>viewModelScope</code>(메인 큐)에서 돌고, 앱 수명 <code>CoroutineScope</code>도 <code>Dispatchers.Main</code>이라 예전과 같은 스레드에서 호출된다</td></tr>
+    <tr><td>UIKit 호출 스레드</td><td>확인해 둘 것. <a href="#device-rotation">회전</a>과 <a href="#keep-screen-awake">화면 꺼짐 방지</a>는 UIKit 을 부르고 메인 스레드를 요구한다. ViewModel 의 동작과 상태 수집은 <code>viewModelScope</code>(메인 큐)에서 돌아서 예전과 같은 스레드에서 호출된다. 앱 수명 <code>CoroutineScope</code> 는 걷어냈다(<a href="../common/state-observation.html">상태 조회 규칙</a> R12)</td></tr>
     <tr><td>Swift 가 ViewModel 을 직접 쓰기</td><td>버렸다. <code>ViewModel</code>을 프레임워크로 내보내면 Swift 화면도 같은 상태를 볼 수 있지만, 이 앱의 화면은 전부 Compose 다</td></tr>
   </tbody>
 </table>
@@ -347,7 +347,8 @@ internal actual fun createSystemScreenAwakeDataSource(
   <thead><tr><th>상태</th><th>콜백</th></tr></thead>
   <tbody>
     <tr><td>설정값</td><td><code>NSUserDefaultsDidChangeNotification</code>. 있다. 다만 <strong>바뀐 키를 알려주지 않는다</strong></td></tr>
-    <tr><td>에뮬레이터 개수</td><td><strong>없다.</strong> 로컬 에이전트에 HTTP로 묻는 값이다</td></tr>
+    <tr><td>화면 방향</td><td><code>UIDeviceOrientationDidChangeNotification</code>. 있다. 앱이 스스로 방향을 바꾼 것은 기기가 움직이지 않아 오지 않으므로 자체 신호를 함께 낸다</td></tr>
+    <tr><td>에뮬레이터 개수·목록·화면, 페어링 대기 기기</td><td><strong>없다.</strong> 로컬 에이전트에 HTTP로 묻는 값이다</td></tr>
   </tbody>
 </table>
 <p>바뀐 키를 주지 않는 이 알림이 <code>SettingsStore.changes</code>를 <code>Flow&lt;Unit&gt;</code>으로 설계한 이유다. 네 플랫폼 중 가장 정보가 적은 쪽에 계약을 맞췄다.</p>
@@ -356,13 +357,14 @@ internal actual fun createSystemScreenAwakeDataSource(
 <dl class="meta">
   <dt>콜백</dt><dd><code>NSNotificationCenter.addObserverForName</code>을 <code>callbackFlow</code>로 감싸 <code>observeOnSignals</code>에 넘긴다</dd>
   <dt>폴링</dt><dd>에뮬레이터 개수는 <code>observeByPolling(5.seconds)</code></dd>
+  <dt>해제</dt><dd>전부 cold 다. 수집이 끝나면 <code>awaitClose</code> 가 <code>removeObserver</code> 와 <code>endGeneratingDeviceOrientationNotifications</code> 를 부른다. 화면은 <code>collectAsStateWithLifecycle</code> 로 모으고, Compose Multiplatform 이 <code>UIApplication</code> 상태를 <code>LocalLifecycleOwner</code> 에 옮겨 주므로 앱이 백그라운드로 가면 수집이 끊긴다</dd>
 </dl>
 
 <h3>한계</h3>
 <p>알림이 프로세스 전역이라 이 앱이 쓴 변경과 밖에서 온 변경을 구분하지 않는다. 값을 다시 읽고 중복을 걸러내므로 결과는 같다.</p>
 
 <h3>검증</h3>
-<p><code>ObserveSystemStateTest</code>가 <code>iosSimulatorArm64Test</code>에서 돈다. <code>NSUserDefaults</code> 알림을 실제로 받는 부분은 <span class="badge untested">미검증</span>이다.</p>
+<p><code>ObserveSystemStateTest</code>가 <code>iosSimulatorArm64Test</code>에서 돈다. <code>NSUserDefaults</code> 알림을 실제로 받는 부분과 백그라운드에서 수집이 끊기는 것은 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="emulator">

@@ -1,12 +1,13 @@
 package io.github.taetae98coding.jarvis.domain.screen
 
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class SetKeepSystemScreenAwakeUseCaseTest {
     @Test
-    fun storesTheSettingEvenWithoutPermission() {
+    fun storesTheSettingEvenWithoutPermission() = runTest {
         val settings = FakeScreenAwakeSettingsRepository()
         val system = FakeSystemScreenAwakeRepository(
             SystemScreenAwakeStatus(supported = true, permitted = false),
@@ -18,7 +19,7 @@ class SetKeepSystemScreenAwakeUseCaseTest {
     }
 
     @Test
-    fun opensThePermissionScreenWhenTurnedOnWithoutPermission() {
+    fun opensThePermissionScreenWhenTurnedOnWithoutPermission() = runTest {
         val system = FakeSystemScreenAwakeRepository(
             SystemScreenAwakeStatus(supported = true, permitted = false),
         )
@@ -29,7 +30,7 @@ class SetKeepSystemScreenAwakeUseCaseTest {
     }
 
     @Test
-    fun doesNotAskForPermissionWhenTurnedOff() {
+    fun doesNotAskForPermissionWhenTurnedOff() = runTest {
         val system = FakeSystemScreenAwakeRepository(
             SystemScreenAwakeStatus(supported = true, permitted = false),
         )

@@ -13,11 +13,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCardHeader
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
@@ -37,7 +37,7 @@ fun deviceRotationAngleTestTag(angle: RotationAngle): String =
 @Composable
 fun DeviceRotationCard(modifier: Modifier = Modifier) {
     val viewModel = koinViewModel<DeviceRotationViewModel>()
-    val status by viewModel.deviceRotation.collectAsState()
+    val status by viewModel.deviceRotation.collectAsStateWithLifecycle()
 
     DeviceRotationCard(
         status = status,

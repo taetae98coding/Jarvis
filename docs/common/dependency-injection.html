@@ -42,7 +42,7 @@
   <li><strong>R2.</strong> Koin 모듈은 Gradle 모듈마다 자기 것을 선언한다. 기능 하나가 <code>&lt;기능&gt;DomainModule</code>·<code>&lt;기능&gt;DataModule</code>·<code>&lt;기능&gt;UiModule</code> 셋을 내놓고, <code>:shared</code>는 그 목록을 합치고 플랫폼 핸들만 더한다.</li>
   <li><strong>R3.</strong> Koin 은 프로세스마다 한 번 시작한다. 네 플랫폼 진입점이 <code>startJarvisKoin()</code>을 부르고, 두 번 불려도 첫 번째만 유효하다.</li>
   <li><strong>R4.</strong> 리포지토리는 앱 전체에 하나(<code>single</code>), 유스케이스는 부를 때마다 새로(<code>factory</code>), ViewModel 은 <code>viewModel</code> 정의로 등록한다.</li>
-  <li><strong>R5.</strong> 플랫폼 핸들(<code>PlatformContext</code>)과 앱 수명 <code>CoroutineScope</code>는 <code>:shared</code>가 등록하고 <code>:data</code>는 <code>get()</code>으로만 받는다. <code>:data</code>는 <code>Context</code>를 전역으로 들고 있지 않는다.</li>
+  <li><strong>R5.</strong> 플랫폼 핸들(<code>PlatformContext</code>)은 <code>:shared</code>가 등록하고 <code>:data</code>는 <code>get()</code>으로만 받는다. <code>:data</code>는 <code>Context</code>를 전역으로 들고 있지 않는다. 앱 수명 <code>CoroutineScope</code> 는 등록하지 않는다 — <code>:data</code> 가 스스로 구독을 붙잡고 있지 않아야 해서다(<a href="state-observation.html">상태 조회 규칙</a> R12).</li>
   <li><strong>R6.</strong> 네 타깃이 같은 모듈 선언을 쓴다. 플랫폼 분기는 <code>data</code> 모듈의 <code>expect</code>/<code>actual</code> 안에만 남고, Koin 모듈에는 없다.</li>
   <li><strong>R7.</strong> 테스트는 가짜 리포지토리를 담은 Koin 모듈을 끼워 화면 전체를 띄운다. 유스케이스와 ViewModel 은 진짜 모듈이 만들고, 테스트마다 Koin 을 새로 세운다.</li>
   <li><strong>R8.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 주입 전 테스트가 검증하던 내용은 주입 후에도 전부 검증된다.</li>
@@ -85,7 +85,7 @@
     <tr><td><code>&lt;기능&gt;DataModule</code></td><td><code>feature/&lt;기능&gt;/data/.../&lt;기능&gt;DataModule.kt</code></td><td>리포지토리 구현을 도메인 인터페이스 타입으로 <code>single</code>. <code>expect</code> 팩토리(<code>createSettingsStore</code> 등)를 여기서 부른다</td></tr>
     <tr><td><code>&lt;기능&gt;UiModule</code></td><td><code>feature/&lt;기능&gt;/ui/.../&lt;기능&gt;UiModule.kt</code></td><td>그 기능의 ViewModel, 화면 라우트, 라우트 키 직렬화 등록(<a href="navigation.html#koin">Koin ↔ Navigation3</a>)</td></tr>
     <tr><td><code>appUiModule</code></td><td><code>app/ui/.../ui/AppUiModule.kt</code></td><td>앱 셸의 <code>Home</code> 라우트 하나</td></tr>
-    <tr><td><code>platformModule(context)</code></td><td><code>shared/.../shared/JarvisKoin.kt</code></td><td><code>PlatformContext</code>와 앱 수명 <code>CoroutineScope</code>. 진입점이 만든 값을 그대로 담는다</td></tr>
+    <tr><td><code>platformModule(context)</code></td><td><code>shared/.../shared/JarvisKoin.kt</code></td><td><code>PlatformContext</code>. 진입점이 만든 값을 그대로 담는다</td></tr>
   </tbody>
 </table>
 
@@ -105,12 +105,12 @@ internal fun jarvisModules(context: PlatformContext): List&lt;Module&gt; =
 <table>
   <thead><tr><th>무엇</th><th>정의</th><th>왜</th></tr></thead>
   <tbody>
-    <tr><td>리포지토리 6개 (기능 넷에 흩어져 있다)</td><td><code>single</code></td><td>설정값·시스템 상태·폴링 <code>Flow</code>를 들고 있다. 두 개가 생기면 구독자마다 폴링이 돌고, 설정 변경이 서로에게 보이지 않는다</td></tr>
+    <tr><td>리포지토리 6개 (기능 넷에 흩어져 있다)</td><td><code>single</code></td><td>상태를 들고 있지 않고 cold <code>Flow</code> 만 내놓는다(<a href="state-observation.html">상태 조회 규칙</a> R11). 플랫폼 데이터 소스를 감싸는 얇은 객체라 여러 벌 만들 이유가 없다</td></tr>
     <tr><td>유스케이스 20개</td><td><code>factory</code></td><td>상태가 없다. 리포지토리 참조만 들고 있어서 만드는 비용이 필드 대입 한 번이다</td></tr>
     <tr><td>ViewModel 7개</td><td><code>viewModel</code></td><td>수명은 Koin 이 아니라 <code>ViewModelStore</code>가 정한다. <a href="view-model.html">ViewModel</a> 참고</td></tr>
     <tr><td>화면 라우트 3개 (기능이 둘, 앱 셸이 하나)</td><td><code>navigation&lt;T&gt;</code></td><td><code>koin-compose-navigation3</code>의 DSL. <code>NavKey</code> 하나에 <code>@Composable</code> 본문 하나를 매달고, <code>koinEntryProvider()</code>가 모아서 <code>NavDisplay</code>에 넘긴다</td></tr>
     <tr><td>라우트 키 직렬화 등록</td><td><code>single(named&lt;T&gt;())</code></td><td><code>:core:ui</code>의 <code>navKeySerializers</code> DSL. 앱 셸이 <code>getAll</code> 로 모아 백스택 저장 설정을 만든다(<a href="navigation.html#backstack">근거</a>)</td></tr>
-    <tr><td><code>PlatformContext</code>, 앱 <code>CoroutineScope</code></td><td><code>single</code></td><td>진입점이 만든 인스턴스를 그대로 넣는다(<code>single { context }</code>)</td></tr>
+    <tr><td><code>PlatformContext</code></td><td><code>single</code></td><td>진입점이 만든 인스턴스를 그대로 넣는다(<code>single { context }</code>)</td></tr>
   </tbody>
 </table>
 
@@ -212,7 +212,7 @@ internal fun TestJarvisApp(emulator: EmulatorRepository = FakeEmulatorRepository
 <ul>
   <li>Koin 은 런타임에 해석한다. 정의를 빼먹어도 컴파일은 통과하고 앱이 뜰 때 죽는다. <code>:shared</code>의 해석 테스트가 그 간격을 메우지만, 그 테스트는 JVM 에서만 돈다. 네 타깃이 같은 모듈을 쓰므로 한 타깃에서 해석되면 나머지도 해석된다는 전제에 기대고 있다.</li>
   <li>ViewModel 정의는 해석 테스트로 확인하지 않는다. <code>ViewModelStoreOwner</code> 없이 꺼낼 수 없어서다. 대신 <code>:app:ui</code>의 화면 테스트가 실제로 <code>koinViewModel()</code>을 거친다.</li>
-  <li>앱 수명 <code>CoroutineScope</code>가 <code>Dispatchers.Main</code>이다. JVM 에서 이 디스패처는 <code>kotlinx-coroutines-swing</code>이 클래스패스에 있어야 존재한다. Compose Desktop 은 그것을 데려오지 않아서 <code>:shared</code>의 <code>jvmMain</code>이 직접 선언한다. 처음에는 Compose Desktop 이 준다고 보고 넣지 않았는데, 데스크톱 앱이 첫 리포지토리를 만드는 순간 <code>Dispatchers.Main[missing]</code>으로 뜨지 않았다. 기능의 <code>data</code> 모듈을 다른 JVM 프로그램에서 쓰려면 같은 아티팩트를 넣거나 스코프를 직접 넘겨야 한다.</li>
+  <li><code>viewModelScope</code> 가 <code>Dispatchers.Main.immediate</code> 다. JVM 에서 이 디스패처는 <code>kotlinx-coroutines-swing</code>이 클래스패스에 있어야 존재한다. Compose Desktop 은 그것을 데려오지 않아서 <code>:shared</code>의 <code>jvmMain</code>이 직접 선언한다. 처음에는 Compose Desktop 이 준다고 보고 넣지 않았는데, 그때 있던 앱 수명 스코프(<code>Dispatchers.Main</code>)를 만드는 순간 <code>Dispatchers.Main[missing]</code>으로 뜨지 않았다.</li>
   <li>테스트가 전역 Koin 을 쓴다. 같은 타깃의 테스트가 동시에 돌면 서로의 Koin 을 치우게 된다. 지금은 네 타깃 모두 테스트를 순차로 돌리므로 성립하지만, 병렬 실행을 켜면 깨진다.</li>
   <li>모듈 경계를 넘는 선언은 <code>public</code>이 된다. 기능들의 Koin 모듈이 앱 코드에서도 보인다. 예전 <code>DataModule</code>과 같은 종류의 한계고, 규약으로만 막는다.</li>
 </ul>

@@ -12,7 +12,7 @@
 
 <header>
   <h1>상태 조회 규칙</h1>
-  <p class="lead">플랫폼 상태를 Flow로 노출하는 방식을 하나로 정한다. 시스템이 변경을 알려주면 콜백으로, 알려주지 않으면 일정 간격마다 다시 읽는다.</p>
+  <p class="lead">플랫폼 상태를 받아오는 방식을 하나로 정한다. 상태는 <code>suspend</code> 가 아니라 cold <code>Flow</code> 로 받는다. 시스템이 변경을 알려주면 콜백으로, 알려주지 않으면 일정 간격마다 다시 읽는다. 아무도 수집하지 않으면 콜백을 해제하고 폴링을 멈춘다.</p>
 </header>
 
 <nav class="toc">
@@ -22,6 +22,8 @@
     <li><a href="#requirements">요구사항</a></li>
     <li><a href="#behavior">화면·동작</a></li>
     <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#layers">공급과 수집</a></li>
+    <li><a href="#inventory">상태 목록</a></li>
     <li><a href="#platforms">플랫폼별 판정</a></li>
     <li><a href="#verification">검증</a></li>
     <li><a href="#limits">한계</a></li>
@@ -35,22 +37,46 @@
   <footer>2026-09-22 대화.</footer>
 </blockquote>
 
-<p>이 규칙 전에는 방식이 상태마다 흩어져 있었다. 설정은 콜백만 쓰고(<code>SettingsStore.observeBoolean</code>), 에뮬레이터 개수는 폴링만 썼고(<code>pollingEmulatorProbe</code>), 첫 값을 읽는 방법과 중복을 걸러내는 방법이 각자 구현되어 있었다.</p>
+<blockquote class="instruction">
+  <p>지금 상태를 받아오는 것은 전부 suspend가 아니라 Flow로 받아오도록 Rule 작성됐는지 확인해줘. 안됐으면 작성해줘. 그리고 상태 받아오는 코드 전부 확인해서 기본적으로 System이나 Sdk가 제공하는 callback or Coroutine기반 기능 사용하도록 하고, 불가능한 경우 일정 ms 기다리면서 주기적으로 조회하도록 구현했는지 확인해줘. 이것도 룰에 적어줘. 그리고 Flow는 항상 coldFlow로 제공해서 collect 하는 코드가 없으면 자동으로 callback 해제 및 주기적으로 조회하는 것 중단하도록 구현됐는지 검토해줘.</p>
+  <footer>2026-09-24 대화.</footer>
+</blockquote>
+
+<p>첫 지시 전에는 방식이 상태마다 흩어져 있었다. 설정은 콜백만 쓰고(<code>SettingsStore.observeBoolean</code>), 에뮬레이터 개수는 폴링만 썼고(<code>pollingEmulatorProbe</code>), 첫 값을 읽는 방법과 중복을 걸러내는 방법이 각자 구현되어 있었다.</p>
+
+<p>두 번째 지시 때 검토한 결과, <code>suspend</code> 로 상태를 한 번 읽어 주는 API 는 없었지만 규칙으로 적혀 있지 않았다. 콜백·폴링 선택은 R1–R6 대로였으나 Android <code>WRITE_SETTINGS</code> 권한은 콜백이 있는데도 폴링했다. cold 규칙은 없어서 설정 리포지토리가 앱 수명 스코프에 <code>Eagerly</code> 로 리스너를 붙잡고 있었고, 회전·전역 화면 유지 리포지토리와 도메인이 <code>StateFlow</code> 를 내놓았으며, 에뮬레이터 개수 ViewModel 은 화면이 보지 않아도 폴링했고, 화면은 <code>collectAsState</code> 로 모아서 앱이 백그라운드에 있어도 수집을 이어 갔다. 지원하지 않는 플랫폼의 데이터 소스는 <code>emptyFlow()</code> 라 R3 을 어겼다. 전부 아래 규칙대로 고쳤다.</p>
 
 <h2 id="requirements">요구사항</h2>
 
+<h3>콜백과 폴링</h3>
 <ol>
   <li><strong>R1.</strong> 시스템이 변경 콜백을 주는 상태는 콜백이 올 때마다 다시 읽는다. 폴링을 함께 돌리지 않는다.</li>
   <li><strong>R2.</strong> 콜백이 없는 상태는 정해진 간격마다 다시 읽는다.</li>
-  <li><strong>R3.</strong> 어느 쪽이든 구독 즉시 첫 값을 읽는다. 첫 콜백이나 첫 간격을 기다리지 않는다.</li>
+  <li><strong>R3.</strong> 어느 쪽이든 구독 즉시 첫 값을 읽는다. 첫 콜백이나 첫 간격을 기다리지 않는다. 바뀔 일이 없는 상태(지원하지 않는 플랫폼)도 첫 값 하나는 흘린다.</li>
   <li><strong>R4.</strong> 값이 이전과 같으면 방출하지 않는다.</li>
   <li><strong>R5.</strong> 구독자는 상태가 콜백으로 오는지 폴링으로 오는지 알 수 없다. 둘 다 <code>Flow&lt;T&gt;</code>다.</li>
   <li><strong>R6.</strong> 콜백 유무가 플랫폼마다 갈리는 상태는 한 호출로 두 경우를 모두 처리한다.</li>
+  <li><strong>R7.</strong> 콜백부터 찾는다. System·SDK 가 주는 리스너·알림·콜백·코루틴 API 가 있으면 그것을 쓰고(R1), 정말 없을 때만 폴링한다(R2). 폴링 간격은 이름 붙은 <code>Duration</code> 상수로 두고, 콜백이 왜 없는지와 조사하고 버린 후보를 플랫폼 스펙에 남긴다.</li>
+</ol>
+
+<h3>Flow 로만 받는다</h3>
+<ol start="8">
+  <li><strong>R8.</strong> 바뀔 수 있는 상태는 <code>Flow&lt;T&gt;</code> 로 받는다. 한 번 읽고 끝나는 <code>suspend fun getX(): T</code> 조회 API 를 만들지 않는다. <code>suspend</code> 는 명령(쓰기·요청)과 그 결과에만 쓴다(<code>pair</code>, <code>launch</code>, <code>open</code>).</li>
+  <li><strong>R9.</strong> 첫 프레임에 보일 초기값만 예외로 동기 스냅샷 <code>readX()</code> 를 둔다. 이 값은 <code>stateIn</code> 의 초기값으로만 쓰고, 상태를 따라가는 데 쓰지 않는다. 명령이 지금 값을 알아야 하면 <code>observeX().first()</code> 로 읽는다.</li>
+  <li><strong>R10.</strong> 실행 중에 바뀌지 않는 값(플랫폼 이름, 기능 지원 여부)은 상태가 아니다. 일반 값으로 둔다.</li>
+</ol>
+
+<h3>cold Flow 와 해제</h3>
+<ol start="11">
+  <li><strong>R11.</strong> data·domain 이 내놓는 상태 Flow 는 cold 다. 수집이 시작될 때 콜백을 등록하거나 폴링을 시작하고, 수집이 끝나면 콜백을 해제하고 폴링을 멈춘다.</li>
+  <li><strong>R12.</strong> data·domain 은 <code>StateFlow</code>·<code>SharedFlow</code> 를 노출하지 않고, 앱 수명 스코프로 <code>stateIn</code>·<code>shareIn</code> 하지 않는다. 비싼 조회를 동시 구독자가 나눠야 할 때만 <code>shareIn(WhileSubscribed(replayExpirationMillis = 0))</code> 로 묶고 타입은 <code>Flow</code> 로 노출한다.</li>
+  <li><strong>R13.</strong> 화면 상태로 바꾸는 곳은 ViewModel 이다. <code>stateIn(viewModelScope, WhileSubscribed(), 초기값)</code> 을 쓴다. <code>Eagerly</code>·<code>Lazily</code> 는 구독과 무관하게 이어져야 하는 작업에만, 이유를 주석으로 적고 쓴다.</li>
+  <li><strong>R14.</strong> 화면은 상태를 <code>collectAsStateWithLifecycle</code> 로 모은다. 앱이 백그라운드로 가면 수집이 끊기고, R11 에 따라 콜백과 폴링도 멈춘다.</li>
 </ol>
 
 <h2 id="behavior">화면·동작</h2>
 
-<p>해당 없음. 화면에 직접 드러나지 않는 구현 규약이다. 이 규칙이 만족되면 <a href="settings-persistence.html">설정</a>과 <a href="emulator-count.html">에뮬레이터 개수</a>, <a href="system-keep-screen-awake.html">전역 화면 유지</a>의 권한 상태가 앱 밖에서 바뀌어도 화면이 따라간다.</p>
+<p>화면에 직접 드러나지 않는 구현 규약이다. 이 규칙이 만족되면 <a href="settings-persistence.html">설정</a>과 <a href="emulator-count.html">에뮬레이터 개수</a>, <a href="system-keep-screen-awake.html">전역 화면 유지</a>·<a href="device-rotation.html">화면 회전</a>의 권한 상태가 앱 밖에서 바뀌어도 화면이 따라가고, 화면을 떠나거나 앱을 내리면 그 상태를 보던 리스너와 폴링이 멈춘다.</p>
 
 <h2 id="implementation">공통 구현</h2>
 
@@ -73,6 +99,8 @@
         .map { read() }
         .distinctUntilChanged()     // R4</code></pre>
 
+<p>콜백은 <code>callbackFlow { register(); awaitClose { unregister() } }</code> 로 감싸 <code>signals</code> 로 넘긴다. 폴링은 <code>flow { while (true) { delay(interval); emit(Unit) } }</code> 다. 둘 다 수집이 취소되면 <code>awaitClose</code> 와 <code>delay</code> 에서 끝나므로 R11 을 따로 구현할 필요가 없다. 규칙을 어기는 길은 이 Flow 를 누군가 영원히 수집하게 만드는 것뿐이고, R12–R14 가 그 길을 막는다.</p>
+
 <aside class="decision">
   <strong>결정: 신호에 값을 담지 않고 매번 다시 읽는다</strong>
   플랫폼 콜백은 "무엇이 바뀌었는지" 알려주지 않는 경우가 많다. iOS <code>NSUserDefaultsDidChangeNotification</code>은 바뀐 키를 주지 않고, Android <code>ContentObserver</code>도 URI만 준다. 신호를 "무언가 바뀌었다"로만 쓰고 값은 다시 읽으면 네 플랫폼에 같은 계약을 줄 수 있다. 대신 R4의 중복 제거가 필수가 된다.
@@ -85,26 +113,76 @@
 
 <p><code>SettingsStore.changes</code>는 <code>Flow&lt;Unit&gt;?</code>다. 변경을 알려주지 않는 저장소는 null을 두고 폴링으로 대체한다는 계약을 타입에 적어 둔 것이다. 지금 네 플랫폼은 모두 콜백을 제공한다.</p>
 
+<h2 id="layers">공급과 수집</h2>
+
+<table>
+  <thead><tr><th>층</th><th>형태</th><th>규칙</th></tr></thead>
+  <tbody>
+    <tr><td>데이터 소스·리포지토리</td><td><code>fun observeX(): Flow&lt;T&gt;</code>, 필요하면 <code>fun readX(): T</code></td><td>R8, R9, R11, R12</td></tr>
+    <tr><td>유스케이스</td><td>그대로 넘기는 <code>Flow&lt;T&gt;</code>, 또는 <code>operator fun invoke(scope): StateFlow&lt;T&gt;</code></td><td>뒤의 것은 <code>observeX().stateIn(scope, WhileSubscribed(), readX())</code> 다. 첫 프레임 초기값(R9)이 필요한 상태만 이 모양을 쓴다</td></tr>
+    <tr><td>명령 유스케이스</td><td><code>suspend operator fun invoke(…)</code></td><td>지금 값이 필요하면 <code>observeX().first()</code> (R9)</td></tr>
+    <tr><td>ViewModel</td><td><code>StateFlow&lt;T&gt;</code></td><td><code>viewModelScope</code> 에서 <code>WhileSubscribed()</code> (R13)</td></tr>
+    <tr><td>화면</td><td><code>collectAsStateWithLifecycle()</code></td><td>R14</td></tr>
+  </tbody>
+</table>
+
+<aside class="decision">
+  <strong>결정: 첫 프레임 초기값은 동기 스냅샷으로 읽는다 (R9)</strong>
+  cold Flow 의 첫 방출은 컴포지션이 한 번 끝난 뒤에야 도착한다. 초기값을 기본값으로 두면 저장된 설정이 켜져 있어도 첫 프레임에 스위치가 꺼져 보이고, 회전 카드는 "이 플랫폼에서는 화면을 돌릴 수 없습니다" 를 한 번 비춘다. 스냅샷을 <code>suspend</code> 로 만들면 컴포지션 중에 부를 수 없다. 그래서 동기 <code>readX()</code> 를 남기되, 스냅샷만으로 상태를 따라가는 코드가 생기지 않도록 쓰는 곳을 <code>stateIn</code> 의 초기값 한 곳으로 묶었다. 이 조합은 유스케이스가 ViewModel 의 스코프를 받아 만든다 — ViewModel 이 스냅샷 유스케이스를 따로 받으면 스냅샷이 도메인의 공개 조회 API 가 된다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 리포지토리가 상태를 공유하지 않는다 (R12)</strong>
+  예전에는 리포지토리가 앱 수명 스코프로 <code>stateIn</code> 해서 "구독자가 여럿이어도 리스너는 한 벌" 을 지켰다. 대가로 리포지토리가 <code>StateFlow</code> 를 노출했고, 구독이 끊긴 동안의 <code>.value</code> 는 오래된 값이었으며, 설정은 <code>Eagerly</code> 라 리스너가 영영 풀리지 않았다. 리스너 등록은 싸다(<code>ContentObserver</code>, <code>NSNotificationCenter</code>). 구독자마다 한 벌씩 붙이고 수집이 끝나면 떼는 편을 택했다. 등록이 비싼 조회 — 외부 프로세스를 띄우는 JVM 에뮬레이터 프로브 — 만 R12 의 예외로 묶는다.
+</aside>
+
+<h2 id="inventory">상태 목록</h2>
+
+<p>앱이 받아오는 상태 전부다. 새 상태를 더할 때 이 표에 줄을 더한다.</p>
+
+<table>
+  <thead><tr><th>상태</th><th>플랫폼</th><th>방식</th><th>간격·신호</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="4">설정값 (<code>SettingsStore</code>)</td><td>Android</td><td>콜백</td><td><code>OnSharedPreferenceChangeListener</code></td></tr>
+    <tr><td>iOS</td><td>콜백</td><td><code>NSUserDefaultsDidChangeNotification</code></td></tr>
+    <tr><td>JVM</td><td>콜백</td><td><code>PreferenceChangeListener</code></td></tr>
+    <tr><td>Web</td><td>콜백</td><td><code>storage</code> 이벤트 + 자체 발신. 콜백 없는 저장소를 위한 대체 간격 <code>SettingsPollInterval</code> 2초는 지금 쓰이지 않는다</td></tr>
+    <tr><td>시스템 화면 꺼짐 시간</td><td>Android</td><td>콜백</td><td><code>ContentObserver</code>(<code>SCREEN_OFF_TIMEOUT</code>). 나머지는 지원하지 않아 고정값 하나</td></tr>
+    <tr><td><code>WRITE_SETTINGS</code> 권한</td><td>Android</td><td>콜백</td><td><code>AppOpsManager.startWatchingMode</code> + <code>ActivityLifecycleCallbacks.onActivityResumed</code></td></tr>
+    <tr><td rowspan="3">화면 회전 각도·잠금</td><td>Android</td><td>콜백</td><td><code>DisplayManager.DisplayListener</code> + <code>ContentObserver</code>(<code>ACCELEROMETER_ROTATION</code>)</td></tr>
+    <tr><td>iOS</td><td>콜백</td><td><code>UIDeviceOrientationDidChangeNotification</code> + 자체 발신</td></tr>
+    <tr><td>Web</td><td>콜백</td><td><code>orientationchange</code> + 자체 발신(<code>lock()</code> 거절). JVM 은 지원하지 않아 고정값 하나</td></tr>
+    <tr><td rowspan="2">에뮬레이터 개수·목록</td><td>JVM</td><td>폴링</td><td><code>PollInterval</code> 5초. <code>simctl</code>·<code>xctrace</code> 에 변경 알림이 없다</td></tr>
+    <tr><td>Android·iOS·Web</td><td>폴링</td><td><code>HostAgentPollInterval</code> 5초. HTTP 는 에이전트가 먼저 말할 수 없다</td></tr>
+    <tr><td>에뮬레이터 화면</td><td>전부</td><td>폴링</td><td><code>EmulatorScreenPollInterval</code> 500ms. 화면을 찍는 명령이 한 장씩만 준다</td></tr>
+    <tr><td>페어링 대기 기기</td><td>전부</td><td>폴링</td><td><code>PairingServicePollInterval</code> 1초. <code>adb mdns services</code> 는 한 번 답하고 끝난다</td></tr>
+  </tbody>
+</table>
+
+<p>폴링을 고른 이유와 버린 콜백 후보는 각 플랫폼 스펙의 <code>state-observation</code> 절에 있다.</p>
+
+<p>수집하는 쪽은 다음과 같다. 수집이 끝나는 시점이 곧 콜백이 풀리고 폴링이 멈추는 시점이다.</p>
+
+<table>
+  <thead><tr><th>수집하는 곳</th><th>언제 끝나나</th><th>비고</th></tr></thead>
+  <tbody>
+    <tr><td>카드와 화면 (<code>collectAsStateWithLifecycle</code>)</td><td>화면을 떠나거나 앱이 백그라운드로 갈 때</td><td>R13, R14</td></tr>
+    <tr><td>기기 화면 프레임 (<code>EmulatorStreamScreen</code>)</td><td>같음</td><td><code>repeatOnLifecycle(STARTED)</code> 안에서 수집한다</td></tr>
+    <tr><td><code>ScreenAwakeEffectViewModel</code></td><td>앱 루트가 사라질 때</td><td>화면 꺼짐 방지 효과는 어느 화면보다 오래 살아야 한다. 설정과 권한 리스너가 그동안 붙어 있다</td></tr>
+    <tr><td><code>WifiPairingViewModel.qrState</code> (<code>Eagerly</code>)</td><td>페어링 화면이 백스택에서 빠질 때</td><td>탭을 오가도 QR 세션이 이어져야 한다(<a href="wireless-pairing.html">무선 페어링</a>)</td></tr>
+    <tr><td>로컬 에이전트 (<code>startEmulatorHostAgent</code>)</td><td>데스크톱 앱이 끝날 때</td><td>다른 프로세스의 요청에 즉시 답하려고 미리 센다. 아래 한계 참고</td></tr>
+  </tbody>
+</table>
+
 <h2 id="platforms">플랫폼별 판정</h2>
 
 <table>
   <thead><tr><th>플랫폼</th><th>판정</th><th>콜백을 주는 상태</th><th>문서</th></tr></thead>
   <tbody>
-    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>설정(<code>OnSharedPreferenceChangeListener</code>), 시스템 화면 꺼짐 시간(<code>ContentObserver</code>). <code>WRITE_SETTINGS</code> 권한 상태는 콜백이 없어 폴링</td><td><a href="../platform/android.html#state-observation">android.html</a></td></tr>
-    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>설정(<code>NSUserDefaultsDidChangeNotification</code>). 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/ios.html#state-observation">ios.html</a></td></tr>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>설정(<code>OnSharedPreferenceChangeListener</code>), 시스템 화면 꺼짐 시간(<code>ContentObserver</code>), <code>WRITE_SETTINGS</code> 권한(<code>AppOpsManager.startWatchingMode</code> + Activity resume), 회전. 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/android.html#state-observation">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>설정(<code>NSUserDefaultsDidChangeNotification</code>), 회전. 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/ios.html#state-observation">ios.html</a></td></tr>
     <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>설정(<code>PreferenceChangeListener</code>). 에뮬레이터 개수는 <code>simctl</code>에 알림이 없어 폴링</td><td><a href="../platform/jvm.html#state-observation">jvm.html</a></td></tr>
-    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>설정(<code>storage</code> 이벤트 + 자체 발신). 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/web.html#state-observation">web.html</a></td></tr>
-  </tbody>
-</table>
-
-<p>현재 조회 간격은 다음과 같다.</p>
-
-<table>
-  <thead><tr><th>상태</th><th>간격</th><th>왜</th></tr></thead>
-  <tbody>
-    <tr><td>콜백 없는 <code>SettingsStore</code></td><td>2초</td><td>설정은 사람이 손댈 때만 바뀐다. 지금은 쓰이지 않는 경로다</td></tr>
-    <tr><td>Android <code>WRITE_SETTINGS</code> 권한</td><td>2초</td><td>사용자가 설정 화면에서 허용하고 돌아온 것을 알아채야 한다</td></tr>
-    <tr><td>에뮬레이터 개수</td><td>5초</td><td>에뮬레이터를 켜고 끄는 것도 사람의 손이다</td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>설정(<code>storage</code> 이벤트 + 자체 발신), 회전. 에뮬레이터 개수는 HTTP라 폴링</td><td><a href="../platform/web.html#state-observation">web.html</a></td></tr>
   </tbody>
 </table>
 
@@ -119,12 +197,16 @@
     <tr><td><code>ObserveSystemStateTest.signalsReplacePolling</code></td><td>R1. 신호 기반 조회는 시간이 지나도 다시 읽지 않는다</td><td><code>:core:data</code> <code>commonTest</code></td></tr>
     <tr><td><code>ObserveSystemStateTest.systemStateFollowsSignalsWhenTheyExist</code></td><td>R6. 신호가 있으면 신호를 쓴다</td><td><code>:core:data</code> <code>commonTest</code></td></tr>
     <tr><td><code>ObserveSystemStateTest.systemStateFallsBackToPollingWithoutSignals</code></td><td>R6. 신호가 없으면 폴링한다</td><td><code>:core:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeFollowsChangesWhenTheStoreHasNoCallback</code></td><td>R6. 콜백 없는 저장소에서도 상태가 따라간다</td><td><code>:core:data</code> <code>commonTest</code></td></tr>
-    <tr><td><code>HostAgentTest.dataSourceFollowsAgentUpdates</code></td><td>R2, R4. 폴링으로 새 개수를 받는다</td><td><code>:core:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ObserveSystemStateTest.pollingStopsWhenCollectionEnds</code></td><td>R11. 수집을 끊으면 더 읽지 않는다</td><td><code>:core:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ObserveSystemStateTest.callbackIsReleasedWhenCollectionEnds</code></td><td>R11. 수집하는 동안에만 콜백이 등록돼 있다</td><td><code>:core:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.keepScreenAwakeFollowsChangesWhenTheStoreHasNoCallback</code></td><td>R6. 콜백 없는 저장소에서도 상태가 따라간다</td><td><code>:feature:screen:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ScreenAwakeSettingsRepositoryTest.listensToTheStoreOnlyWhileCollected</code></td><td>R11, R12. 리포지토리를 만들기만 해서는 저장소 리스너가 붙지 않는다</td><td><code>:feature:screen:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>EmulatorStatusViewModelTest.countsOnlyWhileTheCardIsCollected</code></td><td>R13. 카드가 모으지 않으면 개수를 세지 않는다</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>HostAgentTest.dataSourceFollowsAgentUpdates</code></td><td>R2, R4. 폴링으로 새 개수를 받는다</td><td><code>:feature:emulator:data</code> <code>commonTest</code></td></tr>
   </tbody>
 </table>
 
-<p>전부 <code>runTest</code>의 가상 시간으로 돈다. 실제 시간을 기다리지 않는다.</p>
+<p>전부 <code>runTest</code>의 가상 시간으로 돈다. 실제 시간을 기다리지 않는다. R14 는 화면 테스트가 <code>collectAsStateWithLifecycle</code> 로 도는 것까지만 확인한다. 앱이 백그라운드로 갈 때 수집이 끊기는 것은 기기에서만 볼 수 있어 <span class="badge untested">미검증</span>이다.</p>
 
 <h2 id="limits">한계</h2>
 
@@ -132,7 +214,9 @@
   <li><strong>폴링은 간격만큼 늦는다.</strong> 최악의 경우 간격 전체를 기다린다. 즉시성이 필요하면 간격을 줄이는 것 말고는 방법이 없다.</li>
   <li><strong>중간 값은 건너뛴다.</strong> 신호는 <code>conflate</code>되고 읽기는 순차적이라, 읽는 동안 두 번 바뀌면 마지막 값만 본다. 상태의 현재 값만 쓰는 화면에는 문제가 없지만 변경 이력이 필요한 기능에는 맞지 않는다.</li>
   <li><strong>읽기 실패를 구분하지 않는다.</strong> <code>read()</code>가 실패를 값으로 표현해야 한다. 에뮬레이터 개수가 <code>null</code> 요약으로 "셀 수 없음"을 나타내는 것이 그 예다.</li>
-  <li>구독자가 없으면 아무것도 돌지 않는다. <code>Flow</code>가 차가워서, 화면이 보고 있지 않은 상태는 갱신되지 않는다. JVM 에뮬레이터 프로브만 <code>shareIn</code>으로 예외를 둔다.</li>
+  <li><strong>구독자마다 리스너가 한 벌씩 붙는다.</strong> R12 의 대가다. 전역 화면 유지 상태는 카드와 효과가 따로 구독해서 <code>ContentObserver</code> 가 두 벌이다. 비싼 조회가 겹치면 R12 의 예외로 묶는다.</li>
+  <li><strong>데스크톱의 에뮬레이터 프로브는 앱이 떠 있는 동안 계속 돈다.</strong> 로컬 에이전트가 앱 수명 동안 수집하기 때문이다. Flow 는 cold 이고 <code>WhileSubscribed</code> 라서 에이전트를 띄우지 않으면 멈춘다. 요청이 올 때만 세도록 바꾸면 쉬고 난 뒤 첫 요청이 세는 시간(수 초)을 기다려야 하는데, 클라이언트 타임아웃이 2초다.</li>
+  <li>화면이 보고 있지 않은 상태는 갱신되지 않는다. 다시 모으기 시작하면 R3 에 따라 곧바로 새로 읽으므로, 그 사이의 변화는 마지막 값만 보인다.</li>
 </ul>
 
 <footer class="page">

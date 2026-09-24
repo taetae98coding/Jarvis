@@ -1,5 +1,7 @@
 package io.github.taetae98coding.jarvis.domain.rotation
 
+import kotlinx.coroutines.flow.first
+
 /**
  * 현재 각도에서 [steps] 칸(한 칸이 90도)만큼 돌린다.
  *
@@ -10,8 +12,8 @@ class RotateDeviceUseCase(
     private val deviceRotation: DeviceRotationRepository,
     private val setAngle: SetDeviceRotationAngleUseCase,
 ) {
-    operator fun invoke(steps: Int) {
-        val current = deviceRotation.status.value.angle ?: RotationAngle.Degrees0
+    suspend operator fun invoke(steps: Int) {
+        val current = deviceRotation.observeStatus().first().angle ?: RotationAngle.Degrees0
 
         setAngle(current.rotated(steps))
     }

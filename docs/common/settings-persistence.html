@@ -87,11 +87,13 @@
   변경을 알려주지 않는 저장소는 null을 두고 2초 폴링으로 대체한다는 계약을 타입에 적었다. 지금 네 플랫폼은 모두 콜백을 제공하므로 폴링 경로는 쓰이지 않지만, 저장소를 갈아끼울 때 알림 없는 구현을 넣어도 R3이 깨지지 않는다.
 </aside>
 
-<p><code>DefaultScreenAwakeSettingsRepository</code>는 <code>observeBoolean</code>을 <code>stateIn(scope, SharingStarted.Eagerly, store.getBoolean(...))</code>으로 <code>StateFlow</code>로 바꾼다. 초기값을 동기로 읽는 이유가 R2의 "첫 프레임부터"다. 쓰기는 <code>store.putBoolean</code>에 위임만 하고 메모리 상태를 직접 바꾸지 않는다.</p>
+<p><code>DefaultScreenAwakeSettingsRepository</code>는 키마다 <code>observeX()</code>(= <code>store.observeBoolean</code>, cold)와 <code>readX()</code>(= <code>store.getBoolean</code>, 동기 스냅샷)를 내놓는다. 스코프를 받지 않고 스스로 구독하지 않으므로, 아무도 모으지 않으면 저장소 리스너도 붙어 있지 않다. 쓰기는 <code>store.putBoolean</code>에 위임만 하고 메모리 상태를 직접 바꾸지 않는다.</p>
+
+<p>화면 쪽 <code>ObserveKeepScreenAwakeUseCase(scope)</code>가 둘을 <code>observeX().stateIn(scope, WhileSubscribed(), readX())</code>로 묶어 ViewModel 에 준다. 초기값을 동기로 읽는 이유가 R2의 "첫 프레임부터"다.</p>
 
 <aside class="decision">
-  <strong>결정: 도메인 인터페이스가 <code>StateFlow</code>를 돌려준다</strong>
-  <code>Flow</code>만 돌려주면 첫 값이 컴포지션 한 번 뒤에 도착해 R2가 깨진다. "구독 전에도 현재 값이 있다"는 것이 이 기능의 요구사항이라 타입으로 적었다. 대가로 <code>domain</code>이 <code>StateFlow</code>를 알게 되지만, 그것은 <code>kotlinx-coroutines-core</code> 안이고 <code>domain</code>이 이미 <code>Flow</code>에 의존한다.
+  <strong>결정: 도메인 인터페이스는 cold <code>Flow</code> 와 스냅샷을 따로 돌려준다</strong>
+  예전에는 리포지토리가 앱 수명 스코프에서 <code>Eagerly</code> 로 <code>StateFlow</code> 를 만들어 R2 를 지켰다. 그러면 저장소 리스너가 앱이 끝날 때까지 풀리지 않는다. <a href="state-observation.html">상태 조회 규칙</a> R9·R11·R12 에 따라 리포지토리는 cold Flow 만 내놓고, 첫 프레임 초기값은 <code>stateIn</code> 의 초기값으로만 쓰는 스냅샷으로 따로 준다. <code>StateFlow</code> 는 ViewModel 의 스코프에서 만들어진다.
 </aside>
 
 <p>키는 기능이 소유한다. <code>keep_screen_awake</code>·<code>keep_system_screen_awake</code>는 <code>DefaultScreenAwakeSettingsRepository</code> 안에 있고, 다른 기능이 설정을 갖게 되면 같은 <code>SettingsStore</code>를 쓰는 자기 리포지토리를 만든다. 모든 설정을 한 클래스에 모으면 그 클래스가 <a href="module-architecture.html">분리 전의 <code>:shared</code>처럼</a> 기능 수만큼 커진다.</p>

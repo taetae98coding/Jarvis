@@ -16,7 +16,7 @@ internal class ScreenAwakeEffectViewModel(
     private val applyKeepScreenAwake: ApplyKeepScreenAwakeUseCase,
     private val applySystemScreenAwake: ApplySystemScreenAwakeUseCase,
 ) : ViewModel() {
-    val keepScreenAwake: StateFlow<Boolean> = observeKeepScreenAwake()
+    val keepScreenAwake: StateFlow<Boolean> = observeKeepScreenAwake(viewModelScope)
 
     init {
         // 화면에서 LaunchedEffect 로 걸면 화면이 바뀔 때마다 효과가 끊기고 다시 걸린다. 취소될 때

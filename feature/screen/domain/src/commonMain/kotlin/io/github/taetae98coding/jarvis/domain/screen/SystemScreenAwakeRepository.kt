@@ -1,9 +1,13 @@
 package io.github.taetae98coding.jarvis.domain.screen
 
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 
 interface SystemScreenAwakeRepository {
-    val status: StateFlow<SystemScreenAwakeStatus>
+    /** cold 다. 수집하는 동안에만 권한과 설정값을 지켜본다. */
+    fun observeStatus(): Flow<SystemScreenAwakeStatus>
+
+    /** 첫 프레임에 쓸 초기값. 이 값으로 상태를 따라가지 않는다. */
+    fun readStatus(): SystemScreenAwakeStatus
 
     /** 시스템 전역 화면 꺼짐 시간을 늘리거나 원래대로 되돌린다. */
     fun setEnabled(enabled: Boolean)

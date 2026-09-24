@@ -72,7 +72,7 @@
 
 <dl class="meta">
   <dt>UI</dt><dd><code>feature/screen/ui</code> 의 <code>ScreenAwakeCard.kt</code>, <code>core/ui</code> 의 <code>ToggleFeatureCard.kt</code>, <code>ui/app/FeatureGrid.kt</code></dd>
-  <dt>상태</dt><dd><code>ScreenAwakeSettingsRepository.keepScreenAwake: StateFlow&lt;Boolean&gt;</code> (<code>domain/screen</code>), 키 <code>keep_screen_awake</code></dd>
+  <dt>상태</dt><dd><code>ScreenAwakeSettingsRepository.observeKeepScreenAwake(): Flow&lt;Boolean&gt;</code> (<code>domain/screen</code>), 키 <code>keep_screen_awake</code></dd>
   <dt>효과</dt><dd><code>ui/screen/ScreenAwake.kt</code> (modifier) + <code>data/screen/IdleInhibitor.kt</code> (JVM). 적용 시점은 <code>ApplyKeepScreenAwakeUseCase</code>가 정한다</dd>
 </dl>
 

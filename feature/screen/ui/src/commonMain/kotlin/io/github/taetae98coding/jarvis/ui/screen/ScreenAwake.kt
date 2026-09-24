@@ -1,10 +1,10 @@
 package io.github.taetae98coding.jarvis.ui.screen
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.keepScreenOn
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -16,7 +16,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun Modifier.appScreenAwake(): Modifier {
     val viewModel = koinViewModel<ScreenAwakeEffectViewModel>()
-    val enabled by viewModel.keepScreenAwake.collectAsState()
+    val enabled by viewModel.keepScreenAwake.collectAsStateWithLifecycle()
 
     return keepScreenAwake(enabled)
 }

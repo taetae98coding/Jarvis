@@ -11,8 +11,8 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Display
 import io.github.taetae98coding.jarvis.data.PlatformContext
-import io.github.taetae98coding.jarvis.data.state.observeByPolling
 import io.github.taetae98coding.jarvis.data.state.observeOnSignals
+import io.github.taetae98coding.jarvis.data.state.observeWriteSettingsPermission
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
 import kotlinx.coroutines.channels.awaitClose
@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.merge
-import kotlin.time.Duration.Companion.seconds
 
 internal actual fun createDeviceRotationDataSource(context: PlatformContext): DeviceRotationDataSource =
     SystemRotation(context.context)
@@ -37,9 +36,7 @@ private class SystemRotation(private val context: Context) : DeviceRotationDataS
     private val displayManager: DisplayManager? =
         context.getSystemService(DisplayManager::class.java)
 
-    // 권한 상태는 시스템이 알려주지 않는다. 시스템 전역 화면 유지와 같은 이유로 짧은 간격으로 다시 본다.
-    private val permissions: Flow<Boolean> =
-        observeByPolling(interval = PermissionPollInterval) { isPermitted() }
+    private val permissions: Flow<Boolean> = observeWriteSettingsPermission(context)
 
     // 각도는 DisplayManager 가, 잠금은 ContentObserver 가 알려준다. 둘 다 콜백이 있어 폴링하지 않는다.
     private val rotations: Flow<Rotation> =
@@ -141,5 +138,3 @@ private class SystemRotation(private val context: Context) : DeviceRotationDataS
 }
 
 private data class Rotation(val locked: Boolean, val angle: RotationAngle?)
-
-private val PermissionPollInterval = 2.seconds

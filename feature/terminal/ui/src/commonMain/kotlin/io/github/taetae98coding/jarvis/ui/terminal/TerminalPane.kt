@@ -24,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -66,6 +65,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColors
@@ -88,8 +88,8 @@ internal fun TerminalPane(
     onFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val revision by state.revision.collectAsState()
-    val scrollOffset by state.scrollOffset.collectAsState()
+    val revision by state.revision.collectAsStateWithLifecycle()
+    val scrollOffset by state.scrollOffset.collectAsStateWithLifecycle()
 
     val colors = TerminalPaneDefaults.colors()
     val textStyle = TerminalPaneDefaults.textStyle(colors)

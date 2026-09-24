@@ -38,15 +38,15 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 화면 상태와 유스케이스 호출은 <code>ViewModel</code>이 소유한다. <code>@Composable</code> 함수는 <code>StateFlow</code>를 모으고 콜백을 부르는 일만 한다.</li>
+  <li><strong>R1.</strong> 화면 상태와 유스케이스 호출은 <code>ViewModel</code>이 소유한다. <code>@Composable</code> 함수는 <code>StateFlow</code>를 <code>collectAsStateWithLifecycle</code> 로 모으고 콜백을 부르는 일만 한다(<a href="state-observation.html">상태 조회 규칙</a> R14).</li>
   <li><strong>R2.</strong> ViewModel 은 유스케이스만 생성자로 받는다. 리포지토리·저장소·플랫폼 API·Compose 타입을 받지 않는다.</li>
   <li><strong>R3.</strong> ViewModel 은 Koin 의 <code>viewModel</code> 정의로 등록하고 화면은 <code>koinViewModel()</code>로만 받는다.</li>
   <li><strong>R4.</strong> 화면 수명 ViewModel(<code>EmulatorDevicesViewModel</code>, <code>EmulatorScreenViewModel</code>)은 그 화면이 백스택에서 빠질 때 <code>onCleared()</code>되고, 들고 있던 코루틴이 취소된다. 기기 화면 촬영은 그 시점에 멈춘다.</li>
   <li><strong>R5.</strong> 앱 수명 ViewModel(<code>ScreenAwakeEffectViewModel</code>)은 화면을 옮겨 다녀도 살아 있다. 화면 꺼짐 방지 효과는 이 ViewModel 의 스코프에서 적용된다.</li>
-  <li><strong>R6.</strong> 상태를 만드는 코루틴 스코프는 <code>viewModelScope</code>다. 앱 수명 <code>CoroutineScope</code>를 ViewModel 에 넘기지 않는다.</li>
+  <li><strong>R6.</strong> 상태를 만드는 코루틴 스코프는 <code>viewModelScope</code>다. 앱 수명 <code>CoroutineScope</code>는 없다. 첫 프레임 초기값이 필요한 상태는 유스케이스에 <code>viewModelScope</code> 를 넘겨 <code>StateFlow</code> 를 받는다(<a href="state-observation.html#layers">공급과 수집</a>).</li>
   <li><strong>R7.</strong> 네 타깃 모두 같은 ViewModel 코드를 쓴다. <code>ViewModelStoreOwner</code>를 화면 코드가 직접 만들지 않는다.</li>
   <li><strong>R9.</strong> ViewModel 은 그 기능의 <code>ui</code> 모듈 안에서 <code>internal</code> 이다. 기능이 내놓는 것은 인자 없는 카드·화면 컴포저블과 Koin 모듈뿐이다.</li>
-  <li><strong>R8.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 특히 에뮬레이터 개수는 구독자가 없어도 흐르고(<code>Eagerly</code>), 기기 목록과 실행 잠금은 화면이 열려 있는 동안에만 흐른다(<code>WhileSubscribed</code>).</li>
+  <li><strong>R8.</strong> 시스템 상태에서 온 화면 상태는 화면이 모으는 동안에만 흐른다(<code>WhileSubscribed</code>, <a href="state-observation.html">상태 조회 규칙</a> R13). 에뮬레이터 개수·기기 목록·실행 잠금·회전·설정이 모두 그렇다. 구독과 무관하게 이어져야 하는 작업(QR 페어링 세션)만 <code>Eagerly</code> 다.</li>
 </ol>
 
 <aside class="warn">
@@ -100,7 +100,7 @@
     <tr>
       <td><code>EmulatorStatusViewModel</code><br><code>:feature:emulator:ui</code></td>
       <td>홈 화면 엔트리</td>
-      <td><code>status</code>(<code>Eagerly</code>, 초기값 <code>null</code>)</td>
+      <td><code>status</code>(<code>WhileSubscribed</code>, 초기값 <code>null</code>)</td>
       <td>없음. 카드 클릭은 <code>LocalNavigator</code> 가 받는다</td>
     </tr>
     <tr>
@@ -147,7 +147,7 @@
 
 <aside class="decision">
   <strong>결정: 화면 상태를 <code>WhileSubscribed</code>로 유지한다</strong>
-  ViewModel 수명이 화면 수명이라 <code>SharingStarted.Eagerly</code>로 바꿔도 결과가 비슷해 보인다. 그대로 뒀다. 기기 목록은 실행 중인 기기 수만큼 <code>adb</code> 명령을 더 도는 조회고(<a href="emulator-control.html">기기 목록</a>), 화면이 전환 애니메이션 동안 살아 있는 사이에도 폴링이 돌 이유가 없다. 반대로 에뮬레이터 개수는 <code>Eagerly</code>여야 카드가 "확인 중…"에서 숫자로 한 번만 바뀐다.
+  ViewModel 수명이 화면 수명이라 <code>SharingStarted.Eagerly</code>로 바꿔도 결과가 비슷해 보인다. 하지만 홈 화면의 ViewModel 은 다른 화면으로 넘어가도 백스택에 남아 살아 있고, 그동안 <code>Eagerly</code> 는 아무도 보지 않는 폴링을 계속 돌린다. 기기 목록은 실행 중인 기기 수만큼 <code>adb</code> 명령을 더 도는 조회라(<a href="emulator-control.html">기기 목록</a>) 더욱 그렇다. 에뮬레이터 개수도 예전에는 "확인 중…"에서 숫자로 한 번만 바뀌게 하려고 <code>Eagerly</code> 였는데, <code>stateIn</code> 은 구독이 끊겨도 마지막 값을 들고 있으므로 <code>WhileSubscribed</code> 로도 카드가 다시 "확인 중…"으로 돌아가지 않는다.
 </aside>
 
 <aside class="decision">

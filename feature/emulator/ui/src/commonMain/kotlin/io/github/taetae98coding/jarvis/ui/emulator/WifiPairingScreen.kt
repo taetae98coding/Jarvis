@@ -16,12 +16,12 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
@@ -48,7 +48,7 @@ internal fun WifiPairingScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tab by viewModel.tab.collectAsState()
+    val tab by viewModel.tab.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()),
@@ -89,8 +89,8 @@ internal fun WifiPairingScreen(
 
 @Composable
 private fun ColumnScope.QrCodeTab(viewModel: WifiPairingViewModel) {
-    val qrCode by viewModel.qrCode.collectAsState()
-    val state by viewModel.qrState.collectAsState()
+    val qrCode by viewModel.qrCode.collectAsStateWithLifecycle()
+    val state by viewModel.qrState.collectAsStateWithLifecycle()
 
     Guide("기기에서 설정 › 개발자 옵션 › 무선 디버깅 › QR 코드로 기기 페어링을 열고 이 코드를 스캔하세요.")
 
@@ -115,8 +115,8 @@ private fun ColumnScope.QrCodeTab(viewModel: WifiPairingViewModel) {
 
 @Composable
 private fun PairingCodeTab(viewModel: WifiPairingViewModel) {
-    val services by viewModel.services.collectAsState()
-    val codePairing by viewModel.codePairing.collectAsState()
+    val services by viewModel.services.collectAsStateWithLifecycle()
+    val codePairing by viewModel.codePairing.collectAsStateWithLifecycle()
 
     Guide("기기에서 무선 디버깅 › 페어링 코드로 기기 페어링을 열면 여기에 나타납니다.")
 

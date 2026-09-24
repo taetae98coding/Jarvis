@@ -6,14 +6,22 @@ internal class FakeScreenAwakeSettingsRepository(
     keepScreenAwake: Boolean = false,
     keepSystemScreenAwake: Boolean = false,
 ) : ScreenAwakeSettingsRepository {
-    override val keepScreenAwake = MutableStateFlow(keepScreenAwake)
-    override val keepSystemScreenAwake = MutableStateFlow(keepSystemScreenAwake)
+    val keepScreenAwake = MutableStateFlow(keepScreenAwake)
+    val keepSystemScreenAwake = MutableStateFlow(keepSystemScreenAwake)
+
+    override fun observeKeepScreenAwake() = keepScreenAwake
+
+    override fun readKeepScreenAwake() = keepScreenAwake.value
+
+    override fun observeKeepSystemScreenAwake() = keepSystemScreenAwake
+
+    override fun readKeepSystemScreenAwake() = keepSystemScreenAwake.value
 
     override fun setKeepScreenAwake(value: Boolean) {
-        this.keepScreenAwake.value = value
+        keepScreenAwake.value = value
     }
 
     override fun setKeepSystemScreenAwake(value: Boolean) {
-        this.keepSystemScreenAwake.value = value
+        keepSystemScreenAwake.value = value
     }
 }

@@ -65,7 +65,7 @@
     <tr><td>에뮬레이터 폴링 Flow의 위치</td><td><code>:feature:emulator:data</code>의 <code>jvmMain</code> 최상위 <code>val</code>(프로세스 싱글턴)로 둔다. 데스크톱 UI의 리포지토리와 로컬 에이전트가 같은 <code>shareIn</code> Flow를 구독해야 <code>adb</code>·<code>simctl</code>이 5초마다 한 번만 돈다. 에이전트는 Koin(<code>emulatorDataModule</code>)을 거치지 않고 이 데이터 소스를 직접 구독한다</td></tr>
     <tr><td><code>compose.desktop.currentOs</code></td><td><code>:desktopApp</code>과 <code>:app:ui</code>의 <code>jvmTest</code>에만 넣는다. 기능의 <code>ui</code> 모듈에는 Skiko 화면 테스트가 없고, <code>data</code>·<code>domain</code>은 Skiko 네이티브 런타임이 필요 없다</td></tr>
     <tr><td><code>jvmToolchain(21)</code></td><td>컨벤션 플러그인 <code>jarvis.kmp.library</code>가 선언한다. 툴체인은 모듈 단위 설정이라 상속되지 않으므로, 모듈 열여섯이 각자 적는 것을 피하려면 플러그인이 유일한 방법이다. <code>:desktopApp</code>은 KMP 모듈이 아니라 자기 빌드 파일에 남아 있다</td></tr>
-    <tr><td><code>kotlinx-coroutines-swing</code></td><td><code>:shared</code>의 <code>jvmMain</code>에 넣는다. 앱 수명 스코프가 <code>Dispatchers.Main</code>이고 JVM 에서 그 디스패처는 이 아티팩트가 있어야 존재한다. Compose Desktop 이 데려온다고 보고 넣지 않았다가 앱이 첫 리포지토리를 만드는 순간 죽었다(<a href="#dependency-injection">의존성 주입</a>)</td></tr>
+    <tr><td><code>kotlinx-coroutines-swing</code></td><td><code>:shared</code>의 <code>jvmMain</code>에 넣는다. <code>viewModelScope</code> 가 <code>Dispatchers.Main.immediate</code> 이고 JVM 에서 그 디스패처는 이 아티팩트가 있어야 존재한다. 없으면 <code>viewModelScope</code> 가 조용히 EDT 밖에서 돈다. Compose Desktop 이 데려온다고 보고 넣지 않았다가, 그때 있던 앱 수명 스코프를 만드는 순간 죽었다(<a href="#dependency-injection">의존성 주입</a>)</td></tr>
   </tbody>
 </table>
 
@@ -96,8 +96,7 @@
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
     <tr><td><code>main()</code>에서 <code>startJarvisKoin()</code></td><td>채택. 호스트 에이전트를 띄운 뒤, <code>application { }</code> 앞에서 시작한다. <code>PlatformContext</code>는 빈 상자다</td></tr>
-    <tr><td>앱 수명 <code>CoroutineScope</code>의 디스패처</td><td><code>Dispatchers.Main</code>을 쓴다. 예전에 리포지토리에 넘기던 스코프도 컴포지션의 <code>rememberCoroutineScope()</code>(EDT)였으므로 스레드가 바뀌지 않는다. 단 이 디스패처는 JVM 에서 <code>kotlinx-coroutines-swing</code>이 클래스패스에 있을 때만 존재한다. <strong>Compose Desktop 은 그것을 데려오지 않는다</strong> — 처음에 그렇게 보고 넣지 않았다가 앱이 첫 리포지토리를 만드는 순간 <code>Dispatchers.Main[missing]</code>으로 죽었다. 그래서 <code>:shared</code>의 <code>jvmMain</code>이 직접 선언한다</td></tr>
-    <tr><td><code>Dispatchers.Default</code>로 앱 스코프 구성</td><td>버렸다. Swing 이 없는 환경에서도 도는 장점이 있지만, 기기 목록·회전·설정 저장이 도는 스레드가 플랫폼마다 달라진다. iOS 는 UIKit 호출 때문에 메인이어야 해서 어차피 <code>Main</code>이 필요하다</td></tr>
+    <tr><td>앱 수명 <code>CoroutineScope</code></td><td>걷어냈다. 리포지토리가 앱 수명 <code>StateFlow</code> 를 만들던 때 넘기던 스코프다. <a href="../common/state-observation.html">상태 조회 규칙</a> R12 로 리포지토리가 cold Flow 만 내놓게 되면서 받을 곳이 없어졌다. 상태는 <code>viewModelScope</code>(EDT)에서 모이므로 스레드는 예전과 같다</td></tr>
     <tr><td>호스트 에이전트를 Koin 에서 꺼내기</td><td>버렸다. 에이전트는 <a href="#emulator">에뮬레이터 데이터 소스</a>를 직접 구독한다. 그 데이터 소스는 <code>:feature:emulator:data</code> <code>jvmMain</code>의 프로세스 싱글턴이고, 조립을 거치지 않는다는 기존 결정을 그대로 둔다. 에이전트가 Koin 을 요구하면 시작 순서가 뒤엉킨다(에이전트 → Koin → 데이터 소스 → 에이전트)</td></tr>
   </tbody>
 </table>
@@ -111,7 +110,7 @@
 
 <h3>한계</h3>
 <ul>
-  <li>앱 수명 스코프가 <code>Dispatchers.Main</code>이라 기능의 <code>data</code> 모듈을 Swing 없는 JVM 프로그램(예: 헤드리스 CLI)에서 재사용하려면 <code>kotlinx-coroutines-swing</code>을 넣거나 스코프를 직접 넘겨야 한다. 그 모듈들의 테스트는 자기 스코프를 만들어 쓰므로 영향이 없다.</li>
+  <li>기능의 <code>data</code> 모듈은 스코프를 받지 않으므로 Swing 없는 JVM 프로그램(예: 헤드리스 CLI)에서도 그대로 쓸 수 있다. <code>kotlinx-coroutines-swing</code> 이 필요한 것은 화면을 띄우는 <code>:shared</code> 뿐이다.</li>
 </ul>
 
 <h3>검증</h3>
@@ -335,7 +334,9 @@ internal actual fun createSystemScreenAwakeDataSource(
   <thead><tr><th>상태</th><th>콜백</th></tr></thead>
   <tbody>
     <tr><td>설정값</td><td><code>Preferences.addPreferenceChangeListener</code>. 있다</td></tr>
-    <tr><td>에뮬레이터 개수</td><td><strong>없다.</strong> <code>adb track-devices</code>는 있지만 <code>simctl</code>에 대응물이 없어서 합친 상태를 볼 방법이 없다</td></tr>
+    <tr><td>에뮬레이터 개수·목록</td><td><strong>없다.</strong> <code>adb track-devices</code>는 있지만 <code>simctl</code>·<code>xctrace</code>에 대응물이 없어서 합친 상태를 볼 방법이 없다</td></tr>
+    <tr><td>에뮬레이터 화면</td><td><strong>없다.</strong> <code>adb exec-out screencap</code>·<code>simctl io screenshot</code> 은 한 장을 찍고 끝난다</td></tr>
+    <tr><td>페어링 대기 기기</td><td><strong>없다.</strong> <code>adb mdns services</code> 는 지금 보이는 목록을 한 번 답하고 끝난다. JmDNS 같은 라이브러리로 mDNS 를 직접 들으면 콜백을 받을 수 있지만, 기기를 찾는 것도 페어링하는 것도 <code>adb</code> 서버라서 둘이 보는 목록이 어긋날 수 있다. 버렸다</td></tr>
   </tbody>
 </table>
 
@@ -343,13 +344,14 @@ internal actual fun createSystemScreenAwakeDataSource(
 <dl class="meta">
   <dt>콜백</dt><dd><code>PreferenceChangeListener</code>를 <code>callbackFlow</code>로 감싸 <code>observeOnSignals</code>에 넘긴다</dd>
   <dt>폴링</dt><dd>에뮬레이터 개수는 <code>observeByPolling(5.seconds)</code></dd>
-  <dt>공유</dt><dd>에뮬레이터 프로브만 <code>shareIn(WhileSubscribed(), replay = 1)</code>으로 묶는다. UI와 <a href="#emulator">로컬 에이전트</a>가 같은 값을 보고 SDK 도구는 한 번만 돈다</dd>
+  <dt>공유</dt><dd>에뮬레이터 프로브만 <code>shareIn(WhileSubscribed(replayExpirationMillis = 0), replay = 1)</code>으로 묶는다(공통 스펙 R12의 예외). UI와 <a href="#emulator">로컬 에이전트</a>가 같은 값을 보고 SDK 도구는 한 번만 돈다. 타입은 <code>Flow</code> 로 내보낸다</dd>
+  <dt>해제</dt><dd>마지막 구독자가 떠나면 폴링 루프가 멈추고 replay 도 비운다</dd>
 </dl>
 
 <h3>한계</h3>
 <ul>
-  <li><code>shareIn</code>의 <code>replay = 1</code> 때문에 구독자가 모두 떠난 뒤 다시 붙으면 최대 5초 오래된 값을 먼저 본다. 곧 새 값이 온다.</li>
-  <li>폴링 루프는 구독자가 있는 동안만 돈다. 에이전트가 구독을 유지하므로 데스크톱 앱이 켜져 있는 한 멈추지 않는다.</li>
+  <li>폴링 루프는 구독자가 있는 동안만 돈다. 에이전트가 구독을 유지하므로 데스크톱 앱이 켜져 있는 한 멈추지 않는다. 요청이 올 때만 세게 바꾸지 않은 이유는 <a href="../common/state-observation.html#limits">공통 스펙의 한계</a>에 있다.</li>
+  <li>replay 를 비우므로 모두 떠난 뒤 다시 붙은 구독자는 오래된 값 대신 새로 세는 동안(수 초) 아무것도 받지 않는다. 화면은 그동안 ViewModel 이 들고 있던 마지막 값을 보여준다.</li>
 </ul>
 
 <h3>검증</h3>
@@ -774,7 +776,11 @@ internal actual fun createSystemScreenAwakeDataSource(
 <section class="feature" id="test">
 <h2>테스트 <span class="badge ok">구현</span></h2>
 <pre><code>./gradlew jvmTest</code></pre>
-<p>유스케이스 테스트(기능의 <code>domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>HostAgentTest</code>·<code>EmulatorParsingTest</code>·<code>HostAgentServerTest</code>(기능의 <code>data</code>), <code>ObserveSystemStateTest</code>(<code>:core:data</code>), <code>EmulatorDevicesViewModelTest</code>(<code>:feature:emulator:ui</code>), <code>JarvisAppTest</code>·<code>JarvisAppLaunchLockTest</code>(<code>:app:ui</code>, Compose UI), <code>JarvisKoinTest</code>(<code>:shared</code>)가 돌아간다. <code>runComposeUiTest</code>가 Skiko 네이티브 런타임을 필요로 해서 <code>:app:ui</code>의 <code>jvmTest</code>에만 <code>compose.desktop.currentOs</code>를 넣는다.</p>
+<p>유스케이스 테스트(기능의 <code>domain</code>), <code>PlatformNameTest</code>·<code>ScreenAwakeSettingsRepositoryTest</code>·<code>HostAgentTest</code>·<code>EmulatorParsingTest</code>·<code>HostAgentServerTest</code>(기능의 <code>data</code>), <code>ObserveSystemStateTest</code>(<code>:core:data</code>), <code>EmulatorDevicesViewModelTest</code>·<code>EmulatorStatusViewModelTest</code>(<code>:feature:emulator:ui</code>), <code>JarvisAppTest</code>·<code>JarvisAppLaunchLockTest</code>(<code>:app:ui</code>, Compose UI), <code>JarvisKoinTest</code>(<code>:shared</code>)가 돌아간다. <code>runComposeUiTest</code>가 Skiko 네이티브 런타임을 필요로 해서 <code>:app:ui</code>의 <code>jvmTest</code>에만 <code>compose.desktop.currentOs</code>를 넣는다.</p>
+<aside class="decision">
+  <strong>결정: 화면 테스트의 <code>Dispatchers.Main</code> 은 <code>Unconfined</code> 다</strong>
+  <code>collectAsStateWithLifecycle</code> 은 수명 관찰자를 <code>Dispatchers.Main</code> 에서 등록하므로 Main 이 없으면 화면 테스트가 전부 죽는다. 앱처럼 <code>kotlinx-coroutines-swing</code> 을 넣어 Main 을 EDT 로 두는 길은 버렸다. JVM 의 <code>runComposeUiTest</code> 는 EDT 가 아닌 스레드에서 컴포지션을 돌려서, <code>viewModelScope</code>(EDT)의 상태 전파와 클릭 처리가 테스트가 기다리지 않는 스레드에서 일어나 단언을 앞지른다(회전 카드 테스트 셋이 그렇게 실패했다). <code>TestJarvisApp</code> 이 <code>installTestMainDispatcher()</code> 로 JVM 에서만 <code>Dispatchers.setMain(Dispatchers.Unconfined)</code> 를 건다. 앱에서는 컴포지션과 <code>viewModelScope</code> 가 둘 다 EDT 라 이 문제가 없다.
+</aside>
 <p>이 플랫폼만 에이전트 HTTP 왕복을 실제로 테스트한다. 서버가 여기 있기 때문이다. <code>caffeinate</code> 실행과 <code>java.util.prefs</code> 왕복은 <span class="badge untested">미검증</span>이다.</p>
 </section>
 

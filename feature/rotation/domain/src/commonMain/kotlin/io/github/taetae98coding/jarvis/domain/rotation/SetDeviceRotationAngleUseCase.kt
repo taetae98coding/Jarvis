@@ -1,12 +1,14 @@
 package io.github.taetae98coding.jarvis.domain.rotation
 
+import kotlinx.coroutines.flow.first
+
 class SetDeviceRotationAngleUseCase(
     private val deviceRotation: DeviceRotationRepository,
 ) {
-    operator fun invoke(angle: RotationAngle) {
+    suspend operator fun invoke(angle: RotationAngle) {
         // 화면 꺼짐 방지와 달리 권한이 없을 때 저장해 둘 값이 없다. 시스템이 각도를 들고 있으므로
         // 허용하고 돌아온 뒤 다시 누르는 것이 유일한 경로다.
-        if (!deviceRotation.status.value.permitted) {
+        if (!deviceRotation.observeStatus().first().permitted) {
             deviceRotation.requestPermission()
 
             return
