@@ -3,14 +3,17 @@ package io.github.taetae98coding.jarvis.ui.terminal
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
+import io.github.taetae98coding.jarvis.domain.terminal.IsBrowserSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import io.github.taetae98coding.jarvis.domain.terminal.UpdateTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.onEach
@@ -26,8 +29,14 @@ internal class TerminalViewModel(
     private val updateWorkspace: UpdateTerminalWorkspaceUseCase,
     private val host: TerminalPaneHost,
     isClaudeSupported: IsClaudeSupportedUseCase,
+    isBrowserSupported: IsBrowserSupportedUseCase,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
+
+    val isBrowserSupported: Boolean = isBrowserSupported()
+
+    // 페이지 제목은 웹뷰가 떠 있을 때만 알 수 있다. 저장하지 않고, 가려진 탭은 마지막으로 본 제목을 보인다.
+    private val browserTitles = mutableMapOf<Long, MutableStateFlow<String?>>()
 
     /** null 은 저장된 배치를 아직 읽지 못한 것이다. */
     val workspace: StateFlow<TerminalWorkspace?> = observeWorkspace()
@@ -35,6 +44,16 @@ internal class TerminalViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), null)
 
     fun pane(tabId: Long): TerminalPaneState? = host.pane(tabId)
+
+    /** 셸 창은 셸이 정한 제목, 브라우저 탭은 페이지 제목. */
+    fun title(tab: TerminalTab): StateFlow<String?>? =
+        if (tab.program == TerminalProgram.Browser) browserTitle(tab.id) else host.pane(tab.id)?.title
+
+    fun setBrowserTitle(tabId: Long, title: String?) {
+        browserTitle(tabId).value = title
+    }
+
+    private fun browserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
     fun addPanel(name: String, directory: String, program: TerminalProgram) {
         val sessionId = if (program == TerminalProgram.Claude) newClaudeSessionId() else null
@@ -58,6 +77,11 @@ internal class TerminalViewModel(
         val sessionId = newClaudeSessionId()
         update { it.addTab(groupId, TerminalProgram.Claude, it.startDirectory(groupId), sessionId) }
     }
+
+    fun addBrowserTab(groupId: Long? = null) =
+        update { it.addTab(groupId, TerminalProgram.Browser, url = TerminalTab.DefaultBrowserUrl) }
+
+    fun setUrl(tabId: Long, url: String) = update { it.setUrl(tabId, url) }
 
     fun closeFocusedTab() = update { it.closeFocusedTab() }
 
@@ -87,12 +111,14 @@ internal class TerminalViewModel(
     /**
      * 사라진 탭의 셸을 닫고, 지금 보이는 탭(선택된 패널에서 그룹마다 선택된 탭)의 창을 연다. 다른 탭·패널의
      * 창은 처음 보일 때 연다 — 앱을 켜자마자 모든 창을 띄우면 Claude 탭마다 백그라운드 세션을 찾는 셸이
-     * 한꺼번에 돈다.
+     * 한꺼번에 돈다. 브라우저 탭은 셸이 없어 열 창이 없다.
      */
     private fun reconcile(workspace: TerminalWorkspace) {
-        host.retain(workspace.tabIds.toSet())
+        val tabIds = workspace.tabIds.toSet()
+        host.retain(tabIds)
+        browserTitles.keys.retainAll(tabIds)
 
-        val visible = workspace.visibleTabs
+        val visible = workspace.visibleTabs.filter { it.program != TerminalProgram.Browser }
 
         // 새 창은 아직 배치되지 않았다. 이미 배치된 창의 크기로 먼저 띄우면 배치된 뒤의 크기와 가까워서,
         // 셸이 첫 프롬프트를 엉뚱한 너비로 그렸다가 다시 그리는 일이 줄어든다.

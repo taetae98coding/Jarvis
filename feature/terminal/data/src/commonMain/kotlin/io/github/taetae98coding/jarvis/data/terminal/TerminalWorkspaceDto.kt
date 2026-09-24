@@ -41,6 +41,7 @@ internal data class TerminalTabDto(
     val program: String = ShellProgram,
     val directory: String? = null,
     val claudeSessionId: String? = null,
+    val url: String? = null,
 )
 
 @Serializable
@@ -66,6 +67,7 @@ internal sealed interface PaneNodeDto {
 
 private const val ShellProgram = "shell"
 private const val ClaudeProgram = "claude"
+private const val BrowserProgram = "browser"
 private const val SideBySideDirection = "sideBySide"
 private const val StackedDirection = "stacked"
 
@@ -110,9 +112,11 @@ private fun PaneNode.toDto(): PaneNodeDto =
                     program = when (tab.program) {
                         TerminalProgram.Shell -> ShellProgram
                         TerminalProgram.Claude -> ClaudeProgram
+                        TerminalProgram.Browser -> BrowserProgram
                     },
                     directory = tab.directory,
                     claudeSessionId = tab.claudeSessionId,
+                    url = tab.url,
                 )
             },
             selectedTabId = selectedTabId,
@@ -156,9 +160,8 @@ private fun PaneNodeDto.toDomain(): PaneNode? =
     }
 
 private fun TerminalTabDto.toDomain(): TerminalTab =
-    TerminalTab(
-        id = id,
-        program = if (program == ClaudeProgram && claudeSessionId != null) TerminalProgram.Claude else TerminalProgram.Shell,
-        directory = directory,
-        claudeSessionId = claudeSessionId,
-    )
+    when {
+        program == ClaudeProgram && claudeSessionId != null -> TerminalTab(id, TerminalProgram.Claude, directory, claudeSessionId)
+        program == BrowserProgram -> TerminalTab(id, TerminalProgram.Browser, url = url ?: TerminalTab.DefaultBrowserUrl)
+        else -> TerminalTab(id, directory = directory)
+    }

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.emptyFlow
 internal class RecordingTerminalRepository(
     override val isSupported: Boolean = true,
     override val isClaudeSupported: Boolean = true,
+    override val isBrowserSupported: Boolean = true,
 ) : TerminalRepository {
     val opened = mutableListOf<TerminalTab>()
     val stopped = mutableListOf<String>()

@@ -478,6 +478,41 @@ class TerminalWorkspaceTest {
         assertEquals(workspace.nextId + 1, assertIs<PaneNode.Group>(root.second).id)
         assertEquals(workspace.nextId + 2, docked.nextId)
     }
+
+    @Test
+    fun browserTabIsAppendedToTheGroupAndSelected() {
+        val workspace = TerminalWorkspace.initial()
+
+        val added = workspace.addTab(program = TerminalProgram.Browser, url = "https://example.com")
+        val tab = added.focusedTab!!
+
+        assertEquals(2, added.groups.single().tabs.size)
+        assertEquals(TerminalProgram.Browser, tab.program)
+        assertEquals("https://example.com", tab.url)
+    }
+
+    @Test
+    fun setUrlChangesOnlyThatTab() {
+        val workspace = TerminalWorkspace.initial().addTab(program = TerminalProgram.Browser, url = "https://a.com")
+        val (shell, browser) = workspace.groups.single().tabs
+
+        val changed = workspace.setUrl(browser.id, "https://b.com")
+
+        assertEquals(listOf(shell, browser.copy(url = "https://b.com")), changed.groups.single().tabs)
+        assertTrue(changed.setUrl(browser.id, "https://b.com") === changed)
+    }
+
+    @Test
+    fun splittingABrowserTabOpensAShellAtHome() {
+        val workspace = TerminalWorkspace.initial().addTab(program = TerminalProgram.Browser, url = "https://a.com")
+
+        val split = workspace.split(SplitDirection.SideBySide, workspace.focusedTab?.directory)
+        val tab = split.focusedTab!!
+
+        assertEquals(TerminalProgram.Shell, tab.program)
+        assertNull(tab.directory)
+        assertNull(tab.url)
+    }
 }
 
 private fun TerminalPanel.withTabDirectory(directory: String?): TerminalPanel =

@@ -6,4 +6,7 @@ enum class TerminalProgram {
 
     /** Claude Code 백그라운드 세션을 YOLO 모드(`--dangerously-skip-permissions`)로. */
     Claude,
+
+    /** 셸이 아니라 웹 페이지다. 세션을 열지 않고 화면이 시스템 웹뷰로 [TerminalTab.url] 을 띄운다. */
+    Browser,
 }

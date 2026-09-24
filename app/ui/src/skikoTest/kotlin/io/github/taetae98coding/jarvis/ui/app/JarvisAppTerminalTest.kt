@@ -28,6 +28,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalDragGhostTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalEmptyPanelTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewBrowserTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewClaudeTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalScreenTestTag
@@ -412,6 +413,43 @@ class JarvisAppTerminalTest {
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
         assertEquals(TerminalProgram.Shell, terminal.sessions[1].program)
         assertEquals(0, onAllNodesWithTag(TerminalNewClaudeTabTestTag).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun browserMenuItemIsLastWhereItIsSupported() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isBrowserSupported = true)
+        openTerminal(terminal)
+
+        onNode(newTabButton).performClick()
+
+        val items = listOf(TerminalNewShellTabTestTag, TerminalNewClaudeTabTestTag, TerminalNewBrowserTabTestTag)
+            .map { onNodeWithTag(it).fetchSemanticsNode().boundsInRoot.top }
+        assertEquals(items.sorted(), items)
+        onNodeWithText("웹 브라우저").assertIsDisplayed()
+    }
+
+    @Test
+    fun browserAloneStillOpensTheMenu() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isClaudeSupported = false, isBrowserSupported = true)
+        openTerminal(terminal)
+
+        onNode(newTabButton).performClick()
+
+        onNodeWithTag(TerminalNewShellTabTestTag).assertIsDisplayed()
+        onNodeWithTag(TerminalNewBrowserTabTestTag).assertIsDisplayed()
+        assertEquals(0, onAllNodesWithTag(TerminalNewClaudeTabTestTag).fetchSemanticsNodes().size)
+        assertEquals(1, terminal.sessions.size)
+    }
+
+    @Test
+    fun browserMenuItemIsHiddenWhereItIsNotSupported() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        openTerminal(terminal)
+
+        onNode(newTabButton).performClick()
+
+        onNodeWithTag(TerminalNewClaudeTabTestTag).assertIsDisplayed()
+        assertEquals(0, onAllNodesWithTag(TerminalNewBrowserTabTestTag).fetchSemanticsNodes().size)
     }
 
     @Test
