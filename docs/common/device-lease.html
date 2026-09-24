@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude 기기 할당 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>Claude 기기 할당</span></nav>
+
+<header>
+  <h1>Claude 기기 할당</h1>
+  <p class="lead">MCP 서버가 Android·iOS 기기를 워크트리(패널)마다 하나씩 빌려 주고 돌려받아서, 여러 워크트리의 Claude 가 같은 기기를 동시에 누르지 않게 한다. 빌려 줄 기기가 없으면 에뮬레이터·시뮬레이터를 하나 새로 만들어 켜서 준다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>지금 mcp로 브라우저랑 android/ios 지원하잖아. browser는 각 worktree에서 탭을 새로 만들면 간섭이 없는데, android/ios 단말기(에뮬레이터)는 동일한 단말기 다른 worktree에서 조작하면 간섭이 생기는 구조야. mcp가 할당/해제도 관리해서 하나의 worktree만 접근하도록 지원하면 어때? 그리고 mcp로 더이상 선택할 단말기가 없는 경우 에뮬 하나 만들어서 제공하도록 하면 좋을 것 같아.</p>
+  <footer>2026-09-25 대화. "worktree" 는 <a href="mcp-server.html#requirements">MCP 서버 R3</a> 의 "호출한 패널" 로 읽었다 — 워크트리 패널이든 아니든 패널 하나가 한 작업 공간이다. 같은 패널의 Claude 탭 여럿은 한 워크트리라 기기를 함께 쓴다(결정). "선택할 단말기" 는 다른 워크트리가 빌리지 않았고 조작할 수 있는 기기(실물 포함)로, "에뮬" 은 Android 에뮬레이터와 iOS 시뮬레이터 둘 다로 읽었다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>할당 순서는 실기기 -&gt; 에뮬 -&gt; 에뮬 생성 이렇게 해줘.</p>
+  <footer>2026-09-25 대화. 첫 구현의 R7 차례(켜진 에뮬레이터 → 실물)를 바꾼다. "에뮬" 은 켜진 것과 꺼진 것 둘 다로 읽고, 그 안에서는 켜진 것을 먼저 둔다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<h3>할당</h3>
+<ol>
+  <li><strong>R1.</strong> 기기 하나는 한 번에 한 패널에만 할당된다. 할당은 MCP 서버의 메모리에만 있다.</li>
+  <li><strong>R2.</strong> 기기를 가리키는 기기 도구(<code>device_screenshot</code>·<code>device_tap</code>·<code>device_swipe</code>·<code>device_type</code>·<code>device_press</code>·<code>device_ui_tree</code>·<code>device_launch_app</code>·<code>device_acquire</code>)를 호출한 패널이 부르면, 그 기기가 비어 있으면 그 패널에 할당하고 동작한다. 이미 그 패널의 것이면 그대로 동작한다.</li>
+  <li><strong>R3.</strong> 다른 패널에 할당된 기기에 R2 의 도구를 부르면 기기에 아무것도 보내지 않고 "이 기기는 다른 워크트리(&lt;패널 이름&gt;)가 쓰고 있습니다. device_acquire 로 다른 기기를 받으세요." 오류다. 기기 탭도 붙이지 않는다.</li>
+  <li><strong>R4.</strong> 호출한 패널이 없는 호출(<a href="mcp-server.html#requirements">MCP 서버 R7</a> — 밖에서 등록한 Claude)은 비어 있는 기기만 쓸 수 있고 할당하지 않는다. 할당된 기기에는 R3 오류다. <code>device_acquire</code> 는 "Jarvis 터미널의 Claude 탭에서만 기기를 할당할 수 있습니다" 오류다.</li>
+  <li><strong>R5.</strong> 할당의 대상은 기기 자체다. Android 에뮬레이터는 AVD 이름으로 가려서, 켜져 있을 때의 시리얼(<code>emulator-5554</code>)과 꺼져 있을 때의 식별자(<code>avd:&lt;이름&gt;</code>)가 같은 할당을 가리킨다. 그 밖의 기기는 <code>device_list</code> 의 식별자로 가린다.</li>
+</ol>
+
+<h3>받기 — device_acquire</h3>
+<ol start="6">
+  <li><strong>R6.</strong> <code>device_acquire(deviceId)</code> 는 그 기기를 R2 대로 할당한다. 꺼진 AVD·시뮬레이터면 켜고, 조작할 수 있게 될 때까지(Android 는 부팅 완료, iOS 는 부팅 상태 <code>Booted</code>) 기다린 뒤 켜진 기기의 식별자를 준다. 기존 <code>device_boot</code> 는 이것으로 바뀐다(없어진다).</li>
+  <li><strong>R7.</strong> <code>device_acquire(platform)</code>(<code>android</code>·<code>ios</code>)는 그 플랫폼에서 이 차례로 처음 찾은 기기를 할당해서 준다.
+    <ol>
+      <li>이미 이 패널에 할당된, 켜져 있는 기기</li>
+      <li>비어 있고 조작할 수 있는 실물 기기</li>
+      <li>비어 있고 켜져 있는 에뮬레이터·시뮬레이터</li>
+      <li>비어 있고 꺼진 에뮬레이터·시뮬레이터(켜고 R6 대로 기다린다)</li>
+      <li>없으면 새로 만든 에뮬레이터·시뮬레이터(R8)</li>
+    </ol>
+  </li>
+  <li><strong>R8.</strong> 새로 만드는 기기의 이름은 Android 가 <code>Jarvis_&lt;N&gt;</code>(AVD 이름), iOS 가 <code>Jarvis &lt;N&gt;</code> 이고, N 은 그 플랫폼에서 이 모양의 이름이 쓰지 않은 가장 작은 1 이상의 수다. 두 패널이 동시에 만들어도 이름이 겹치지 않는다. 만든 기기는 다른 기기와 똑같이 <a href="emulator-control.html">기기 목록</a>에 나온다.</li>
+  <li><strong>R9.</strong> 만들 수 없으면(Android: SDK·설치된 시스템 이미지가 없음, iOS: Xcode·iOS 런타임이 없음) 무엇을 설치하면 되는지 적은 오류다. 오류면 할당도 남지 않는다.</li>
+  <li><strong>R10.</strong> <code>device_acquire</code> 가 기기를 주면 <a href="mcp-server.html#requirements">MCP 서버 R6</a> 대로 호출한 패널에 기기 탭을 붙인다. 결과 글자에 식별자·이름·다 쓰면 <code>device_release</code> 를 부르라는 말을 적는다.</li>
+</ol>
+
+<h3>돌려주기</h3>
+<ol start="11">
+  <li><strong>R11.</strong> <code>device_release(deviceId)</code> 는 호출한 패널의 그 할당을 푼다. <code>deviceId</code> 를 빼면 호출한 패널의 할당을 전부 푼다. 푼 기기 목록을 준다. 다른 패널의 할당은 풀지 않는다(R3 오류). 기기를 끄거나 기기 탭을 닫지 않는다.</li>
+  <li><strong>R12.</strong> 할당한 패널에 Claude 탭이 하나도 없게 되면(패널을 닫았거나 워크트리를 지웠거나 Claude 탭을 다 닫았으면) 그 패널의 할당은 없는 것으로 친다. 따로 부르지 않아도 다음 기기 도구 호출이 그 기기를 빈 것으로 본다.</li>
+  <li><strong>R13.</strong> 앱을 다시 켜면 할당이 모두 비어 있다(R1).</li>
+</ol>
+
+<h3>목록</h3>
+<ol start="14">
+  <li><strong>R14.</strong> <code>device_list</code> 의 줄마다 할당 칸이 붙는다. 호출한 패널의 것이면 <code>mine</code>, 다른 패널의 것이면 <code>in-use:&lt;패널 이름&gt;</code>, 비어 있으면 <code>free</code> 다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>사람의 입력을 막는 것. 기기 탭·기기 목록에서 사람이 누르는 것은 할당과 상관없이 그대로 간다. 지시는 워크트리(Claude) 사이의 간섭이다.</li>
+    <li>브라우저 탭. 지시대로 탭마다 페이지가 따로라 이미 간섭이 없다.</li>
+    <li>만든 기기를 지우거나 끄는 것. 풀린 기기는 다음 <code>device_acquire</code> 가 R7 의 3·4 번으로 다시 쓴다. 지우는 것은 사용자가 Android Studio·Xcode 에서 한다(한계).</li>
+    <li>오래 쓰지 않은 할당을 저절로 푸는 것. Claude 가 생각하는 동안 기기를 빼앗기면 간섭보다 나쁘다. R11·R12 로만 풀린다.</li>
+    <li>할당을 화면에 보이는 것. 새 화면이 없다. 할당은 <code>device_list</code> 로만 본다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<p>새 화면은 없다. 사용자에게 보이는 변화는 새로 만든 기기가 기기 목록과 기기 탭에 나오는 것뿐이다.</p>
+
+<table>
+  <thead><tr><th>도구</th><th>인자</th><th>하는 일</th></tr></thead>
+  <tbody>
+    <tr><td><code>device_acquire</code></td><td><code>deviceId?</code>, <code>platform?</code></td><td>R6–R10. 둘 중 하나는 있어야 한다. 둘 다 있으면 <code>deviceId</code> 를 쓴다</td></tr>
+    <tr><td><code>device_release</code></td><td><code>deviceId?</code></td><td>R11</td></tr>
+    <tr><td><code>device_list</code></td><td>—</td><td>R14. 기존 칸 뒤에 할당 칸</td></tr>
+    <tr><td><code>device_boot</code></td><td>—</td><td>없어진다(R6)</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>할당 오류</td><td>이 기기는 다른 워크트리(&lt;패널 이름&gt;)가 쓰고 있습니다. device_acquire 로 다른 기기를 받으세요.</td></tr>
+    <tr><td>호출한 패널 없음</td><td>Jarvis 터미널의 Claude 탭에서만 기기를 할당할 수 있습니다</td></tr>
+    <tr><td><code>device_acquire</code> 결과</td><td><code>deviceId=&lt;식별자&gt;\t&lt;이름&gt;</code> 한 줄과 "다 쓰면 device_release 로 돌려주세요."</td></tr>
+    <tr><td>시간 제한</td><td><code>device_acquire</code> 는 300초(만들기·첫 부팅). 다른 기기 도구는 그대로(<a href="mcp-server.html#requirements">MCP 서버 R20</a>)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>할당</dt><dd><code>feature/mcp/domain/.../DeviceLeases.kt</code> — 할당 키 → 패널 id. <code>Mutex</code> 하나로 고르기·할당을 한 번에 한다. <code>McpToolbox</code> 가 기기 도구마다 부른다</dd>
+  <dt>도구</dt><dd><code>McpToolbox</code>·<code>McpTools</code> 에 <code>device_acquire</code>·<code>device_release</code>. <code>device_boot</code> 를 뺀다</dd>
+  <dt>이음새</dt><dd><code>:core:automation</code> 의 <code>AgentTabs</code>·<code>DeviceAutomation</code> 을 아래처럼 바꾼다</dd>
+</dl>
+
+<pre><code>interface AgentTabs {
+    /** R3(MCP 서버). 호출한 Claude 탭이 있는 패널. 없으면 null. hasCaller 를 대신한다. */
+    suspend fun callerPanel(sessionId: String): AgentPanel?
+    /** R12. Claude 탭이 하나라도 있는 패널. */
+    suspend fun claudePanels(): List&lt;AgentPanel&gt;
+    // openBrowserTab·browserTabs·showDevice·closeTab 은 그대로
+}
+
+data class AgentPanel(val id: Long, val name: String)
+
+interface DeviceAutomation {
+    /** R6. 켜고 조작할 수 있을 때까지 기다린 뒤 켜진 기기의 식별자. 이미 켜져 있으면 그대로. */
+    suspend fun boot(deviceId: String): String
+    /** R8. 새 에뮬레이터·시뮬레이터를 만들어 꺼진 채로 준다. 목록(devices)은 다음 번 셀 때 나온다. */
+    suspend fun create(platform: AutomationPlatform): AutomationDevice
+    // 나머지는 그대로
+}</code></pre>
+
+<p>할당 키는 <code>AutomationDevice</code> 에서 도메인이 정한다: Android 이고 실물이 아니면 <code>avd:&lt;name&gt;</code>, 아니면 <code>id</code>(R5). 도구 호출의 차례는 이렇다.</p>
+<ol>
+  <li><code>devices()</code> 로 기기를 찾는다(없으면 기존 오류).</li>
+  <li><code>callerPanel(sessionId)</code> 로 패널을 찾고, <code>claudePanels()</code> 에 없는 패널의 할당을 지운다(R12).</li>
+  <li>할당을 보고 R2–R4 를 가른다. 여기까지가 <code>Mutex</code> 안이다.</li>
+  <li>패널이 있으면 기기 탭을 붙이고(기존), 기기를 부른다.</li>
+</ol>
+<p><code>device_acquire(platform)</code> 은 3 까지를 한 번에 해서 R7 의 1–4 번 후보를 고르고 할당까지 한다. 후보가 없으면 <code>Mutex</code> 를 놓고 <code>create</code> 를 부른 뒤, 만든 기기를 다시 잡아 할당한다 — 만드는 데 몇 초 걸리는 동안 다른 패널의 기기 도구가 기다리지 않게 한다. 두 패널이 동시에 만들면 기기가 둘 생긴다(R8, 이름은 구현이 겹치지 않게 고른다). <code>boot</code> 는 할당한 뒤에 부른다. 부팅을 기다리는 동안 다른 패널이 같은 AVD 를 가져가지 못한다(R5 키가 같다).</p>
+
+<aside class="decision">
+  <strong>결정: 할당은 패널 단위, 도구가 저절로 잡는다</strong>
+  지시는 "하나의 worktree만 접근" 이다. 세션(Claude 탭) 단위로 두면 같은 워크트리에서 Claude 를 새로 연 뒤 자기 기기를 못 쓴다. 할당을 <code>device_acquire</code> 로만 받게 하는 안도 버렸다 — 이 기능 전부터 쓰던 흐름(<code>device_list</code> → <code>device_screenshot</code>)이 오류가 되고, Claude 가 받기를 잊어도 간섭은 막아야 한다. 그래서 기기를 가리키는 도구가 빈 기기를 잡고, <code>device_acquire</code> 는 "아무 기기나 하나(없으면 만들어서)" 가 필요할 때 쓴다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 할당은 메모리에만, 푸는 조건은 Claude 탭</strong>
+  저장해 두면 앱을 다시 켤 때 이미 닫힌 패널의 할당이 남는다. 저장하지 않아도 앱을 다시 켜면 다시 쓰는 쪽이 먼저 잡고 늦은 쪽은 R3 오류를 받아 다른 기기를 받으므로 간섭은 생기지 않는다. 패널이 남아 있어도 Claude 탭이 없으면 기기를 쓸 주체가 없으므로 푼다(R12). 시간으로 푸는 안은 스코프에서 뺐다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 실물 → 에뮬레이터 → 에뮬레이터 만들기</strong>
+  지시의 "선택할 단말기" 에 실물도 들어간다(기기 목록에 같이 나온다). 차례는 사용자가 정했다: "할당 순서는 실기기 -> 에뮬 -> 에뮬 생성 이렇게 해줘."(2026-09-25 대화). 처음에는 켜진 에뮬레이터를 실물보다 앞에 두었다(사용자의 실물 폰을 덜 건드리려고). 에뮬레이터 안에서는 켜진 것을 꺼진 것보다 먼저 준다 — 부팅을 기다리지 않는다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>MCP 서버가 JVM 에만 있다(<a href="mcp-server.html#requirements">MCP 서버 스코프</a>)</td><td><a href="../platform/android.html#device-lease">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>같음</td><td><a href="../platform/ios.html#device-lease">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge partial">조건부</span></td><td>macOS. 할당은 공통 코드. 만들기는 AVD 파일을 직접 쓰기(설치된 시스템 이미지가 있어야 한다)·<code>simctl create</code></td><td><a href="../platform/jvm.html#device-lease">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>같음</td><td><a href="../platform/web.html#device-lease">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>McpToolboxTest</code></td><td>R2–R4, R6, R7, R9–R12, R14. 가짜 이음새로 두 패널이 한 기기를 부를 때 늦은 쪽이 오류이고 기기에 아무것도 가지 않는다. 꺼진 AVD 를 받으면 켜진 시리얼과 같은 할당이다. 고르는 차례, 없으면 만들기, 풀기, Claude 탭이 없는 패널의 할당이 풀린다. 목록의 할당 칸</td><td><code>:feature:mcp:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>WorkspaceAgentTabsTest</code></td><td>R12. <code>callerPanel</code>·<code>claudePanels</code> 가 Claude 탭이 있는 패널만 준다</td><td><code>:feature:terminal:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>VirtualDevicesTest</code></td><td>R8. 이름 고르기, 시스템 이미지 고르기, AVD 파일 내용, <code>simctl list runtimes -j</code> 에서 런타임·기기 종류 고르기</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R6–R8 의 실제 만들기·부팅. JVM 문서의 검증에 날짜와 함께 적는다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>할당은 Claude 사이의 약속이다. 사람이 기기 탭에서 누르면 막지 않는다.</li>
+  <li>Claude 가 <code>device_release</code> 를 부르지 않고 Claude 탭도 남아 있으면 기기가 그 패널에 계속 묶인다. 다른 패널의 <code>device_acquire</code> 는 다른 기기를 받거나 새로 만든다.</li>
+  <li>만든 기기는 지워지지 않고 쌓인다(디스크: AVD 하나에 수 GB). 켜진 채로 풀린 기기는 켜진 채로 남는다.</li>
+  <li>앱을 다시 켜면 할당이 비어서, 켜기 전 기기를 쓰던 두 패널 중 먼저 부른 쪽이 가져간다(R13).</li>
+  <li>플랫폼마다의 한계는 <a href="../platform/jvm.html#device-lease">JVM 문서</a>에 있다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

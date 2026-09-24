@@ -1,9 +1,11 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.automation.AgentBrowserTab
+import io.github.taetae98coding.jarvis.automation.AgentPanel
 import io.github.taetae98coding.jarvis.automation.AgentTabs
 import io.github.taetae98coding.jarvis.automation.AutomationPlatform
 import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspaceRepository
@@ -17,8 +19,13 @@ import kotlinx.coroutines.flow.first
 internal class WorkspaceAgentTabs(
     private val repository: TerminalWorkspaceRepository,
 ) : AgentTabs {
-    override suspend fun hasCaller(sessionId: String): Boolean =
-        repository.observeWorkspace().first().findClaudeTab(sessionId) != null
+    override suspend fun callerPanel(sessionId: String): AgentPanel? =
+        repository.observeWorkspace().first().findClaudeTab(sessionId)?.panel?.let(::agentPanel)
+
+    override suspend fun claudePanels(): List<AgentPanel> =
+        repository.observeWorkspace().first().panels
+            .filter { panel -> panel.tabs.any { it.program == TerminalProgram.Claude } }
+            .map(::agentPanel)
 
     override suspend fun openBrowserTab(sessionId: String, url: String): Long? {
         var opened: Long? = null
@@ -75,3 +82,5 @@ internal class WorkspaceAgentTabs(
         return closed
     }
 }
+
+private fun agentPanel(panel: TerminalPanel): AgentPanel = AgentPanel(panel.id, panel.name)

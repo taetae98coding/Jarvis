@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.automation.AgentBrowserTab
+import io.github.taetae98coding.jarvis.automation.AgentPanel
 import io.github.taetae98coding.jarvis.automation.AutomationPlatform
 import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
@@ -46,7 +47,7 @@ class WorkspaceAgentTabsTest {
 
     @Test
     fun unknownCallerGetsNoTab() = runTest {
-        assertFalse(tabs.hasCaller("other"))
+        assertNull(tabs.callerPanel("other"))
         assertNull(tabs.openBrowserTab("other", "https://example.com"))
         tabs.showDevice("other", "emulator-5554", "Pixel", AutomationPlatform.ANDROID)
         assertEquals(initial, repository.state.value)
@@ -55,8 +56,6 @@ class WorkspaceAgentTabsTest {
 
     @Test
     fun deviceTabIsAddedOncePerPanel() = runTest {
-        assertTrue(tabs.hasCaller(Session))
-
         tabs.showDevice(Session, "emulator-5554", "Pixel", AutomationPlatform.ANDROID)
         tabs.showDevice(Session, "emulator-5554", "Pixel", AutomationPlatform.ANDROID)
 
@@ -65,6 +64,23 @@ class WorkspaceAgentTabsTest {
         assertEquals(listOf("emulator-5554"), devices.map { it.deviceId })
         assertEquals("Pixel", devices.single().deviceName)
         assertEquals(DevicePlatform.Android, devices.single().devicePlatform)
+    }
+
+    @Test
+    fun callerPanelIsThePanelOfTheClaudeTab() = runTest {
+        val panel = initial.findClaudeTab(Session)!!.panel
+
+        assertEquals(AgentPanel(panel.id, panel.name), tabs.callerPanel(Session))
+    }
+
+    @Test
+    fun claudePanelsSkipPanelsWithoutAClaudeTab() = runTest {
+        val panel = initial.findClaudeTab(Session)!!.panel
+        assertEquals(listOf(AgentPanel(panel.id, panel.name)), tabs.claudePanels())
+
+        repository.updateWorkspace { it.closeTab(initial.findClaudeTab(Session)!!.tab.id) }
+
+        assertEquals(emptyList(), tabs.claudePanels())
     }
 
     @Test

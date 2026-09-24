@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.domain.mcp
 
 import io.github.taetae98coding.jarvis.automation.AgentBrowserTab
+import io.github.taetae98coding.jarvis.automation.AgentPanel
 import io.github.taetae98coding.jarvis.automation.AgentTabs
 import io.github.taetae98coding.jarvis.automation.AutomationDevice
 import io.github.taetae98coding.jarvis.automation.AutomationException
@@ -134,14 +135,114 @@ class McpToolboxTest {
         assertTrue(slow.call(Session, "device_list", emptyMap()).isError)
     }
 
+    @Test
+    fun deviceHeldByAnotherPanelIsRefused() = runTest {
+        assertFalse(toolbox.call(Session, "device_tap", tap()).isError)
+
+        val refused = toolbox.call(OtherSession, "device_tap", tap())
+
+        assertTrue(refused.isError)
+        assertTrue("feature-a" in (refused.content.single() as ToolContent.Text).text)
+        assertEquals(1, devices.taps.size)
+        assertEquals(listOf(Session), tabs.shownBy)
+    }
+
+    @Test
+    fun callerWithoutPanelUsesOnlyFreeDevicesAndHoldsNothing() = runTest {
+        assertFalse(toolbox.call(sessionId = null, name = "device_tap", arguments = tap()).isError)
+        assertFalse(toolbox.call(OtherSession, "device_tap", tap()).isError)
+
+        assertTrue(toolbox.call(sessionId = null, name = "device_tap", arguments = tap()).isError)
+        assertTrue(toolbox.call(sessionId = null, name = "device_acquire", arguments = mapOf("platform" to "android")).isError)
+    }
+
+    @Test
+    fun bootedAvdKeepsItsLease() = runTest {
+        devices.list = listOf(StoppedPixel)
+
+        val acquired = toolbox.call(Session, "device_acquire", mapOf("deviceId" to "avd:Pixel_9"))
+        val serial = devices.list.single().id
+
+        assertEquals(listOf("avd:Pixel_9"), devices.booted)
+        assertTrue("deviceId=$serial" in (acquired.content.single() as ToolContent.Text).text)
+        assertEquals(listOf(serial to "Pixel_9"), tabs.shown)
+        assertTrue(toolbox.call(OtherSession, "device_screenshot", mapOf("deviceId" to serial)).isError)
+    }
+
+    @Test
+    fun acquirePrefersPhysicalThenRunningThenStoppedEmulator() = runTest {
+        devices.list = listOf(StoppedPixel, RunningPixel, Galaxy)
+
+        assertEquals("deviceId=R3CY705Y62R", acquiredId(Session))
+        assertEquals("deviceId=R3CY705Y62R", acquiredId(Session))
+        assertEquals("deviceId=emulator-5554", acquiredId(OtherSession))
+        assertEquals("deviceId=emulator-5556", acquiredId(ThirdSession))
+        assertEquals(listOf("avd:Pixel_9"), devices.booted)
+        assertTrue(devices.created.isEmpty())
+    }
+
+    @Test
+    fun acquireCreatesAnEmulatorWhenNothingIsFree() = runTest {
+        toolbox.call(OtherSession, "device_tap", tap())
+
+        val acquired = acquiredId(Session)
+
+        assertEquals(listOf(AutomationPlatform.ANDROID), devices.created)
+        assertEquals(listOf("avd:Jarvis_1"), devices.booted)
+        assertEquals("deviceId=${devices.list.last().id}", acquired)
+        assertTrue(toolbox.call(OtherSession, "device_tap", tap(devices.list.last().id)).isError)
+    }
+
+    @Test
+    fun releaseLetsAnotherPanelUseTheDevice() = runTest {
+        toolbox.call(Session, "device_tap", tap())
+        assertTrue(toolbox.call(OtherSession, "device_release", mapOf("deviceId" to "emulator-5554")).isError)
+
+        toolbox.call(Session, "device_release", emptyMap())
+
+        assertFalse(toolbox.call(OtherSession, "device_tap", tap()).isError)
+    }
+
+    @Test
+    fun leaseEndsWhenThePanelHasNoClaudeTab() = runTest {
+        toolbox.call(Session, "device_tap", tap())
+
+        tabs.livePanels.remove(PanelA)
+
+        assertFalse(toolbox.call(OtherSession, "device_tap", tap()).isError)
+    }
+
+    @Test
+    fun deviceListShowsWhoHoldsEachDevice() = runTest {
+        devices.list = listOf(RunningPixel, Galaxy, StoppedPixel)
+        toolbox.call(Session, "device_tap", tap())
+        toolbox.call(OtherSession, "device_tap", tap(Galaxy.id))
+
+        val lines = (toolbox.call(Session, "device_list", emptyMap()).content.single() as ToolContent.Text).text.lines()
+
+        assertEquals(listOf("mine", "in-use:feature-b", "free"), lines.map { it.substringAfterLast('\t') })
+    }
+
+    private suspend fun acquiredId(session: String): String =
+        (toolbox.call(session, "device_acquire", mapOf("platform" to "android")).content.single() as ToolContent.Text).text
+            .lineSequence().first().substringBefore('\t')
+
+    private fun tap(deviceId: String = "emulator-5554"): Map<String, Any?> = mapOf("deviceId" to deviceId, "x" to 1L, "y" to 1L)
+
     private data class Click(val tabId: Long, val x: Int, val y: Int, val count: Int)
 
     private class FakeTabs : AgentTabs {
         val opened = mutableListOf<String>()
         val shown = mutableListOf<Pair<String, String>>()
+        val shownBy = mutableListOf<String>()
         val existing = mutableListOf<AgentBrowserTab>()
 
-        override suspend fun hasCaller(sessionId: String): Boolean = sessionId == Session
+        val sessions = mutableMapOf(Session to PanelA, OtherSession to PanelB, ThirdSession to PanelC)
+        val livePanels = mutableListOf(PanelA, PanelB, PanelC)
+
+        override suspend fun callerPanel(sessionId: String): AgentPanel? = sessions[sessionId]
+
+        override suspend fun claudePanels(): List<AgentPanel> = livePanels.toList()
 
         override suspend fun openBrowserTab(sessionId: String, url: String): Long {
             opened += url
@@ -153,6 +254,7 @@ class McpToolboxTest {
 
         override suspend fun showDevice(sessionId: String, deviceId: String, deviceName: String, platform: AutomationPlatform) {
             shown += deviceId to deviceName
+            shownBy += sessionId
         }
 
         override suspend fun closeTab(sessionId: String, tabId: Long): Boolean = existing.removeAll { it.tabId == tabId }
@@ -198,10 +300,26 @@ class McpToolboxTest {
         val keys = mutableListOf<DeviceKey>()
         var failure: Exception? = null
 
-        override suspend fun devices(): List<AutomationDevice> =
-            listOf(AutomationDevice("emulator-5554", "Pixel", AutomationPlatform.ANDROID, isPhysical = false, isRunning = true, canControl = true))
+        var list = listOf(RunningPixel)
+        val booted = mutableListOf<String>()
+        val created = mutableListOf<AutomationPlatform>()
 
-        override suspend fun boot(deviceId: String) = Unit
+        override suspend fun devices(): List<AutomationDevice> = list
+
+        // 꺼진 AVD 를 켜면 시리얼이 붙는다. 이름은 그대로라 같은 할당이다.
+        override suspend fun boot(deviceId: String): String {
+            booted += deviceId
+            val device = list.first { it.id == deviceId }
+            val serial = "emulator-${5554 + booted.size * 2}"
+            list = list - device + device.copy(id = serial, isRunning = true, canControl = true)
+            return serial
+        }
+
+        override suspend fun create(platform: AutomationPlatform): AutomationDevice {
+            created += platform
+            return AutomationDevice("avd:Jarvis_1", "Jarvis_1", platform, isPhysical = false, isRunning = false, canControl = false)
+                .also { list = list + it }
+        }
 
         override suspend fun screenshot(deviceId: String): AutomationImage = AutomationImage(ByteArray(1), "image/png", 640, 1280)
 
@@ -226,6 +344,16 @@ class McpToolboxTest {
 
     private companion object {
         const val Session = "session-1"
+        const val OtherSession = "session-2"
+        const val ThirdSession = "session-3"
         const val OpenedTab = 42L
+
+        val PanelA = AgentPanel(1, "feature-a")
+        val PanelB = AgentPanel(2, "feature-b")
+        val PanelC = AgentPanel(3, "feature-c")
+
+        val RunningPixel = AutomationDevice("emulator-5554", "Pixel", AutomationPlatform.ANDROID, isPhysical = false, isRunning = true, canControl = true)
+        val StoppedPixel = AutomationDevice("avd:Pixel_9", "Pixel_9", AutomationPlatform.ANDROID, isPhysical = false, isRunning = false, canControl = false)
+        val Galaxy = AutomationDevice("R3CY705Y62R", "SM-S928N", AutomationPlatform.ANDROID, isPhysical = true, isRunning = true, canControl = true)
     }
 }

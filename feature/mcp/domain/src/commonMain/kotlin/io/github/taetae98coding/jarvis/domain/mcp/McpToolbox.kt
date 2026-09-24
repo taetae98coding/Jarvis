@@ -1,9 +1,11 @@
 package io.github.taetae98coding.jarvis.domain.mcp
 
+import io.github.taetae98coding.jarvis.automation.AgentPanel
 import io.github.taetae98coding.jarvis.automation.AgentTabs
 import io.github.taetae98coding.jarvis.automation.AutomationDevice
 import io.github.taetae98coding.jarvis.automation.AutomationException
 import io.github.taetae98coding.jarvis.automation.AutomationImage
+import io.github.taetae98coding.jarvis.automation.AutomationPlatform
 import io.github.taetae98coding.jarvis.automation.BrowserAutomation
 import io.github.taetae98coding.jarvis.automation.DeviceAutomation
 import io.github.taetae98coding.jarvis.automation.DeviceKey
@@ -20,6 +22,7 @@ import kotlin.time.Duration.Companion.seconds
  * [DeviceAutomation])에 나눠 준다. 이음새가 없는 타깃·조립에서는 그 도구들이 목록에서 빠진다.
  *
  * [sessionId] 는 요청의 `X-Jarvis-Session` 이다. 없거나 모르는 값이면 호출한 패널이 없다(R3).
+ * 기기는 패널마다 할당해서 한 패널만 조작한다(docs/common/device-lease.html).
  */
 class McpToolbox(
     private val tabs: AgentTabs?,
@@ -27,7 +30,10 @@ class McpToolbox(
     private val devices: DeviceAutomation?,
     private val browserTimeout: Duration = BrowserToolTimeout,
     private val deviceTimeout: Duration = DeviceToolTimeout,
+    private val acquireTimeout: Duration = DeviceAcquireTimeout,
 ) {
+    private val leases = DeviceLeases()
+
     private val lastBrowserTab = mutableMapOf<String, Long>()
     private val lastBrowserTabLock = Mutex()
 
@@ -40,7 +46,11 @@ class McpToolbox(
         val args = Arguments(arguments)
 
         return try {
-            val timeout = if (tool in DeviceTools) deviceTimeout else browserTimeout
+            val timeout = when {
+                name == "device_acquire" -> acquireTimeout
+                tool in DeviceTools -> deviceTimeout
+                else -> browserTimeout
+            }
             withTimeout(timeout) { dispatch(sessionId, name, args) }
         } catch (e: TimeoutCancellationException) {
             ToolResult.error("시간 안에 끝나지 않았습니다(${name})")
@@ -90,12 +100,9 @@ class McpToolbox(
                 ToolResult.text(browser().evaluate(tabId, args.string("expression")))
             }
 
-            "device_list" -> ToolResult.text(devices().devices().joinToString("\n", transform = ::deviceLine).ifEmpty { "연결된 기기가 없습니다." })
-            "device_boot" -> {
-                val device = device(args)
-                devices().boot(device.id)
-                ToolResult.text("켜는 중입니다. 켜진 뒤의 식별자는 device_list 로 다시 확인하세요.")
-            }
+            "device_list" -> deviceList(sessionId)
+            "device_acquire" -> deviceAcquire(sessionId, args)
+            "device_release" -> deviceRelease(sessionId, args)
             "device_screenshot" -> withDevice(sessionId, args) { id -> image(devices().screenshot(id)) }
             "device_tap" -> withDevice(sessionId, args) { id ->
                 devices().tap(id, args.int("x"), args.int("y"), args.longOrNull("durationMs") ?: 0L)
@@ -175,23 +182,111 @@ class McpToolbox(
         return block(tab.tabId)
     }
 
-    /** R6. 기기를 찾고, 호출한 패널에 기기 탭을 붙인 뒤 [block] 을 부른다. */
+    /** R6. 기기를 찾아 호출한 패널에 할당하고(기기 할당 R2–R4), 기기 탭을 붙인 뒤 [block] 을 부른다. */
     private suspend fun withDevice(sessionId: String?, args: Arguments, block: suspend (String) -> ToolResult): ToolResult {
-        val device = device(args)
-        if (sessionId != null) tabs?.showDevice(sessionId, device.id, device.name, device.platform)
+        val device = device(args.string("deviceId"))
+        val caller = callerPanel(sessionId)
+        claim(caller, device)
+        if (caller != null && sessionId != null) tabs?.showDevice(sessionId, device.id, device.name, device.platform)
 
         return block(device.id)
     }
 
-    private suspend fun device(args: Arguments): AutomationDevice {
-        val id = args.string("deviceId")
+    private suspend fun deviceList(sessionId: String?): ToolResult {
+        val caller = callerPanel(sessionId)
+        val panels = claudePanels()
+        val owners = leases.transaction(panels.map(AgentPanel::id)) { it.toMap() }
 
-        return devices().devices().firstOrNull { it.id == id }
-            ?: throw AutomationException("기기가 없습니다: $id. device_list 로 식별자를 확인하세요.")
+        val lines = devices().devices().map { device ->
+            val lease = when (val owner = owners[device.leaseKey]) {
+                null -> "free"
+                caller?.id -> "mine"
+                else -> "in-use:${panels.firstOrNull { it.id == owner }?.name.orEmpty()}"
+            }
+            deviceLine(device) + "\t" + lease
+        }
+
+        return ToolResult.text(lines.joinToString("\n").ifEmpty { "연결된 기기가 없습니다." })
     }
 
+    /** 기기 할당 R6–R10. 기기를 할당하고, 꺼져 있으면 켜서 기다리고, 기기 탭을 붙인다. */
+    private suspend fun deviceAcquire(sessionId: String?, args: Arguments): ToolResult {
+        val caller = callerPanel(sessionId) ?: throw AutomationException(NoCallerDeviceMessage)
+        val requested = args.stringOrNull("deviceId")
+        val device = if (requested != null) {
+            device(requested).also { claim(caller, it) }
+        } else {
+            pick(caller, platform(args.stringOrNull("platform") ?: throw AutomationException("인자 deviceId 나 platform 이 필요합니다.")))
+        }
+
+        val id = if (device.isRunning) device.id else devices().boot(device.id)
+        tabs().showDevice(sessionId!!, id, device.name, device.platform)
+
+        return ToolResult.text("deviceId=$id\t${device.name}\n다 쓰면 device_release 로 돌려주세요.")
+    }
+
+    /** 기기 할당 R7. 후보가 없으면 만든다. 만드는 동안에는 할당을 잠그지 않는다. */
+    private suspend fun pick(caller: AgentPanel, platform: AutomationPlatform): AutomationDevice {
+        val candidates = devices().devices().filter { it.platform == platform }
+        val picked = leases.transaction(claudePanels().map(AgentPanel::id)) { owners ->
+            fun available(device: AutomationDevice): Boolean = owners[device.leaseKey].let { it == null || it == caller.id }
+
+            val choice = candidates.firstOrNull { it.isRunning && owners[it.leaseKey] == caller.id }
+                ?: candidates.firstOrNull { available(it) && it.isRunning && it.isPhysical && it.canControl }
+                ?: candidates.firstOrNull { available(it) && it.isRunning && !it.isPhysical && it.canControl }
+                ?: candidates.firstOrNull { available(it) && !it.isRunning && !it.isPhysical }
+            choice?.also { owners[it.leaseKey] = caller.id }
+        }
+        if (picked != null) return picked
+
+        return devices().create(platform).also { claim(caller, it) }
+    }
+
+    /** 기기 할당 R11. 다른 패널의 할당은 풀지 않는다. */
+    private suspend fun deviceRelease(sessionId: String?, args: Arguments): ToolResult {
+        val caller = callerPanel(sessionId) ?: throw AutomationException(NoCallerDeviceMessage)
+        val requested = args.stringOrNull("deviceId")
+        // 목록에 없는 기기(꺼졌거나 뽑힌 기기)도 할당 키로 적은 식별자면 풀 수 있게 한다.
+        val key = requested?.let { id -> devices().devices().firstOrNull { it.id == id }?.leaseKey ?: id }
+        val panels = claudePanels()
+
+        val released = leases.transaction(panels.map(AgentPanel::id)) { owners ->
+            if (key == null) {
+                owners.filterValues { it == caller.id }.keys.toList().onEach(owners::remove)
+            } else {
+                when (val owner = owners[key]) {
+                    null -> emptyList()
+                    caller.id -> listOf(key).also { owners.remove(key) }
+                    else -> throw AutomationException(heldMessage(panels.firstOrNull { it.id == owner }))
+                }
+            }
+        }
+
+        return ToolResult.text(if (released.isEmpty()) "이 패널에 할당된 기기가 없습니다." else "돌려줬습니다: ${released.joinToString()}")
+    }
+
+    /** 기기 할당 R2–R4. 호출한 패널이 없으면 비어 있는지만 보고 할당하지 않는다. */
+    private suspend fun claim(caller: AgentPanel?, device: AutomationDevice) {
+        val panels = claudePanels()
+        leases.transaction(panels.map(AgentPanel::id)) { owners ->
+            when (val owner = owners[device.leaseKey]) {
+                null -> if (caller != null) owners[device.leaseKey] = caller.id
+                caller?.id -> Unit
+                else -> throw AutomationException(heldMessage(panels.firstOrNull { it.id == owner }))
+            }
+        }
+    }
+
+    private suspend fun device(id: String): AutomationDevice =
+        devices().devices().firstOrNull { it.id == id }
+            ?: throw AutomationException("기기가 없습니다: $id. device_list 로 식별자를 확인하세요.")
+
+    private suspend fun callerPanel(sessionId: String?): AgentPanel? = sessionId?.let { tabs?.callerPanel(it) }
+
+    private suspend fun claudePanels(): List<AgentPanel> = tabs?.claudePanels().orEmpty()
+
     private suspend fun requireCaller(sessionId: String?): String {
-        if (sessionId == null || !tabs().hasCaller(sessionId)) throw AutomationException(NoCallerMessage)
+        if (sessionId == null || tabs().callerPanel(sessionId) == null) throw AutomationException(NoCallerMessage)
 
         return sessionId
     }
@@ -219,11 +314,19 @@ class McpToolbox(
         // iOS 는 처음 부를 때 WebDriverAgent 를 내려받고 빌드한다(R20).
         val DeviceToolTimeout = 180.seconds
 
+        // 새 AVD 의 첫 부팅은 콜드 부팅이라 1–2분 걸린다(기기 할당 R6).
+        val DeviceAcquireTimeout = 300.seconds
+
         const val DefaultSwipeMillis = 300L
 
         const val NoCallerMessage = "Jarvis 터미널의 Claude 탭에서만 브라우저를 쓸 수 있습니다"
 
+        const val NoCallerDeviceMessage = "Jarvis 터미널의 Claude 탭에서만 기기를 할당할 수 있습니다"
+
         val Done = ToolResult.text("완료")
+
+        fun heldMessage(owner: AgentPanel?): String =
+            "이 기기는 다른 워크트리(${owner?.name.orEmpty()})가 쓰고 있습니다. device_acquire 로 다른 기기를 받으세요."
 
         fun tabGoneMessage(tabId: Long): String = "탭이 닫혔습니다(tabId=$tabId). browser_tabs 로 열린 탭을 확인하세요."
     }
@@ -251,6 +354,13 @@ private fun image(image: AutomationImage): ToolResult =
 
 private fun ToolResult.text(): String = content.filterIsInstance<ToolContent.Text>().joinToString("\n") { it.text }
 
+private fun platform(name: String): AutomationPlatform =
+    when (name.trim().lowercase()) {
+        "android" -> AutomationPlatform.ANDROID
+        "ios" -> AutomationPlatform.IOS
+        else -> throw AutomationException("platform 은 android 나 ios 여야 합니다: $name")
+    }
+
 private fun deviceLine(device: AutomationDevice): String =
     listOf(
         device.id,
@@ -264,6 +374,8 @@ private fun deviceLine(device: AutomationDevice): String =
 /** JSON 을 푼 인자. 숫자는 Long·Double·String 어느 쪽으로 와도 받는다. */
 private class Arguments(private val values: Map<String, Any?>) {
     fun string(name: String): String = values[name] as? String ?: throw missing(name)
+
+    fun stringOrNull(name: String): String? = (values[name] as? String)?.takeIf(String::isNotBlank)
 
     fun int(name: String): Int = intOrNull(name) ?: throw missing(name)
 
