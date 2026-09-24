@@ -26,7 +26,8 @@ internal class DeviceChoicesViewModel(
                         name = device.name,
                         kind = when {
                             device.platform == EmulatorPlatform.IOS -> "iOS 시뮬레이터"
-                            device.isPhysical -> "Android 실물 기기"
+                            // 한 기기를 USB 와 무선 디버깅으로 함께 붙이면 이름이 같은 줄이 둘이라 연결 방식으로 가른다.
+                            device.isPhysical -> listOfNotNull("Android 실물 기기", device.connection?.label).joinToString(" · ")
                             else -> "Android 에뮬레이터"
                         },
                     )

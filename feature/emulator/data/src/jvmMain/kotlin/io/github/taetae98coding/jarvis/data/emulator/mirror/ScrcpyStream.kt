@@ -6,7 +6,7 @@ import java.io.DataInputStream
  * scrcpy v4.1 영상 소켓의 헤더·패킷 파서. 형식은 `device/Streamer.java`·`device/DesktopConnection.java`
  * 에서 읽었다. 전부 빅엔디언이다. `DataInputStream` 은 빅엔디언으로 읽는다.
  *
- * 소켓 순서: 더미 1바이트 → 기기 이름 64바이트 → 코덱 id 4바이트 → 세션 헤더 12바이트 → (패킷 헤더 12바이트 + 페이로드)…
+ * 소켓 순서: 더미 1바이트 → (제어 소켓 연결) → 기기 이름 64바이트 → 코덱 id 4바이트 → 세션 헤더 12바이트 → (패킷 헤더 12바이트 + 페이로드)…
  */
 internal class ScrcpyStream(
     private val input: DataInputStream,
@@ -21,9 +21,16 @@ internal class ScrcpyStream(
     var height: Int = 0
         private set
 
-    /** 더미 바이트·기기 이름·코덱 id·첫 세션 헤더까지 읽는다. 여기서 폭·높이가 채워진다. */
+    /** send_dummy_byte. 서버가 영상 소켓을 accept 했다는 표시다. */
+    fun readDummyByte() {
+        input.readByte()
+    }
+
+    /**
+     * 기기 이름·코덱 id·첫 세션 헤더까지 읽는다. 여기서 폭·높이가 채워진다. 서버는 제어 소켓까지
+     * accept 한 뒤에 기기 이름을 보내므로 제어 소켓을 연결한 다음에 부른다.
+     */
     fun readHeader() {
-        input.readByte() // send_dummy_byte
         input.skipFully(DeviceNameLength) // send_device_meta
 
         codecId = input.readInt() // send_stream_meta: 코덱 id

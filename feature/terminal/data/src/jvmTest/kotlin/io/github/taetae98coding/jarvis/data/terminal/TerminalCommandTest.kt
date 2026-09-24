@@ -29,22 +29,26 @@ class TerminalCommandTest {
     }
 
     @Test
-    fun claudeStartsInTheBackgroundUnderTheSavedSessionId() {
+    fun newClaudeSessionIsNamedAfterThePaneSessionId() {
         assertEquals(
-            "claude --bg --resume 'e0c0' --dangerously-skip-permissions",
-            claudeStartScript("e0c0"),
+            "claude --bg --name 'jarvis-e0c0' --dangerously-skip-permissions",
+            claudeStartScript("e0c0", resume = null),
+        )
+        assertEquals(
+            "claude --bg --name 'jarvis-e0c0' --resume 'f1d1' --dangerously-skip-permissions",
+            claudeStartScript("e0c0", resume = "f1d1"),
         )
     }
 
     @Test
     fun foregroundFallbackShowsWhyThenResumesOrStarts() {
-        val script = claudeForegroundScript("e0c0", "Workspace not trusted.\n")
-
         assertEquals(
-            "printf '%s\\n\\n' 'Workspace not trusted.'; " +
-                "claude --dangerously-skip-permissions --resume 'e0c0' || " +
-                "claude --dangerously-skip-permissions --session-id 'e0c0'",
-            script,
+            "printf '%s\\n\\n' 'Workspace not trusted.'; claude --dangerously-skip-permissions --session-id 'e0c0'",
+            claudeForegroundScript("e0c0", resume = null, reason = "Workspace not trusted.\n"),
+        )
+        assertEquals(
+            "claude --dangerously-skip-permissions --resume 'f1d1'",
+            claudeForegroundScript("e0c0", resume = "f1d1", reason = ""),
         )
     }
 
@@ -54,11 +58,11 @@ class TerminalCommandTest {
             zsh: some rc output
             [
               {"pid": 1, "cwd": "/a", "kind": "interactive", "sessionId": "interactive-id"},
-              {"id": "de16776a", "cwd": "/b", "kind": "background", "sessionId": "de16776a-71a5", "state": "stopped"}
+              {"id": "de16776a", "cwd": "/b", "kind": "background", "sessionId": "de16776a-71a5", "name": "jarvis-s", "state": "stopped", "startedAt": 17}
             ]
         """.trimIndent()
 
-        assertEquals(listOf(ClaudeJob("de16776a", "de16776a-71a5")), parseClaudeJobs(output))
+        assertEquals(listOf(ClaudeJob("de16776a", "de16776a-71a5", "jarvis-s", "stopped", 17)), parseClaudeJobs(output))
     }
 
     @Test
@@ -76,10 +80,10 @@ class TerminalCommandTest {
     @Test
     fun existingBackgroundSessionIsAttachedWithoutStartingAnother() = runBlocking {
         val scripts = mutableListOf<String>()
-        val claude = ClaudeBackground("/bin/zsh") { script, _ ->
+        val claude = ClaudeBackground("/bin/zsh", run = { script, _ ->
             scripts += script
             ShellResult(0, """[{"id": "de16776a", "kind": "background", "sessionId": "s"}]""")
-        }
+        })
 
         val command = claude.command("s", "/work")
 
@@ -88,42 +92,72 @@ class TerminalCommandTest {
     }
 
     @Test
+    fun namedSessionIsAttachedEvenThoughClaudeChoseItsSessionId() = runBlocking {
+        val claude = ClaudeBackground("/bin/zsh", run = { _, _ ->
+            ShellResult(0, """[{"id": "7a7a7a7a", "kind": "background", "sessionId": "7a7a7a7a-0000", "name": "jarvis-s"}]""")
+        })
+
+        assertEquals("claude attach '7a7a7a7a'; exec '/bin/zsh' -l", claude.command("s", "/work").last())
+    }
+
+    @Test
     fun missingSessionIsStartedInThePaneDirectoryThenAttached() = runBlocking {
         val calls = mutableListOf<Pair<String, String>>()
         var started = false
-        val claude = ClaudeBackground("/bin/zsh") { script, directory ->
+        val claude = ClaudeBackground("/bin/zsh", run = { script, directory ->
             calls += script to directory
             when {
                 script.startsWith("claude --bg") -> ShellResult(0, "backgrounded · 1234abcd").also { started = true }
-                started -> ShellResult(0, """[{"id": "1234abcd", "kind": "background", "sessionId": "s"}]""")
+                started -> ShellResult(0, """[{"id": "1234abcd", "kind": "background", "sessionId": "1234abcd-99", "name": "jarvis-s"}]""")
                 else -> ShellResult(0, "[]")
             }
-        }
+        }, hasConversation = { false })
 
         val command = claude.command("s", "/work")
 
-        assertEquals(claudeStartScript("s") to "/work", calls[1])
+        assertEquals(claudeStartScript("s", resume = null) to "/work", calls[1])
+        assertEquals("claude attach '1234abcd'; exec '/bin/zsh' -l", command.last())
+    }
+
+    // 2.1.281 에서 처음 보는 uuid 로 --bg --resume 하면 세션이 failed 로 남는다. 그런 세션에 붙지 않는다.
+    @Test
+    fun failedSessionIsReplacedAndItsConversationResumed() = runBlocking {
+        val scripts = mutableListOf<String>()
+        val claude = ClaudeBackground("/bin/zsh", run = { script, _ ->
+            scripts += script
+            when {
+                script.startsWith("claude --bg") -> ShellResult(0, "backgrounded · 1234abcd")
+                else -> ShellResult(0, """[{"id": "dead", "kind": "background", "sessionId": "s", "state": "failed"}]""")
+            }
+        }, hasConversation = { it == "s" })
+
+        val command = claude.command("s", "/work")
+
+        assertEquals(claudeStartScript("s", resume = "s"), scripts[1])
         assertEquals("claude attach '1234abcd'; exec '/bin/zsh' -l", command.last())
     }
 
     @Test
     fun failedStartFallsBackToTheForeground() = runBlocking {
-        val claude = ClaudeBackground("/bin/zsh") { script, _ ->
+        val claude = ClaudeBackground("/bin/zsh", run = { script, _ ->
             if (script.startsWith("claude --bg")) ShellResult(1, "Workspace not trusted.") else ShellResult(0, "[]")
-        }
+        }, hasConversation = { false })
 
         val command = claude.command("s", "/work")
 
-        assertEquals(interactiveCommand("/bin/zsh", claudeForegroundScript("s", "Workspace not trusted."), thenShell = true), command)
+        assertEquals(
+            interactiveCommand("/bin/zsh", claudeForegroundScript("s", resume = null, reason = "Workspace not trusted."), thenShell = true),
+            command,
+        )
     }
 
     @Test
     fun stopFindsTheJobFirst() = runBlocking {
         val scripts = mutableListOf<String>()
-        val claude = ClaudeBackground("/bin/zsh") { script, _ ->
+        val claude = ClaudeBackground("/bin/zsh", run = { script, _ ->
             scripts += script
             ShellResult(0, """[{"id": "de16776a", "kind": "background", "sessionId": "s"}]""")
-        }
+        })
 
         claude.stop("s")
         claude.stop("unknown")
