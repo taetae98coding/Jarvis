@@ -63,7 +63,6 @@ import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisShapes
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
-import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 
 const val TerminalNewPanelTestTag = "terminal:new-panel"
 const val TerminalPanelNameFieldTestTag = "terminal:panel-name-field"
@@ -88,13 +87,12 @@ internal fun TerminalPanelList(
     panels: List<TerminalPanel>,
     selectedPanelId: Long?,
     nextPanelName: String,
-    canOpenClaude: Boolean,
     worktrees: Map<Long, GitWorktree>,
     onSelect: (Long) -> Unit,
     onRename: (Long, String) -> Unit,
     onClose: (Long) -> Unit,
-    onAdd: (name: String, directory: String, program: TerminalProgram) -> Unit,
-    onAddWorktree: suspend (parentId: Long, branch: String, directory: String, program: TerminalProgram) -> Result<Unit>,
+    onAdd: (name: String, directory: String) -> Unit,
+    onAddWorktree: suspend (parentId: Long, branch: String, directory: String) -> Result<Unit>,
     modifier: Modifier = Modifier,
 ) {
     var creating by remember { mutableStateOf(false) }
@@ -152,10 +150,9 @@ internal fun TerminalPanelList(
     if (creating) {
         NewPanelDialog(
             defaultName = nextPanelName,
-            canOpenClaude = canOpenClaude,
-            onCreate = { name, directory, program ->
+            onCreate = { name, directory ->
                 creating = false
-                onAdd(name, directory, program)
+                onAdd(name, directory)
             },
             onDismiss = { creating = false },
         )
@@ -164,8 +161,7 @@ internal fun TerminalPanelList(
     creatingWorktree?.let { (parent, worktree) ->
         NewWorktreeDialog(
             worktree = worktree,
-            canOpenClaude = canOpenClaude,
-            onCreate = { branch, directory, program -> onAddWorktree(parent.id, branch, directory, program) },
+            onCreate = { branch, directory -> onAddWorktree(parent.id, branch, directory) },
             onDismiss = { creatingWorktree = null },
         )
     }

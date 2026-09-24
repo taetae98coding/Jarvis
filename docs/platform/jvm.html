@@ -1027,7 +1027,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 </ul>
 
 <h3>검증</h3>
-<p>모델·유스케이스는 <code>TerminalWorkspaceTest</code>·<code>GitWorktreeTest</code>·<code>AddWorktreePanelUseCaseTest</code>(<code>jvmTest</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 실제 <code>git</code> 은 임시 저장소를 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 실제 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → 저장소 폴더의 패널 → + 로 손으로 확인한다.</p>
+<p>모델·유스케이스는 <code>TerminalWorkspaceTest</code>·<code>GitWorktreeTest</code>·<code>AddWorktreePanelUseCaseTest</code>(<code>jvmTest</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 실제 <code>git</code> 은 임시 저장소를 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 실제 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → 저장소 폴더의 패널 → + → 브랜치 → "확인" → 빈 워크트리 패널의 + 로 터미널을 열어 손으로 확인한다.</p>
 </section>
 
 
