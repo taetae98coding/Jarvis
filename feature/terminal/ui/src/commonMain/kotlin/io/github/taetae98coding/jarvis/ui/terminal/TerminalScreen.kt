@@ -125,6 +125,7 @@ internal fun TerminalScreen(
                     onClose = viewModel::closePanel,
                     onAdd = viewModel::addPanel,
                     onAddWorktree = viewModel::addWorktreePanel,
+                    onCloseWorktree = viewModel::closeWorktreePanel,
                 )
 
                 val panel = current.selectedPanel

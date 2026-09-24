@@ -13,6 +13,10 @@ data class GitWorktree(
     /** [branch] 브랜치의 워크트리를 둘 기본 폴더. main 워크트리 옆의 `<main 폴더 이름>-worktrees/<branch>`. */
     fun defaultWorktreePath(branch: String): String = "${mainPath.trimEnd('/')}$WorktreesSuffix/${branch.trim()}"
 
+    /** main 워크트리는 저장소 자체라 지울 수 없다. */
+    val isMain: Boolean
+        get() = path == mainPath
+
     companion object {
         const val WorktreesSuffix = "-worktrees"
     }

@@ -1012,8 +1012,8 @@ class JarvisApplication : Application() {
 </section>
 
 <section class="feature" id="terminal-worktree">
-<h2>패널에서 git 워크트리 추가 <span class="badge no">불가</span></h2>
-<p>공통 스펙: <a href="../common/terminal-worktree.html">패널에서 git 워크트리 추가</a></p>
+<h2>패널에서 git 워크트리 추가·지우기 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-worktree.html">패널에서 git 워크트리 추가·지우기</a></p>
 
 <h3>기술 조사</h3>
 <table>
@@ -1029,7 +1029,7 @@ class JarvisApplication : Application() {
 <dl class="meta">
   <dt>파일</dt><dd><code>feature/terminal/data/src/androidMain/.../data/terminal/Git.android.kt</code>(<code>UnsupportedGitDataSource</code>)</dd>
   <dt>동작</dt><dd><code>observeWorktree</code> 가 늘 null 이라 어떤 패널에도 + 가 없다. 셸 패널은 그대로 쓴다</dd>
-  <dt>실패</dt><dd><code>addWorktree</code> 는 부를 곳이 없다. 불리면 "이 플랫폼에서는 git 을 쓸 수 없습니다" 로 실패한다</dd>
+  <dt>실패</dt><dd><code>addWorktree</code>·<code>removeWorktree</code> 는 부를 곳이 없다. 불리면 "이 플랫폼에서는 git 을 쓸 수 없습니다" 로 실패한다. 다른 기기에서 가져온 워크트리 패널의 ✕ 는 관측한 워크트리가 없어 창 없이 패널만 닫는다(공통 R12)</dd>
 </dl>
 
 <h3>한계</h3>
