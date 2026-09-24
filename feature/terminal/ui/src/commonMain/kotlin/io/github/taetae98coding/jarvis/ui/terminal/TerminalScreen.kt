@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.StateFlow
 const val TerminalScreenTestTag = "terminal:screen"
 const val TerminalSplitSideTestTag = "terminal:split-side"
 const val TerminalSplitStackedTestTag = "terminal:split-stacked"
+const val TerminalClaudeTestTag = "terminal:claude"
 const val TerminalNewTabTestTag = "terminal:new-tab"
 const val TerminalCloseTestTag = "terminal:close"
 
@@ -83,6 +84,7 @@ internal fun TerminalScreen(
             onBack = onBack,
             onSplitSideBySide = viewModel::splitSideBySide,
             onSplitStacked = viewModel::splitStacked,
+            onClaude = viewModel::addClaudeTab.takeIf { viewModel.isClaudeSupported },
             onNewTab = viewModel::addTab,
             onClose = viewModel::closeFocusedPane,
         )
@@ -134,6 +136,7 @@ private fun TerminalTopBar(
     onBack: () -> Unit,
     onSplitSideBySide: () -> Unit,
     onSplitStacked: () -> Unit,
+    onClaude: (() -> Unit)?,
     onNewTab: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -150,6 +153,14 @@ private fun TerminalTopBar(
             onClick = onSplitStacked,
             modifier = Modifier.testTag(TerminalSplitStackedTestTag),
         )
+        if (onClaude != null) {
+            JarvisIconButton(
+                icon = JarvisIcons.Claude,
+                contentDescription = "Claude (YOLO)",
+                onClick = onClaude,
+                modifier = Modifier.testTag(TerminalClaudeTestTag),
+            )
+        }
         JarvisIconButton(
             icon = JarvisIcons.Add,
             contentDescription = "새 탭",

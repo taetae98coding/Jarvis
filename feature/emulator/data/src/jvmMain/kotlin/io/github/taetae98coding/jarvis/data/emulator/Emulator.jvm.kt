@@ -171,7 +171,12 @@ private fun isScreenOff(sdk: File, serial: String): Boolean =
     runCommand(listOf(adbBinary(sdk), "-s", serial, "shell", "dumpsys", "deviceidle", "get", "screen"))
         ?.let(::parseScreenOn) == false
 
-private fun captureScreen(deviceId: String): ByteArray? =
+// 폴링은 read 를 수집하는 쪽 디스패처에서 부르고, 스트리밍 화면은 EDT 에서 수집한다. 여기서 옮기지 않으면
+// 한 장(0.3~0.6초)마다 UI 가 멈춘다.
+private suspend fun captureScreen(deviceId: String): ByteArray? =
+    withContext(Dispatchers.IO) { captureScreenBlocking(deviceId) }
+
+private fun captureScreenBlocking(deviceId: String): ByteArray? =
     when {
         isAdbSerial(deviceId) -> androidSdkDirectory()?.let { sdk ->
             // `exec-out` 이라야 바이트가 그대로 나온다. `shell` 은 개행을 변환해 PNG 를 깨뜨린다.

@@ -5,5 +5,6 @@ import org.koin.dsl.module
 
 val terminalDomainModule = module {
     factoryOf(::IsTerminalSupportedUseCase)
+    factoryOf(::IsClaudeSupportedUseCase)
     factoryOf(::OpenTerminalSessionUseCase)
 }

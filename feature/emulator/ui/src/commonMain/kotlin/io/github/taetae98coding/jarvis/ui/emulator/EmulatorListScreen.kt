@@ -34,6 +34,8 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 
 const val EmulatorListTestTag = "emulator:list"
 
+fun emulatorPlatformListTestTag(platform: EmulatorPlatform): String = "emulator:list:${platform.name.lowercase()}"
+
 fun emulatorDeviceTestTag(id: String): String = "emulator:device:$id"
 
 fun emulatorLaunchTestTag(id: String): String = "emulator:launch:$id"
@@ -72,14 +74,64 @@ internal fun EmulatorListScreen(
                 color = JarvisTheme.colorScheme.onSurfaceVariant,
             )
         } else {
+            val (androidDevices, iosDevices) = devices.partition { it.platform == EmulatorPlatform.ANDROID }
+
+            // 열마다 LazyColumn 을 따로 둬야 한쪽이 길어도 다른 쪽이 화면 밖으로 밀리지 않는다.
+            Row(horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m)) {
+                listOf(
+                    EmulatorPlatform.ANDROID to androidDevices,
+                    EmulatorPlatform.IOS to iosDevices,
+                ).forEach { (platform, platformDevices) ->
+                    DeviceColumn(
+                        platform = platform,
+                        devices = platformDevices,
+                        launchingIds = launchingIds,
+                        onSelect = onSelect,
+                        onLaunch = viewModel::onLaunch,
+                        onWake = viewModel::onWake,
+                        modifier = Modifier.weight(1f).testTag(emulatorPlatformListTestTag(platform)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceColumn(
+    platform: EmulatorPlatform,
+    devices: List<EmulatorDevice>,
+    launchingIds: Set<String>,
+    onSelect: (EmulatorDevice) -> Unit,
+    onLaunch: (EmulatorDevice) -> Unit,
+    onWake: (EmulatorDevice) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
+    ) {
+        Text(
+            text = platform.label,
+            style = JarvisTheme.typography.titleSmall,
+            color = JarvisTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (devices.isEmpty()) {
+            Text(
+                text = "${platform.label} 기기가 없습니다.",
+                style = JarvisTheme.typography.bodyMedium,
+                color = JarvisTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s)) {
                 items(devices, key = EmulatorDevice::id) { device ->
                     DeviceRow(
                         device = device,
                         isLaunching = device.id in launchingIds,
                         onClick = { onSelect(device) },
-                        onLaunch = { viewModel.onLaunch(device) },
-                        onWake = { viewModel.onWake(device) },
+                        onLaunch = { onLaunch(device) },
+                        onWake = { onWake(device) },
                     )
                 }
             }
@@ -200,10 +252,10 @@ internal object EmulatorDeviceDefaults {
         }
 }
 
-// 가상 기기인지 실물인지, 지금 무슨 상태인지, 눌리지 않는다면 왜 그런지 순서로 잇는다.
+// 플랫폼은 기기가 놓인 열이 말한다. 가상 기기인지 실물인지, 지금 무슨 상태인지, 눌리지 않는다면
+// 왜 그런지 순서로 잇는다.
 private fun EmulatorDevice.describe(): String =
     listOfNotNull(
-        platform.label,
         "실물 기기".takeIf { isPhysical },
         when {
             !isRunning -> "꺼짐"

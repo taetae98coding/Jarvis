@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.data.PlatformContext
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +22,16 @@ private class PipeTerminalDataSource(
 ) : TerminalDataSource {
     override val isSupported: Boolean = true
 
-    override suspend fun open(size: TerminalSize): TerminalSession? =
+    // Android 용 Claude Code CLI 가 없고, 있더라도 pty 없는 파이프에서는 TUI 가 그려지지 않는다.
+    override val isClaudeSupported: Boolean = false
+
+    override suspend fun open(size: TerminalSize, program: TerminalProgram): TerminalSession? {
+        if (program != TerminalProgram.Shell) return null
+
+        return openShell()
+    }
+
+    private suspend fun openShell(): TerminalSession? =
         withContext(Dispatchers.IO) {
             runCatching {
                 // -i 가 없으면 표준 입력이 tty 가 아니라서 mksh 가 프롬프트를 내지 않는다. 프롬프트는

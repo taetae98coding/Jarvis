@@ -76,7 +76,7 @@
     <tr><td>홈 카드 제목</td><td>터미널</td></tr>
     <tr><td>홈 카드 설명</td><td>iTerm 처럼 셸을 띄운다. 패널을 좌우·상하로 나누고 탭을 더할 수 있다.</td></tr>
     <tr><td>잠긴 카드 설명</td><td>이 플랫폼에서는 셸을 실행할 수 없습니다.</td></tr>
-    <tr><td>화면 상단</td><td><code>JarvisTopBar</code>: 뒤로 아이콘 버튼, 제목 "터미널", 아이콘 버튼 넷(좌우 분할 · 상하 분할 · 새 탭 · 닫기). 모양은 <a href="design-system.html#icons">디자인 시스템</a></td></tr>
+    <tr><td>화면 상단</td><td><code>JarvisTopBar</code>: 뒤로 아이콘 버튼, 제목 "터미널", 아이콘 버튼 넷(좌우 분할 · 상하 분할 · 새 탭 · 닫기). Claude 를 실행할 수 있는 타깃에서는 새 탭 앞에 <a href="terminal-claude.html">Claude</a> 버튼이 더 붙는다. 모양은 <a href="design-system.html#icons">디자인 시스템</a></td></tr>
     <tr><td>탭 줄</td><td>탭마다 이름과 닫기 아이콘. 선택된 탭은 primaryContainer 배경, 마우스를 올리거나 누르면 한 단계 진해진다(<code>TerminalTabDefaults.style</code>)</td></tr>
     <tr><td>패널</td><td>어두운 배경(<code>JarvisTheme.colors.terminalBackground</code> #1E1E1E), 기본 글자색(<code>terminalForeground</code> #D4D4D4), 고정폭 13sp(<code>JarvisTheme.codeTextStyle</code>). 분할 중 포커스된 패널은 primary 1dp 테두리. 커서는 블록, 포커스가 없으면 테두리만. 전각 글자는 대체 글꼴 폭이 두 칸보다 좁아 두 칸 가운데에 그린다</td></tr>
     <tr><td>경계선</td><td>4dp(<code>dimens.stroke.thick</code>), outlineVariant. 마우스를 올리면 primary. 끌면 비율이 바뀐다</td></tr>
@@ -96,7 +96,7 @@
 <p>기능 모듈 셋을 새로 만든다. <code>:feature:terminal:domain</code> · <code>:feature:terminal:data</code> · <code>:feature:terminal:ui</code>. 다른 기능과 마찬가지로 서로 다른 기능을 보지 않는다(<a href="module-architecture.html">모듈 구조</a>).</p>
 
 <dl class="meta">
-  <dt>리포지토리</dt><dd><code>TerminalRepository.isSupported: Boolean</code>, <code>suspend fun open(size: TerminalSize): TerminalSession?</code> — null 은 셸을 띄우지 못한 것</dd>
+  <dt>리포지토리</dt><dd><code>TerminalRepository.isSupported: Boolean</code>, <code>suspend fun open(size: TerminalSize, program: TerminalProgram = Shell): TerminalSession?</code> — null 은 셸을 띄우지 못한 것. <code>program</code> 과 <code>isClaudeSupported</code> 는 <a href="terminal-claude.html#implementation">Claude 실행</a></dd>
   <dt>세션</dt><dd><code>TerminalSession</code> — <code>isPty</code>, <code>output: Flow&lt;ByteArray&gt;</code>(셸이 끝나면 완료), <code>write(bytes)</code>, <code>resize(size)</code>, <code>close()</code></dd>
   <dt>유스케이스</dt><dd><code>IsTerminalSupportedUseCase</code>, <code>OpenTerminalSessionUseCase</code></dd>
   <dt>도메인 규칙</dt><dd>

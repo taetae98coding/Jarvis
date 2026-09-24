@@ -9,9 +9,18 @@ import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,9 +38,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
+import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.decodeToImageBitmap
 import kotlin.time.TimeSource
 
@@ -40,6 +52,8 @@ const val EmulatorScreenTestTag = "emulator:screen"
 // 제스처 테스트가 좌표를 맞추려면 프레임이 그려진 영역을 정확히 집어야 한다. 화면 전체를 누르면
 // 레터박스까지 포함되어 기대값이 화면 크기에 따라 달라진다.
 const val EmulatorFrameTestTag = "emulator:frame"
+
+const val EmulatorScreenWakeTestTag = "emulator:screen:wake"
 
 /**
  * 기기 화면 하나. 프레임은 수집하는 동안에만 흐르고, 이 화면을 벗어나면 촬영도 멈춘다.
@@ -54,6 +68,7 @@ internal fun EmulatorStreamScreen(
     modifier: Modifier = Modifier,
 ) {
     val device by viewModel.device.collectAsStateWithLifecycle()
+    val isWaking by viewModel.isWaking.collectAsStateWithLifecycle()
     val frame = retain(viewModel.deviceId) { EmulatorFrameState() }
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -61,10 +76,7 @@ internal fun EmulatorStreamScreen(
     LaunchedEffect(viewModel, lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             viewModel.frames.collect { bytes ->
-                // 프레임을 다른 디스패처에서 풀면 브라우저에서 디코딩이 끝나지 않는다. Wasm 은 스레드가
-                // 하나뿐이라 Dispatchers.Default 도 같은 이벤트 루프인데, Compose UI 테스트가 그 루프를
-                // 점유한 동안 이어지는 코드가 실행되지 못한다. 초당 두 장이라 여기서 바로 푼다.
-                val decoded = bytes?.decodeToImageBitmapOrNull()
+                val decoded = bytes?.let { withContext(FrameDecodeContext) { it.decodeToImageBitmapOrNull() } }
 
                 if (decoded == null) {
                     // 한 장이라도 받아 뒀으면 그걸 계속 보여준다. 빈 화면으로 되돌리지 않는다.
@@ -108,6 +120,56 @@ internal fun EmulatorStreamScreen(
                 frame.failed -> Text(text = "화면을 가져올 수 없습니다.")
 
                 else -> Text(text = "화면을 가져오는 중…")
+            }
+
+            // 프레임 위에 겹친다. 꺼진 화면은 검은 그림이라 가릴 것이 없고, 사용자의 눈이 이미 거기에 있다.
+            if (device?.isAsleep == true && device?.canControl == true) {
+                WakePrompt(isWaking = isWaking, onWake = viewModel::onWake)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WakePrompt(
+    isWaking: Boolean,
+    onWake: () -> Unit,
+) {
+    JarvisCard(modifier = Modifier.padding(JarvisTheme.dimens.layout.screenPadding)) {
+        Text(
+            text = "기기 화면이 꺼져 있습니다.",
+            style = JarvisTheme.typography.titleMedium,
+        )
+
+        if (isWaking) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(EmulatorDeviceDefaults.progressSize),
+                    strokeWidth = EmulatorDeviceDefaults.progressStrokeWidth,
+                )
+                Text(
+                    text = "화면을 켜는 중…",
+                    style = JarvisTheme.typography.bodyMedium,
+                    color = JarvisTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            FilledTonalButton(
+                onClick = onWake,
+                modifier = Modifier.testTag(EmulatorScreenWakeTestTag),
+                contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+            ) {
+                // 글자가 같은 것을 말하므로 아이콘은 읽지 않는다.
+                Icon(
+                    imageVector = JarvisIcons.Sun,
+                    contentDescription = null,
+                    modifier = Modifier.size(JarvisTheme.dimens.iconSize.small),
+                )
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                Text(text = "화면 켜기")
             }
         }
     }

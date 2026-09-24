@@ -5,6 +5,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
@@ -17,6 +18,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalClaudeTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalScreenTestTag
@@ -102,6 +105,40 @@ class JarvisAppTerminalTest {
         assertEquals(2, onAllNodes(tab).fetchSemanticsNodes().size)
         onNodeWithText("셸 2").assertIsDisplayed()
         assertEquals(1, paneCount())
+    }
+
+    @Test
+    fun claudeButtonOpensClaudeInANewTab() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        openTerminal(terminal)
+
+        onNodeWithTag(TerminalClaudeTestTag).assertContentDescriptionEquals("Claude (YOLO)").performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
+        assertEquals(listOf(TerminalProgram.Shell, TerminalProgram.Claude), terminal.sessions.map { it.program })
+        assertEquals(2, onAllNodes(tab).fetchSemanticsNodes().size)
+        assertEquals(1, paneCount())
+    }
+
+    @Test
+    fun splittingAClaudePaneOpensAShell() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        openTerminal(terminal)
+        onNodeWithTag(TerminalClaudeTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
+
+        onNodeWithTag(TerminalSplitSideTestTag).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 3 }
+        assertEquals(TerminalProgram.Shell, terminal.sessions[2].program)
+    }
+
+    @Test
+    fun claudeButtonIsHiddenWhereClaudeIsNotSupported() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isClaudeSupported = false)
+        openTerminal(terminal)
+
+        assertEquals(0, onAllNodesWithTag(TerminalClaudeTestTag).fetchSemanticsNodes().size)
     }
 
     @Test

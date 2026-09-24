@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>터미널에서 Claude 실행 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>터미널에서 Claude 실행</span></nav>
+
+<header>
+  <h1>터미널에서 Claude 실행</h1>
+  <p class="lead">터미널 상단 막대의 Claude 아이콘을 누르면 새 탭에서 Claude Code 를 YOLO 모드(권한 확인 없이)로 띄운다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>terminal에서 claude icon 추가해서 클릭 시 claude yolo모드로 실행하도록 구현할 수 있어?</p>
+  <footer>2026-09-24 대화. "yolo 모드" 는 Claude Code CLI 의 <code>--dangerously-skip-permissions</code>(모든 권한 확인을 건너뜀)로 읽었다. "terminal에서" 는 <a href="terminal.html">터미널</a> 화면의 상단 막대로 읽었다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 터미널 화면 상단 막대에 <code>Claude</code> 아이콘 버튼(contentDescription "Claude (YOLO)")이 있다. 새 탭 버튼 바로 앞에 놓인다.</li>
+  <li><strong>R2.</strong> 누르면 새 탭(<a href="terminal.html#requirements">터미널 R7</a> 과 같은 자리·선택 규칙)이 열리고, 그 패널에서 <code>claude --dangerously-skip-permissions</code> 가 실행된다.</li>
+  <li><strong>R3.</strong> <code>claude</code> 는 사용자가 셸에서 치는 것과 같은 환경에서 찾는다 — 로그인 셸의 <code>PATH</code> 와 대화형 셸 설정(<code>~/.zshrc</code> 등)이 적용된 뒤에 실행한다.</li>
+  <li><strong>R4.</strong> Claude 가 끝나면(또는 <code>claude</code> 를 찾지 못하면) 그 패널은 닫히지 않고 같은 작업 디렉터리의 로그인 셸로 이어진다. 출력은 화면에 남는다.</li>
+  <li><strong>R5.</strong> Claude 탭의 패널을 분할하면 새 패널은 일반 셸이다. Claude 는 버튼을 누른 패널에서만 뜬다.</li>
+  <li><strong>R6.</strong> Claude 를 실행할 수 없는 타깃에서는 버튼이 보이지 않는다. 나머지 터미널 기능은 그대로다.</li>
+  <li><strong>R7.</strong> Jarvis 자신이 Claude Code 세션 안에서 띄워졌어도(개발 중 <code>./gradlew :desktopApp:run</code> 을 Claude 가 실행한 경우) 터미널의 셸은 그 세션의 자식으로 취급되지 않는다. 부모 세션이 남긴 환경 변수를 셸에 물려주지 않는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>단축키. 지시에 없고, ⌘ 조합은 셸·Claude 쪽 입력과 겹치기 쉽다.</li>
+    <li>Claude 옵션 고르기(모델, 이어하기 <code>--continue</code>, 작업 디렉터리). 작업 디렉터리는 셸과 같은 홈이다.</li>
+    <li>YOLO 모드를 끄고 켜는 설정. 지시가 YOLO 모드 실행 하나다.</li>
+    <li>Claude 설치 여부를 미리 검사해 버튼을 잠그기. 로그인 셸을 한 번 띄워야 알 수 있어 화면 진입이 느려진다. 없으면 셸이 "command not found" 를 보여주고 R4 대로 셸이 남는다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>버튼 위치</td><td>터미널 <code>JarvisTopBar</code> 오른쪽: 좌우 분할 · 상하 분할 · <strong>Claude</strong> · 새 탭 · 닫기</td></tr>
+    <tr><td>아이콘</td><td><code>JarvisIcons.Claude</code> — 가운데서 뻗는 여덟 갈래 광채(가로·세로가 길고 대각선이 짧다). 다른 아이콘처럼 선만 긋는다(<a href="design-system.html#icons">디자인 시스템</a>)</td></tr>
+    <tr><td>contentDescription</td><td>Claude (YOLO)</td></tr>
+    <tr><td>누른 뒤</td><td>탭 줄 끝에 탭이 붙고 선택된다. 탭 이름은 셸·Claude 가 OSC 로 정한 제목, 없으면 "셸 N"(<a href="terminal.html#requirements">터미널 R13</a>)</td></tr>
+    <tr><td>테스트 태그</td><td><code>terminal:claude</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인</dt><dd>
+    <code>enum class TerminalProgram { Shell, Claude }</code> — 패널이 처음 띄울 프로그램.<br>
+    <code>TerminalRepository.isClaudeSupported: Boolean</code>, <code>open(size, program = Shell)</code>.<br>
+    <code>IsClaudeSupportedUseCase</code>. <code>OpenTerminalSessionUseCase(size, program)</code> 는 지원하지 않는 프로그램이면 저장소를 부르지 않고 null.
+  </dd>
+  <dt>공급</dt><dd><code>TerminalDataSource.isClaudeSupported</code>, <code>open(size, program)</code>. <code>createTerminalDataSource</code> 의 <code>expect</code> 시그니처는 그대로다</dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.isClaudeSupported: Boolean</code>, <code>addClaudeTab()</code>. 작업 공간 변경으로 새로 생긴 패널 id 에 붙일 프로그램을 <code>update</code> 가 받는다 — 탭 추가·분할은 <code>Shell</code>, Claude 버튼만 <code>Claude</code>(R5)</dd>
+  <dt>UI</dt><dd><code>TerminalScreen</code> 의 상단 막대. <code>isClaudeSupported</code> 가 false 면 버튼을 그리지 않는다(R6)</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 프로그램은 작업 공간이 아니라 ViewModel 이 패널을 만들 때 넘긴다</strong>
+  <code>PaneNode.Leaf</code> 에 프로그램을 넣으면 탭·분할 규칙이 모르는 값이 트리에 섞이고, 패널 id 로 형제를 찾는 비교(<code>first == Leaf(paneId)</code>)가 깨진다. 프로그램은 셸을 띄우는 순간에만 쓰이고 그 뒤로 패널의 동작을 바꾸지 않으므로, 새 패널을 만드는 쪽(<code>TerminalViewModel.reconcile</code>)이 한 번 넘기고 잊는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: Claude 를 셸 안에서 실행하고 끝나면 셸로 이어 간다</strong>
+  후보는 셋이었다. (1) 일반 셸을 띄우고 <code>claude …\n</code> 을 입력으로 흘려 넣기 — 셸이 준비되기 전에 pty 가 입력을 한 번 에코하고, zsh 가 프롬프트 뒤에 다시 그려 같은 명령이 두 번 보인다. 버렸다. (2) <code>claude</code> 를 직접 실행 — 로그인·대화형 셸 설정이 적용되지 않아 <code>~/.zshrc</code> 에서 <code>PATH</code> 를 잡는 설치(<code>~/.local/bin</code>, nvm)에서 찾지 못하고, 끝나면 패널이 닫혀 출력도 사라진다. 버렸다. (3) 채택: 셸을 로그인·대화형으로 띄워 <code>-c</code> 로 <code>claude --dangerously-skip-permissions; exec &lt;셸&gt; -l</code> 을 실행한다. 설정이 적용된 뒤 Claude 가 뜨고(R3), 끝나면 같은 pty 위에서 로그인 셸로 바뀐다(R4). 명령 문자열의 셸 문법(<code>;</code>, <code>exec</code>)은 zsh·bash·fish 가 모두 받는다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>Claude Code CLI 가 Android 용으로 없고 파이프 셸에는 pty 도 없다. 버튼이 보이지 않는다</td><td><a href="../platform/android.html#terminal-claude">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-claude">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>pty4j 로 <code>$SHELL -l -i -c 'claude --dangerously-skip-permissions; exec $SHELL -l'</code></td><td><a href="../platform/jvm.html#terminal-claude">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-claude">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTerminalTest.claudeButtonOpensClaudeInANewTab</code></td><td>R1, R2. 버튼을 누르면 탭이 둘이 되고 새 세션이 <code>TerminalProgram.Claude</code> 로 열린다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalTest.splittingAClaudePaneOpensAShell</code></td><td>R5. Claude 탭에서 분할한 패널은 <code>Shell</code> 로 열린다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalTest.claudeButtonIsHiddenWhereClaudeIsNotSupported</code></td><td>R6</td><td>같음</td></tr>
+    <tr><td><code>OpenTerminalSessionUseCaseTest</code></td><td>지원하지 않는 프로그램이면 저장소를 부르지 않고 null</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalCommandTest</code></td><td>R3, R4, R7. 셸 명령 줄의 모양, 셸 경로 따옴표, 부모 Claude 세션 환경 변수 제거</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>PtyTerminalDataSourceTest.programCommandRunsThenFallsBackToAShell</code></td><td>R4. 실제 pty 에서 프로그램 명령이 끝난 뒤 셸이 이어받아 입력을 실행한다(<code>claude</code> 대신 <code>echo</code> 로)</td><td>같음</td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 실제 <code>claude</code> 가 뜨는지, 아이콘 모양. 데스크톱 앱에서 손으로 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>YOLO 모드는 Claude 가 파일 수정·명령 실행을 묻지 않고 한다. 작업 디렉터리가 홈이므로 홈 아래 전부가 그 범위다. 버튼 이름에 "YOLO" 를 남겨 모드를 드러낸다.</li>
+  <li><code>claude</code> 를 찾지 못하면 셸의 "command not found" 한 줄 뒤에 셸이 뜬다. 앱이 따로 알려 주지 않는다.</li>
+  <li>R7 은 Claude Code 2.1.281 이 자식 프로세스에 넘기는 환경 변수 이름을 기준으로 한다. 버전이 바뀌어 새 이름이 생기면 목록을 고쳐야 한다(<a href="../platform/jvm.html#terminal-claude">JVM</a>).</li>
+  <li>터미널의 <a href="terminal.html#limits">한계</a>가 그대로 든다. 특히 텍스트 선택·복사가 없다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

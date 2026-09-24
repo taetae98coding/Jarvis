@@ -20,6 +20,8 @@ object JarvisIcons {
 
     val ChevronRight: ImageVector by lazy { outline("ChevronRight", "M9 6l6 6-6 6") }
 
+    val Claude: ImageVector by lazy { outline("Claude", "M12 3v18M3 12h18M7 7l10 10M17 7L7 17") }
+
     val Close: ImageVector by lazy { outline("Close", "M18 6L6 18M6 6l12 12") }
 
     val Eye: ImageVector by lazy {
@@ -76,7 +78,7 @@ object JarvisIcons {
 
     internal val all: List<ImageVector>
         get() = listOf(
-            Add, Back, ChevronRight, Close, Eye, Monitor, Play, RotateLeft, RotateRight,
+            Add, Back, ChevronRight, Claude, Close, Eye, Monitor, Play, RotateLeft, RotateRight,
             Smartphone, SplitSideBySide, SplitStacked, Sun, Terminal, Wifi,
         )
 }
