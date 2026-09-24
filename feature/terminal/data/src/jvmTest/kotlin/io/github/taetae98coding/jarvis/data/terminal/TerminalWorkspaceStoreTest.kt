@@ -47,6 +47,19 @@ class TerminalWorkspaceStoreTest {
     }
 
     @Test
+    fun panelDirectoryIsReadBackByANewStore() = runTest {
+        val path = newPath()
+        val change = repository(path).updateWorkspace {
+            it.addPanel(name = "API", directory = "/work/api", program = TerminalProgram.Claude, claudeSessionId = "e0c0")
+        }
+
+        val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
+
+        assertEquals(change.after, reopened)
+        assertEquals("/work/api", reopened.panels.last().directory)
+    }
+
+    @Test
     fun changeCarriesTheValueBeforeTheUpdate() = runTest {
         val repository = repository(newPath())
 
@@ -82,6 +95,7 @@ class TerminalWorkspaceStoreTest {
         val workspace = repository(path).observeWorkspace().first()
 
         assertEquals("보존", workspace.panels.single().name)
+        assertEquals(null, workspace.panels.single().directory)
         assertEquals(TerminalProgram.Shell, workspace.focusedTab!!.program)
     }
 

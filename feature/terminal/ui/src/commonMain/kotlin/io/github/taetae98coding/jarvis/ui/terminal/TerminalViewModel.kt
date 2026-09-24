@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveTerminalWorkspaceUseCase
-import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
@@ -37,7 +36,10 @@ internal class TerminalViewModel(
 
     fun pane(tabId: Long): TerminalPaneState? = host.pane(tabId)
 
-    fun addPanel() = update { it.addPanel() }
+    fun addPanel(name: String, directory: String, program: TerminalProgram) {
+        val sessionId = if (program == TerminalProgram.Claude) newClaudeSessionId() else null
+        update { it.addPanel(name, directory, program, sessionId) }
+    }
 
     fun renamePanel(panelId: Long, name: String) = update { it.renamePanel(panelId, name) }
 
@@ -45,16 +47,16 @@ internal class TerminalViewModel(
 
     fun selectPanel(panelId: Long) = update { it.selectPanel(panelId) }
 
-    fun splitSideBySide() = update { it.split(SplitDirection.SideBySide, it.focusedTab?.directory) }
+    fun splitSideBySide() = update { it.split(SplitDirection.SideBySide, it.startDirectory()) }
 
-    fun splitStacked() = update { it.split(SplitDirection.Stacked, it.focusedTab?.directory) }
+    fun splitStacked() = update { it.split(SplitDirection.Stacked, it.startDirectory()) }
 
-    /** [groupId] 가 null 이면 포커스된 그룹(없으면 새 그룹)이다. 새 탭은 그 그룹에서 선택돼 있던 탭의 디렉터리에서 시작한다. */
-    fun addTab(groupId: Long? = null) = update { it.addTab(groupId, directory = it.directoryOf(groupId)) }
+    /** [groupId] 가 null 이면 포커스된 그룹(없으면 새 그룹)이다. */
+    fun addTab(groupId: Long? = null) = update { it.addTab(groupId, directory = it.startDirectory(groupId)) }
 
     fun addClaudeTab(groupId: Long? = null) {
         val sessionId = newClaudeSessionId()
-        update { it.addTab(groupId, TerminalProgram.Claude, it.directoryOf(groupId), sessionId) }
+        update { it.addTab(groupId, TerminalProgram.Claude, it.startDirectory(groupId), sessionId) }
     }
 
     fun closeFocusedTab() = update { it.closeFocusedTab() }
@@ -74,12 +76,6 @@ internal class TerminalViewModel(
     fun dockTab(tabId: Long, groupId: Long, edge: DockEdge) = update { it.dockTab(tabId, groupId, edge) }
 
     fun setRatio(splitId: Long, ratio: Float) = update { it.setRatio(splitId, ratio) }
-
-    private fun TerminalWorkspace.directoryOf(groupId: Long?): String? {
-        val group: PaneNode.Group? = if (groupId == null) focusedGroup else groups.firstOrNull { it.id == groupId }
-
-        return group?.selectedTab?.directory
-    }
 
     private fun update(transform: (TerminalWorkspace) -> TerminalWorkspace) {
         viewModelScope.launch {

@@ -62,6 +62,7 @@ import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisShapes
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 
 const val TerminalNewPanelTestTag = "terminal:new-panel"
 const val TerminalPanelNameFieldTestTag = "terminal:panel-name-field"
@@ -72,17 +73,21 @@ fun terminalPanelRenameTestTag(id: Long): String = "terminal:panel-rename:$id"
 
 fun terminalPanelCloseTestTag(id: Long): String = "terminal:panel-close:$id"
 
-/** 왼쪽의 패널 목록. 패널이 하나뿐이면 닫을 수 없다. */
+/** 왼쪽의 패널 목록. 패널이 하나뿐이면 닫을 수 없다. "새 패널" 은 [NewPanelDialog] 를 거쳐 [onAdd] 를 부른다. */
 @Composable
 internal fun TerminalPanelList(
     panels: List<TerminalPanel>,
     selectedPanelId: Long?,
+    nextPanelName: String,
+    canOpenClaude: Boolean,
     onSelect: (Long) -> Unit,
     onRename: (Long, String) -> Unit,
     onClose: (Long) -> Unit,
-    onAdd: () -> Unit,
+    onAdd: (name: String, directory: String, program: TerminalProgram) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var creating by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier.width(TerminalPanelListDefaults.width).fillMaxHeight(),
         verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs),
@@ -94,6 +99,7 @@ internal fun TerminalPanelList(
             panels.forEach { panel ->
                 TerminalPanelItem(
                     name = panel.name,
+                    directory = panel.directory,
                     selected = panel.id == selectedPanelId,
                     closable = panels.size > 1,
                     onSelect = { onSelect(panel.id) },
@@ -106,7 +112,7 @@ internal fun TerminalPanelList(
             }
         }
 
-        TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth().testTag(TerminalNewPanelTestTag)) {
+        TextButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth().testTag(TerminalNewPanelTestTag)) {
             Icon(
                 imageVector = JarvisIcons.Add,
                 contentDescription = null,
@@ -114,6 +120,18 @@ internal fun TerminalPanelList(
             )
             Text(text = "새 패널", modifier = Modifier.padding(start = JarvisTheme.dimens.spacing.s))
         }
+    }
+
+    if (creating) {
+        NewPanelDialog(
+            defaultName = nextPanelName,
+            canOpenClaude = canOpenClaude,
+            onCreate = { name, directory, program ->
+                creating = false
+                onAdd(name, directory, program)
+            },
+            onDismiss = { creating = false },
+        )
     }
 }
 
@@ -124,6 +142,7 @@ internal fun TerminalPanelList(
 @Composable
 internal fun TerminalPanelItem(
     name: String,
+    directory: String?,
     selected: Boolean,
     closable: Boolean,
     onSelect: () -> Unit,
@@ -162,19 +181,32 @@ internal fun TerminalPanelItem(
                 modifier = nameModifier,
             )
         } else {
-            Text(
-                text = name,
-                style = TerminalPanelItemDefaults.nameStyle,
-                color = contentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .clip(JarvisTheme.shapes.small)
                     // 눌림은 Style 의 배경이 보여 준다. 물결까지 그리면 같은 표시가 두 번 겹친다.
                     .clickable(interactionSource = interactionSource, indication = null, onClick = onSelect)
                     .padding(start = spacing.m, end = spacing.xs, top = spacing.s, bottom = spacing.s),
-            )
+            ) {
+                Text(
+                    text = name,
+                    style = TerminalPanelItemDefaults.nameStyle,
+                    color = contentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (directory != null) {
+                    Text(
+                        text = directory,
+                        style = TerminalPanelItemDefaults.directoryStyle,
+                        color = TerminalPanelItemDefaults.directoryColor(selected),
+                        maxLines = 1,
+                        // 경로는 끝의 폴더 이름이 알아보는 데 중요하다.
+                        overflow = TextOverflow.StartEllipsis,
+                    )
+                }
+            }
 
             PanelItemIcon(JarvisIcons.Edit, "이름 바꾸기", contentColor, onClick = { editing = true }, modifier = renameModifier)
             if (closable) {
@@ -266,10 +298,18 @@ internal object TerminalPanelItemDefaults {
     val nameStyle: TextStyle
         @Composable @ReadOnlyComposable get() = JarvisTheme.typography.labelLarge
 
+    val directoryStyle: TextStyle
+        @Composable @ReadOnlyComposable get() = JarvisTheme.typography.labelSmall
+
     @Composable
     @ReadOnlyComposable
     fun contentColor(selected: Boolean): Color =
         if (selected) JarvisTheme.colorScheme.onPrimaryContainer else JarvisTheme.colorScheme.onSurface
+
+    @Composable
+    @ReadOnlyComposable
+    fun directoryColor(selected: Boolean): Color =
+        if (selected) JarvisTheme.colorScheme.onPrimaryContainer else JarvisTheme.colorScheme.onSurfaceVariant
 
     // 겹치는 투명도는 M3 상태 레이어 값(hover 8%, pressed 10%)이다. 선택되지 않은 줄은 바탕에 묻힌다.
     val style: Style = Style {

@@ -61,12 +61,17 @@ val PaneNode.groups: List<PaneNode.Group>
 val PaneNode.tabs: List<TerminalTab>
     get() = groups.flatMap { it.tabs }
 
-/** 왼쪽 목록의 한 줄. [root] 가 null 이면 그룹이 없는 빈 패널이다. 탭은 만든 패널에 속하고 다른 패널로 옮겨 가지 않는다. */
+/**
+ * 왼쪽 목록의 한 줄. [root] 가 null 이면 그룹이 없는 빈 패널이다. 탭은 만든 패널에 속하고 다른 패널로 옮겨 가지 않는다.
+ *
+ * [directory] 는 만들 때 정한 폴더다. 탭의 작업 디렉터리를 모를 때 새 탭이 여기서 시작한다.
+ */
 data class TerminalPanel(
     val id: Long,
     val name: String,
     val root: PaneNode?,
     val focusedGroupId: Long?,
+    val directory: String? = null,
 ) {
     val groups: List<PaneNode.Group>
         get() = root?.groups.orEmpty()
@@ -117,16 +122,30 @@ data class TerminalWorkspace(
     val tabIds: List<Long>
         get() = tabs.map { it.id }
 
-    /** 셸 탭 하나짜리 그룹을 가진 "패널 N" 을 끝에 붙이고 고른다. */
-    fun addPanel(directory: String? = null): TerminalWorkspace {
+    /** [addPanel] 에 이름을 주지 않았을 때의 이름. */
+    val nextPanelName: String
+        get() = "$DefaultPanelName ${panels.size + 1}"
+
+    /**
+     * 탭 하나짜리 그룹을 가진 패널을 끝에 붙이고 고른다. [name]·[directory] 는 앞뒤 공백을 떼고, 비면
+     * [nextPanelName]·폴더 없음이다. 첫 탭은 패널 폴더에서 시작한다.
+     */
+    fun addPanel(
+        name: String? = null,
+        directory: String? = null,
+        program: TerminalProgram = TerminalProgram.Shell,
+        claudeSessionId: String? = null,
+    ): TerminalWorkspace {
         val panelId = nextId
         val groupId = nextId + 1
         val tabId = nextId + 2
+        val folder = directory?.trim()?.ifEmpty { null }
         val panel = TerminalPanel(
             id = panelId,
-            name = "$DefaultPanelName ${panels.size + 1}",
-            root = PaneNode.Group(groupId, listOf(TerminalTab(tabId, directory = directory)), tabId),
+            name = name?.trim()?.ifEmpty { null } ?: nextPanelName,
+            root = PaneNode.Group(groupId, listOf(TerminalTab(tabId, program, folder, claudeSessionId)), tabId),
             focusedGroupId = groupId,
+            directory = folder,
         )
 
         return copy(panels = panels + panel, selectedPanelId = panelId, nextId = nextId + 3)
@@ -295,6 +314,16 @@ data class TerminalWorkspace(
         val split = panels.firstNotNullOfOrNull { it.root?.findSplit(splitId) } ?: return this
 
         return setRatio(splitId, split.ratio + delta)
+    }
+
+    /**
+     * [groupId] 그룹(null 이면 포커스된 그룹)에 새로 여는 탭의 시작 디렉터리. 그 그룹에서 선택된 탭의
+     * 디렉터리, 모르면 선택된 패널의 폴더다. null 이면 홈이다.
+     */
+    fun startDirectory(groupId: Long? = null): String? {
+        val group = if (groupId == null) focusedGroup else groups.firstOrNull { it.id == groupId }
+
+        return group?.selectedTab?.directory ?: selectedPanel?.directory
     }
 
     fun setDirectory(tabId: Long, directory: String): TerminalWorkspace {

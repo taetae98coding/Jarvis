@@ -257,6 +257,38 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    fun newPanelTrimsNameAndDirectoryAndFallsBackWhenBlank() {
+        val named = TerminalWorkspace.initial().addPanel(name = "  API ", directory = " /work/api ")
+        val blank = TerminalWorkspace.initial().addPanel(name = "  ", directory = "  ")
+
+        assertEquals("API", named.selectedPanel!!.name)
+        assertEquals("/work/api", named.selectedPanel!!.directory)
+        assertEquals("패널 2", blank.selectedPanel!!.name)
+        assertEquals(null, blank.selectedPanel!!.directory)
+    }
+
+    @Test
+    fun newPanelOpensItsFirstTabInItsDirectory() {
+        val shell = TerminalWorkspace.initial().addPanel(directory = "/work")
+        val claude = TerminalWorkspace.initial()
+            .addPanel(directory = "/work", program = TerminalProgram.Claude, claudeSessionId = "session")
+
+        assertEquals(TerminalTab(shell.focusedTab!!.id, TerminalProgram.Shell, "/work"), shell.focusedTab)
+        assertEquals(TerminalTab(claude.focusedTab!!.id, TerminalProgram.Claude, "/work", "session"), claude.focusedTab)
+    }
+
+    @Test
+    fun startDirectoryPrefersTheSelectedTabThenThePanelDirectory() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work")
+        val tab = workspace.focusedTab!!
+
+        assertEquals("/work/api", workspace.setDirectory(tab.id, "/work/api").startDirectory())
+        assertEquals("/work", workspace.copy(panels = workspace.panels.map { it.withTabDirectory(null) }).startDirectory())
+        assertEquals("/work", workspace.closeTab(tab.id).startDirectory())
+        assertEquals(null, TerminalWorkspace.initial().startDirectory())
+    }
+
+    @Test
     fun groupsBelongToTheSelectedPanel() {
         val workspace = TerminalWorkspace.initial().addTab().addPanel()
         val (first, second) = workspace.panels
@@ -447,3 +479,6 @@ class TerminalWorkspaceTest {
         assertEquals(workspace.nextId + 2, docked.nextId)
     }
 }
+
+private fun TerminalPanel.withTabDirectory(directory: String?): TerminalPanel =
+    copy(root = (root as PaneNode.Group).let { group -> group.copy(tabs = group.tabs.map { it.copy(directory = directory) }) })
