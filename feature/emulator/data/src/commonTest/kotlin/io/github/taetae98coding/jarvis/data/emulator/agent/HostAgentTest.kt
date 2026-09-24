@@ -23,7 +23,7 @@ class HostAgentTest {
     @Test
     fun countsSurviveTheWireFormat() {
         val status = EmulatorStatus(
-            android = EmulatorSummary(total = 5, running = 2),
+            android = EmulatorSummary(total = 5, running = 2, physical = 1),
             // 셀 수 없는 종류는 0개가 아니라 없음으로 전달되어야 한다.
             ios = null,
         )

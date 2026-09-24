@@ -52,17 +52,26 @@ internal fun EmulatorCard(
             color = JarvisTheme.colorScheme.onSurfaceVariant,
         )
 
-        JarvisLabeledValue(label = "Android", value = status.describe(EmulatorStatus::android))
-        JarvisLabeledValue(label = "iOS", value = status.describe(EmulatorStatus::ios))
+        JarvisLabeledValue(label = "Android 에뮬레이터", value = status.describe(EmulatorStatus::android, ::virtualCount))
+        JarvisLabeledValue(label = "Android 실기기", value = status.describe(EmulatorStatus::android, ::physicalCount))
+        JarvisLabeledValue(label = "iOS 시뮬레이터", value = status.describe(EmulatorStatus::ios, ::virtualCount))
+        JarvisLabeledValue(label = "iOS 실기기", value = status.describe(EmulatorStatus::ios, ::physicalCount))
     }
 }
 
 // 아직 세는 중 / 셀 방법이 없음 / 개수 세 가지를 구분한다. 뒤의 둘이 같아 보이면 SDK 도구를 못 찾은
 // 것과 에뮬레이터가 없는 것을 읽는 사람이 가를 수 없다.
-private fun EmulatorStatus?.describe(select: (EmulatorStatus) -> EmulatorSummary?): String {
+private fun EmulatorStatus?.describe(
+    select: (EmulatorStatus) -> EmulatorSummary?,
+    format: (EmulatorSummary) -> String,
+): String {
     if (this == null) return "확인 중…"
 
     val summary = select(this) ?: return "셀 수 없음"
 
-    return "실행 중 ${summary.running}개 / 전체 ${summary.total}개"
+    return format(summary)
 }
+
+private fun virtualCount(summary: EmulatorSummary): String = "실행 중 ${summary.running}개 / 전체 ${summary.total}개"
+
+private fun physicalCount(summary: EmulatorSummary): String = "연결 ${summary.physical}개"

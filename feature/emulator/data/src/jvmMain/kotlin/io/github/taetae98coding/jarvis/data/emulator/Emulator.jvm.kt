@@ -70,30 +70,24 @@ private suspend fun listDevices(): List<EmulatorDevice> =
     }
 
 // SDK 가 없으면 0개가 아니라 "셀 수 없음" 이다. SDK 는 있는데 개별 명령이 실패한 경우는 0개로 둔다.
-// 연결된 실물 기기는 꽂혀 있을 때만 보이므로 전체와 실행 중에 함께 든다.
 private fun androidSummary(): EmulatorSummary? {
     val sdk = androidSdkDirectory() ?: return null
 
     val avds = runCommand(listOf(emulatorBinary(sdk), "-list-avds"))
     val devices = runCommand(listOf(adbBinary(sdk), "devices"))
-    val physical = devices?.let(::parsePhysicalSerials)?.size ?: 0
 
     return EmulatorSummary(
-        total = (avds?.let(::parseAvdCount) ?: 0) + physical,
-        running = (devices?.let(::parseRunningEmulatorCount) ?: 0) + physical,
+        total = avds?.let(::parseAvdCount) ?: 0,
+        running = devices?.let(::parseRunningEmulatorCount) ?: 0,
+        physical = devices?.let(::parsePhysicalSerials)?.size ?: 0,
     )
 }
 
 private fun iosSummary(): EmulatorSummary? {
-    val simctl = simctlCommand() ?: return null
+    val simctl = xcodeToolCommand("simctl") ?: return null
     val output = runCommand(simctl + listOf("list", "devices", "available")) ?: return null
-    val physical = physicalIosDevices().size
-    val simulators = parseSimulatorSummary(output)
 
-    return EmulatorSummary(
-        total = simulators.total + physical,
-        running = simulators.running + physical,
-    )
+    return parseSimulatorSummary(output).copy(physical = physicalIosDevices().size)
 }
 
 private fun androidDevices(): List<EmulatorDevice> {
@@ -154,18 +148,20 @@ private fun androidDevices(): List<EmulatorDevice> {
 }
 
 private fun iosDevices(): List<EmulatorDevice> {
-    val simctl = simctlCommand() ?: return emptyList()
+    val simctl = xcodeToolCommand("simctl") ?: return emptyList()
     val output = runCommand(simctl + listOf("list", "devices", "available")) ?: return emptyList()
 
     return parseSimulatorDevices(output) + physicalIosDevices()
 }
 
-// 연결된 실물 iOS 기기는 `xctrace` 만 나열해 준다. `xcrun` 이 없는 머신에서는 시뮬레이터도 없으므로
-// 여기까지 오지 않는다.
-private fun physicalIosDevices(): List<EmulatorDevice> =
-    runCommand(listOf("xcrun", "xctrace", "list", "devices"), mergeError = true)
+// 연결된 실물 iOS 기기는 `xctrace` 만 나열해 준다.
+private fun physicalIosDevices(): List<EmulatorDevice> {
+    val xctrace = xcodeToolCommand("xctrace") ?: return emptyList()
+
+    return runCommand(xctrace + listOf("list", "devices"), mergeError = true)
         ?.let(::parsePhysicalIosDevices)
         .orEmpty()
+}
 
 // 화면이 꺼져 있어도 screencap 은 오류가 아니라 검은 그림을 준다. 그걸 화면에서 구분해 주려면
 // 상태를 따로 물어보는 수밖에 없다.
@@ -180,7 +176,7 @@ private fun captureScreen(deviceId: String): ByteArray? =
             runCommandBytes(listOf(adbBinary(sdk), "-s", deviceId, "exec-out", "screencap", "-p"))
         }
 
-        SimulatorUdid.matches(deviceId) -> simctlCommand()?.let { simctl ->
+        SimulatorUdid.matches(deviceId) -> xcodeToolCommand("simctl")?.let { simctl ->
             // `-` 가 stdout 이다. `simctl help io` 에 적혀 있다.
             runCommandBytes(simctl + listOf("io", deviceId, "screenshot", "--type=png", "-"))
         }
@@ -230,7 +226,7 @@ private fun launchDevice(deviceId: String) {
             startDetached(listOf(emulatorBinary(sdk), "-avd", deviceId.removePrefix(StoppedAvdPrefix)))
         }
 
-        SimulatorUdid.matches(deviceId) -> simctlCommand()?.let { simctl ->
+        SimulatorUdid.matches(deviceId) -> xcodeToolCommand("simctl")?.let { simctl ->
             runCommand(simctl + listOf("boot", deviceId))
             // `boot` 는 기기만 띄우고 창은 열지 않는다. 순서를 바꾸면 Simulator.app 이 마지막으로
             // 쓰던 기기를 대신 띄운다.
@@ -384,13 +380,13 @@ private fun adbBinary(sdk: File): String = File(sdk, "platform-tools/adb").path
 
 private fun emulatorBinary(sdk: File): String = File(sdk, "emulator/emulator").path
 
-private fun simctlCommand(): List<String>? {
-    // `xcrun` 은 xcode-select 가 정식 Xcode 를 가리킬 때만 simctl 을 찾는다. Command Line Tools 만
-    // 선택된 머신에도 Xcode.app 안에는 시뮬레이터 도구가 있으므로, 시뮬레이터가 없다고 답하기 전에
-    // 기본 설치 경로를 한 번 더 본다.
-    if (runCommand(listOf("xcrun", "--find", "simctl")) != null) return listOf("xcrun", "simctl")
+private fun xcodeToolCommand(tool: String): List<String>? {
+    // `xcrun` 은 xcode-select 가 정식 Xcode 를 가리킬 때만 simctl·xctrace 를 찾는다. Command Line Tools
+    // 만 선택된 머신에도 Xcode.app 안에는 두 도구가 있으므로, 없다고 답하기 전에 기본 설치 경로를 한 번
+    // 더 본다. 예전에는 simctl 에만 이 대비가 있어서 시뮬레이터는 보이는데 실물 iPhone 은 0개였다.
+    if (runCommand(listOf("xcrun", "--find", tool)) != null) return listOf("xcrun", tool)
 
-    val bundled = File("/Applications/Xcode.app/Contents/Developer/usr/bin/simctl")
+    val bundled = File("/Applications/Xcode.app/Contents/Developer/usr/bin/$tool")
 
     return if (bundled.canExecute()) listOf(bundled.path) else null
 }

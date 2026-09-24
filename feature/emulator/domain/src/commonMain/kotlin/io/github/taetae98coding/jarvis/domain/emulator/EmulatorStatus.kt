@@ -1,8 +1,13 @@
 package io.github.taetae98coding.jarvis.domain.emulator
 
+/**
+ * [total]·[running] 은 가상 기기만, [physical] 은 연결된 실물 기기만 센다. 실물 기기는 꽂혀 있을 때만
+ * 보여서 실행 중과 전체가 늘 같으므로 한 숫자만 둔다.
+ */
 data class EmulatorSummary(
     val total: Int = 0,
     val running: Int = 0,
+    val physical: Int = 0,
 )
 
 /**

@@ -12,6 +12,7 @@ import kotlinx.serialization.Serializable
 private data class EmulatorSummaryDto(
     val total: Int = 0,
     val running: Int = 0,
+    val physical: Int = 0,
 )
 
 @Serializable
@@ -31,9 +32,9 @@ internal fun decodeEmulatorStatus(body: String): EmulatorStatus? =
 private fun EmulatorStatus.toDto() =
     EmulatorStatusDto(android = android?.toDto(), ios = ios?.toDto())
 
-private fun EmulatorSummary.toDto() = EmulatorSummaryDto(total = total, running = running)
+private fun EmulatorSummary.toDto() = EmulatorSummaryDto(total = total, running = running, physical = physical)
 
 private fun EmulatorStatusDto.toDomain() =
     EmulatorStatus(android = android?.toDomain(), ios = ios?.toDomain())
 
-private fun EmulatorSummaryDto.toDomain() = EmulatorSummary(total = total, running = running)
+private fun EmulatorSummaryDto.toDomain() = EmulatorSummary(total = total, running = running, physical = physical)

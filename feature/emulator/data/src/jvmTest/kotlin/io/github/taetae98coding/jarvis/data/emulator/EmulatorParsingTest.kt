@@ -261,4 +261,22 @@ class EmulatorParsingTest {
 
         assertEquals(emptyList(), parsePhysicalIosDevices(output))
     }
+
+    // Xcode 27 에서 페어링만 되어 있고 연결이 끊긴 기기는 `== Devices Offline ==` 로 옮겨 간다.
+    @Test
+    fun skipsPairedButOfflineIosDevices() {
+        val output = """
+            == Devices ==
+            My Mac Studio (5C961F1B-D09E-502B-8FA3-92D28BCDE120)
+
+            == Devices Offline ==
+            Jarvis의 iPad (26.6.1) (00008142-000630323422401C)
+            Jarvis의 iPhone (26.6.1) (00008140-000161CA0C98801C)
+
+            == Simulators ==
+            iPad (A16) Simulator (27.0) (11DB025F-4D05-430A-A304-C4EF718E72A5)
+        """.trimIndent()
+
+        assertEquals(emptyList(), parsePhysicalIosDevices(output))
+    }
 }

@@ -12,7 +12,7 @@
 
 <header>
   <h1>에뮬레이터 개수</h1>
-  <p class="lead">개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와, 그 머신에 연결된 실물 기기를 "실행 중 / 전체"로 보여준다.</p>
+  <p class="lead">개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터는 "실행 중 / 전체"로, 그 머신에 연결된 실물 기기는 "연결 N개"로 따로 보여준다.</p>
 </header>
 
 <nav class="toc">
@@ -43,7 +43,7 @@
 
 <blockquote class="instruction">
   <p>emulator 같은 경우 emulator뿐만 아니라 연결된 실제 디바이스도 포함시켜줘.</p>
-  <footer>2026-09-22 대화. 이 지시로 연결된 실물 기기가 두 숫자에 들어왔다. 같은 메시지의 나머지는 <a href="emulator-control.html">기기 목록</a>과 <a href="emulator-launch.html">꺼진 에뮬레이터 실행</a>에 있다.</footer>
+  <footer>2026-09-22 대화. 이 지시로 연결된 실물 기기가 개수에 들어왔다. 같은 메시지의 나머지는 <a href="emulator-control.html">기기 목록</a>과 <a href="emulator-launch.html">꺼진 에뮬레이터 실행</a>에 있다.</footer>
 </blockquote>
 
 <blockquote class="instruction">
@@ -51,11 +51,17 @@
   <footer>2026-09-22 대화. 이 지시로 "셀 수 없는 타깃"이 <a href="#agent">로컬 에이전트</a>를 통해 실제 숫자를 갖게 됐다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>에뮬레이터에 apple 실제 디바이스 연결도 체크하는거 맞아? 그리고 Home에서 실행중/전체 노출할 때 실기기와 에뮬레이터 분리해서 보여주도록 해줘.</p>
+  <footer>2026-09-24 대화. 앞 질문의 답은 "하려고는 했지만 Command Line Tools 가 선택된 머신에서는 못 찾고 있었다"였다. <code>xctrace</code> 를 <code>simctl</code> 과 같은 방식으로 찾도록 고쳤다(<a href="../platform/jvm.html#emulator">JVM 스펙</a>). 뒤의 지시로 R1·R2 가 바뀌었다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 카드에 Android, iOS 두 줄이 있고 각 줄은 "실행 중 N개 / 전체 M개"다.</li>
-  <li><strong>R2.</strong> "전체"는 설치된 가상 기기와 연결된 실물 기기를 더한 수, "실행 중"은 부팅된 가상 기기와 연결된 실물 기기를 더한 수다. 실물 기기는 연결되어 있을 때만 보이므로 두 숫자에 함께 든다.</li>
+  <li><strong>R1.</strong> 카드에 <code>Android 에뮬레이터</code>, <code>Android 실기기</code>, <code>iOS 시뮬레이터</code>, <code>iOS 실기기</code> 네 줄이 있다. 가상 기기 줄은 "실행 중 N개 / 전체 M개", 실기기 줄은 "연결 N개"다.</li>
+  <li><strong>R2.</strong> 가상 기기 줄의 "전체"는 설치된 가상 기기 수, "실행 중"은 부팅된 가상 기기 수다. 실물 기기는 여기에 더하지 않는다. 실기기 줄은 지금 연결된 실물 기기 수다.</li>
+  <li><strong>R9.</strong> JVM 에서 Xcode 커맨드라인 도구가 Command Line Tools 로 선택되어 있어도, Xcode.app 이 설치되어 있으면 연결된 실물 iOS 기기를 센다.</li>
   <li><strong>R3.</strong> 숫자를 아직 확인하지 못했으면 0이 아니라 "확인 중…"을 보여준다.</li>
   <li><strong>R4.</strong> 앱이 떠 있는 동안 가상 기기 상태가 바뀌면 숫자가 따라 바뀐다.</li>
   <li><strong>R5.</strong> 셀 수 없는 플랫폼에서도 카드는 같은 자리에 있다. 화면 구성이 플랫폼마다 갈라지지 않는다.</li>
@@ -71,27 +77,35 @@
   <tbody>
     <tr><td>제목</td><td>에뮬레이터</td></tr>
     <tr><td>설명</td><td>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와 연결된 실물 기기. 눌러서 목록을 보고, 화면을 조작하거나 꺼진 에뮬레이터를 켤 수 있다.</td></tr>
-    <tr><td>행</td><td><code>Android</code> / <code>iOS</code></td></tr>
-    <tr><td>값 형식</td><td><code>실행 중 {running}개 / 전체 {total}개</code></td></tr>
+    <tr><td>행</td><td><code>Android 에뮬레이터</code> / <code>Android 실기기</code> / <code>iOS 시뮬레이터</code> / <code>iOS 실기기</code></td></tr>
+    <tr><td>가상 기기 값</td><td><code>실행 중 {running}개 / 전체 {total}개</code></td></tr>
+    <tr><td>실기기 값</td><td><code>연결 {physical}개</code></td></tr>
     <tr><td>응답 전</td><td><code>확인 중…</code></td></tr>
     <tr><td>셀 수 없음</td><td><code>셀 수 없음</code></td></tr>
     <tr><td>테스트 태그</td><td><code>feature:emulator</code></td></tr>
   </tbody>
 </table>
 
-<p>세 상태는 서로 달라야 한다. 아직 세는 중(<code>확인 중…</code>), 셀 방법이 없음(<code>셀 수 없음</code>), 세었고 결과가 0개(<code>실행 중 0개 / 전체 0개</code>).</p>
+<p>세 상태는 서로 달라야 한다. 아직 세는 중(<code>확인 중…</code>), 셀 방법이 없음(<code>셀 수 없음</code>), 세었고 결과가 0개(<code>실행 중 0개 / 전체 0개</code>, <code>연결 0개</code>). 앞의 두 상태는 한 플랫폼의 두 줄에 함께 걸린다. 가상 기기와 실물 기기를 세는 도구가 같은 SDK 에서 나와서, 한쪽만 셀 수 없는 경우를 따로 두지 않는다.</p>
+
+<aside class="decision">
+  <strong>결정: 실기기 줄은 "실행 중 / 전체"가 아니라 "연결 N개"다</strong>
+  실물 기기는 꽂혀 있을 때만 보이므로 실행 중과 전체가 항상 같다. "실행 중 1개 / 전체 1개"는 꺼져 있는 실물 기기도 셀 수 있는 것처럼 읽히고, 같은 숫자를 두 번 쓸 뿐이다. 그래서 한 숫자만 둔다.
+</aside>
 
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
   <dt>UI</dt><dd><code>ui/emulator/EmulatorCard.kt</code></dd>
-  <dt>모델</dt><dd><code>EmulatorSummary(total, running)</code>, <code>EmulatorStatus(android: EmulatorSummary?, ios: EmulatorSummary?)</code> (<code>domain/emulator</code>)</dd>
+  <dt>모델</dt><dd><code>EmulatorSummary(total, running, physical)</code>, <code>EmulatorStatus(android: EmulatorSummary?, ios: EmulatorSummary?)</code> (<code>domain/emulator</code>)</dd>
   <dt>계약</dt><dd><code>interface EmulatorRepository { fun observeStatus(): Flow&lt;EmulatorStatus&gt; }</code> (<code>domain/emulator</code>)</dd>
   <dt>공급</dt><dd><code>internal expect val emulatorDataSource: EmulatorDataSource</code> (<code>data/emulator/EmulatorDataSource.kt</code>)</dd>
   <dt>에이전트</dt><dd><code>data/emulator/agent/</code> — 주소, 와이어 포맷(DTO), 폴링 데이터 소스, JVM 서버</dd>
 </dl>
 
 <p><code>EmulatorStatusViewModel</code>이 <code>observeEmulatorStatus()</code>를 <code>stateIn(viewModelScope, Eagerly, initial = null)</code>로 들고 카드에는 값만 넘긴다. 초기값이 <code>null</code>인 것이 R3이다. 요약이 <code>null</code>인 것이 R7이다. 둘은 다른 층의 null이다. 전자는 "아직 답하지 않았다", 후자는 "답했고 셀 수 없다고 했다"다.</p>
+
+<p><code>total</code>·<code>running</code> 은 가상 기기만, <code>physical</code> 은 연결된 실물 기기만 센다. 이전에는 실물 기기를 앞의 둘에 더했는데, 그렇게 합친 숫자에서는 둘을 다시 갈라낼 수 없어서 모델에서부터 나눴다.</p>
 
 <p>도메인 모델에는 <code>@Serializable</code>을 붙이지 않는다. 와이어 포맷은 <code>data</code>의 <code>EmulatorStatusDto</code>가 갖고, 경계에서 도메인 모델로 바꾼다. JSON 필드 이름이 바뀌어도 <code>domain</code>과 <code>ui</code>는 그대로다.</p>
 
@@ -129,7 +143,7 @@
   <tbody>
     <tr><td>주소</td><td><code>http://&lt;host&gt;:47890/emulators</code>. 포트는 고정. 클라이언트가 미리 알아야 해서 임의 포트를 쓸 수 없다</td></tr>
     <tr><td>바인딩</td><td>루프백만. 에뮬레이터의 <code>10.0.2.2</code>와 <code>adb reverse</code>는 호스트 루프백으로 들어온다</td></tr>
-    <tr><td>와이어 포맷</td><td><code>{"android":{"total":0,"running":0},"ios":{"total":11,"running":0}}</code>. 셀 수 없는 종류는 <code>null</code></td></tr>
+    <tr><td>와이어 포맷</td><td><code>{"android":{"total":0,"running":0,"physical":1},"ios":{"total":11,"running":0,"physical":0}}</code>. 셀 수 없는 종류는 <code>null</code>. <code>physical</code> 이 없는 옛 에이전트의 응답은 <code>physical = 0</code> 으로 읽힌다(그 에이전트의 <code>total</code>·<code>running</code> 에는 실물 기기가 섞여 있다)</td></tr>
     <tr><td>응답</td><td><code>200</code> + JSON / <code>503</code> 아직 세지 못함 / <code>405</code> GET 이외</td></tr>
     <tr><td>헤더</td><td><code>Access-Control-Allow-Origin: *</code> (브라우저), <code>Cache-Control: no-store</code></td></tr>
     <tr><td>실패</td><td>포트가 쓰이고 있으면 조용히 no-op. 데스크톱 앱 자신은 에이전트 없이도 센다</td></tr>
@@ -160,16 +174,18 @@
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>JarvisAppTest.showsEmulatorCounts</code></td><td>R1. 두 줄의 형식과 값</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.showsEmulatorCounts</code></td><td>R1, R2. 네 줄의 형식과 값. 가상 기기와 실물 기기가 다른 줄에 나온다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTest.tellsZeroApartFromUncountable</code></td><td>R7. 0개와 셀 수 없음이 다르게 보인다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.showsUncountableWhenNothingCanCount</code></td><td>R5, R7. 셀 수 없어도 카드는 두 줄을 유지한다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.showsUncountableWhenNothingCanCount</code></td><td>R5, R7. 셀 수 없어도 카드는 네 줄을 유지한다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTest.showsPlaceholderUntilTheRepositoryAnswers</code></td><td>R3. 응답 전 "확인 중…"</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTest.emulatorCountsFollowRepositoryUpdates</code></td><td>R4. 새 값이 오면 화면이 바뀐다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>HostAgentTest</code> (5개)</td><td>R7, R8. 와이어 포맷 왕복, 깨진 응답, 모르는 필드, 에이전트 부재, 폴링 갱신</td><td><code>:feature:emulator:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentTest</code> (5개)</td><td>R7, R8. 와이어 포맷 왕복(<code>physical</code> 포함), 깨진 응답, 모르는 필드, 에이전트 부재, 폴링 갱신</td><td><code>:feature:emulator:data</code> <code>commonTest</code></td></tr>
     <tr><td><code>EmulatorParsingTest</code> (5개)</td><td>R2. <code>emulator</code>·<code>adb</code>·<code>simctl</code> 출력 파싱</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
     <tr><td><code>HostAgentServerTest</code> (5개)</td><td>R8. 에이전트를 실제로 띄워 HTTP 왕복, 503/405, CORS 헤더, 포트 충돌</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
   </tbody>
 </table>
+
+<p>R9 는 개발 머신(<code>xcode-select -p</code> 가 <code>/Library/Developer/CommandLineTools</code>)에서 <code>xcrun xctrace</code> 가 <code>unable to find utility "xctrace"</code> 로 실패하고, Xcode.app 안의 <code>xctrace</code> 는 실물 iPhone·iPad 를 나열하는 것을 직접 확인했다.</p>
 
 <p>실제로 SDK 명령을 띄우는 부분과, 기기·브라우저에서 실제로 요청을 보내는 부분은 테스트하지 않는다. 결과가 머신 환경에 따라 달라진다. 개발 머신에서 데스크톱 앱을 띄우고 <code>curl</code>로 왕복을 확인했다.</p>
 
@@ -181,7 +197,7 @@
   <li>JVM에서 SDK는 있는데 개별 명령이 실패하면 0개로 보인다. SDK 디렉터리 자체가 없는 경우만 "셀 수 없음"으로 구분한다.</li>
   <li>JVM에서 iOS 시뮬레이터는 macOS에만 있으므로, 다른 OS에서는 <code>ANDROID_HOME</code>이 잡힐 때 Android 쪽만 동작한다. 데스크톱은 macOS만 지원하므로 별도 처리하지 않는다.</li>
   <li>실물 Android 기기는 <code>adb reverse tcp:47890 tcp:47890</code>이 필요하고, 실물 iOS 기기는 방법이 없다. 여기서 말하는 것은 "이 앱이 도는 기기" 이고, 세는 대상인 "호스트에 연결된 기기" 와는 다르다.</li>
-  <li>실물 기기 하나는 전체와 실행 중에 동시에 든다. 꽂혀 있지 않은 기기를 셀 방법이 없어서 "설치되어 있지만 꺼져 있음" 에 해당하는 상태가 없다.</li>
+  <li>실물 기기는 연결된 것만 센다. 꽂혀 있지 않은 기기를 셀 방법이 없어서 "알고 있지만 연결되지 않음" 에 해당하는 숫자가 없다.</li>
   <li>실물 iOS 기기를 찾는 데 <code>xctrace</code>가 필요하고 느리다. 5초 폴링이 그 시간만큼 늘어질 수 있다(<a href="../platform/jvm.html#emulator-control">JVM 스펙</a>).</li>
 </ul>
 

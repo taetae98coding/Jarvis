@@ -146,14 +146,17 @@ class JarvisAppTest {
         setContent {
             TestJarvisApp(
                 emulator = FakeEmulatorRepository(
-                    android = EmulatorSummary(total = 5, running = 2),
-                    ios = EmulatorSummary(total = 11, running = 0),
+                    android = EmulatorSummary(total = 5, running = 2, physical = 1),
+                    ios = EmulatorSummary(total = 11, running = 0, physical = 3),
                 ),
             )
         }
 
+        // 실물 기기는 가상 기기 숫자에 더해지지 않고 자기 줄에만 나온다.
         onNodeWithText("실행 중 2개 / 전체 5개").assertIsDisplayed()
+        onNodeWithText("연결 1개").assertIsDisplayed()
         onNodeWithText("실행 중 0개 / 전체 11개").assertIsDisplayed()
+        onNodeWithText("연결 3개").assertIsDisplayed()
     }
 
     @Test
@@ -165,21 +168,22 @@ class JarvisAppTest {
         }
 
         onNodeWithText("실행 중 0개 / 전체 0개").assertIsDisplayed()
-        onNodeWithText("셀 수 없음").assertIsDisplayed()
+        onNodeWithText("연결 0개").assertIsDisplayed()
+        onAllNodesWithText("셀 수 없음", useUnmergedTree = true).assertCountEquals(2)
     }
 
     @Test
     fun showsUncountableWhenNothingCanCount() = runComposeUiTest {
         setContent { TestJarvisApp() }
 
-        onAllNodesWithText("셀 수 없음", useUnmergedTree = true).assertCountEquals(2)
+        onAllNodesWithText("셀 수 없음", useUnmergedTree = true).assertCountEquals(4)
     }
 
     @Test
     fun showsPlaceholderUntilTheRepositoryAnswers() = runComposeUiTest {
         setContent { TestJarvisApp(emulator = SilentEmulatorRepository) }
 
-        onAllNodesWithText("확인 중…", useUnmergedTree = true).assertCountEquals(2)
+        onAllNodesWithText("확인 중…", useUnmergedTree = true).assertCountEquals(4)
     }
 
     @Test
