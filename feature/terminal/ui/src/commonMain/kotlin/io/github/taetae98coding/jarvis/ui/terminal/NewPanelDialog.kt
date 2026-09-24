@@ -40,7 +40,7 @@ const val TerminalNewPanelConfirmTestTag = "terminal:new-panel-confirm"
 const val TerminalNewPanelCancelTestTag = "terminal:new-panel-cancel"
 
 /**
- * 새 패널의 제목·폴더를 받는다. 탭 종류는 묻지 않는다 — 패널은 비어 있고 첫 탭은 빈 패널의 + 메뉴에서 연다.
+ * 새 패널의 제목·폴더를 받는다. 탭 종류는 묻지 않는다 — 패널은 Claude 탭 하나로 시작하고(못 띄우는 타깃은 빈 패널) 다른 탭은 + 메뉴에서 연다.
  * 빈 값의 기본값은 도메인이 정하고, 여기서는 친 그대로 넘긴다. 입력 중인 글자는 창이 닫히면 버린다.
  */
 @Composable

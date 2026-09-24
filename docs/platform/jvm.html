@@ -1017,7 +1017,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>구현</h3>
 <dl class="meta">
   <dt>파일</dt><dd><code>feature/terminal/ui/src/jvmMain/.../ui/terminal/DirectoryPicker.jvm.kt</code>, <code>feature/terminal/data/src/jvmMain/.../data/terminal/Terminal.jvm.kt</code>(<code>startDirectory</code> 가 <code>expandHome</code> 을 부른다)</dd>
-  <dt>동작</dt><dd>공통 스펙 R1–R9 그대로. "찾아보기" 는 입력란에 경로가 있으면 그 폴더에서 연다</dd>
+  <dt>동작</dt><dd>공통 스펙 R1–R9 그대로. "확인" 이 연 Claude 탭은 <a href="#terminal-claude">Claude 실행</a>대로 패널 폴더에서 새 백그라운드 세션을 띄운다. "찾아보기" 는 입력란에 경로가 있으면 그 폴더에서 연다</dd>
   <dt>실패</dt><dd>창을 띄우지 못하면(헤드리스) 예외를 삼키고 null — 입력란은 그대로다. 데스크탑은 macOS 만 지원한다. 다른 OS 에서도 <code>FileDialog</code> 는 뜨지만 속성을 모르는 피어라 파일 선택 창이 된다 — 분기를 만들지 않는다</dd>
 </dl>
 
@@ -1071,7 +1071,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 </ul>
 
 <h3>검증</h3>
-<p>모델·유스케이스는 <code>TerminalWorkspaceTest</code>·<code>GitWorktreeTest</code>·<code>AddWorktreePanelUseCaseTest</code>·<code>CloseWorktreePanelUseCaseTest</code>(<code>jvmTest</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 실제 <code>git</code> 은 임시 저장소를 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다 — 현재 브랜치·detached·unborn, 기준 브랜치에서 갈라지는지, 지우기의 세 경우와 변경이 있는 폴더의 거부도 여기서 본다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 실제 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → 저장소 폴더의 패널 → + → 브랜치·기준 브랜치 → "확인" → 빈 워크트리 패널의 + 로 터미널을 열어 손으로 확인하고, 그 패널의 ✕ → 체크박스 조합 → "확인" 뒤 <code>git worktree list</code>·<code>git branch</code>·폴더를 셸에서 본다.</p>
+<p>모델·유스케이스는 <code>TerminalWorkspaceTest</code>·<code>GitWorktreeTest</code>·<code>AddWorktreePanelUseCaseTest</code>·<code>CloseWorktreePanelUseCaseTest</code>(<code>jvmTest</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 실제 <code>git</code> 은 임시 저장소를 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다 — 현재 브랜치·detached·unborn, 기준 브랜치에서 갈라지는지, 지우기의 세 경우와 변경이 있는 폴더의 거부도 여기서 본다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 실제 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → 저장소 폴더의 패널 → + → 브랜치·기준 브랜치 → "확인" → 워크트리 패널에 뜬 Claude 탭과 + 로 연 터미널이 워크트리 폴더에서 시작하는지 손으로 확인하고, 그 패널의 ✕ → 체크박스 조합 → "확인" 뒤 <code>git worktree list</code>·<code>git branch</code>·폴더를 셸에서 본다.</p>
 </section>
 
 <section class="feature" id="terminal-claude-status">

@@ -40,7 +40,7 @@ const val TerminalNewWorktreeConfirmTestTag = "terminal:new-worktree-confirm"
 const val TerminalNewWorktreeCancelTestTag = "terminal:new-worktree-cancel"
 
 /**
- * 새 워크트리의 브랜치·기준 브랜치·폴더를 받는다. 탭 종류는 묻지 않는다 — 만든 패널은 비어 있고 첫 탭은 빈 패널의 + 메뉴에서 연다.
+ * 새 워크트리의 브랜치·기준 브랜치·폴더를 받는다. 탭 종류는 묻지 않는다 — 만든 패널은 Claude 탭 하나로 시작하고(못 띄우는 타깃은 빈 패널) 다른 탭은 + 메뉴에서 연다.
  * 기준 브랜치는 + 를 누른 패널의 워크트리 [worktree] 가 지금 체크아웃한 브랜치로 시작하고, 비우면 그 값으로 돌아간다
  * (둘 다 없으면 null — git 의 HEAD).
  * [onCreate] 가 git 을 돌리는 동안 창은 남고 입력이 잠기며, 실패하면 그 문구를 보이고 다시 누를 수 있다.

@@ -136,14 +136,20 @@ internal class TerminalViewModel(
 
     private fun browserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
-    fun addPanel(name: String, directory: String) = update { it.addPanel(name, directory) }
+    fun addPanel(name: String, directory: String) {
+        val sessionId = firstClaudeSessionId()
+        update { it.addPanel(name, directory, sessionId) }
+    }
 
     /**
-     * [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 빈 패널을 붙인다. 창이 닫혀 이 호출이 취소돼도 git 명령과
+     * [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 패널을 Claude 탭 하나로 붙인다. 창이 닫혀 이 호출이 취소돼도 git 명령과
      * 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게.
      */
     suspend fun addWorktreePanel(parentId: Long, branch: String, baseBranch: String?, directory: String): Result<Unit> =
-        viewModelScope.async { addWorktree(parentId, branch, baseBranch, directory).map { } }.await()
+        viewModelScope.async { addWorktree(parentId, branch, baseBranch, directory, firstClaudeSessionId()).map { } }.await()
+
+    // 새 패널의 첫 Claude 탭. Claude 를 띄울 수 없는 타깃이면 null 이고 패널은 빈 채로 시작한다.
+    private fun firstClaudeSessionId(): String? = if (isClaudeSupported) newClaudeSessionId() else null
 
     fun renamePanel(panelId: Long, name: String) = update { it.renamePanel(panelId, name) }
 
