@@ -5,10 +5,12 @@ import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveDirectoryUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitGraphUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitStatusUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.PushGitBranchUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.StageGitChangesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.UnstageGitChangesUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -79,6 +81,7 @@ internal class TerminalSideBarViewModel(
     observeGitGraph: ObserveGitGraphUseCase,
     private val stageGitChanges: StageGitChangesUseCase,
     private val unstageGitChanges: UnstageGitChangesUseCase,
+    private val pushGitBranch: PushGitBranchUseCase,
 ) : ViewModel() {
     private val directory = MutableStateFlow<String?>(null)
 
@@ -116,8 +119,12 @@ internal class TerminalSideBarViewModel(
 
     private val mutableGitError = MutableStateFlow<String?>(null)
 
-    /** 마지막 stage·unstage 가 실패했으면 git 의 오류 문구. */
+    /** 마지막 stage·unstage·push 가 실패했으면 git 의 오류 문구. */
     val gitError: StateFlow<String?> = mutableGitError.asStateFlow()
+
+    private val mutablePushing = MutableStateFlow(false)
+
+    val pushing: StateFlow<Boolean> = mutablePushing.asStateFlow()
 
     fun setDirectory(value: String?) {
         directory.value = value
@@ -148,6 +155,19 @@ internal class TerminalSideBarViewModel(
     fun stage(root: String, changes: List<GitChange>) = runGit { stageGitChanges(root, changes) }
 
     fun unstage(root: String, changes: List<GitChange>) = runGit { unstageGitChanges(root, changes) }
+
+    // 도는 동안 다시 누르면 같은 커밋을 두 번 올리려는 push 가 겹친다(docs/common/terminal-side-bar.html R23).
+    fun push(root: String, target: GitPushTarget) {
+        if (!mutablePushing.compareAndSet(expect = false, update = true)) return
+
+        runGit {
+            try {
+                pushGitBranch(root, target)
+            } finally {
+                mutablePushing.value = false
+            }
+        }
+    }
 
     private fun runGit(command: suspend () -> Result<Unit>) {
         viewModelScope.launch {
