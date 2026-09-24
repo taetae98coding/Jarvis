@@ -24,12 +24,12 @@ import androidx.compose.foundation.style.selected
 import androidx.compose.foundation.style.styleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -152,7 +152,7 @@ internal fun TerminalPanelList(
             }
         }
 
-        TextButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth().testTag(TerminalNewPanelTestTag)) {
+        Button(onClick = { creating = true }, modifier = Modifier.fillMaxWidth().testTag(TerminalNewPanelTestTag)) {
             Icon(
                 imageVector = JarvisIcons.Add,
                 contentDescription = null,
