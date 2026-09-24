@@ -20,17 +20,11 @@ import androidx.compose.foundation.style.pressed
 import androidx.compose.foundation.style.rememberUpdatedStyleState
 import androidx.compose.foundation.style.selected
 import androidx.compose.foundation.style.styleable
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.text.input.selectAll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,21 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -243,15 +227,16 @@ internal fun TerminalPanelItem(
             .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s)
 
         if (editing) {
-            PanelNameField(
+            TerminalNameField(
                 initial = name,
+                textStyle = TerminalPanelItemDefaults.nameStyle,
                 color = contentColor,
                 onDone = { value ->
                     editing = false
                     onRename(value)
                 },
                 onCancel = { editing = false },
-                modifier = nameModifier,
+                modifier = nameModifier.testTag(TerminalPanelNameFieldTestTag),
             )
         } else {
             Column(
@@ -324,57 +309,6 @@ private fun PanelItemIcon(
             tint = tint,
         )
     }
-}
-
-/** Enter·포커스를 잃으면 확정, Esc 는 취소. 들어올 때 이름 전체가 선택돼 곧바로 덮어쓸 수 있다. */
-@Composable
-private fun PanelNameField(
-    initial: String,
-    color: Color,
-    onDone: (String) -> Unit,
-    onCancel: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val state = rememberTextFieldState(initial)
-    val focusRequester = remember { FocusRequester() }
-    // 포커스를 받기 전의 "포커스 없음" 알림을 확정으로 읽지 않게, 한 번 포커스를 받은 뒤부터 본다.
-    var focused by remember { mutableStateOf(false) }
-    var finished by remember { mutableStateOf(false) }
-
-    fun finish(commit: Boolean) {
-        if (finished) return
-        finished = true
-        if (commit) onDone(state.text.toString()) else onCancel()
-    }
-
-    LaunchedEffect(Unit) {
-        state.edit { selectAll() }
-        focusRequester.requestFocus()
-    }
-
-    BasicTextField(
-        state = state,
-        lineLimits = TextFieldLineLimits.SingleLine,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        textStyle = TerminalPanelItemDefaults.nameStyle.copy(color = color),
-        cursorBrush = SolidColor(color),
-        onKeyboardAction = { finish(commit = true) },
-        modifier = modifier
-            .testTag(TerminalPanelNameFieldTestTag)
-            .focusRequester(focusRequester)
-            .onFocusChanged {
-                if (it.isFocused) focused = true else if (focused) finish(commit = true)
-            }
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (event.key) {
-                    Key.Enter, Key.NumPadEnter -> finish(commit = true)
-                    Key.Escape -> finish(commit = false)
-                    else -> return@onPreviewKeyEvent false
-                }
-                true
-            },
-    )
 }
 
 internal object TerminalPanelListDefaults {

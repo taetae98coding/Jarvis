@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
@@ -13,6 +14,7 @@ import okio.Path.Companion.toOkioPath
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * 실제 파일에 쓰고, 새 DataStore 로 다시 읽는다 — 앱을 끝냈다 다시 켠 것과 같다. 한 파일에 DataStore 가
@@ -46,6 +48,45 @@ class TerminalWorkspaceStoreTest {
 
         assertEquals(change.after, reopened)
         assertEquals(listOf("백엔드", "패널 2"), reopened.panels.map { it.name })
+    }
+
+    @Test
+    fun tabNamesAndDevicePlatformsAreReadBackByANewStore() = runTest {
+        val path = newPath()
+        val change = repository(path).updateWorkspace { workspace ->
+            workspace
+                .renameTab(workspace.focusedTab!!.id, "서버")
+                .addTab(program = TerminalProgram.Device, deviceId = "emulator-5554", deviceName = "Pixel 9", devicePlatform = DevicePlatform.Android)
+                .addTab(program = TerminalProgram.Device, deviceId = "sim", deviceName = "iPhone 15", devicePlatform = DevicePlatform.IOS)
+        }
+
+        val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
+
+        assertEquals(change.after, reopened)
+        assertEquals(listOf("서버", null, null), reopened.tabs.map { it.name })
+        assertEquals(listOf(null, DevicePlatform.Android, DevicePlatform.IOS), reopened.tabs.map { it.devicePlatform })
+    }
+
+    // 이름·플랫폼 키가 없던 때의 파일. 두 값 모두 없는 것으로 읽는다.
+    @Test
+    fun fileWithoutTabNamesOrDevicePlatformsReadsThemAsNull() = runTest {
+        val path = newPath()
+        FileSystem.SYSTEM.createDirectories(path.parent!!)
+        FileSystem.SYSTEM.write(path) {
+            writeUtf8(
+                """
+                {"panels": [{"id": 1, "name": "패널 1", "focusedGroupId": 2,
+                  "root": {"type": "group", "id": 2, "selectedTabId": 3,
+                           "tabs": [{"id": 3, "program": "device", "deviceId": "emulator-5554", "deviceName": "Pixel 9"}]}}],
+                 "selectedPanelId": 1, "nextId": 4}
+                """.trimIndent(),
+            )
+        }
+
+        val tab = repository(path).observeWorkspace().first().tabs.single()
+
+        assertNull(tab.name)
+        assertNull(tab.devicePlatform)
     }
 
     @Test

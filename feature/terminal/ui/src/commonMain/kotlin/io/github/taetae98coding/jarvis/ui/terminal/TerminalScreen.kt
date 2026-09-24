@@ -69,6 +69,7 @@ const val TerminalNewClaudeTabTestTag = "terminal:new-tab-menu:claude"
 const val TerminalNewBrowserTabTestTag = "terminal:new-tab-menu:browser"
 const val TerminalNewDeviceTabEmptyTestTag = "terminal:new-tab-menu:devices-empty"
 const val TerminalEmptyPanelTestTag = "terminal:empty-panel"
+const val TerminalTabNameFieldTestTag = "terminal:tab-name-field"
 
 /** 그룹의 새 탭 버튼. null 은 그룹이 없는 빈 패널의 버튼이다. */
 fun terminalNewTabTestTag(groupId: Long?): String = "terminal:new-tab:${groupId ?: "none"}"
@@ -80,6 +81,10 @@ fun terminalGroupTestTag(id: Long): String = "terminal:group:$id"
 fun terminalTabTestTag(id: Long): String = "terminal:tab:$id"
 
 fun terminalTabCloseTestTag(id: Long): String = "terminal:tab-close:$id"
+
+fun terminalTabKindTestTag(id: Long): String = "terminal:tab-kind:$id"
+
+fun terminalTabTitleTestTag(id: Long): String = "terminal:tab-title:$id"
 
 @Composable
 internal fun TerminalScreen(
@@ -163,7 +168,7 @@ private fun EmptyPanel(viewModel: TerminalViewModel, devices: DeviceScreens?, mo
                 onNewClaudeTab = { viewModel.addClaudeTab() }.takeIf { viewModel.isClaudeSupported },
                 onNewBrowserTab = { viewModel.addBrowserTab() }.takeIf { viewModel.isBrowserSupported },
                 devices = devices,
-                onNewDeviceTab = { viewModel.addDeviceTab(null, it.id, it.name) },
+                onNewDeviceTab = { viewModel.addDeviceTab(null, it) },
             )
         }
 
@@ -257,12 +262,13 @@ private fun TerminalGroup(
                 titleOf = viewModel::title,
                 onSelect = viewModel::selectTab,
                 onClose = viewModel::closeTab,
+                onRename = viewModel::renameTab,
                 onDock = { tabId, target -> viewModel.dockTab(tabId, target.groupId, target.edge) },
                 onNewTab = { viewModel.addTab(group.id) },
                 onNewClaudeTab = { viewModel.addClaudeTab(group.id) }.takeIf { viewModel.isClaudeSupported },
                 onNewBrowserTab = { viewModel.addBrowserTab(group.id) }.takeIf { viewModel.isBrowserSupported },
                 devices = devices,
-                onNewDeviceTab = { viewModel.addDeviceTab(group.id, it.id, it.name) },
+                onNewDeviceTab = { viewModel.addDeviceTab(group.id, it) },
                 onMenuExpandedChange = { drag.menuOpen = it },
             )
 
@@ -319,6 +325,7 @@ private fun TerminalTabRow(
     titleOf: (TerminalTab) -> StateFlow<String?>?,
     onSelect: (Long) -> Unit,
     onClose: (Long) -> Unit,
+    onRename: (Long, String) -> Unit,
     onDock: (Long, TerminalDropTarget) -> Unit,
     onNewTab: () -> Unit,
     onNewClaudeTab: (() -> Unit)?,
@@ -327,6 +334,8 @@ private fun TerminalTabRow(
     onNewDeviceTab: (DeviceChoice) -> Unit,
     onMenuExpandedChange: (Boolean) -> Unit,
 ) {
+    var editingTabId by remember { mutableStateOf<Long?>(null) }
+
     Row(
         // 새 탭 버튼이 탭 높이를 따라가도록 줄 높이를 탭에 맞춘다.
         modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).horizontalScroll(rememberScrollState()),
@@ -334,15 +343,29 @@ private fun TerminalTabRow(
     ) {
         group.tabs.forEachIndexed { index, tab ->
             val title = tabTitle(titleOf(tab), index, tab)
+            val editing = editingTabId == tab.id
 
             TerminalTab(
                 title = title,
+                kind = tab.kind,
                 selected = tab.id == group.selectedTabId,
+                editing = editing,
                 onSelect = { onSelect(tab.id) },
+                onStartRename = { editingTabId = tab.id },
+                onRename = { value ->
+                    editingTabId = null
+                    // 고치지 않고 확정하면 자동 제목이 이름으로 굳지 않게 그대로 둔다.
+                    if (value != title) onRename(tab.id, value)
+                },
+                onCancelRename = { editingTabId = null },
                 onClose = { onClose(tab.id) },
                 modifier = Modifier
                     .testTag(terminalTabTestTag(tab.id))
-                    .terminalTabDragSource(drag, tab.id, title) { target -> onDock(tab.id, target) },
+                    // 입력칸에서 끌어 글자를 고르는 것이 탭 끌기로 읽히지 않게 편집하는 동안은 떼어 둔다.
+                    .then(if (editing) Modifier else Modifier.terminalTabDragSource(drag, tab.id, title) { target -> onDock(tab.id, target) }),
+                kindModifier = Modifier.testTag(terminalTabKindTestTag(tab.id)),
+                titleModifier = Modifier.testTag(terminalTabTitleTestTag(tab.id)),
+                nameFieldModifier = Modifier.testTag(TerminalTabNameFieldTestTag),
                 closeModifier = Modifier.testTag(terminalTabCloseTestTag(tab.id)),
             )
         }
@@ -470,7 +493,7 @@ private fun DeviceMenuSection(devices: DeviceScreens, onSelect: (DeviceChoice) -
                     )
                 }
             },
-            leadingIcon = { Icon(imageVector = JarvisIcons.Smartphone, contentDescription = null) },
+            leadingIcon = { Icon(imageVector = TerminalTabDefaults.kindIcon(choice.tabKind), contentDescription = null) },
             onClick = { onSelect(choice) },
             modifier = Modifier.testTag(terminalNewDeviceTabTestTag(choice.id)),
         )
@@ -480,7 +503,8 @@ private fun DeviceMenuSection(devices: DeviceScreens, onSelect: (DeviceChoice) -
 @Composable
 private fun tabTitle(source: StateFlow<String?>?, index: Int, tab: TerminalTab): String {
     // 기기 이름은 고를 때 탭에 저장해 둔다. 가려진 탭의 이름을 알려고 목록을 계속 세지 않는다.
-    val title = if (tab.program == TerminalProgram.Device) tab.deviceName else source?.collectAsStateWithLifecycle()?.value
+    val automatic = if (tab.program == TerminalProgram.Device) tab.deviceName else source?.collectAsStateWithLifecycle()?.value
+    val title = tab.name ?: automatic
     val fallback = when (tab.program) {
         TerminalProgram.Shell -> "셸"
         TerminalProgram.Claude -> "Claude"
