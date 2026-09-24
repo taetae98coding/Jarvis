@@ -160,7 +160,8 @@ internal fun TerminalScreen(
 /** 그룹이 없는 패널. + 하나가 그룹을 만들어 탭을 넣는다. */
 @Composable
 private fun EmptyPanel(viewModel: TerminalViewModel, devices: DeviceScreens?, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s)) {
+    // 탭 줄과 간격은 TerminalGroup 과 같게 둔다. + 가 탭이 있을 때와 같은 자리·크기로 보여야 한다.
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs)) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             NewTabButton(
                 groupId = null,
