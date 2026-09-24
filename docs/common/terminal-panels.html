@@ -46,6 +46,11 @@
   <footer>2026-09-24 대화. "창을 나누자" 는 지금까지 한 층이던 탭·분할 위에 패널 층을 하나 더 두는 것으로 읽었다. "탭을 상하/좌우 분리" 는 <a href="terminal.html">터미널</a>의 분할(R5·R6)이 패널 안의 탭마다 그대로 되는 것으로 읽었다. "지침 시킨 것도 bg로" 는 Claude 에게 맡긴 작업이 창을 보고 있지 않아도, 앱이 꺼져도 멈추지 않는 것으로 읽었다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>왼쪽 사이드에 새 패널 버튼을 Button으로 해서 backgroundColor가 있는 버튼으로 수정해줘.</p>
+  <footer>2026-09-25 대화. "Button" 은 Material 3 의 <code>Button</code>(filled) 으로 읽었다. 배경 없는 <code>TextButton</code> 이던 "새 패널" 버튼이 primary 배경을 갖는다. 이 지시로 R2 와 아래 표의 "패널 목록" 이 바뀌었다.</footer>
+</blockquote>
+
 <p>뒤따른 <a href="terminal-panel-item-layout.html">버튼을 아래 줄로</a> 지시로 패널 줄의 ✎·✕ 는 이름 옆이 아니라 이름 아래 따로 된 줄에 있다. 아래 그림은 그 전 모양이다.</p>
 
 <p>뒤따른 <a href="terminal-tab-dock.html">탭 끌어 놓기</a> 지시로 상단 막대의 동작 버튼이 없어지고 새 탭(+)은 탭 줄 끝으로 갔다. 아래 그림과 R6 의 "새 탭(+) 메뉴" 는 그 자리를 가리킨다. 탭을 끌어 놓아 나누는 규칙은 그 문서에 있다. 다시 뒤따른 <a href="terminal-tab-groups.html">분할 그룹</a> 지시로 분할 트리는 탭이 아니라 패널에 붙고 나뉜 칸마다 탭 줄을 가진다. 아래 그림의 탭 줄은 그룹마다 하나씩 있다고 읽는다(그 문서의 그림).</p>
@@ -69,7 +74,7 @@
 <h3>패널</h3>
 <ol>
   <li><strong>R1.</strong> 터미널 화면 왼쪽에 패널 목록이 세로로 놓인다. 위에서부터 만든 순서이고 선택된 패널이 강조된다. 패널을 누르면 그 패널이 선택되고, 오른쪽 영역(탭 줄과 창)이 그 패널의 것으로 바뀐다.</li>
-  <li><strong>R2.</strong> 목록 아래의 "새 패널" 버튼은 이름이 "패널 N"(N 은 지금 패널 수 + 1)이고 터미널 탭 하나를 가진 패널을 목록 끝에 붙이고 선택한다. 뒤따른 <a href="terminal-panel-create.html#requirements">새 패널 제목·폴더</a> 지시로 버튼은 제목·폴더를 받는 창을 먼저 띄운다. 그 뒤 <a href="terminal-panel-create.html#instruction">빈 패널 지시</a>로 창의 "확인" 은 탭 없는 패널을 만든다 — 이 문장의 "터미널 탭 하나" 는 빈 패널의 새 탭(+)으로 연다.</li>
+  <li><strong>R2.</strong> 목록 아래의 "새 패널" 버튼은 배경색이 있는 버튼이다. 이 버튼은 이름이 "패널 N"(N 은 지금 패널 수 + 1)이고 터미널 탭 하나를 가진 패널을 목록 끝에 붙이고 선택한다. 뒤따른 <a href="terminal-panel-create.html#requirements">새 패널 제목·폴더</a> 지시로 버튼은 제목·폴더를 받는 창을 먼저 띄운다. 그 뒤 <a href="terminal-panel-create.html#instruction">빈 패널 지시</a>로 창의 "확인" 은 탭 없는 패널을 만든다 — 이 문장의 "터미널 탭 하나" 는 빈 패널의 새 탭(+)으로 연다.</li>
   <li><strong>R3.</strong> 패널 줄의 "이름 바꾸기" 아이콘을 누르면 이름이 입력 필드로 바뀌고 포커스를 받는다. Enter 나 포커스를 잃으면 확정되고 Esc 는 취소한다. 앞뒤 공백을 떼고, 비어 있으면 이전 이름을 그대로 둔다.</li>
   <li><strong>R4.</strong> 패널 줄의 "패널 닫기" 아이콘은 그 패널을 목록에서 지우고 그 안의 창을 전부 닫는다(R12). 패널이 하나뿐이면 닫기 아이콘이 없다. 선택된 패널을 닫으면 그 자리에 오는 패널(없으면 앞 패널)이 선택된다.</li>
 </ol>
@@ -122,7 +127,7 @@
 <table>
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
-    <tr><td>패널 목록</td><td>화면 왼쪽, 폭 <code>TerminalPanelListDefaults.width</code>(200dp). 세로로 스크롤된다. 맨 아래에 "새 패널" 버튼(<code>Add</code> 아이콘 + 글자)</td></tr>
+    <tr><td>패널 목록</td><td>화면 왼쪽, 폭 <code>TerminalPanelListDefaults.width</code>(200dp). 세로로 스크롤된다. 맨 아래에 "새 패널" 버튼(<code>Add</code> 아이콘(small) + 글자). 목록 폭을 채우는 M3 <code>Button</code> 이라 <code>colorScheme.primary</code> 배경에 onPrimary 글자·아이콘이다</td></tr>
     <tr><td>패널 줄</td><td>이름(한 줄, 넘치면 말줄임), 그 아래 줄에 오른쪽 끝으로(<a href="terminal-panel-item-layout.html">버튼을 아래 줄로</a>) 이름 바꾸기 아이콘 <code>Edit</code>(contentDescription "이름 바꾸기") · 닫기 아이콘 <code>Close</code>(contentDescription "패널 닫기", 패널이 둘 이상일 때만). 선택된 줄은 primaryContainer 배경, 나머지는 투명하고 hover·눌림에 한 단계 진해진다(<code>TerminalPanelItemDefaults.style</code>)</td></tr>
     <tr><td>이름 입력 필드</td><td>줄 자리에 한 줄짜리 입력 필드. 들어올 때 이름 전체가 선택된다</td></tr>
     <tr><td>빈 패널</td><td>탭 줄 아래 가운데에 "탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다."</td></tr>
