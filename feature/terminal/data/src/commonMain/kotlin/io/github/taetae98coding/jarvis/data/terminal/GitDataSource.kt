@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
@@ -20,6 +21,8 @@ internal interface GitDataSource {
 
     fun observeGraph(directory: String): Flow<List<GitGraphLine>>
 
+    fun observeFileDiff(path: String): Flow<GitFileDiff?>
+
     suspend fun stage(root: String, changes: List<GitChange>): Result<Unit>
 
     suspend fun unstage(root: String, changes: List<GitChange>): Result<Unit>
@@ -27,7 +30,7 @@ internal interface GitDataSource {
     suspend fun push(root: String, target: GitPushTarget): Result<Unit>
 }
 
-/** git 을 실행할 수 없는 타깃. 어떤 폴더도 저장소가 아니라서 패널에 + 가 없고 사이드 바의 Git 구획은 "git 저장소가 아닙니다" 다. */
+/** git 을 실행할 수 없는 타깃. 어떤 폴더도 저장소가 아니라서 패널에 + 가 없고 사이드 바의 Git 구획은 "git 저장소가 아닙니다", 파일 탭에는 diff 가 없다. */
 internal object UnsupportedGitDataSource : GitDataSource {
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = flowOf(null)
 
@@ -39,6 +42,8 @@ internal object UnsupportedGitDataSource : GitDataSource {
     override fun observeStatus(directory: String): Flow<GitStatus?> = flowOf(null)
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = flowOf(emptyList())
+
+    override fun observeFileDiff(path: String): Flow<GitFileDiff?> = flowOf(null)
 
     override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> = unsupported()
 

@@ -2,6 +2,7 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangesRepository
+import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
@@ -13,6 +14,8 @@ internal class DefaultGitChangesRepository(
     override fun observeStatus(directory: String): Flow<GitStatus?> = dataSource.observeStatus(directory)
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = dataSource.observeGraph(directory)
+
+    override fun observeFileDiff(path: String): Flow<GitFileDiff?> = dataSource.observeFileDiff(path)
 
     override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> = dataSource.stage(root, changes)
 

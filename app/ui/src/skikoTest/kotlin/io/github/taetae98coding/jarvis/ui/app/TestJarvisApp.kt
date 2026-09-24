@@ -44,6 +44,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
 import io.github.taetae98coding.jarvis.domain.terminal.FileRepository
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangesRepository
+import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
@@ -440,18 +441,21 @@ internal class FakeFileRepository(
 }
 
 /**
- * 폴더마다 정해 둔 git 상태와 그래프를 답한다. 기본값은 어느 폴더도 저장소가 아닌 것이다. stage·unstage·push 는 요청을 기록하고
+ * 폴더마다 정해 둔 git 상태와 그래프, 파일마다 정해 둔 diff 를 답한다. 기본값은 어느 폴더도 저장소가 아닌 것이다. stage·unstage·push 는 요청을 기록하고
  * [failure] 가 있으면 그것으로 실패한다. 상태는 바꾸지 않는다 — 결과는 테스트가 [statuses] 로 정한다.
  * [gate] 가 있으면 push 는 요청을 기록한 뒤 그것이 끝날 때까지 기다린다.
  */
 internal class FakeGitChangesRepository(
     statuses: Map<String, GitStatus> = emptyMap(),
     graphs: Map<String, List<GitGraphLine>> = emptyMap(),
+    diffs: Map<String, GitFileDiff> = emptyMap(),
     var failure: String? = null,
 ) : GitChangesRepository {
     val statuses = MutableStateFlow(statuses)
 
     val graphs = MutableStateFlow(graphs)
+
+    val diffs = MutableStateFlow(diffs)
 
     val staged = mutableListOf<Pair<String, List<GitChange>>>()
 
@@ -464,6 +468,8 @@ internal class FakeGitChangesRepository(
     override fun observeStatus(directory: String): Flow<GitStatus?> = statuses.map { it[directory] }
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = graphs.map { it[directory].orEmpty() }
+
+    override fun observeFileDiff(path: String): Flow<GitFileDiff?> = diffs.map { it[path] }
 
     override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> {
         staged += root to changes

@@ -118,7 +118,9 @@ class McpServerTest {
         override suspend fun devices(): List<AutomationDevice> =
             listOf(AutomationDevice("emulator-5554", "Pixel", AutomationPlatform.ANDROID, isPhysical = false, isRunning = true, canControl = true))
 
-        override suspend fun boot(deviceId: String) = Unit
+        override suspend fun boot(deviceId: String): String = deviceId
+
+        override suspend fun create(platform: AutomationPlatform): AutomationDevice = error("만들지 않는다")
 
         override suspend fun screenshot(deviceId: String): AutomationImage = AutomationImage(byteArrayOf(1, 2, 3), "image/png", 1, 1)
 

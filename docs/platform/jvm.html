@@ -62,9 +62,11 @@
     <li><a href="#terminal-panel-item-layout">패널 줄의 버튼을 아래 줄로</a></li>
     <li><a href="#terminal-panel-text-marquee">패널 줄 글자 흐르게</a></li>
     <li><a href="#terminal-side-bar">터미널 오른쪽 사이드 바 (파일·Git)</a></li>
+    <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
+    <li><a href="#device-lease">Claude 기기 할당</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
@@ -1344,6 +1346,40 @@ internal actual fun createSystemScreenAwakeDataSource(
 <p><code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>OkioFileDataSourceTest</code>·<code>GitStatusParserTest</code>·<code>GitDataSourceTest</code>(임시 저장소에서 진짜 <code>git</code>), <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalSideBarTest</code>. 실제 화면은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
 </section>
 
+<section class="feature" id="terminal-file-diff">
+<h2>파일 탭에 git diff 표시 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-file-diff.html">파일 탭에 git diff 표시</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>git -C &lt;파일 폴더&gt; --no-optional-locks diff --no-color --no-ext-diff -U0 HEAD -- &lt;파일 이름&gt;</code></td><td>채택. HEAD 트리와 작업 트리를 비교해 stage 여부와 무관하게 커밋 뒤의 변경이 다 나온다. <code>-U0</code> 라 바뀐 줄만 온다. 머리는 <code>@@ -2 +2 @@</code> 처럼 수가 1 이면 빠진다. 지운 파일은 <code>@@ -1,4 +0,0 @@</code> 와 모든 줄이 <code>-</code> 다. 같으면 빈 출력에 0 이다(git 2.54 로 확인). <code>-C</code> 를 파일이 든 폴더(지워졌으면 남아 있는 가장 가까운 위 폴더)로 주면 경로가 그 폴더 기준이라 최상위를 따로 읽지 않는다. <code>--no-ext-diff</code> 는 사용자의 <code>diff.external</code> 이 출력 형식을 바꾸지 않게 한다</td></tr>
+    <tr><td>추적 안 함: <code>git ls-files --others --exclude-standard -- &lt;파일&gt;</code> 로 가린 뒤 <code>git diff --no-index --no-color -U0 -- /dev/null &lt;파일&gt;</code></td><td>채택. <code>git diff HEAD</code> 는 index 에 없는 파일을 보이지 않는다. <code>--no-index</code> 는 차이가 있으면 1 로 끝나므로 1 도 성공으로 읽는다. 머리는 <code>@@ -0,0 +1,N @@</code> 라 같은 해석기를 쓴다. <code>--exclude-standard</code> 로 무시된 파일은 빈 출력이라 diff 가 없다</td></tr>
+    <tr><td>커밋 없는 저장소: <code>ls-files --cached --others --exclude-standard</code> 후 같은 <code>--no-index</code></td><td>채택. HEAD 를 풀 수 없어 <code>git diff HEAD</code> 가 128 이다. 비교할 커밋이 없으니 무시되지 않는 파일은 모두 새 파일이다(D3). 빈 트리 해시(<code>4b825dc…</code>)와 비교하는 방법은 SHA-256 저장소에서 해시가 달라 버렸다</td></tr>
+    <tr><td><code>git diff -U&lt;큰 수&gt;</code> 로 파일 전체</td><td>버렸다. 공통 스펙의 결정대로 내용은 파일 탭이 이미 읽는다</td></tr>
+    <tr><td><code>java-diff-utils</code> 등으로 <code>git show HEAD:&lt;경로&gt;</code> 와 직접 비교</td><td>버렸다. 의존성이 늘고, git 의 diff 설정(<code>diff.algorithm</code>)·<code>.gitattributes</code> 의 <code>-diff</code> 와 결과가 달라진다</td></tr>
+    <tr><td>JGit</td><td>버렸다. <a href="#terminal-worktree">워크트리</a>와 같은 이유</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../Git.jvm.kt</code>(<code>ProcessGitDataSource.observeFileDiff</code>), 공통 <code>GitStatusParser.kt</code>(<code>parseGitDiff</code>)</dd>
+  <dt>동작</dt><dd><code>.git</code> 을 위로 찾지 못하면 프로세스 없이 null. 있으면 <code>rev-parse --verify --quiet HEAD</code> 로 커밋이 있는지 보고 위 순서로 읽는다. 다시 읽는 신호는 <a href="#terminal-side-bar">사이드 바</a> Git 구획과 같은 <code>GitChangesPollInterval</code>(3초) 틱 + stage·unstage 신호다. 파일 탭 하나가 보이는 동안 3초마다 프로세스 둘(추적 안 함이면 넷)이다</dd>
+  <dt>실패</dt><dd>종료 코드가 0 이 아니면(<code>--no-index</code> 는 0·1 이 아니면) null 이라 파일 탭은 예전과 같다. 명령마다 <code>GitCommandTimeout</code>(30초)</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>diff 는 최대 3초, 내용은 최대 2초 늦게 보여 그 사이 표시가 한 번 어긋날 수 있다(D6).</li>
+  <li>공통 스펙의 <a href="../common/terminal-file-diff.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>GitStatusParserTest</code>·<code>GitDataSourceTest</code>(임시 저장소에서 진짜 <code>git</code>), <code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>DiffedLinesTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalSideBarTest</code>. 색은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+</section>
+
 <section class="feature" id="chrome-cookie-import">
 <h2>Chrome 쿠키 가져오기 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
 <p>공통 스펙: <a href="../common/chrome-cookie-import.html">Chrome 쿠키 가져오기</a></p>
@@ -1551,6 +1587,51 @@ internal actual fun createSystemScreenAwakeDataSource(
   <li>앱 창을 닫으면 앱·WDA 의 <code>xcodebuild</code>·Chromium 도우미가 모두 끝났다.</li>
 </ul>
 </section>
+
+<section class="feature" id="device-lease">
+<h2>Claude 기기 할당 <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/device-lease.html">Claude 기기 할당</a></p>
+
+<h3>기술 조사</h3>
+<p>할당(R1–R5, R11–R14)은 <code>:feature:mcp:domain</code> 의 공통 코드라 플랫폼 조사가 없다. 여기는 기기를 켜고 기다리기(R6)와 만들기(R8)다.</p>
+<table>
+  <thead><tr><th>갈래</th><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="4">Android 만들기</td><td>AVD 파일을 직접 쓰기(<code>&lt;AVD 폴더&gt;/Jarvis_N.ini</code> + <code>Jarvis_N.avd/config.ini</code>)</td><td>채택. Android Studio 의 Device Manager 도 같은 두 파일을 쓴다. <code>config.ini</code> 에는 시스템 이미지 경로(<code>image.sysdir.1</code>)·ABI·태그·화면(1080×2400, 420dpi)·RAM 2048MB·데이터 6GB·키보드만 적고 나머지는 에뮬레이터 기본값에 맡긴다. AVD 폴더는 <code>ANDROID_AVD_HOME</code> → <code>ANDROID_USER_HOME/avd</code> → <code>~/.android/avd</code> 차례로, 에뮬레이터가 찾는 차례와 같다</td></tr>
+    <tr><td><code>avdmanager create avd</code></td><td>버렸다. <code>cmdline-tools</code> 패키지에 들어 있는데 Android Studio 가 기본으로 깔지 않는다(2026-09-25 이 머신의 SDK 에도 없다). 있어도 JDK 를 따로 찾고 "custom hardware profile" 질문에 stdin 으로 답해야 한다</td></tr>
+    <tr><td><code>emulator -avd &lt;기존 AVD&gt; -read-only</code>(한 AVD 를 여럿 띄우기)</td><td>버렸다. 만들지 않아도 되지만 사용자의 AVD 를 빌려 쓰고, 끄면 바뀐 것이 사라지며(스냅숏을 못 쓴다), 같은 AVD 를 이미 보통으로 띄워 둔 경우와 섞인다. 할당 키(R5)도 AVD 이름 하나에 인스턴스가 여럿이라 갈리지 않는다</td></tr>
+    <tr><td>시스템 이미지 고르기</td><td><code>&lt;SDK&gt;/system-images/android-&lt;API&gt;/&lt;태그&gt;/&lt;ABI&gt;/system.img</code> 가 있는 것 중 ABI 가 호스트(<code>os.arch</code> 가 <code>aarch64</code> 면 <code>arm64-v8a</code>, 아니면 <code>x86_64</code>)와 같고, 태그가 <code>google_apis_playstore</code> → <code>google_apis</code> → <code>default</code> 인 것, 그중 API 가 가장 높은 것. TV·Wear·Automotive 태그는 고르지 않는다. 이미지를 내려받지는 않는다 — 1GB 가 넘고 라이선스 동의가 필요하다(R9 오류로 알린다)</td></tr>
+    <tr><td rowspan="2">Android 기다리기</td><td>기기 목록에 그 AVD 이름의 에뮬레이터 시리얼이 나올 때까지(<code>adb emu avd name</code>, <a href="#emulator-control">기기 목록</a>) → <code>adb -s &lt;시리얼&gt; shell getprop sys.boot_completed</code> 가 <code>1</code> 일 때까지 1초마다</td><td>채택. 목록은 이미 5초마다 다시 센다</td></tr>
+    <tr><td><code>adb wait-for-device</code></td><td>버렸다. 시리얼을 모르는 동안 부를 수 없고, 기기가 붙는 것만 기다려서 부팅 완료를 따로 봐야 한다</td></tr>
+    <tr><td rowspan="2">iOS 만들기</td><td><code>simctl list runtimes -j</code> → <code>simctl create "Jarvis N" &lt;기기 종류&gt; &lt;런타임&gt;</code></td><td>채택. 쓸 수 있는(<code>isAvailable</code>) iOS 런타임 중 버전이 가장 높은 것, 그 런타임의 <code>supportedDeviceTypes</code> 에서 <code>productFamily = iPhone</code> 인 첫 종류(목록이 최신 기종부터라 2026-09-25 iOS 27.0 에서 iPhone 18 Pro). <code>create</code> 는 새 UDID 한 줄을 찍는다</td></tr>
+    <tr><td>런타임을 빼고 <code>simctl create</code></td><td>버렸다. 기기 종류는 여전히 골라야 한다</td></tr>
+    <tr><td>iOS 기다리기</td><td><code>simctl bootstatus &lt;UDID&gt; -b</code></td><td>채택. 꺼져 있으면 켜고 부팅이 끝날 때까지 막는다. 그 뒤 <code>open -a Simulator</code> 로 창을 연다(<a href="#emulator-launch">꺼진 에뮬레이터 실행</a>과 같다)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../automation/VirtualDevices.kt</code>(이름·이미지·런타임 고르기와 파일 내용 — 순수 함수), <code>JvmDeviceAutomation.boot</code>·<code>create</code></dd>
+  <dt>동작</dt><dd><code>create</code> 는 <code>Mutex</code> 하나 안에서 지금 있는 AVD·시뮬레이터 이름을 보고 N 을 고르고 만든다(R8, 두 패널이 동시에 불러도 이름이 겹치지 않는다). <code>boot</code> 는 기존 <code>launch</code>(꺼진 에뮬레이터 실행)를 부르고 위 기다리기를 한다. 이미 켜진 기기면 식별자를 그대로 준다</dd>
+  <dt>실패</dt><dd>SDK 없음 "Android SDK 를 찾지 못했습니다", 이미지 없음 "설치된 Android 시스템 이미지가 없습니다. Android Studio 의 SDK Manager 에서 <code>&lt;ABI&gt;</code> 시스템 이미지를 설치하세요.", Xcode·런타임 없음 "iOS 시뮬레이터 런타임이 없습니다. Xcode → Settings → Components 에서 설치하세요.", <code>simctl create</code> 실패는 그 출력</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>새 AVD 의 첫 부팅은 콜드 부팅이라 1–2분 걸린다. <code>device_acquire</code> 의 300초 안에 끝나지 않으면 오류지만 에뮬레이터는 계속 켜지고, 할당은 남는다 — 다시 부르면 R7 의 1 번으로 그 기기를 받는다.</li>
+  <li>만든 AVD 의 하드웨어는 고정값이다(Pixel 모양 1080×2400). 다른 모양이 필요하면 사용자가 AVD 를 만들어 두면 R7 의 3·4 번으로 그것을 쓴다.</li>
+  <li>macOS 가 아닌 데스크톱은 분기가 없다. SDK 경로를 찾으면 Android 만들기는 같은 코드로 돌고, iOS 는 <code>simctl</code> 이 없어 R9 오류다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동: 공통 스펙의 <a href="../common/device-lease.html#verification">검증</a> 표. 수동(2026-09-25, macOS arm64, Xcode 27.0, Android Emulator 37.1.11) — 앱의 MCP 포트를 사용자의 Jarvis 가 쓰고 있어서 서버를 거치지 않고 <code>JvmDeviceAutomation</code> 을 jvmTest 에서 직접 불렀다(할당은 <code>McpToolboxTest</code> 가 확인한다).</p>
+<ul>
+  <li>R8(iOS): <code>create(IOS)</code> 가 iOS 27.0 런타임으로 "Jarvis 1" 을 만들었고, <code>boot</code> 가 <code>simctl bootstatus -b</code> 로 28초 기다려 같은 UDID 를 줬다. 다음 목록에 실행 중으로 나왔다. 확인 뒤 <code>simctl delete</code> 로 지웠다.</li>
+  <li>R9(Android): 이 머신의 SDK 에는 시스템 이미지가 없어서 "설치된 Android 시스템 이미지가 없습니다…" 오류였고 AVD 폴더에 아무것도 생기지 않았다.</li>
+  <li>R8(Android): 가짜 SDK(<code>system-images/android-35/google_apis/arm64-v8a/system.img</code> 빈 파일)와 임시 <code>ANDROID_AVD_HOME</code> 으로 두 번 부르니 <code>Jarvis_1</code>·<code>Jarvis_2</code> 가 생겼고, <code>emulator -list-avds</code> 가 둘을 나열했다. <code>emulator -avd Jarvis_1 -verbose</code> 는 "Found AVD target architecture: arm64" 와 AVD 경로까지 읽고 가짜 이미지에서 멈췄다. 실제 이미지로 켜고 <code>sys.boot_completed</code> 를 기다리는 것은 <span class="badge untested">미검증</span>이다.</li>
+</ul>
+</section>
+
 
 <section class="feature" id="design-system">
 <h2>디자인 시스템 <span class="badge ok">구현</span></h2>

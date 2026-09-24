@@ -3,6 +3,8 @@ package io.github.taetae98coding.jarvis.data.terminal
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
+import io.github.taetae98coding.jarvis.domain.terminal.GitDiffHunk
+import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 
@@ -132,3 +134,43 @@ internal fun parseGitGraph(output: String): List<GitGraphLine> {
 
 private const val FieldSeparator = '\u001f'
 private const val DetailMarker = '\u001e'
+
+/**
+ * 파일 하나의 `git diff -U0` 출력. `@@ -a[,b] +c[,d] @@` 머리마다 덩어리 하나이고, 수가 빠지면 1 이다. 머리 앞의
+ * `diff --git`·`---`·`+++` 줄과 `\ No newline at end of file` 는 건너뛴다. 더한 줄의 글자는 파일 탭이 디스크에서 읽으므로
+ * 지운 줄만 모은다.
+ */
+internal fun parseGitDiff(output: String): GitFileDiff {
+    val hunks = mutableListOf<GitDiffHunk>()
+    var header: MatchResult? = null
+    val removed = mutableListOf<String>()
+
+    fun flush() {
+        val match = header ?: return
+        val (oldStart, oldCount, newStart, newCount) = match.destructured
+        hunks += GitDiffHunk(
+            oldStart = oldStart.toInt(),
+            oldCount = oldCount.ifEmpty { "1" }.toInt(),
+            newStart = newStart.toInt(),
+            newCount = newCount.ifEmpty { "1" }.toInt(),
+            removed = removed.toList(),
+        )
+        removed.clear()
+    }
+
+    output.lineSequence().forEach { line ->
+        val match = if (line.startsWith("@@ ")) HunkHeader.find(line) else null
+        when {
+            match != null -> {
+                flush()
+                header = match
+            }
+            header != null && line.startsWith('-') -> removed += line.substring(1)
+        }
+    }
+    flush()
+
+    return GitFileDiff(hunks)
+}
+
+private val HunkHeader = Regex("""@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@""")

@@ -59,7 +59,7 @@
 <h3>탭</h3>
 <ol start="5">
   <li><strong>R5.</strong> Claude 가 브라우저를 새로 열면(<code>browser_open</code>) 호출한 그룹의 탭 줄 끝에 브라우저 탭이 붙는다. <strong>선택하지 않는다</strong> — 선택된 패널, 포커스된 그룹, 그룹마다 선택된 탭이 그대로다. 사용자가 그 탭을 누르면 Claude 가 조작하고 있는 그 페이지가 보인다(새로 부르지 않는다).</li>
-  <li><strong>R6.</strong> Claude 가 기기 도구를 쓰면 호출한 패널에 그 기기의 기기 탭이 있는지 본다. 없으면 호출한 그룹의 탭 줄 끝에 붙인다(선택하지 않는다, R5 와 같다). 있으면 그대로 둔다 — 같은 기기에 탭을 거듭 만들지 않는다. <code>device_list</code> 처럼 기기를 가리키지 않는 도구는 탭을 만들지 않는다.</li>
+  <li><strong>R6.</strong> Claude 가 기기 도구를 쓰면 호출한 패널에 그 기기의 기기 탭이 있는지 본다. 없으면 호출한 그룹의 탭 줄 끝에 붙인다(선택하지 않는다, R5 와 같다). 있으면 그대로 둔다 — 같은 기기에 탭을 거듭 만들지 않는다. <code>device_list</code> 처럼 기기를 가리키지 않는 도구는 탭을 만들지 않는다. 다른 패널에 할당된 기기면 붙이지 않는다(<a href="device-lease.html#requirements">기기 할당 R3</a>).</li>
   <li><strong>R7.</strong> 호출한 패널이 없으면 브라우저 도구는 "Jarvis 터미널의 Claude 탭에서만 브라우저를 쓸 수 있습니다" 오류를 주고, 기기 도구는 탭 없이 동작한다.</li>
   <li><strong>R8.</strong> Claude 가 연 탭도 사용자가 연 탭과 똑같다. 닫기, 끌어 놓기, 저장·복원 규칙이 같다(<a href="terminal-browser.html">웹 브라우저</a>, <a href="terminal-device.html">기기 화면</a>). 사용자가 닫으면 그 탭을 가리키는 다음 도구 호출은 "탭이 닫혔습니다" 오류다.</li>
 </ol>
@@ -74,7 +74,7 @@
 
 <h3>기기</h3>
 <ol start="13">
-  <li><strong>R13.</strong> <code>device_list</code> 는 <a href="emulator-control.html">기기 목록</a>과 같은 기기를 같은 식별자로 준다. 식별자는 다른 기기 도구에 그대로 넣는다.</li>
+  <li><strong>R13.</strong> <code>device_list</code> 는 <a href="emulator-control.html">기기 목록</a>과 같은 기기를 같은 식별자로 준다. 식별자는 다른 기기 도구에 그대로 넣는다. 한 기기는 한 패널만 조작한다(<a href="device-lease.html">기기 할당</a>).</li>
   <li><strong>R14.</strong> Android(에뮬레이터·실물)는 화면 캡처, 탭·길게 누르기, 스와이프, 글자 입력(한글 등 ASCII 밖 글자 포함), 키(뒤로·홈·최근 앱·Enter·지우기·전원·볼륨), UI 트리, 앱 실행, 꺼진 AVD 켜기가 된다.</li>
   <li><strong>R15.</strong> iOS 시뮬레이터도 R14 와 같은 도구가 된다(키는 홈·Enter·지우기·볼륨). 입력 경로(WebDriverAgent)는 처음 쓸 때 Jarvis 가 스스로 준비한다(소스를 받아 Xcode 로 빌드한다). 사용자는 Xcode 말고 따로 설치하지 않는다.</li>
   <li><strong>R16.</strong> 실물 iOS 기기도 R15 와 같다. 다만 기기에 앱을 올리려면 사용자의 Apple 개발 팀으로 서명해야 해서, Xcode 에 개발 팀 계정이 없거나 기기에서 개발자를 신뢰하지 않았으면 무엇을 해야 하는지 적은 오류를 준다.</li>
@@ -135,8 +135,9 @@
     <tr><td><code>browser_scroll</code></td><td><code>tabId?</code>, <code>deltaY</code>, <code>x?</code>, <code>y?</code></td><td>그 자리(빼면 뷰포트 가운데)에서 휠을 굴린다. 양수가 아래</td></tr>
     <tr><td><code>browser_evaluate</code></td><td><code>tabId?</code>, <code>expression</code></td><td>페이지에서 JavaScript 식을 실행하고 결과를 JSON 글자로 준다. Promise 는 기다린다</td></tr>
     <tr><td><code>browser_close</code></td><td><code>tabId</code></td><td>그 탭을 닫는다(사용자가 ✕ 를 누른 것과 같다)</td></tr>
-    <tr><td><code>device_list</code></td><td>—</td><td>R13. 식별자·이름·플랫폼·실물 여부·실행 중·조작 가능 여부</td></tr>
-    <tr><td><code>device_boot</code></td><td><code>deviceId</code></td><td>꺼진 AVD·시뮬레이터를 켠다(<a href="emulator-launch.html">꺼진 에뮬레이터 실행</a>). 켜진 뒤의 식별자는 <code>device_list</code> 로 다시 본다</td></tr>
+    <tr><td><code>device_list</code></td><td>—</td><td>R13. 식별자·이름·플랫폼·실물 여부·실행 중·조작 가능 여부·할당(<a href="device-lease.html#requirements">기기 할당 R14</a>)</td></tr>
+    <tr><td><code>device_acquire</code></td><td><code>deviceId?</code>, <code>platform?</code></td><td>기기를 이 패널에 할당한다. 꺼져 있으면 켜고 기다리며, 빈 기기가 없으면 새로 만든다(<a href="device-lease.html">기기 할당</a>). 2026-09-25 까지의 <code>device_boot</code> 를 대신한다</td></tr>
+    <tr><td><code>device_release</code></td><td><code>deviceId?</code></td><td>이 패널의 할당을 푼다(<a href="device-lease.html">기기 할당</a>)</td></tr>
     <tr><td><code>device_screenshot</code></td><td><code>deviceId</code></td><td>R17. 화면 JPEG</td></tr>
     <tr><td><code>device_tap</code></td><td><code>deviceId</code>, <code>x</code>, <code>y</code>, <code>durationMs?</code></td><td>누르고 뗀다. <code>durationMs</code> 를 주면 그만큼 누르고 있는다(길게 누르기)</td></tr>
     <tr><td><code>device_swipe</code></td><td><code>deviceId</code>, <code>fromX</code>, <code>fromY</code>, <code>toX</code>, <code>toY</code>, <code>durationMs?</code></td><td>끌기. 기본 300ms</td></tr>
@@ -168,8 +169,10 @@
 
 <h3 id="seams">이음새</h3>
 <pre><code>interface AgentTabs {
-    /** R3. 그 Claude 탭이 작업 공간에 있는지. */
-    suspend fun hasCaller(sessionId: String): Boolean
+    /** R3. 그 Claude 탭이 있는 패널. 없으면 null. */
+    suspend fun callerPanel(sessionId: String): AgentPanel?
+    /** Claude 탭이 하나라도 있는 패널(기기 할당 R12). */
+    suspend fun claudePanels(): List&lt;AgentPanel&gt;
     /** R5. 붙인 탭 id. 호출한 탭이 없으면 null. */
     suspend fun openBrowserTab(sessionId: String, url: String): Long?
     suspend fun browserTabs(sessionId: String): List&lt;AgentBrowserTab&gt;   // (tabId, url)
@@ -195,7 +198,8 @@ interface BrowserAutomation {
 
 interface DeviceAutomation {
     suspend fun devices(): List&lt;AutomationDevice&gt;
-    suspend fun boot(deviceId: String)
+    suspend fun boot(deviceId: String): String   // 켜질 때까지 기다린 뒤 켜진 식별자(기기 할당 R6)
+    suspend fun create(platform: AutomationPlatform): AutomationDevice   // 새 에뮬레이터·시뮬레이터(기기 할당 R8)
     suspend fun screenshot(deviceId: String): AutomationImage
     suspend fun tap(deviceId: String, x: Int, y: Int, durationMs: Long)
     suspend fun swipe(deviceId: String, fromX: Int, fromY: Int, toX: Int, toY: Int, durationMs: Long)
