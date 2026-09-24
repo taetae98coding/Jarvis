@@ -20,8 +20,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCardHeader
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisSwitchRow
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
 import org.koin.compose.viewmodel.koinViewModel
@@ -30,6 +32,7 @@ const val DeviceRotationTestTag = "feature:deviceRotation"
 const val DeviceRotationLockTestTag = "deviceRotation:lock"
 const val DeviceRotationBackwardTestTag = "deviceRotation:rotateBackward"
 const val DeviceRotationForwardTestTag = "deviceRotation:rotateForward"
+const val DeviceRotationNotificationTestTag = "deviceRotation:notification"
 
 fun deviceRotationAngleTestTag(angle: RotationAngle): String =
     "deviceRotation:angle:${angle.degrees}"
@@ -38,12 +41,15 @@ fun deviceRotationAngleTestTag(angle: RotationAngle): String =
 fun DeviceRotationCard(modifier: Modifier = Modifier) {
     val viewModel = koinViewModel<DeviceRotationViewModel>()
     val status by viewModel.deviceRotation.collectAsStateWithLifecycle()
+    val notification by viewModel.notification.collectAsStateWithLifecycle()
 
     DeviceRotationCard(
         status = status,
+        notification = notification,
         onAngleClick = viewModel::onDeviceRotationAngleClick,
         onRotate = viewModel::onDeviceRotate,
         onLockedChange = viewModel::onDeviceRotationLockChange,
+        onNotificationPinnedChange = viewModel::onNotificationPinnedChange,
         modifier = modifier.testTag(DeviceRotationTestTag),
     )
 }
@@ -51,9 +57,11 @@ fun DeviceRotationCard(modifier: Modifier = Modifier) {
 @Composable
 internal fun DeviceRotationCard(
     status: DeviceRotationStatus,
+    notification: DeviceRotationNotificationStatus,
     onAngleClick: (RotationAngle) -> Unit,
     onRotate: (Int) -> Unit,
     onLockedChange: (Boolean) -> Unit,
+    onNotificationPinnedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     JarvisCard(modifier = modifier) {
@@ -103,8 +111,22 @@ internal fun DeviceRotationCard(
                 modifier = Modifier.weight(1f).testTag(DeviceRotationForwardTestTag),
             )
         }
+
+        // 알림을 만들 수 있는 플랫폼에서만 행이 있다. 문구는 docs/common/notification-widget.html#behavior 가 기준이다.
+        if (notification.supported) {
+            JarvisSwitchRow(
+                title = "알림에 고정",
+                checked = notification.pinned,
+                onCheckedChange = onNotificationPinnedChange,
+                supporting = notification.describe(),
+                switchModifier = Modifier.testTag(DeviceRotationNotificationTestTag),
+            )
+        }
     }
 }
+
+private fun DeviceRotationNotificationStatus.describe(): String? =
+    if (pinned && !permitted) "알림 권한이 없어 표시되지 않습니다. 허용하면 바로 나타납니다." else null
 
 @Composable
 private fun RotateButton(

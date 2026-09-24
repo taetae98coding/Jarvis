@@ -8,7 +8,7 @@ import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.NSUserDefaultsDidChangeNotification
 
-internal actual fun createSettingsStore(context: PlatformContext): SettingsStore =
+actual fun createSettingsStore(context: PlatformContext): SettingsStore =
     UserDefaultsSettingsStore
 
 private object UserDefaultsSettingsStore : SettingsStore {

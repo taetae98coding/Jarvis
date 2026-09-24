@@ -92,8 +92,8 @@
 <dl class="meta">
   <dt>규칙 (공용)</dt><dd><code>SyncSystemScreenAwakeUseCase</code> (<code>:feature:screen:domain</code>)</dd>
   <dt>위젯 (Android 전용)</dt><dd><code>:feature:rotation:widget</code>, <code>:feature:screen:widget</code> — <code>com.android.library</code> 모듈. 같은 기능의 <code>domain</code>과 <code>:core:widget</code>만 의존한다</dd>
-  <dt>갱신·권한 (Android 전용)</dt><dd><code>:core:widget</code> — 시스템 설정이 바뀌면 위젯을 다시 그리게 하는 <code>JobService</code>, 권한을 탭 시점에 다시 확인하는 <code>WriteSettingsPermissionActivity</code>. 두 위젯이 함께 쓴다(<a href="module-architecture.html#requirements">모듈 구조 R4</a>)</dd>
-  <dt>진입점</dt><dd><code>androidApp/.../JarvisApplication.kt</code> — 프로세스가 뜰 때 <code>startJarvisKoin()</code></dd>
+  <dt>갱신·권한 (Android 전용)</dt><dd><code>:core:widget</code> — 시스템 설정이 바뀌면 위젯을 다시 그리게 하는 <code>JobService</code>, 권한을 탭 시점에 다시 확인하는 <code>WriteSettingsPermissionActivity</code>. 두 위젯이 함께 쓰고(<a href="module-architecture.html#requirements">모듈 구조 R4</a>), 2026-09-25 부터 <a href="notification-widget.html">알림 위젯</a>도 같은 job 에 브로드캐스트 액션만 달리해 쓴다</dd>
+  <dt>진입점</dt><dd><code>androidApp/.../JarvisApplication.kt</code> — 프로세스가 뜰 때 <code>startJarvisKoin()</code>. 알림 위젯의 <code>startJarvisNotificationWidgets()</code>도 여기서 부른다</dd>
   <dt>빌드</dt><dd>컨벤션 플러그인 <code>jarvis.android.library</code> — Android 전용 라이브러리 모듈의 namespace·SDK 선언</dd>
 </dl>
 

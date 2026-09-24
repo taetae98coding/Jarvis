@@ -2,4 +2,5 @@
 <resources>
     <string name="system_screen_awake_widget_label">화면 꺼짐 방지</string>
     <string name="system_screen_awake_widget_description">앱을 닫아도 화면이 꺼지지 않게 합니다.</string>
+    <string name="system_screen_awake_tile_label">화면 꺼짐 방지</string>
 </resources>

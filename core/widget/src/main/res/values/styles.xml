@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 알림 커스텀 뷰의 버튼. Button 위젯은 호스트 테마의 배경·높이를 가져와서 TextView 로 그린다. -->
+    <style name="NotificationWidgetButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:minHeight">32dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:background">@drawable/notification_widget_button</item>
+        <item name="android:textColor">@color/notification_widget_button_text</item>
+    </style>
+</resources>

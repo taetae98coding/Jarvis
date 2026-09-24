@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>알림 위젯과 빠른 설정 타일 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>알림 위젯과 빠른 설정 타일</span></nav>
+
+<header>
+  <h1>알림 위젯과 빠른 설정 타일</h1>
+  <p class="lead">Android 알림 창에서 앱을 열지 않고 화면 회전과 시스템 전역 화면 꺼짐 방지를 조작한다. 알림에 고정한 컨트롤과 빠른 설정 타일, 두 가지다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>android에서 지금 widget 2개 구현했잖아. notification에 고정으로 widget 띄울 수 있어?? 특히 화면 회전은 notification에서 하면 쉬울 것 같은데</p>
+  <footer>2026-09-25 대화. "widget 2개"는 <a href="home-screen-widget.html">홈 화면 위젯</a>의 화면 회전·화면 꺼짐 방지 위젯이다. 이 질문에 "가능하지만 Android 14 부터는 ongoing 알림도 사용자가 스와이프로 지울 수 있다"와 "알림 대신·함께 빠른 설정 타일도 가능하다"고 답한 뒤 아래 지시가 왔다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>우리 앱은 Android 13 부터라서 둘 다 지원하면 좋을 것 같아. notification on/off 는 각각 탭해서 화면 들어가서 할 수 있고, Android 14부터 지워지는 것은 app onStart 시점에 다시 notification 띄우는 것으로 해결하자.</p>
+  <p>QuickSetting도 추가로 지원해줘.</p>
+  <footer>2026-09-25 대화. "둘 다"는 화면 회전과 화면 꺼짐 방지다. "화면 들어가서"는 두 기능의 카드를 뜻한다. 두 기능에는 별도 화면이 없고 홈 그리드의 카드만 있어서 on/off 스위치는 카드 안에 둔다. "Android 13 부터"에 맞춰 <code>minSdk</code>를 24 에서 33 으로 올렸다. 그 전까지 코드에는 API 24~32 를 위한 분기가 하나도 없었다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<p>R1~R9 가 알림, R10~R13 이 빠른 설정 타일, R14~R15 가 둘의 공통이다.</p>
+
+<ol>
+  <li><strong>R1.</strong> "화면 회전" 카드와 "화면 꺼짐 방지 (시스템 전역)" 카드에 <strong>"알림에 고정"</strong> 스위치 행이 있다. 알림을 만들 수 있는 플랫폼(Android)에서만 보이고, 다른 플랫폼에서는 행 자체가 없다.</li>
+  <li><strong>R2.</strong> 스위치를 켜면 알림 창에 그 기능의 알림이 뜨고, 끄면 사라진다. 값은 <a href="settings-persistence.html">설정 영구 저장</a>으로 복원된다. 두 기능의 스위치는 서로 독립이다.</li>
+  <li><strong>R3.</strong> 화면 회전 알림은 접힌 상태에 현재 상태 문구와 잠금 버튼이 있고, 펼치면 0°·90°·180°·270° 버튼과 <code>-90°</code>·<code>+90°</code> 버튼이 더 있다. 동작 규칙은 카드·위젯과 같다(<a href="device-rotation.html#requirements">화면 회전 R2~R5</a>).</li>
+  <li><strong>R4.</strong> 화면 꺼짐 방지 알림은 현재 상태 문구와 켬/끔 버튼이 있다. 규칙은 <a href="system-keep-screen-awake.html#requirements">시스템 전역 화면 꺼짐 방지</a>와 같다.</li>
+  <li><strong>R5.</strong> 알림은 소리·진동 없이 뜨고(낮은 중요도), 지속(ongoing) 알림이며, 버튼이 아닌 본문을 탭하면 앱이 열린다. 알림 자체는 앱 프로세스가 죽어 있어도 버튼이 동작한다(<a href="home-screen-widget.html#requirements">위젯 R4</a>).</li>
+  <li><strong>R6.</strong> 알림이 보여주는 상태는 위젯과 같은 시점에 갱신된다. (a) 알림 버튼을 탭한 직후, (b) 시스템 설정(자동 회전·고정 각도·화면 꺼짐 시간)이 바뀌었을 때, (c) 앱이 포그라운드에 있는 동안은 즉시.</li>
+  <li><strong>R7.</strong> 사용자가 알림을 스와이프로 지워도(Android 14+) "알림에 고정" 값은 그대로 켜져 있다. 앱이 다음에 포그라운드로 올 때(<code>onStart</code>) 알림을 다시 띄운다. 지운 알림을 그 자리에서 다시 띄우지는 않는다.</li>
+  <li><strong>R8.</strong> 알림 권한(<code>POST_NOTIFICATIONS</code>)이 없을 때 스위치를 켜면 권한 요청이 열린다. 설정값은 켜진 채 저장되고, 허용되는 순간 알림이 뜬다. 권한이 없는 동안은 스위치 아래에 그 사실이 보인다.</li>
+  <li><strong>R9.</strong> 시스템 설정 변경 권한(<code>WRITE_SETTINGS</code>)이 없으면 알림의 모든 버튼이 권한 중계 Activity 를 열고, 알림 문구가 권한이 필요하다고 말한다(<a href="home-screen-widget.html#requirements">위젯 R5</a>와 같다).</li>
+  <li><strong>R10.</strong> 빠른 설정 타일 편집 목록에 "화면 회전" 타일과 "화면 꺼짐 방지" 타일이 있다. 사용자가 편집 목록에서 끌어다 놓아 추가한다.</li>
+  <li><strong>R11.</strong> 화면 회전 타일을 탭하면 <code>+90°</code> 돌리고 그 각도에 고정한다. 부제에 현재 각도와 잠금 여부가 보이고, 잠겨 있으면 활성, 자동 회전이면 비활성 상태다.</li>
+  <li><strong>R12.</strong> 화면 꺼짐 방지 타일을 탭하면 켬/끔이 바뀐다. 켜져 있으면 활성 상태다.</li>
+  <li><strong>R13.</strong> 타일은 보이는 동안(빠른 설정 패널이 열려 있는 동안)만 상태를 수집해 즉시 갱신하고, 보이지 않는 동안은 아무것도 하지 않는다. 권한이 없으면 탭이 권한 중계 Activity 를 열고 부제가 "권한 필요"다.</li>
+  <li><strong>R14.</strong> 알림·타일의 조작은 카드·위젯과 같은 유스케이스를 거친다(<a href="home-screen-widget.html#requirements">위젯 R7</a>). 규칙이 네 곳에 적히지 않는다.</li>
+  <li><strong>R15.</strong> Android 외 플랫폼에는 알림도 타일도 만들지 않는다. 앱은 Android 13(API 33) 이상만 지원한다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong>포그라운드 서비스로 알림을 진짜로 고정하기.</strong> Android 14 의 <code>FLAG_ONGOING_EVENT</code> 변경을 피하는 유일한 앱 경로지만, API 34+ 에서 <code>specialUse</code> 타입 선언과 마켓 심사 사유가 필요하고 프로세스를 상주시킨다. 위젯이 지킨 "프로세스 없이 동작한다"와 반대여서 지시대로 <code>onStart</code> 재게시(R7)로 대신한다.</li>
+    <li><strong>스와이프로 지운 알림의 즉시 재게시.</strong> <code>setDeleteIntent</code>로 받을 수는 있지만 사용자가 지운 것을 곧바로 되살리는 동작이다. 지시가 <code>onStart</code>를 골랐다.</li>
+    <li><strong>재부팅 뒤 자동 게시.</strong> <code>RECEIVE_BOOT_COMPLETED</code> 권한이 하나 더 필요하다. 위젯과 같은 이유로 넣지 않는다. 다음 앱 실행의 <code>onStart</code>에 다시 뜬다(<a href="#limits">한계</a>).</li>
+    <li><strong>타일 자동 추가 프롬프트(<code>StatusBarManager.requestAddTileService</code>, API 33+)와 타일 롱프레스 화면.</strong> 지시에 없다. 사용자가 편집 목록에서 추가하고, 롱프레스는 시스템 기본(앱 정보)이다.</li>
+    <li><strong>화면 회전 타일의 각도 직접 선택.</strong> 타일은 버튼 하나다. 각도를 고르는 것은 알림·위젯·카드가 맡는다.</li>
+    <li><strong>앱 수명 내 <a href="keep-screen-awake.html">화면 꺼짐 방지</a>의 알림·타일.</strong> 앱이 떠 있는 동안만 유효한 기능이라 밖에서 켤 이유가 없다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<h3 id="behavior-card">카드의 "알림에 고정" 행</h3>
+
+<table>
+  <thead><tr><th>항목</th><th>화면 회전 카드</th><th>화면 꺼짐 방지 (시스템 전역) 카드</th></tr></thead>
+  <tbody>
+    <tr><td>위치</td><td>상대 회전 버튼 줄 아래, 카드 맨 끝</td><td>설명 문구 아래, 카드 맨 끝</td></tr>
+    <tr><td>컨트롤</td><td colspan="2"><code>JarvisSwitchRow</code>: 왼쪽에 "알림에 고정", 오른쪽에 <code>Switch</code>. 알림 지원(<code>supported</code>) 플랫폼에서만 그린다</td></tr>
+    <tr><td>보조 문구 (권한 없음)</td><td colspan="2">스위치가 켜져 있고 알림 권한이 없을 때만: "알림 권한이 없어 표시되지 않습니다. 허용하면 바로 나타납니다."</td></tr>
+    <tr><td>켤 때</td><td colspan="2">설정값을 먼저 쓰고, 알림 권한이 없으면 권한 요청을 연다(R8)</td></tr>
+    <tr><td>테스트 태그</td><td><code>deviceRotation:notification</code></td><td><code>keepSystemScreenAwake:notification</code></td></tr>
+  </tbody>
+</table>
+
+<p>화면 꺼짐 방지 카드는 이 행을 넣기 위해 <code>ToggleFeatureCard</code>(카드 전체가 스위치)에서 <code>JarvisCard</code> + 헤더 <code>Switch</code> 구조로 바뀐다. 카드 전체가 토글이면 안에 둔 두 번째 스위치의 클릭과 시맨틱이 카드에 묻힌다. 화면 회전 카드가 같은 이유로 처음부터 이 구조였다. 헤더 스위치의 테스트 태그는 <code>keepSystemScreenAwake:toggle</code>이다(<a href="system-keep-screen-awake.html#behavior">시스템 전역 화면 꺼짐 방지</a>).</p>
+
+<h3 id="behavior-notification">알림</h3>
+
+<table>
+  <thead><tr><th>항목</th><th>화면 회전 알림</th><th>화면 꺼짐 방지 알림</th></tr></thead>
+  <tbody>
+    <tr><td>채널</td><td colspan="2">하나. id <code>notification_widget</code>, 이름 "알림 위젯", 중요도 낮음(<code>IMPORTANCE_LOW</code>). 소리·진동·헤드업 없음</td></tr>
+    <tr><td>알림 id</td><td><code>0x4A5301</code></td><td><code>0x4A5302</code></td></tr>
+    <tr><td>제목</td><td>화면 회전</td><td>화면 꺼짐 방지</td></tr>
+    <tr><td>상태 문구</td><td colspan="2"><a href="home-screen-widget.html#behavior">위젯 문구</a>와 같다. 권한 없음: "시스템 설정 변경 권한이 필요합니다. 누르면 권한 설정 화면이 열립니다."</td></tr>
+    <tr><td>접힌 상태</td><td>상태 문구 + 잠금 버튼("고정"/"자동")</td><td>상태 문구 + 토글 버튼("켜짐"/"꺼짐")</td></tr>
+    <tr><td>펼친 상태</td><td>상태 문구, 각도 버튼 4개(현재 각도만 강조색), <code>-90°</code> · 잠금 · <code>+90°</code> 버튼 줄</td><td>접힌 상태와 같다</td></tr>
+    <tr><td>본문 탭</td><td colspan="2">앱 런처 Activity 를 연다</td></tr>
+    <tr><td>속성</td><td colspan="2"><code>ongoing</code>, <code>onlyAlertOnce</code>, <code>silent</code>, 시각 표시 없음, 작은 아이콘은 타일과 같은 벡터</td></tr>
+    <tr><td>스와이프</td><td colspan="2">Android 14+ 에서 지워진다. 설정값은 유지되고, 설정 변경 트리거 job 만 멈춘다. 다음 <code>onStart</code>에 다시 뜬다(R7)</td></tr>
+  </tbody>
+</table>
+
+<h3 id="behavior-tile">빠른 설정 타일</h3>
+
+<table>
+  <thead><tr><th>항목</th><th>화면 회전 타일</th><th>화면 꺼짐 방지 타일</th></tr></thead>
+  <tbody>
+    <tr><td>이름</td><td>화면 회전</td><td>화면 꺼짐 방지</td></tr>
+    <tr><td>아이콘</td><td>Material <code>screen_rotation</code> 벡터</td><td>Material <code>lightbulb</code> 벡터</td></tr>
+    <tr><td>상태</td><td>잠김 → 활성, 자동 회전 → 비활성</td><td>켜짐 → 활성, 꺼짐 → 비활성</td></tr>
+    <tr><td>부제</td><td>권한 없음 "권한 필요" / 잠김 "{각도}° 고정" / 자동 "자동 회전" / 각도 모름 "각도 알 수 없음"</td><td>권한 없음 "권한 필요" / "켜짐" / "꺼짐"</td></tr>
+    <tr><td>탭</td><td>권한 있음: <code>+90°</code> 돌리고 고정. 없음: 권한 중계 Activity 를 열고 패널을 접는다</td><td>권한 있음: 켬/끔 토글 뒤 시스템에 한 번 반영. 없음: 권한 중계 Activity 를 열고 패널을 접는다</td></tr>
+    <tr><td>비활성화(<code>UNAVAILABLE</code>)</td><td colspan="2">쓰지 않는다. 비활성화된 타일은 탭을 받지 못해 권한을 요청할 입구가 사라진다</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<p><strong><code>commonMain</code>에 들어가는 것은 "알림에 고정" 설정과 알림 권한 상태다.</strong> 알림·타일 코드는 위젯과 같은 Android 전용 모듈에 산다.</p>
+
+<dl class="meta">
+  <dt>모델·규칙 (공용)</dt><dd><code>DeviceRotationNotificationStatus</code> · <code>DeviceRotationNotificationRepository</code> · <code>ObserveDeviceRotationNotificationUseCase</code> · <code>SetDeviceRotationNotificationPinnedUseCase</code> (<code>:feature:rotation:domain</code>), <code>SystemScreenAwakeNotificationStatus</code> · <code>SystemScreenAwakeNotificationRepository</code> · <code>ObserveSystemScreenAwakeNotificationUseCase</code> · <code>SetSystemScreenAwakeNotificationPinnedUseCase</code> (<code>:feature:screen:domain</code>)</dd>
+  <dt>저장 (공용)</dt><dd><code>DefaultDeviceRotationNotificationRepository</code>(키 <code>device_rotation_notification_pinned</code>), <code>DefaultSystemScreenAwakeNotificationRepository</code>(키 <code>system_screen_awake_notification_pinned</code>). 둘 다 <code>SettingsStore</code> + <code>NotificationPermission</code>을 합친다</dd>
+  <dt>알림 권한 (공용 계약)</dt><dd><code>:core:data</code> <code>data/notification/NotificationPermission.kt</code>. <code>expect fun createNotificationPermission(context: PlatformContext): NotificationPermission</code>. Android 만 본문이 있고 나머지는 <code>UnsupportedNotificationPermission</code>(<code>supported = false</code>)</dd>
+  <dt>설정 저장소</dt><dd><code>SettingsStore</code>가 <code>:feature:screen:data</code>에서 <code>:core:data</code> <code>data/settings</code>로 올라간다. 두 번째 기능(<code>rotation</code>)이 쓰게 되어 <a href="module-architecture.html#core">모듈 구조의 예고</a>대로다. <code>public</code>이 된다</dd>
+  <dt>UI (공용)</dt><dd><code>JarvisSwitchRow</code> (<code>:core:designsystem</code>). 두 카드에 "알림에 고정" 행을 그린다</dd>
+  <dt>알림·타일 (Android 전용)</dt><dd><code>:feature:rotation:widget</code>, <code>:feature:screen:widget</code>. <code>:core:widget</code>에 알림 채널, 포그라운드 동기화, 타일 베이스 클래스, 설정 변경 트리거(위젯과 공유)</dd>
+  <dt>진입점</dt><dd><code>JarvisApplication.onCreate</code>가 <code>startJarvisKoin(this)</code> 다음에 <code>startJarvisNotificationWidgets(this)</code>를 부른다(<code>:shared</code> <code>androidMain</code>)</dd>
+</dl>
+
+<pre><code>// :feature:rotation:domain — 화면 꺼짐 방지도 이름만 다른 같은 모양이다
+data class DeviceRotationNotificationStatus(
+    val supported: Boolean = false,   // 이 플랫폼이 알림을 만들 수 있는가
+    val permitted: Boolean = false,   // POST_NOTIFICATIONS 가 허용됐는가
+    val pinned: Boolean = false,      // 사용자가 "알림에 고정"을 켰는가
+)
+
+interface DeviceRotationNotificationRepository {
+    fun observeStatus(): Flow&lt;DeviceRotationNotificationStatus&gt;   // cold
+    fun readStatus(): DeviceRotationNotificationStatus              // 첫 프레임 초기값 전용
+    fun setPinned(pinned: Boolean)
+    fun requestPermission()
+}
+
+class SetDeviceRotationNotificationPinnedUseCase(
+    private val notification: DeviceRotationNotificationRepository,
+) {
+    suspend operator fun invoke(pinned: Boolean) {
+        // 권한이 없어도 값은 켜 둔다. 허용되는 순간 알림이 뜬다(SetKeepSystemScreenAwakeUseCase 와 같은 판단).
+        notification.setPinned(pinned)
+
+        if (pinned &amp;&amp; !notification.observeStatus().first().permitted) {
+            notification.requestPermission()
+        }
+    }
+}
+
+// :core:data — 두 기능이 같은 권한을 본다
+interface NotificationPermission {
+    val supported: Boolean
+    fun readPermitted(): Boolean
+    fun observePermitted(): Flow&lt;Boolean&gt;
+    fun requestPermission()
+}
+
+expect fun createNotificationPermission(context: PlatformContext): NotificationPermission</code></pre>
+
+<aside class="decision">
+  <strong>결정: 알림·타일은 <code>:feature:&lt;기능&gt;:widget</code> 모듈에 함께 둔다</strong>
+  홈 화면 위젯, 알림, 빠른 설정 타일은 모두 "앱 밖 시스템 표면에서 같은 유스케이스를 부르는 컨트롤"이고, 같은 권한 중계 Activity 와 같은 설정 변경 트리거를 쓴다. 모듈을 <code>:feature:&lt;기능&gt;:notification</code>·<code>:tile</code>로 더 쪼개면 모듈 넷이 늘고 Koin 꺼내기 헬퍼·문구·아이콘이 흩어진다. <code>widget</code> 모듈의 범위를 "Android 시스템 표면 컨트롤 전부"로 넓히고 <a href="module-architecture.html#requirements">모듈 구조 R12</a>를 그렇게 고쳤다. 사용자도 이것을 "notification 에 띄우는 widget"이라 불렀다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 알림은 XML <code>RemoteViews</code>로 그린다 (위젯과 다르다)</strong>
+  위젯은 Glance 로 그린다. 알림에는 Glance 를 쓸 수 없다. <code>GlanceAppWidget</code>은 <code>AppWidgetManager</code>에만 결과를 보내고, 실험 API <code>GlanceRemoteViews</code>(<code>@ExperimentalGlanceRemoteViewsApi</code>)는 <code>RemoteViews</code>를 돌려주지만 <code>actionRunCallback</code>이 appWidgetId 를 전제로 하고 알림 호스트(SystemUI)에서의 동작이 문서화되어 있지 않다. 표준 <code>addAction</code>은 세 개까지만 보여 각도 버튼 넷을 놓을 수 없다. 그래서 <code>DecoratedCustomViewStyle</code> + XML 레이아웃이다. 이 프로젝트의 첫 XML 레이아웃이고, 버튼 배선은 <code>setOnClickPendingIntent</code>로 손으로 한다. 위젯 스펙이 XML 을 버린 이유("버튼 여섯 개의 배선")가 여기서는 피할 수 없는 비용이 됐다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: "알림에 고정"은 도메인 설정이고, 알림 권한은 <code>:core:data</code>의 계약이다</strong>
+  스위치는 <code>commonMain</code> 카드에 있으므로 값은 도메인을 지나야 한다. 두 기능이 각자 <code>…NotificationRepository</code>를 갖는 것은 <code>DeviceRotationStatus</code>·<code>SystemScreenAwakeStatus</code>가 각자 <code>supported</code>·<code>permitted</code>를 갖는 것과 같은 모양이고, 기능이 서로를 모른다는 <a href="module-architecture.html#requirements">R3</a>을 지킨다. 세 필드짜리 클래스가 두 번 적히는 것보다 <code>:core:domain</code> 모듈을 새로 파는 쪽이 더 큰 비용이다. 권한 조회·요청 구현은 하나(<code>POST_NOTIFICATIONS</code>)라 <code>:core:data</code>에 두고 두 기능의 data 가 부른다. <code>WRITE_SETTINGS</code>의 <code>observeWriteSettingsPermission</code>과 같은 자리다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 알림 권한은 투명 Activity 가 런타임 다이얼로그로 요청한다</strong>
+  <code>WRITE_SETTINGS</code>는 설정 화면에서만 허용할 수 있어 <code>requestPermission()</code>이 설정 인텐트를 열면 끝이었다. <code>POST_NOTIFICATIONS</code>는 런타임 권한이라 Activity 가 <code>requestPermissions</code>를 불러야 다이얼로그가 뜬다. data 계층은 애플리케이션 컨텍스트만 갖고 있으므로, <code>:core:data</code> <code>androidMain</code>에 화면 없는 <code>PostNotificationsPermissionActivity</code>를 두고 <code>NEW_TASK</code>로 띄운다. 요청은 카드 스위치를 켤 때만 오므로 앱이 포그라운드라 백그라운드 시작 제한에 걸리지 않는다. 두 번 거부해 다이얼로그가 더 뜨지 않으면(<code>shouldShowRequestPermissionRationale</code>이 <code>false</code>) 앱 알림 설정 화면을 연다. 버린 후보: 앱 알림 설정 화면만 열기(정식 다이얼로그가 있는데 설정으로 보내는 것은 나쁜 UX), <code>ui</code> 모듈의 <code>expect</code> 컴포저블에서 <code>rememberLauncherForActivityResult</code>(권한은 data 가 요청한다는 기존 규칙을 깬다).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 앱이 포그라운드인 동안 알림을 동기화하고, 그것이 <code>onStart</code> 재게시다</strong>
+  <code>:core:widget</code>의 <code>NotificationWidgets.syncWhileStarted</code>가 <code>ProcessLifecycleOwner</code>의 <code>STARTED</code> 동안 각 기능의 <code>NotificationWidget.sync()</code>를 돌린다. <code>sync()</code>는 "알림에 고정" 상태와 기능 상태를 <code>combine</code>해 수집하고, 고정이고 권한이 있으면 <code>notify</code>, 아니면 <code>cancel</code>한다. 이 한 수집이 R2(스위치 즉시 반영), R6(c)(포그라운드 즉시 갱신), R7(<code>onStart</code>마다 첫 방출이 다시 게시), R8(권한이 들어오는 순간 게시)을 모두 만든다. <code>MainActivity.onStart</code>에 직접 쓰지 않는 이유는 <code>:androidApp</code>이 <code>:shared</code>만 보고, 프로세스 수명 관찰이 Activity 하나보다 정확해서다. <a href="state-observation.html">상태 조회 규칙</a>의 "수집은 화면 수명에 묶는다"가 여기서는 프로세스 포그라운드 수명이다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 백그라운드 갱신은 위젯의 설정 변경 트리거를 함께 쓴다</strong>
+  앱이 없는 동안의 R6(b)는 위젯과 같은 문제다. <code>WidgetRefresh.scheduleOnChange</code>에 브로드캐스트 액션 인자를 더해, 위젯은 <code>ACTION_APPWIDGET_UPDATE</code>를, 알림은 자기 리시버의 <code>REFRESH</code> 액션을 받게 했다. 알림 리시버는 <code>REFRESH</code>를 받으면 설정을 다시 읽어 고정이면 다시 게시하고 job 을 다시 건다. 고정이 꺼졌거나 사용자가 알림을 지웠으면(<code>deleteIntent</code>) job 을 지워 사슬을 끊는다. job id 는 위젯과 다르다(회전 <code>0x4A5203</code>, 꺼짐 방지 <code>0x4A5204</code>).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 회전 타일의 탭은 <code>+90°</code>다</strong>
+  후보는 셋이었다. 잠금 토글은 시스템의 "자동 회전" 타일과 같아 만들 이유가 없다. 앱 열기는 타일의 뜻이 아니다. <code>+90°</code>는 알림·위젯 없이도 타일만으로 네 각도를 돌 수 있고, 각도를 고르면 잠근다는 규칙(<a href="device-rotation.html#requirements">R5</a>)에 따라 고정도 함께 된다. 자동 회전으로 되돌리는 것은 시스템 타일이 있다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: <code>NotificationPermission</code>은 <code>expect</code>이고, 기능 data 에는 새 <code>expect</code>가 없다</strong>
+  "알림에 고정" 리포지토리에서 플랫폼에 기대는 것은 권한만이다. 저장은 <code>SettingsStore</code>가 이미 플랫폼을 숨긴다. 그래서 두 기능의 <code>Default…NotificationRepository</code>는 <code>commonMain</code>에만 있고, 플랫폼 분기는 <code>:core:data</code>의 <code>createNotificationPermission</code> 하나다. 기능마다 <code>SettingsStore</code>를 한 번씩 만들어 두 인스턴스가 생기는데, 네 플랫폼 모두 같은 파일·노드·저장소를 가리켜 값과 변경 알림이 어긋나지 않는다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td><code>NotificationCompat</code> + <code>DecoratedCustomViewStyle</code> 알림 둘, <code>TileService</code> 둘. 탭은 <code>BroadcastReceiver</code>·<code>onClick</code>이 유스케이스를 부르고, 갱신은 <code>ProcessLifecycleOwner</code>(포그라운드)와 <code>JobScheduler</code> 콘텐트 트리거(백그라운드)가 맡는다</td><td><a href="../platform/android.html#notification-widget">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>지시가 Android 한정. 알림에 버튼을 놓을 수는 있지만 부를 시스템 동작이 없고, 제어 센터 컨트롤은 Swift 전용이다</td><td><a href="../platform/ios.html#notification-widget">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge no">불가</span></td><td>macOS 알림·메뉴 막대는 두 기능이 JVM 에서 불가라 보여줄 것이 없다</td><td><a href="../platform/jvm.html#notification-widget">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>브라우저 알림은 OS 설정에 닿지 못하고, 빠른 설정에 대응하는 개념이 없다</td><td><a href="../platform/web.html#notification-widget">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>SetDeviceRotationNotificationPinnedUseCaseTest</code> (3개)</td><td>R2, R8. 권한이 없어도 값을 저장하고, 켤 때만 권한을 요청한다</td><td><code>:feature:rotation:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>SetSystemScreenAwakeNotificationPinnedUseCaseTest</code> (3개)</td><td>R2, R8. 같은 규칙</td><td><code>:feature:screen:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.notificationRowIsHiddenWhereNotificationsAreNotSupported</code></td><td>R1. 지원하지 않는 플랫폼에는 행이 없다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.deviceRotationNotificationTogglesWhereItIsSupported</code>, <code>systemScreenAwakeNotificationTogglesWhereItIsSupported</code></td><td>R1, R2. 지원하는 상태를 가짜로 넣으면 행이 보이고 스위치가 설정값을 바꾼다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.systemScreenAwakeTogglesWhereItIsSupported</code> 등 (수정)</td><td>카드 구조 변경 뒤에도 헤더 스위치로 켬/끔이 된다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisKoinTest</code></td><td>R14. 새 리포지토리·유스케이스가 Koin 그래프에서 해석된다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>./gradlew :androidApp:assembleDebug</code></td><td>R10, R15. 매니페스트(리시버·타일 서비스·권한 Activity)가 합쳐져 APK 가 만들어진다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<p>알림의 그림과 버튼, 타일의 상태와 탭, <code>onStart</code> 재게시(R3~R7, R9~R13)는 자동 테스트가 없어 <span class="badge untested">미검증</span>이다. 2026-09-25 에 Android 16 기기에서 adb 로 게시·버튼 탭·타일 추가·타일 탭은 손으로 확인했고, 그 범위는 <a href="../platform/android.html#notification-widget">android.html</a> 검증 절에 있다. Android 에는 UI 테스트가 없고(<a href="../platform/android.html#test">이유</a>), 알림과 타일은 SystemUI 가 있어야 그려진다. 수동 확인 절차는 <a href="../platform/android.html#notification-widget">android.html</a> 검증 절에 있다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><strong>Android 14+ 에서 알림은 사용자가 지울 수 있고, 지우면 다음 앱 실행까지 없다.</strong> 지시가 고른 동작이다. 위젯과 타일은 영향이 없다.</li>
+  <li><strong>재부팅 뒤에는 앱을 한 번 열어야 알림이 다시 뜬다.</strong> 알림은 재부팅에 남지 않고 <code>BOOT_COMPLETED</code> 리시버를 넣지 않았다.</li>
+  <li><strong>자동 회전 중에는 알림의 각도가 늦게 바뀐다.</strong> 위젯과 같은 <a href="home-screen-widget.html#limits">한계</a>다. 앱이 포그라운드면 즉시고, 타일은 보이는 동안 즉시다.</li>
+  <li><strong>Android 16 은 두 알림을 한 그룹으로 묶어 접힌 창에는 하나만 보인다.</strong> 펼치면 둘이 다 나온다(<a href="../platform/android.html#notification-widget">android.html</a> 한계).</li>
+  <li><strong>알림 채널을 시스템 설정에서 막으면 스위치가 켜져 있어도 알림이 보이지 않는다.</strong> <code>permitted</code>는 앱 단위 알림 허용만 본다. 채널 차단은 카드에 표시되지 않는다.</li>
+  <li><strong>알림의 색은 앱 팔레트와 다르다.</strong> <code>RemoteViews</code>는 <code>JarvisTheme</code>을 받지 못해 시스템 동적 색 리소스(<code>system_accent1_*</code>·<code>system_neutral2_*</code>)를 쓴다. 위젯의 <code>GlanceTheme</code>과 같은 이유다.</li>
+  <li><strong>알림 문구가 카드·위젯과 세 곳에 적혀 있다.</strong> 위젯과 같은 이유(<code>ui</code> 모듈을 의존하지 않음)다. 문구는 <a href="home-screen-widget.html#behavior">위젯 스펙</a>이 기준이다.</li>
+  <li><strong>타일은 사용자가 직접 추가해야 보인다.</strong> 자동 추가 프롬프트는 스코프 밖이다.</li>
+</ul>
+
+<footer class="page">
+  <a href="home-screen-widget.html">← 홈 화면 위젯</a> · <a href="index.html">공통 스펙</a>
+</footer>
+
+</body>
+</html>

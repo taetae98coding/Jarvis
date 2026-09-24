@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- 앱 자신이 여는 권한 다이얼로그 중계라 exported 가 필요 없다. 클래스 이름은 namespace 와 패키지가 달라 전부 적는다. -->
+        <activity
+            android:name="io.github.taetae98coding.jarvis.data.notification.PostNotificationsPermissionActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+
+</manifest>

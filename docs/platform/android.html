@@ -16,11 +16,11 @@
 </header>
 
 <dl class="meta">
-  <dt>모듈</dt><dd><code>:androidApp</code> (앱, <code>com.android.application</code>) + <code>:shared</code> → <code>:app:ui</code> → 기능 모듈 열다섯 + <code>:core:*</code> (모두 <code>com.android.kotlin.multiplatform.library</code>). 여기에 Android 전용 <code>com.android.library</code> 모듈 셋(<code>:core:widget</code>, <code>:feature:rotation:widget</code>, <code>:feature:screen:widget</code>)이 <code>:shared</code>의 <code>androidMain</code>을 통해 붙는다. <a href="#module-architecture">모듈 구조</a>, <a href="#home-screen-widget">홈 화면 위젯</a> 참고</dd>
+  <dt>모듈</dt><dd><code>:androidApp</code> (앱, <code>com.android.application</code>) + <code>:shared</code> → <code>:app:ui</code> → 기능 모듈 열다섯 + <code>:core:*</code> (모두 <code>com.android.kotlin.multiplatform.library</code>). 여기에 Android 전용 <code>com.android.library</code> 모듈 셋(<code>:core:widget</code>, <code>:feature:rotation:widget</code>, <code>:feature:screen:widget</code>)이 <code>:shared</code>의 <code>androidMain</code>을 통해 붙는다. 위젯 모듈은 홈 화면 위젯·알림·빠른 설정 타일을 모두 담는다. <a href="#module-architecture">모듈 구조</a>, <a href="#home-screen-widget">홈 화면 위젯</a>, <a href="#notification-widget">알림 위젯과 빠른 설정 타일</a> 참고</dd>
   <dt><code>applicationId</code></dt><dd><code>io.github.taetae98coding.jarvis</code></dd>
-  <dt>compileSdk / targetSdk / minSdk</dt><dd>37 / 37 / 24</dd>
-  <dt>진입점</dt><dd><code>JarvisApplication.onCreate</code> — <code>startJarvisKoin(this)</code>. <code>MainActivity</code> — <code>enableEdgeToEdge()</code> 후 <code>setContent { App() }</code>. 위젯 리시버 둘(<a href="#home-screen-widget">홈 화면 위젯</a>)</dd>
-  <dt>권한</dt><dd><code>INTERNET</code> (<a href="#emulator">에뮬레이터 개수</a>), <code>WRITE_SETTINGS</code> (<a href="#system-keep-screen-awake">시스템 전역 화면 유지</a>, <a href="#device-rotation">화면 회전</a>). <code>WAKE_LOCK</code>은 쓰지 않는다</dd>
+  <dt>compileSdk / targetSdk / minSdk</dt><dd>37 / 37 / 33. minSdk 는 2026-09-25 에 24 에서 올렸다(<a href="#notification-widget">알림 위젯</a>)</dd>
+  <dt>진입점</dt><dd><code>JarvisApplication.onCreate</code> — <code>startJarvisKoin(this)</code>, <code>startJarvisNotificationWidgets(this)</code>. <code>MainActivity</code> — <code>enableEdgeToEdge()</code> 후 <code>setContent { App() }</code>. 위젯 리시버 둘(<a href="#home-screen-widget">홈 화면 위젯</a>), 알림 리시버 둘과 타일 서비스 둘(<a href="#notification-widget">알림 위젯과 빠른 설정 타일</a>)</dd>
+  <dt>권한</dt><dd><code>INTERNET</code> (<a href="#emulator">에뮬레이터 개수</a>), <code>WRITE_SETTINGS</code> (<a href="#system-keep-screen-awake">시스템 전역 화면 유지</a>, <a href="#device-rotation">화면 회전</a>), <code>POST_NOTIFICATIONS</code> (<a href="#notification-widget">알림 위젯</a>). <code>WAKE_LOCK</code>은 쓰지 않는다</dd>
 </dl>
 
 <aside class="note">
@@ -44,6 +44,7 @@
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
     <li><a href="#home-screen-widget">홈 화면 위젯</a></li>
+    <li><a href="#notification-widget">알림 위젯과 빠른 설정 타일</a></li>
     <li><a href="#card-ripple">카드 물결 효과</a></li>
     <li><a href="#home-staggered-grid">홈 그리드 세로 배치</a></li>
     <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
@@ -341,7 +342,7 @@
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>feature/screen/data/src/androidMain/.../settings/SettingsStore.android.kt</code></dd>
+  <dt>파일</dt><dd><code>core/data/src/androidMain/.../settings/SettingsStore.android.kt</code> (2026-09-25 에 <code>:feature:screen:data</code>에서 올라왔다. <a href="#notification-widget">알림 위젯</a>이 두 번째 사용자다)</dd>
   <dt>저장소</dt><dd><code>context.getSharedPreferences("jarvis.settings", MODE_PRIVATE)</code></dd>
   <dt>컨텍스트</dt><dd><code>LocalContext.current.applicationContext</code>. Activity 재생성과 무관하게 같은 파일을 본다</dd>
   <dt>쓰기</dt><dd><code>edit().putBoolean(key, value).apply()</code></dd>
@@ -549,6 +550,84 @@ class JarvisApplication : Application() {
 <h3>검증</h3>
 <p>자동 테스트가 없다. Android 에는 UI 테스트가 없고(<a href="#test">이유</a>) 위젯은 런처가 있어야 그려진다. 컴파일과 APK 조립은 <code>./gradlew :androidApp:assembleDebug</code>가 본다. 유스케이스 규칙은 <code>:feature:rotation:domain</code>·<code>:feature:screen:domain</code> 테스트가, Koin 그래프는 <code>JarvisKoinTest</code>가 본다.</p>
 <p>수동 확인. (1) 홈 화면 길게 눌러 위젯 목록에 "화면 회전"과 "화면 꺼짐 방지"가 있는지. (2) 앱을 강제 종료한 뒤 위젯의 90° 버튼을 눌러 기기가 돌고 잠금이 "고정"으로 바뀌는지(R2, R4). (3) 권한을 끄고 버튼을 눌러 권한 설정 화면이 열리는지, 허용하고 돌아와 다시 누르면 설정이 아니라 동작하는지(R5). (4) 빠른 설정에서 자동 회전을 켜고 몇 초 안에 위젯이 "센서를 따라 회전합니다"로 바뀌는지(R6b). (5) 앱 카드에서 꺼짐 방지를 켜고 위젯이 "켜짐"으로 바뀌는지(R6b). (6) 위젯을 지운 뒤 <code>adb shell dumpsys jobscheduler | grep jarvis</code>에 job 이 남지 않는지.</p>
+</section>
+
+<section class="feature" id="notification-widget">
+<h2>알림 위젯과 빠른 설정 타일 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/notification-widget.html">알림 위젯과 빠른 설정 타일</a></p>
+
+<h3>기술 조사</h3>
+<p>알림과 빠른 설정 타일은 둘 다 SystemUI 프로세스가 그린다. 알림은 위젯처럼 <code>RemoteViews</code>와 <code>PendingIntent</code>로, 타일은 시스템이 우리 <code>TileService</code>에 바인드해서 그린다. 조사할 것은 넷이었다. 알림을 무엇으로 그리나, 지속 알림을 어디까지 고정할 수 있나, 알림 권한을 어떻게 요청하나, 타일이 언제 살아 있나.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>NotificationCompat.Builder</code> + <code>DecoratedCustomViewStyle</code> + XML <code>RemoteViews</code> (<code>androidx.core</code> 1.19.0)</td><td><strong>채택(그리기).</strong> <code>setCustomContentView</code>(접힘)·<code>setCustomBigContentView</code>(펼침)에 XML 레이아웃을 넣는다. targetSdk 31+ 는 완전 커스텀 알림을 만들 수 없고 시스템이 이 스타일의 틀(앱 아이콘·이름·시각)을 덧씌운다. 접힌 커스텀 영역은 기기에 따라 48dp 까지 낮아질 수 있어 문구 한 줄과 버튼 하나만 둔다. 펼친 영역은 약 252dp 까지라 버튼 두 줄이 들어간다. 글자는 <code>TextAppearance.Compat.Notification.*</code> 스타일을 써서 밝은·어두운 알림 배경 어느 쪽에서도 읽힌다</td></tr>
+    <tr><td>표준 <code>addAction</code> 세 개</td><td>버렸다. 시스템이 세 개까지만 보여 준다. 화면 꺼짐 방지는 하나로 충분하지만 화면 회전은 각도 넷 + 잠금 + 상대 회전 둘이다. 두 알림의 구조를 하나로 두려고 둘 다 커스텀 뷰다</td></tr>
+    <tr><td>Glance <code>GlanceRemoteViews.compose()</code> (<code>@ExperimentalGlanceRemoteViewsApi</code>)</td><td>버렸다. <code>RemoteViews</code>를 돌려주지만 실험 API 이고, <code>actionRunCallback</code>은 appWidgetId 를 인텐트에 실어 위젯 리시버로 돌아오는 구조라 알림에서는 id 가 없다. 레이아웃 리소스가 <code>glance-appwidget</code> 것이라 SystemUI 가 알림 틀 안에서 어떻게 재는지도 문서가 없다. 위젯 스펙이 XML 을 버린 것과 반대 결론이 된 이유는, 알림에는 Glance 정식 경로가 없어서다</td></tr>
+    <tr><td><code>setOngoing(true)</code> 만으로 고정</td><td><strong>채택하되 한계를 안다.</strong> Android 14(API 34)부터 일반 앱의 <code>FLAG_ONGOING_EVENT</code> 알림은 잠금 화면과 "모두 지우기"를 빼면 스와이프로 지워진다. 예외는 포그라운드 서비스, <code>CallStyle</code>, 미디어, 기기 정책 알림뿐이다. 지시대로 <code>onStart</code>에 다시 게시한다</td></tr>
+    <tr><td>포그라운드 서비스 (<code>foregroundServiceType="specialUse"</code>)</td><td>버렸다. 알림이 진짜로 고정되지만 API 34+ 에서 타입 선언과 마켓 사유가 필요하고, 프로세스가 상주해 위젯이 지킨 "프로세스 없이 동작"과 반대다</td></tr>
+    <tr><td><code>MediaStyle</code> + <code>MediaSession</code>으로 고정</td><td>버렸다. 미디어 알림은 14 에서도 지워지지 않지만 재생 중인 세션이 있어야 하고, 회전 컨트롤을 미디어로 위장하는 것이다</td></tr>
+    <tr><td><code>setDeleteIntent</code></td><td><strong>채택(정리용).</strong> 사용자가 지우면 리시버가 설정 변경 트리거 job 을 지운다. 지운 알림을 그 자리에서 다시 게시하는 데는 쓰지 않는다. 그러면 사용자가 지운 뒤 몇 초 안에 시스템 설정이 바뀌면 알림이 되살아난다</td></tr>
+    <tr><td><code>ProcessLifecycleOwner</code> + <code>repeatOnLifecycle(STARTED)</code> (<code>androidx.lifecycle:lifecycle-process</code> 2.11.0)</td><td><strong>채택(포그라운드 동기화).</strong> Activity 하나가 아니라 프로세스 전체의 포그라운드 여부다. <code>STARTED</code> 동안 "알림에 고정"과 기능 상태를 <code>combine</code> 수집해 <code>notify</code>/<code>cancel</code>한다. 첫 방출이 곧 <code>onStart</code> 재게시다. JetBrains lifecycle 2.11.0 이 Android 에서 이 androidx 아티팩트를 그대로 쓰므로 버전이 한 줄이다. 버린 후보: <code>MainActivity.onStart</code> 오버라이드(<code>:androidApp</code>은 <code>:shared</code>만 보고 기능 모듈을 모른다), <code>ActivityLifecycleCallbacks</code>로 시작 수 세기(직접 만들 이유가 없다)</td></tr>
+    <tr><td><code>POST_NOTIFICATIONS</code> (API 33+) 런타임 요청</td><td><strong>채택(권한).</strong> minSdk 가 33 이라 항상 필요하다. <code>:core:data</code> <code>androidMain</code>의 투명 <code>PostNotificationsPermissionActivity</code>가 <code>requestPermissions</code>를 부른다. 거부 뒤 <code>shouldShowRequestPermissionRationale</code>이 <code>false</code>면(두 번 거부) <code>ACTION_APP_NOTIFICATION_SETTINGS</code>를 연다. 허용 여부는 <code>NotificationManager.areNotificationsEnabled()</code>로 읽고, 콜백이 없어 <code>ActivityLifecycleCallbacks.onActivityResumed</code>(다이얼로그·설정에서 돌아올 때)를 신호로 쓴다. <code>observeWriteSettingsPermission</code>과 같은 안전망 구조다</td></tr>
+    <tr><td><code>NotificationManagerCompat.areNotificationsEnabled()</code></td><td>쓰지 않는다. 플랫폼 <code>NotificationManager</code>에 같은 메서드가 API 24 부터 있어 <code>:core:data</code>에 <code>androidx.core</code>를 들이지 않는다</td></tr>
+    <tr><td><code>TileService</code> (API 24+) 수동 모드</td><td><strong>채택(타일).</strong> 매니페스트 <code>&lt;service android:permission="BIND_QUICK_SETTINGS_TILE"&gt;</code> + <code>QS_TILE</code> 필터. 패널이 보이면 시스템이 바인드해 <code>onStartListening</code>, 사라지면 <code>onStopListening</code>. 그 사이에만 기능 <code>Flow</code>를 수집해 <code>qsTile.updateTile()</code>한다. <a href="#state-observation">상태 조회 규칙</a>의 "보는 동안만 수집"이 타일에서는 리스닝 구간이다</td></tr>
+    <tr><td><code>ACTIVE_TILE</code> 메타데이터 + <code>requestListeningState</code></td><td>버렸다. 패널이 닫힌 동안에도 타일을 갱신할 수 있지만 그러려면 누군가 프로세스에서 요청해야 한다. 보이지 않는 타일을 갱신할 이유가 없다</td></tr>
+    <tr><td><code>Tile.STATE_UNAVAILABLE</code>로 권한 없음 표시</td><td>버렸다. 비활성화된 타일은 <code>onClick</code>을 받지 못해 권한을 요청할 입구가 없어진다. 대신 <code>INACTIVE</code> + 부제 "권한 필요"</td></tr>
+    <tr><td><code>startActivityAndCollapse(PendingIntent)</code> (API 34+) / <code>(Intent)</code> (API 24, 34 에서 deprecated)</td><td><strong>채택(권한 중계).</strong> targetSdk 34+ 앱이 API 34 기기에서 <code>Intent</code> 판을 부르면 <code>UnsupportedOperationException</code>이다. <code>SDK_INT &gt;= 34</code>로 나눠 33 에서만 <code>Intent</code> 판을 쓴다</td></tr>
+    <tr><td><code>Tile.setSubtitle</code> (API 29+), <code>setStateDescription</code> (API 30+)</td><td><strong>채택.</strong> minSdk 33 이라 분기 없이 쓴다</td></tr>
+    <tr><td>알림 색: 시스템 동적 색 리소스 <code>@android:color/system_accent1_*</code>·<code>system_neutral2_*</code> (API 31+)</td><td><strong>채택.</strong> <code>RemoteViews</code>는 호스트(SystemUI) 테마로 인플레이트되어 우리 <code>?attr</code>가 풀리지 않는다. 동적 색 리소스는 시스템 전역이라 어디서 인플레이트해도 같은 값이고, <code>values-night</code>로 밝음·어두움을 나눈다. 버린 후보: 고정 hex 색(다크 모드에서 대비가 깨진다), <code>?android:attr/colorAccent</code>(호스트 테마 값이 나온다)</td></tr>
+    <tr><td>버튼 강조: <code>RemoteViews.setInt(id, "setBackgroundResource", res)</code></td><td><strong>채택.</strong> <code>View.setBackgroundResource</code>가 <code>@RemotableViewMethod</code>라 알림에서도 부를 수 있다. 현재 각도 버튼만 강조색 배경·글자색 리소스로 바꾼다</td></tr>
+    <tr><td><code>PendingIntent</code> 요청 코드</td><td><strong>주의.</strong> <code>PendingIntent</code>는 extras 를 비교하지 않아 같은 액션에 각도만 다른 인텐트가 하나로 합쳐진다. 버튼마다 다른 <code>requestCode</code>를 준다. 앱 자신의 컴포넌트를 명시하므로 <code>FLAG_IMMUTABLE</code></td></tr>
+    <tr><td>알림 버튼 → <code>BroadcastReceiver</code> + <code>goAsync()</code></td><td><strong>채택(탭).</strong> Glance 의 <code>ActionCallback</code>이 안에서 하는 것과 같다. 유스케이스가 <code>suspend</code>라 <code>goAsync()</code>로 결과를 잡고 코루틴에서 부른 뒤 <code>finish()</code>한다. 리시버는 <code>exported="false"</code>. SystemUI 가 우리 이름으로 보내는 <code>PendingIntent</code>라 열 필요가 없다. Android 12+ 의 알림 트램펄린 금지는 리시버에서 Activity 를 여는 경우에만 걸리고, 권한 중계는 Activity <code>PendingIntent</code>를 버튼에 직접 건다</td></tr>
+    <tr><td>재부팅 뒤 게시 (<code>RECEIVE_BOOT_COMPLETED</code>)</td><td>버렸다. 위젯과 같은 이유다. 다음 <code>onStart</code>가 게시한다</td></tr>
+    <tr><td><code>minSdk</code> 24 → 33</td><td><strong>채택.</strong> 지시가 "Android 13 부터"라 카탈로그 값을 33 으로 올렸다. 코드에 API 24~32 를 위한 분기는 <code>platformName</code>의 <code>SDK_INT</code> 표시 외에 없었다. 덕분에 <code>POST_NOTIFICATIONS</code>·<code>setSubtitle</code>·동적 색 리소스에 버전 분기가 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>모듈</dt><dd>위젯과 같은 <code>:core:widget</code>, <code>:feature:rotation:widget</code>, <code>:feature:screen:widget</code>. <code>:core:widget</code>이 <code>androidx.core</code>·<code>lifecycle-process</code>·<code>kotlinx-coroutines-core</code>를 들인다. <code>:core:data</code> <code>androidMain</code>에 권한 Activity 가 하나 는다</dd>
+  <dt>파일 (공용 장치)</dt><dd><code>core/widget/.../NotificationWidget.kt</code>(<code>NotificationWidget</code> 인터페이스, <code>NotificationWidgets.syncWhileStarted</code>, 채널 생성), <code>core/widget/.../StatusTileService.kt</code>(리스닝 동안 <code>Flow</code>를 수집해 타일을 그리는 베이스, 권한 중계 열기), <code>core/widget/.../WidgetRefresh.kt</code>(브로드캐스트 액션 인자 추가), <code>core/widget/.../AsyncReceiver.kt</code>(<code>goAsync</code> 헬퍼), <code>core/data/src/androidMain/.../notification/NotificationPermission.android.kt</code>·<code>PostNotificationsPermissionActivity.kt</code></dd>
+  <dt>파일 (기능)</dt><dd><code>feature/rotation/widget/.../DeviceRotationNotification.kt</code>(그리기·게시·<code>sync</code>), <code>DeviceRotationNotificationReceiver.kt</code>(버튼·<code>REFRESH</code>·<code>DISMISSED</code>), <code>DeviceRotationTileService.kt</code>, <code>res/layout/notification_device_rotation.xml</code>·<code>notification_device_rotation_big.xml</code>, <code>res/drawable/ic_device_rotation.xml</code>. 화면 꺼짐 방지는 <code>SystemScreenAwake…</code> 이름으로 같은 구성</dd>
+  <dt>매니페스트</dt><dd>기능 모듈마다 <code>&lt;receiver exported="false"&gt;</code>와 <code>&lt;service android:permission="android.permission.BIND_QUICK_SETTINGS_TILE" android:icon android:label exported="true"&gt;</code> + <code>QS_TILE</code> 필터. <code>:core:data</code>에 투명 테마·<code>noHistory</code>·<code>excludeFromRecents</code>의 <code>&lt;activity&gt;</code>. <code>:androidApp</code>에 <code>&lt;uses-permission POST_NOTIFICATIONS&gt;</code>. 클래스 이름은 전부 적는다(namespace 가 패키지와 다르다)</dd>
+  <dt>진입점</dt><dd><code>JarvisApplication.onCreate</code> → <code>startJarvisKoin(this)</code> 뒤 <code>startJarvisNotificationWidgets(this)</code>(<code>:shared</code> <code>androidMain</code>). 두 기능의 <code>NotificationWidget</code> 목록을 <code>NotificationWidgets.syncWhileStarted</code>에 넘긴다</dd>
+  <dt>게시</dt><dd><code>sync()</code>가 <code>combine(notification.observeStatus(), 기능.observeStatus())</code>를 수집. <code>pinned &amp;&amp; permitted</code>면 <code>NotificationManager.notify(id, build(status))</code> + <code>WidgetRefresh.scheduleOnChange(…, action = REFRESH)</code>, 아니면 <code>cancel(id)</code> + job 취소. 채널은 게시 직전에 <code>createNotificationChannel</code>(멱등)</dd>
+  <dt>탭</dt><dd>권한 있음: 리시버가 <code>SetDeviceRotationAngleUseCase</code>·<code>RotateDeviceUseCase</code>·<code>SetDeviceRotationLockUseCase</code> / <code>SetKeepSystemScreenAwakeUseCase</code> + <code>SyncSystemScreenAwakeUseCase</code>를 부르고 다시 게시. 권한 없음: 버튼의 <code>PendingIntent</code>가 <code>WriteSettingsPermissionActivity</code>. 본문: 런처 인텐트(<code>getLaunchIntentForPackage</code>)</dd>
+  <dt>백그라운드 갱신</dt><dd><code>REFRESH</code> 브로드캐스트를 받으면 <code>readStatus()</code>로 고정 여부를 보고, 고정이면 상태를 <code>first()</code>로 읽어 다시 게시하고 job 을 다시 건다. <code>DISMISSED</code>(<code>deleteIntent</code>)면 job 만 지운다. job id 회전 <code>0x4A5203</code>, 꺼짐 방지 <code>0x4A5204</code>, 알림 id <code>0x4A5301</code>·<code>0x4A5302</code></dd>
+  <dt>타일</dt><dd><code>StatusTileService&lt;T&gt;</code>: <code>onStartListening</code>에서 <code>observe()</code> 수집 시작, 방출마다 <code>render(tile, status)</code> + <code>updateTile()</code>, <code>onStopListening</code>에서 취소. <code>onClick</code>은 마지막 상태로 <code>onClick(status)</code>를 서비스 수명 스코프에서 부른다(리스닝 스코프에서 부르면 패널이 닫힐 때 유스케이스가 중간에 끊긴다). 권한 없음이면 <code>startActivityAndCollapse</code>로 권한 중계</dd>
+  <dt>권한 관찰</dt><dd><code>PostNotificationsPermission.observePermitted()</code> = <code>observeSystemState(signals = activityResumes(app), interval = 2s) { areNotificationsEnabled() }</code>. <code>WriteSettingsPermission.android.kt</code>의 <code>activityResumes</code>를 <code>internal</code>로 꺼내 함께 쓴다</dd>
+  <dt>실패</dt><dd>유스케이스 안의 <code>runCatching</code>이 <code>SecurityException</code>을 삼킨다. <code>notify</code>는 권한이 없으면 조용히 무시된다(예외 없음). 리시버에서 유스케이스가 던지면 <code>goAsync</code>의 <code>finish()</code>는 <code>finally</code>에서 부르고 알림은 이전 그림에 머문다. Koin 이 서 있지 않으면 위젯과 같은 <code>IllegalStateException</code></dd>
+</dl>
+
+<pre><code>// androidApp/.../JarvisApplication.kt
+class JarvisApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        startJarvisKoin(this)
+        // 앱이 포그라운드인 동안 "알림에 고정" 설정을 따라 알림을 올리고 내린다. onStart 마다 첫 방출이
+        // 다시 게시하므로, Android 14+ 에서 사용자가 지운 알림도 여기서 돌아온다.
+        startJarvisNotificationWidgets(this)
+    }
+}</code></pre>
+
+<h3>한계</h3>
+<ul>
+  <li><strong>Android 14+ 에서 알림은 스와이프로 지워지고, 다음 <code>onStart</code>까지 없다.</strong> 지시가 고른 동작이다.</li>
+  <li><strong>재부팅 뒤 앱을 한 번 열어야 알림이 뜬다.</strong> <code>BOOT_COMPLETED</code> 리시버가 없다.</li>
+  <li><strong>알림 채널을 시스템 설정에서 차단하면 <code>areNotificationsEnabled()</code>는 여전히 <code>true</code>다.</strong> 카드 스위치는 켜져 있지만 알림이 보이지 않는다. 채널 중요도까지 보는 것은 다음 지시에 맡긴다.</li>
+  <li><strong>Android 16(One UI 8)은 두 알림을 한 그룹으로 묶는다.</strong> 앱의 알림이 둘뿐이어도 시스템이 자동 그룹(<code>Aggregate_NormalNotificationSection</code>)을 만들어, 접힌 알림 창에는 최근 것 하나와 개수 "2"만 보이고 펼쳐야 둘이 다 나온다. 알림마다 <code>setGroup</code>을 달리 주는 것은 16 이 요약 없는 그룹도 다시 묶어서 소용이 없다. 확인한 기기에서는 접힌 그룹 표현 안에서도 버튼이 눌렸다.</li>
+  <li><strong>접힌 알림은 기기·런처마다 커스텀 영역 높이가 다르다.</strong> 48dp 기준으로 한 줄만 두었지만, 글자 크기를 크게 한 기기에서는 잘릴 수 있다.</li>
+  <li><strong>알림 색이 앱 팔레트와 다르다.</strong> 시스템 동적 색을 쓴다. 위젯의 <code>GlanceTheme</code>과 같다.</li>
+  <li><strong>타일 롱프레스는 앱 정보 화면이다.</strong> <code>QS_TILE_PREFERENCES</code> 필터를 <code>MainActivity</code>에 붙이려면 기능 모듈이 앱 모듈의 Activity 를 알아야 해서 넣지 않았다.</li>
+  <li><strong>알림·타일의 <code>BroadcastReceiver</code>·<code>TileService</code>는 Koin 을 <code>GlobalContext</code>로 꺼낸다.</strong> 매니페스트가 리플렉션으로 만들어 생성자 주입이 안 된다. Glance <code>ActionCallback</code>과 같은 예외다(<a href="#dependency-injection">의존성 주입</a>).</li>
+  <li><strong>자동 회전 중 각도 변화는 알림에 늦게 반영된다.</strong> 위젯과 같은 <a href="#home-screen-widget">한계</a>. 앱이 포그라운드거나 타일이 보이는 동안은 <code>DisplayListener</code>가 즉시 알려준다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동 테스트가 없다. Android 에는 UI 테스트가 없고(<a href="#test">이유</a>) 알림과 타일은 SystemUI 가 그린다. 컴파일과 APK 조립은 <code>./gradlew :androidApp:assembleDebug</code>가 본다. 새 유스케이스 규칙은 <code>:feature:rotation:domain</code>·<code>:feature:screen:domain</code> 테스트가, 카드의 행과 스위치는 <code>:app:ui</code> <code>skikoTest</code>가, Koin 그래프는 <code>JarvisKoinTest</code>가 본다.</p>
+<p>2026-09-25 에 Galaxy Tab S8 Ultra(SM-X906N, Android 16)와 Galaxy Z Fold(SM-F966N, Android 16)에서 adb 로 확인한 것: 두 알림이 채널 <code>notification_widget</code>·<code>ONGOING_EVENT|ONLY_ALERT_ONCE|SILENT</code>로 게시되고 job <code>0x4A5203</code>·<code>0x4A5204</code>가 걸린다(R2, R5, R6b 의 장치). 알림의 "고정"/"자동" 버튼을 탭하면 <code>accelerometer_rotation</code>이 바뀌고 알림 문구·버튼 색이 따라 바뀐다(R3, R6a). <code>cmd statusbar add-tile</code>로 넣은 두 타일이 빠른 설정에 보이고, 회전 타일을 <code>click-tile</code>할 때마다 <code>user_rotation</code>이 한 칸씩 돌며 잠긴다(R10, R11). 카드에 "알림에 고정" 행이 둘 다 그려진다(R1). 스위치 자체의 탭, 권한 다이얼로그(R8), 스와이프 뒤 <code>onStart</code> 재게시(R7), 꺼짐 방지 타일 탭(R12), 앱 강제 종료 뒤의 버튼(R5)은 아직 손으로 확인하지 않았다.</p>
+<p>수동 확인. (1) 화면 회전 카드의 "알림에 고정"을 켜면 권한 다이얼로그가 뜨고, 허용하면 알림 창에 "화면 회전" 알림이 나타나는지(R2, R8). (2) 알림을 펼쳐 90° 를 누르면 기기가 돌고 알림의 강조 버튼이 90° 로 바뀌는지(R3, R6a). (3) 앱을 강제 종료한 뒤에도 (2)가 되는지(R5). (4) 빠른 설정의 시스템 자동 회전 타일을 켜면 몇 초 안에 알림 문구가 "센서를 따라 회전합니다"로 바뀌는지(R6b). (5) Android 14 기기에서 알림을 스와이프로 지운 뒤 앱을 열면 알림이 다시 뜨고 카드 스위치가 켜져 있는지(R7). (6) 스위치를 끄면 알림이 사라지고 <code>adb shell dumpsys jobscheduler | grep jarvis</code>에 <code>0x4A5203</code>·<code>0x4A5204</code> job 이 없는지. (7) 빠른 설정 편집에서 "화면 회전"·"화면 꺼짐 방지" 타일을 추가하고, 회전 타일을 탭할 때마다 90° 씩 돌며 부제가 "{각도}° 고정"인지(R10, R11). (8) 꺼짐 방지 타일을 탭하면 활성/비활성이 바뀌고 카드·위젯·알림이 따라오는지(R12). (9) <code>WRITE_SETTINGS</code>를 끄고 알림 버튼과 타일을 누르면 권한 설정 화면이 열리는지(R9, R13).</p>
 </section>
 
 <section class="feature" id="card-ripple">
@@ -811,7 +890,7 @@ class JarvisApplication : Application() {
     <tr><td><code>androidx.datastore:datastore-core-okio</code> 1.2.1 + <code>OkioStorage</code></td><td>채택. Android 타깃은 JVM 변형을 쓴다. 경로는 <code>Context.filesDir</code> 아래라 권한이 필요 없고 앱을 지우면 함께 지워진다</td></tr>
     <tr><td>Room3</td><td>버렸다. 공통 스펙의 <a href="../common/terminal-panels.html#implementation">결정</a></td></tr>
     <tr><td><code>/proc/&lt;pid&gt;/cwd</code> 의 실제 경로(<code>File.canonicalPath</code>)</td><td>채택. 앱이 띄운 셸은 같은 uid 라 읽을 수 있다. API 24 부터 된다</td></tr>
-    <tr><td>셸 pid 얻기: <code>Process.pid()</code></td><td>버렸다. Android 의 <code>java.lang.Process</code> 에 <code>pid()</code> 가 없는 API 수준이 minSdk 24 범위에 있다. 숨은 필드(<code>UNIXProcess.pid</code>) 반사는 비공개 API 제한에 걸릴 수 있다</td></tr>
+    <tr><td>셸 pid 얻기: <code>Process.pid()</code></td><td>버렸다. Android 의 <code>java.lang.Process</code> 에 <code>pid()</code> 가 없는 API 수준이 당시 minSdk 24 범위에 있었다(minSdk 를 33 으로 올린 뒤 다시 조사하지 않았다). 숨은 필드(<code>UNIXProcess.pid</code>) 반사는 비공개 API 제한에 걸릴 수 있다</td></tr>
     <tr><td>셸 pid 얻기: <code>sh -c 'echo $$; exec sh -i'</code></td><td>채택. <code>exec</code> 가 pid 를 그대로 물려주므로 첫 줄이 곧 대화형 셸의 pid 다. 첫 줄은 화면에 흘리지 않는다</td></tr>
     <tr><td>앱이 꺼져도 셸 유지(포그라운드 서비스)</td><td>버렸다. 앱 프로세스가 죽으면 자식도 함께 죽고, 서비스로 프로세스를 붙잡는 것은 지시의 "디렉토리라도 유지" 를 넘는다. 알림이 늘 떠 있어야 한다</td></tr>
   </tbody>
@@ -1099,7 +1178,7 @@ class JarvisApplication : Application() {
 
 <h3>한계</h3>
 <ul>
-  <li>매니페스트의 창 테마가 <code>Theme.Material.Light.NoActionBar</code> 라 다크 모드에서 첫 프레임 전에 창 배경이 잠깐 밝게 보인다. <code>Theme.DeviceDefault.DayNight</code> 는 API 29 부터라 minSdk 24 에서는 <code>values-night</code> 리소스를 따로 두어야 한다. 이번 범위에서는 넣지 않았다.</li>
+  <li>매니페스트의 창 테마가 <code>Theme.Material.Light.NoActionBar</code> 라 다크 모드에서 첫 프레임 전에 창 배경이 잠깐 밝게 보인다. <code>Theme.DeviceDefault.DayNight</code> 는 API 29 부터다. 당시 minSdk 24 라 <code>values-night</code> 리소스가 필요했고 넣지 않았다. minSdk 가 33 이 된 지금은 바로 쓸 수 있지만 아직 바꾸지 않았다.</li>
 </ul>
 
 <h3>검증</h3>
