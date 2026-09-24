@@ -8,4 +8,6 @@ val rotationDomainModule = module {
     factoryOf(::SetDeviceRotationAngleUseCase)
     factoryOf(::SetDeviceRotationLockUseCase)
     factoryOf(::RotateDeviceUseCase)
+    factoryOf(::ObserveDeviceRotationNotificationUseCase)
+    factoryOf(::SetDeviceRotationNotificationPinnedUseCase)
 }

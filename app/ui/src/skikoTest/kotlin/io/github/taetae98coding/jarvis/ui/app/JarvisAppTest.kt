@@ -28,8 +28,10 @@ import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
+import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeNotificationStatus
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorFrameTestTag
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorListTestTag
@@ -43,9 +45,12 @@ import io.github.taetae98coding.jarvis.ui.emulator.emulatorWakeTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationBackwardTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationForwardTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationLockTestTag
+import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationNotificationTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.deviceRotationAngleTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepScreenAwakeTestTag
+import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeNotificationTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeTestTag
+import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeToggleTestTag
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -119,7 +124,7 @@ class JarvisAppTest {
         val settings = FakeScreenAwakeSettingsRepository()
         setContent { TestJarvisApp(settings = settings) }
 
-        onNodeWithTag(KeepSystemScreenAwakeTestTag)
+        onNodeWithTag(KeepSystemScreenAwakeToggleTestTag)
             .assertIsNotEnabled()
             .performClick()
             .assertIsOff()
@@ -145,9 +150,55 @@ class JarvisAppTest {
             TestJarvisApp(settings = settings, systemScreenAwake = system)
         }
 
-        onNodeWithTag(KeepSystemScreenAwakeTestTag).performClick().assertIsOn()
+        onNodeWithTag(KeepSystemScreenAwakeToggleTestTag).performClick().assertIsOn()
 
         assertTrue(settings.keepSystemScreenAwake.value)
+    }
+
+    // 알림 컨트롤은 Android 만 만든다. Skiko 로 렌더링하는 타깃에서는 "알림에 고정" 행 자체가 없어야 한다.
+    @Test
+    fun notificationRowIsHiddenWhereNotificationsAreNotSupported() = runComposeUiTest {
+        setContent { TestJarvisApp() }
+
+        onNodeWithTag(DeviceRotationNotificationTestTag).assertDoesNotExist()
+        onNodeWithTag(KeepSystemScreenAwakeNotificationTestTag).assertDoesNotExist()
+        onAllNodesWithText("알림에 고정").assertCountEquals(0)
+    }
+
+    @Test
+    fun systemScreenAwakeNotificationTogglesWhereItIsSupported() = runComposeUiTest {
+        val notification = FakeSystemScreenAwakeNotificationRepository(
+            SystemScreenAwakeNotificationStatus(supported = true, permitted = true),
+        )
+        setContent { TestJarvisApp(systemScreenAwakeNotification = notification) }
+
+        onNodeWithTag(KeepSystemScreenAwakeNotificationTestTag).assertIsOff().performClick().assertIsOn()
+
+        assertTrue(notification.status.value.pinned)
+    }
+
+    @Test
+    fun deviceRotationNotificationTogglesWhereItIsSupported() = runComposeUiTest {
+        val notification = FakeDeviceRotationNotificationRepository(
+            DeviceRotationNotificationStatus(supported = true, permitted = true),
+        )
+        setContent { TestJarvisApp(deviceRotationNotification = notification) }
+
+        onNodeWithTag(DeviceRotationNotificationTestTag).assertIsOff().performClick().assertIsOn()
+
+        assertTrue(notification.status.value.pinned)
+    }
+
+    // 권한이 없어도 값은 켜진 채 남고, 그 사실이 스위치 아래에 보인다.
+    @Test
+    fun notificationRowExplainsMissingPermission() = runComposeUiTest {
+        val notification = FakeDeviceRotationNotificationRepository(
+            DeviceRotationNotificationStatus(supported = true, permitted = false, pinned = true),
+        )
+        setContent { TestJarvisApp(deviceRotationNotification = notification) }
+
+        onNodeWithTag(DeviceRotationNotificationTestTag).assertIsOn()
+        onNodeWithText("알림 권한이 없어 표시되지 않습니다. 허용하면 바로 나타납니다.").assertIsDisplayed()
     }
 
     @Test

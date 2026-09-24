@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 접힌 알림. 커스텀 영역이 48dp 까지 낮아질 수 있어 제목·상태 두 줄과 버튼 하나만 둔다. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/device_rotation_title"
+            style="@style/TextAppearance.Compat.Notification.Title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:text="@string/device_rotation_widget_label" />
+
+        <TextView
+            android:id="@+id/device_rotation_status"
+            style="@style/TextAppearance.Compat.Notification.Line2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/device_rotation_lock"
+        style="@style/NotificationWidgetButton"
+        android:layout_width="wrap_content"
+        android:layout_weight="0"
+        android:layout_marginStart="@dimen/notification_widget_gap"
+        android:minWidth="56dp" />
+</LinearLayout>

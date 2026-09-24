@@ -51,7 +51,7 @@
   <li><strong>R6.</strong> 기능 모듈은 자기 조립을 스스로 들고 있다. <code>domain</code>은 유스케이스를, <code>data</code>는 리포지토리를, <code>ui</code>는 ViewModel·화면·라우트를 각각 자기 Koin 모듈에 등록한다.</li>
   <li><strong>R7.</strong> 앱 셸(<code>:app:ui</code>)은 어떤 화면이 있는지 모른다. 라우트는 각 기능의 Koin 모듈이 등록하고, 백스택 키의 직렬화 등록도 기능이 함께 낸다.</li>
   <li><strong>R8.</strong> 기능을 하나 더할 때 고치는 기존 파일은 <code>settings.gradle.kts</code>와 <code>:shared</code>의 모듈 목록, 그리고 카드를 놓는 <code>FeatureGrid</code> 뿐이다.</li>
-  <li><strong>R12.</strong> (2026-09-24) Android 홈 화면 위젯이 있는 기능은 <code>:feature:&lt;기능&gt;:widget</code>을 하나 더 갖는다. Android 전용 <code>com.android.library</code> 모듈이고, <code>ui</code>와 같은 방향(<code>widget → domain</code>)만 의존한다. 두 위젯이 함께 쓰는 갱신 장치는 <code>:core:widget</code>에 둔다(R4). 근거는 <a href="home-screen-widget.html#implementation">홈 화면 위젯</a>에 있다.</li>
+  <li><strong>R12.</strong> (2026-09-24, 2026-09-25 범위 확장) Android 시스템 표면 컨트롤(홈 화면 위젯, 알림, 빠른 설정 타일)이 있는 기능은 <code>:feature:&lt;기능&gt;:widget</code>을 하나 더 갖는다. Android 전용 <code>com.android.library</code> 모듈이고, <code>ui</code>와 같은 방향(<code>widget → domain</code>)만 의존한다. 두 기능이 함께 쓰는 갱신 장치·권한 중계·알림 채널·타일 베이스는 <code>:core:widget</code>에 둔다(R4). 근거는 <a href="home-screen-widget.html#implementation">홈 화면 위젯</a>과 <a href="notification-widget.html#implementation">알림 위젯과 빠른 설정 타일</a>에 있다.</li>
   <li><strong>R9.</strong> 패키지 루트는 모듈마다 다르다. 기능 분리 전의 패키지(<code>…jarvis.&lt;계층&gt;.&lt;기능&gt;</code>)를 그대로 쓴다.</li>
   <li><strong>R10.</strong> 사용자에게 보이는 동작은 바뀌지 않는다. 분리 전 테스트가 검증하던 내용은 분리 후에도 전부 검증된다.</li>
   <li><strong>R11.</strong> 타깃 선언(android/jvm/iosArm64/iosSimulatorArm64/wasmJs)은 한곳에만 있다. 모듈 빌드 파일은 자기와 다른 것만 적는다.</li>
@@ -102,14 +102,14 @@
 <table>
   <thead><tr><th>모듈</th><th>패키지</th><th>내용</th><th>의존</th></tr></thead>
   <tbody>
-    <tr><td><code>:core:data</code></td><td><code>…data</code>, <code>…data.state</code></td><td><code>PlatformContext</code>(expect class), <code>observeByPolling</code>/<code>observeOnSignals</code>/<code>observeSystemState</code></td><td>없음</td></tr>
+    <tr><td><code>:core:data</code></td><td><code>…data</code>, <code>…data.state</code>, <code>…data.settings</code>, <code>…data.notification</code></td><td><code>PlatformContext</code>(expect class), <code>observeByPolling</code>/<code>observeOnSignals</code>/<code>observeSystemState</code>, <code>SettingsStore</code>(expect), <code>NotificationPermission</code>(expect)</td><td>없음</td></tr>
     <tr><td><code>:core:designsystem</code></td><td><code>…designsystem.theme</code>, <code>…designsystem.icon</code>, <code>…designsystem.component</code></td><td><code>JarvisTheme</code> 과 토큰, <code>JarvisIcons</code>, <code>JarvisCard</code> 등 공용 컴포넌트와 <code>*Defaults</code>(<a href="design-system.html">디자인 시스템</a>)</td><td>Compose, Material 3</td></tr>
     <tr><td><code>:core:ui</code></td><td><code>…ui.component</code>, <code>…ui.navigation</code>, <code>…ui.device</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>·<code>LocalNavigator</code>, <code>NavKeySerializers</code>, <code>DeviceScreens</code>·<code>DeviceChoice</code></td><td>Compose, navigation3-runtime, <code>:core:designsystem</code></td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:domain</code></td><td><code>…domain.&lt;기능&gt;</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, <code>&lt;기능&gt;DomainModule</code></td><td>없음</td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:data</code></td><td><code>…data.&lt;기능&gt;</code></td><td>리포지토리 구현, <code>expect</code>/<code>actual</code>, DTO, <code>&lt;기능&gt;DataModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:data</code></td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:ui</code></td><td><code>…ui.&lt;기능&gt;</code></td><td>카드·화면, ViewModel, 라우트, <code>&lt;기능&gt;UiModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
-    <tr><td><code>:feature:&lt;기능&gt;:widget</code> (Android 전용, <code>rotation</code>·<code>screen</code>만)</td><td><code>…widget.&lt;기능&gt;</code></td><td>Glance 위젯, 리시버, <code>ActionCallback</code></td><td>같은 기능 <code>domain</code>, <code>:core:widget</code></td></tr>
-    <tr><td><code>:core:widget</code> (Android 전용)</td><td><code>…widget</code></td><td><code>WidgetRefresh</code>(설정 변경 시 위젯 갱신 job, 전체 다시 그리기), <code>WriteSettingsPermissionActivity</code></td><td>없음</td></tr>
+    <tr><td><code>:feature:&lt;기능&gt;:widget</code> (Android 전용, <code>rotation</code>·<code>screen</code>만)</td><td><code>…widget.&lt;기능&gt;</code></td><td>Glance 위젯, 리시버, <code>ActionCallback</code>, 알림(<code>RemoteViews</code>·리시버), <code>TileService</code></td><td>같은 기능 <code>domain</code>, <code>:core:widget</code></td></tr>
+    <tr><td><code>:core:widget</code> (Android 전용)</td><td><code>…widget</code></td><td><code>WidgetRefresh</code>(설정 변경 시 위젯·알림 갱신 job, 전체 다시 그리기), <code>WriteSettingsPermissionActivity</code>, <code>NotificationWidget</code>·<code>NotificationWidgets</code>(포그라운드 동기화, 채널), <code>StatusTileService</code>, <code>AsyncReceiver</code></td><td><code>androidx.core</code>, <code>lifecycle-process</code></td></tr>
     <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>다섯 기능의 <code>ui</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
     <tr><td><code>:shared</code></td><td><code>…shared</code></td><td><code>startJarvisKoin()</code>, <code>platformModule</code>, <code>App()</code>, <code>MainViewController()</code></td><td><code>:app:ui</code>, 다섯 기능의 <code>data</code>·<code>domain</code></td></tr>
   </tbody>
@@ -132,16 +132,18 @@
 ├── domain
 │   ├── appinfo    AppInfo, AppInfoRepository, GetAppInfoUseCase, appInfoDomainModule
 │   ├── emulator   EmulatorDevice, EmulatorRepository, 유스케이스 6개, emulatorDomainModule
-│   ├── screen     ScreenAwakeRepository, SystemScreenAwakeStatus, 유스케이스 7개, screenDomainModule
-│   ├── rotation   RotationAngle, DeviceRotationRepository, 유스케이스 4개, rotationDomainModule
+│   ├── screen     ScreenAwakeRepository, SystemScreenAwakeStatus, SystemScreenAwakeNotificationRepository, 유스케이스 10개, screenDomainModule
+│   ├── rotation   RotationAngle, DeviceRotationRepository, DeviceRotationNotificationRepository, 유스케이스 6개, rotationDomainModule
 │   └── terminal   TerminalRepository, TerminalWorkspace, TerminalEmulator, LineDiscipline, 유스케이스 2개
 ├── data
 │   ├── PlatformContext(expect)                      ← :core:data
 │   ├── state      observeByPolling / observeOnSignals / observeSystemState   ← :core:data
 │   ├── appinfo    platformName(expect), APP_VERSION(생성), DefaultAppInfoRepository
 │   ├── emulator   EmulatorDataSource(expect), 리포지토리, agent(주소·DTO·클라이언트·서버)
-│   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), SettingsStore(expect)
-│   ├── rotation   DeviceRotationDataSource(expect)
+│   ├── settings   SettingsStore(expect)                         ← :core:data
+│   ├── notification NotificationPermission(expect)               ← :core:data
+│   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), 알림 고정 리포지토리
+│   ├── rotation   DeviceRotationDataSource(expect), 알림 고정 리포지토리
 │   └── terminal   TerminalDataSource(expect), 리포지토리
 ├── designsystem
 │   ├── theme      JarvisTheme, 색·글꼴·모양·치수 토큰   ← :core:designsystem
@@ -158,9 +160,9 @@
 │   ├── terminal   TerminalCard, TerminalScreen, TerminalPane, TerminalViewModel, TerminalRoute
 │   └── app        JarvisApp, HomeRoute, HomeScreen, FeatureGrid   ← :app:ui
 ├── widget                                            (Android 전용)
-│   ├── WidgetRefresh, WidgetRefreshJobService, WriteSettingsPermissionActivity   ← :core:widget
-│   ├── rotation   DeviceRotationWidget, 리시버, 액션 셋   ← :feature:rotation:widget
-│   └── screen     SystemScreenAwakeWidget, 리시버, 액션    ← :feature:screen:widget
+│   ├── WidgetRefresh, WidgetRefreshJobService, WriteSettingsPermissionActivity, NotificationWidget(s), StatusTileService, AsyncReceiver   ← :core:widget
+│   ├── rotation   DeviceRotationWidget, 리시버, 액션 셋, DeviceRotationNotification(+리시버), DeviceRotationTileService   ← :feature:rotation:widget
+│   └── screen     SystemScreenAwakeWidget, 리시버, 액션, SystemScreenAwakeNotification(+리시버), SystemScreenAwakeTileService    ← :feature:screen:widget
 └── shared         App, startJarvisKoin(플랫폼별), platformModule,
                    MainViewController(ios), startEmulatorHostAgent(jvm)</code></pre>
 
@@ -212,7 +214,9 @@ val emulatorUiModule = module {
     <tr><td><code>ToggleFeatureCard</code></td><td><code>:core:ui</code></td><td><code>screen</code> 의 카드 둘이 함께 쓴다</td></tr>
     <tr><td><code>Navigator</code>, <code>LocalNavigator</code></td><td><code>:core:ui</code></td><td>기능이 서로를 모른 채 이동하려면 이동 수단만 공용이어야 한다</td></tr>
     <tr><td><code>DeviceScreens</code>, <code>DeviceChoice</code></td><td><code>:core:ui</code></td><td>터미널이 기기 화면을 탭에 그린다. 구현은 <code>emulator</code> 가 Koin 에 등록하고 <code>terminal</code> 은 인터페이스만 본다(<a href="terminal-device.html#implementation">결정</a>). 경계를 넘는 값은 식별자·이름·종류 문자열뿐이다</td></tr>
-    <tr><td><code>SettingsStore</code></td><td><code>:feature:screen:data</code></td><td><strong>core 가 아니다.</strong> 지금 설정을 저장하는 기능이 <code>screen</code> 하나뿐이다(R4). 두 번째 기능이 쓰게 되면 <code>:core:data</code> 로 올린다</td></tr>
+    <tr><td><code>SettingsStore</code></td><td><code>:core:data</code></td><td>2026-09-25 까지는 <code>:feature:screen:data</code>에 있었다("두 번째 기능이 쓰게 되면 올린다"). <a href="notification-widget.html">알림 위젯</a>의 "알림에 고정" 설정으로 <code>rotation</code>이 두 번째 사용자가 되어 올렸다</td></tr>
+    <tr><td><code>NotificationPermission</code></td><td><code>:core:data</code></td><td><code>screen</code>·<code>rotation</code> 의 알림 고정 리포지토리가 같은 <code>POST_NOTIFICATIONS</code> 권한을 본다. <code>observeWriteSettingsPermission</code>과 같은 자리</td></tr>
+    <tr><td><code>JarvisSwitchRow</code></td><td><code>:core:designsystem</code></td><td>두 카드의 "알림에 고정" 행이 같은 모양이다</td></tr>
   </tbody>
 </table>
 
@@ -256,7 +260,7 @@ val emulatorUiModule = module {
 
 <aside class="decision">
   <strong>결정: 전역 <code>Context</code> 대신 <code>PlatformContext</code>를 넘긴다</strong>
-  <code>androidx.startup</code>이나 <code>ContentProvider</code>로 애플리케이션 컨텍스트를 몰래 잡아 두는 방법도 있다. 의존성이 늘고, <code>data</code> 가 초기화 순서에 의존하게 되고, 테스트에서 갈아끼울 수 없어서 버렸다. 컨텍스트를 요구하는 것은 <code>PlatformContext</code>를 받는 Koin 정의들뿐이고, 그 값은 <code>JarvisApplication</code>이 <code>startJarvisKoin(this)</code>로 명시적으로 넘긴다. <code>Application</code> 서브클래스는 <a href="home-screen-widget.html">위젯</a>이 Activity 없이 프로세스를 띄우게 되어 들였고, 하는 일은 그 한 줄이다.
+  <code>androidx.startup</code>이나 <code>ContentProvider</code>로 애플리케이션 컨텍스트를 몰래 잡아 두는 방법도 있다. 의존성이 늘고, <code>data</code> 가 초기화 순서에 의존하게 되고, 테스트에서 갈아끼울 수 없어서 버렸다. 컨텍스트를 요구하는 것은 <code>PlatformContext</code>를 받는 Koin 정의들뿐이고, 그 값은 <code>JarvisApplication</code>이 <code>startJarvisKoin(this)</code>로 명시적으로 넘긴다. <code>Application</code> 서브클래스는 <a href="home-screen-widget.html">위젯</a>이 Activity 없이 프로세스를 띄우게 되어 들였고, 하는 일은 그 한 줄과 <a href="notification-widget.html">알림 위젯</a>의 포그라운드 동기화 등록(<code>startJarvisNotificationWidgets(this)</code>)이다.
 </aside>
 
 <h3 id="visibility">가시성</h3>
@@ -269,9 +273,9 @@ val emulatorUiModule = module {
     <tr><td><code>domain</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, Koin 모듈</td><td>없음</td></tr>
     <tr><td><code>data</code></td><td>Koin 모듈, <code>emulator</code> 만 추가로 <code>startEmulatorHostAgent()</code></td><td>리포지토리 구현, 데이터 소스, DTO, <code>expect</code> 선언</td></tr>
     <tr><td><code>ui</code></td><td>카드·화면 진입 컴포저블, Koin 모듈</td><td>ViewModel, 라우트, 테스트 태그</td></tr>
-    <tr><td><code>widget</code> (android)</td><td>매니페스트가 가리키는 리시버·<code>ActionCallback</code> 클래스. 매니페스트와 Glance 가 리플렉션으로 만들어 <code>public</code>이어야 한다</td><td>위젯 컴포저블, job id</td></tr>
-    <tr><td><code>:core:widget</code> (android)</td><td><code>WidgetRefresh</code>, <code>WidgetRefreshJobService</code>·<code>WriteSettingsPermissionActivity</code>(매니페스트)</td><td>없음</td></tr>
-    <tr><td><code>:core:data</code></td><td><code>PlatformContext</code>, 조회 규칙 3종</td><td>없음</td></tr>
+    <tr><td><code>widget</code> (android)</td><td>매니페스트가 가리키는 리시버·<code>TileService</code>·<code>ActionCallback</code> 클래스(매니페스트와 Glance 가 리플렉션으로 만든다), <code>:shared</code>가 등록하는 <code>NotificationWidget</code> 객체</td><td>위젯 컴포저블, 알림 그리기, job id·알림 id</td></tr>
+    <tr><td><code>:core:widget</code> (android)</td><td><code>WidgetRefresh</code>, <code>WidgetRefreshJobService</code>·<code>WriteSettingsPermissionActivity</code>(매니페스트), <code>NotificationWidget</code>·<code>NotificationWidgets</code>, <code>StatusTileService</code>, <code>AsyncReceiver</code></td><td>없음</td></tr>
+    <tr><td><code>:core:data</code></td><td><code>PlatformContext</code>, 조회 규칙 3종, <code>SettingsStore</code>·<code>createSettingsStore</code>, <code>NotificationPermission</code>·<code>createNotificationPermission</code>, Android 의 <code>observeWriteSettingsPermission</code></td><td><code>PostNotificationsPermissionActivity</code>(매니페스트만 본다)</td></tr>
     <tr><td><code>:core:designsystem</code></td><td><code>JarvisTheme</code>·토큰 타입, <code>JarvisIcons</code>, <code>Jarvis*</code> 컴포넌트와 <code>*Defaults</code></td><td>라이트·다크 색 정의값, 아이콘 경로 문자열</td></tr>
     <tr><td><code>:core:ui</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>, <code>LocalNavigator</code>, <code>NavKeySerializers</code>, <code>DeviceScreens</code>, <code>DeviceChoice</code></td><td>없음</td></tr>
     <tr><td><code>:app:ui</code></td><td><code>JarvisApp()</code>, <code>appUiModule</code></td><td>Home 라우트·화면, <code>FeatureGrid</code></td></tr>
