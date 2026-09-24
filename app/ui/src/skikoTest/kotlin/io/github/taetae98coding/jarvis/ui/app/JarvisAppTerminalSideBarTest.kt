@@ -169,6 +169,36 @@ class JarvisAppTerminalSideBarTest {
     }
 
     @Test
+    fun openingAFolderWithOnlyOneFolderOpensTheWholeChain() = runComposeUiTest {
+        val a = FileEntry("a", "$Root/a", isDirectory = true)
+        val b = FileEntry("b", "${a.path}/b", isDirectory = true)
+        val c = FileEntry("c", "${b.path}/c", isDirectory = true)
+        val d = FileEntry("d", "${c.path}/d", isDirectory = true)
+        val e = FileEntry("e", "${d.path}/e", isDirectory = true)
+        val f = FileEntry("f", "${e.path}/f", isDirectory = true)
+        val notes = FileEntry("NOTES.md", "${d.path}/NOTES.md", isDirectory = false)
+        val files = FakeFileRepository(
+            directories = mapOf(Root to listOf(a, readme), a.path to listOf(b), b.path to listOf(c), c.path to listOf(d), d.path to listOf(e, notes), e.path to listOf(f)),
+            files = emptyMap(),
+        )
+        openTerminal(files = files)
+        awaitTag(terminalFileEntryTestTag(a.path))
+
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).performClick()
+
+        awaitTag(terminalFileEntryTestTag(notes.path))
+        awaitTag(terminalFileEntryTestTag(e.path))
+        onNodeWithTag(terminalFileEntryTestTag(d.path)).assertIsDisplayed()
+        // d 는 폴더와 파일을 함께 가지므로 거기서 멈춘다.
+        assertEquals(0, count(terminalFileEntryTestTag(f.path)))
+
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).performClick()
+        awaitTag(terminalFileEntryTestTag(b.path), count = 0)
+        onNodeWithTag(terminalFileEntryTestTag(a.path)).performClick()
+        awaitTag(terminalFileEntryTestTag(notes.path))
+    }
+
+    @Test
     fun theTreeFollowsTheDisk() = runComposeUiTest {
         val files = files()
         openTerminal(files = files)
