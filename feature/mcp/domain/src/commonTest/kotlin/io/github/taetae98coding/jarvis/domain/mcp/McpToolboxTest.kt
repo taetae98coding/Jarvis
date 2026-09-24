@@ -151,7 +151,7 @@ class McpToolboxTest {
 
         override suspend fun browserTabs(sessionId: String): List<AgentBrowserTab> = existing.toList()
 
-        override suspend fun showDevice(sessionId: String, deviceId: String, deviceName: String) {
+        override suspend fun showDevice(sessionId: String, deviceId: String, deviceName: String, platform: AutomationPlatform) {
             shown += deviceId to deviceName
         }
 

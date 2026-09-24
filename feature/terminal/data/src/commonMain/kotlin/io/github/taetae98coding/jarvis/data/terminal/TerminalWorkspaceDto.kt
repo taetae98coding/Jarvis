@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
@@ -47,6 +48,9 @@ internal data class TerminalTabDto(
     val url: String? = null,
     val deviceId: String? = null,
     val deviceName: String? = null,
+    val devicePlatform: String? = null,
+    val name: String? = null,
+    val claudeCheckedAt: Long? = null,
 )
 
 @Serializable
@@ -74,6 +78,8 @@ private const val ShellProgram = "shell"
 private const val ClaudeProgram = "claude"
 private const val BrowserProgram = "browser"
 private const val DeviceProgram = "device"
+private const val AndroidPlatform = "android"
+private const val IosPlatform = "ios"
 private const val SideBySideDirection = "sideBySide"
 private const val StackedDirection = "stacked"
 
@@ -136,6 +142,13 @@ private fun PaneNode.toDto(): PaneNodeDto =
                     url = tab.url,
                     deviceId = tab.deviceId,
                     deviceName = tab.deviceName,
+                    devicePlatform = when (tab.devicePlatform) {
+                        DevicePlatform.Android -> AndroidPlatform
+                        DevicePlatform.IOS -> IosPlatform
+                        null -> null
+                    },
+                    name = tab.name,
+                    claudeCheckedAt = tab.claudeCheckedAt,
                 )
             },
             selectedTabId = selectedTabId,
@@ -180,8 +193,20 @@ private fun PaneNodeDto.toDomain(): PaneNode? =
 
 private fun TerminalTabDto.toDomain(): TerminalTab =
     when {
-        program == ClaudeProgram && claudeSessionId != null -> TerminalTab(id, TerminalProgram.Claude, directory, claudeSessionId)
+        program == ClaudeProgram && claudeSessionId != null ->
+            TerminalTab(id, TerminalProgram.Claude, directory, claudeSessionId, claudeCheckedAt = claudeCheckedAt)
         program == BrowserProgram -> TerminalTab(id, TerminalProgram.Browser, url = url ?: TerminalTab.DefaultBrowserUrl)
-        program == DeviceProgram && deviceId != null -> TerminalTab(id, TerminalProgram.Device, deviceId = deviceId, deviceName = deviceName)
+        program == DeviceProgram && deviceId != null -> TerminalTab(
+            id = id,
+            program = TerminalProgram.Device,
+            deviceId = deviceId,
+            deviceName = deviceName,
+            devicePlatform = when (devicePlatform) {
+                AndroidPlatform -> DevicePlatform.Android
+                IosPlatform -> DevicePlatform.IOS
+                else -> null
+            },
+        )
+
         else -> TerminalTab(id, directory = directory)
-    }
+    }.copy(name = name?.trim()?.ifEmpty { null })

@@ -16,6 +16,7 @@ import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.ui.navigation.LocalNavigator
 import io.github.taetae98coding.jarvis.ui.navigation.Navigator
 import io.github.taetae98coding.jarvis.ui.screen.appScreenAwake
+import io.github.taetae98coding.jarvis.ui.terminal.ClaudeTurnNotifications
 import org.koin.compose.navigation3.koinEntryProvider
 import org.koin.core.annotation.KoinExperimentalAPI
 
@@ -33,6 +34,9 @@ fun JarvisApp(modifier: Modifier = Modifier) {
                 .fillMaxSize()
                 .appScreenAwake(),
         ) {
+            // 화면 꺼짐 방지와 같은 이유로 루트에 둔다. 어느 화면에 있든 Claude 턴이 끝나면 알린다.
+            ClaudeTurnNotifications()
+
             CompositionLocalProvider(LocalNavigator provides navigator) {
                 NavDisplay(
                     backStack = backStack,

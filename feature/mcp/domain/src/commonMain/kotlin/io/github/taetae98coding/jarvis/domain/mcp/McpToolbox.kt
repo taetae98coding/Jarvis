@@ -178,7 +178,7 @@ class McpToolbox(
     /** R6. 기기를 찾고, 호출한 패널에 기기 탭을 붙인 뒤 [block] 을 부른다. */
     private suspend fun withDevice(sessionId: String?, args: Arguments, block: suspend (String) -> ToolResult): ToolResult {
         val device = device(args)
-        if (sessionId != null) tabs?.showDevice(sessionId, device.id, device.name)
+        if (sessionId != null) tabs?.showDevice(sessionId, device.id, device.name, device.platform)
 
         return block(device.id)
     }

@@ -59,8 +59,13 @@
     <li><a href="#terminal-tab-groups">분할 그룹마다 탭 줄</a></li>
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
     <li><a href="#terminal-worktree">패널에서 git 워크트리 추가</a></li>
+    <li><a href="#terminal-claude-status">패널 줄의 Claude 상태 표시</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
+    <li><a href="#terminal-tab-label">탭 종류 표시와 이름 바꾸기</a></li>
+    <li><a href="#terminal-panel-item-layout">패널 줄의 버튼을 아래 줄로</a></li>
+    <li><a href="#terminal-panel-text-marquee">패널 줄 글자 흐르게</a></li>
+    <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
@@ -842,6 +847,7 @@ class JarvisApplication : Application() {
   <li><code>vi</code>, <code>top</code>, <code>less</code> 같은 전체 화면 프로그램은 돌지 않는다. tty 가 아니라서 화면 크기도 키도 받지 못한다.</li>
   <li>방향키·Tab 완성·히스토리가 없다. <code>LineDiscipline</code> 은 방향키를 버린다.</li>
   <li>하드웨어 키보드의 Shift+Enter 가 보내는 <code>ESC CR</code>(<a href="../common/terminal.html#shift-enter">결정</a>)도 이스케이프 시퀀스라 <code>LineDiscipline</code> 이 버린다. mksh 에 여러 줄 입력이 없어 줄바꿈을 흉내 낼 곳이 없다. 소프트 키보드의 Enter 는 원래 줄바꿈 글자로 와서 영향이 없다.</li>
+  <li>하드웨어 키보드의 Meta+← / Meta+→ / Meta+⌫ 도 Ctrl+A / Ctrl+E / Ctrl+U 로 간다(<a href="../common/terminal.html#cmd-arrows">결정</a>). <code>LineDiscipline</code> 은 커서를 옮길 수 없어 앞의 두 제어 문자를 버린다. 커서가 늘 줄 끝이라 Meta+→ 는 원래 결과와 같고 Meta+← 는 아무 일도 하지 않는다. Ctrl+U 는 입력 중인 줄을 지운다.</li>
   <li>Ctrl+C 는 입력 중인 줄만 버린다. 실행 중인 명령에 신호를 보낼 방법이 없다(프로세스 그룹이 없다). 멈추지 않는 명령은 창을 닫아야 끝난다.</li>
   <li>셸은 앱 샌드박스 안에서 돈다. 앱 uid 가 볼 수 있는 파일과 명령만 쓸 수 있다.</li>
   <li>소프트 키보드에 Esc·Ctrl·방향키가 없다.</li>
@@ -991,7 +997,7 @@ class JarvisApplication : Application() {
     <tr><td>SAF <code>Intent.ACTION_OPEN_DOCUMENT_TREE</code>(<code>ActivityResultContracts.OpenDocumentTree</code>)</td><td>버렸다. 결과가 <code>content://com.android.externalstorage.documents/tree/primary%3A…</code> 같은 트리 URI 이고, 받은 권한은 <code>ContentResolver</code> 로 문서에 접근하는 권한일 뿐 파일 경로 접근 권한이 아니다. 셸(<code>/system/bin/sh</code>)은 경로로 <code>chdir</code> 해야 한다. <code>primary:</code> 를 <code>/storage/emulated/0/</code> 로 바꿔 경로를 만들 수는 있지만, Android 11+ 에서 앱 uid 가 그 경로의 다른 앱 파일을 읽으려면 <code>MANAGE_EXTERNAL_STORAGE</code> 가 필요하고 이 권한은 Play 정책상 파일 관리자 앱에만 허용된다. 권한 없이 고른 폴더는 셸이 비어 있거나 들어가지 못해 "고른 폴더에서 연다" 는 R4 를 지키지 못한다</td></tr>
     <tr><td>앱 안에서 <code>java.io.File.listFiles()</code> 로 폴더를 훑는 자체 선택 창</td><td>버렸다. 셸이 들어갈 수 있는 곳은 사실상 앱의 <code>filesDir</code> 아래뿐이라 훑을 나무가 작고, 그만큼을 위해 목록 화면 하나를 새로 만들 값이 없다. 경로 입력으로 같은 일을 한다</td></tr>
     <tr><td><code>~</code> 펼치기</td><td>앱의 <code>filesDir</code>. 셸의 <code>$HOME</code> 으로 넘기는 값과 같다(<a href="#terminal">터미널</a>)</td></tr>
-    <tr><td>첫 탭</td><td>창은 탭을 열지 않는다(공통). 빈 패널의 + 메뉴에는 "터미널" 만 있다 — <a href="#terminal-claude">Claude 실행</a>이 불가다</td></tr>
+    <tr><td>첫 탭</td><td><a href="#terminal-claude">Claude 실행</a>이 불가라 "확인" 은 빈 패널을 만든다(공통 R4b). 빈 패널의 + 메뉴에는 "터미널" 만 있다 — <a href="#terminal-claude">Claude 실행</a>이 불가다</td></tr>
   </tbody>
 </table>
 
@@ -1013,8 +1019,8 @@ class JarvisApplication : Application() {
 </section>
 
 <section class="feature" id="terminal-worktree">
-<h2>패널에서 git 워크트리 추가 <span class="badge no">불가</span></h2>
-<p>공통 스펙: <a href="../common/terminal-worktree.html">패널에서 git 워크트리 추가</a></p>
+<h2>패널에서 git 워크트리 추가·지우기 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-worktree.html">패널에서 git 워크트리 추가·지우기</a></p>
 
 <h3>기술 조사</h3>
 <table>
@@ -1030,7 +1036,7 @@ class JarvisApplication : Application() {
 <dl class="meta">
   <dt>파일</dt><dd><code>feature/terminal/data/src/androidMain/.../data/terminal/Git.android.kt</code>(<code>UnsupportedGitDataSource</code>)</dd>
   <dt>동작</dt><dd><code>observeWorktree</code> 가 늘 null 이라 어떤 패널에도 + 가 없다. 셸 패널은 그대로 쓴다</dd>
-  <dt>실패</dt><dd><code>addWorktree</code> 는 부를 곳이 없다. 불리면 "이 플랫폼에서는 git 을 쓸 수 없습니다" 로 실패한다</dd>
+  <dt>실패</dt><dd><code>addWorktree</code>·<code>removeWorktree</code> 는 부를 곳이 없다. 불리면 "이 플랫폼에서는 git 을 쓸 수 없습니다" 로 실패한다. 다른 기기에서 가져온 워크트리 패널의 ✕ 는 관측한 워크트리가 없어 창 없이 패널만 닫는다(공통 R12)</dd>
 </dl>
 
 <h3>한계</h3>
@@ -1041,6 +1047,35 @@ class JarvisApplication : Application() {
 <h3>검증</h3>
 <p>모델은 <code>:feature:terminal:domain</code> 의 Android 호스트 테스트로 돈다. 화면은 Android 계측 테스트가 없어(<a href="#test">테스트</a>) 기기에서 손으로 확인한다: 폴더가 있는 패널에도 + 가 없어야 한다.</p>
 </section>
+
+<section class="feature" id="terminal-claude-status">
+<h2>패널 줄의 Claude 상태 표시 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-claude-status.html">패널 줄의 Claude 상태 표시</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Claude Code 백그라운드 세션 기록</td><td>없다. Claude 탭 자체가 불가다(<a href="#terminal-claude">Claude 실행</a> — Claude Code CLI 가 Android 용으로 없다). 다른 기기(PC)에서 가져온 작업 공간 파일에 Claude 탭이 있어도 그 세션의 기록은 이 기기에 없다. 확인 기록(<code>claudeCheckedAt</code>)은 공통 코드라 그대로 읽고 쓴다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/androidMain/.../data/terminal/ClaudeActivity.android.kt</code>(<code>UnsupportedClaudeActivityDataSource</code>)</dd>
+  <dt>동작</dt><dd><code>observeActivities</code> 가 늘 빈 맵이라 어떤 패널 줄에도 표시가 없다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>이 타깃에서는 Claude 상태를 볼 수 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>모델은 <code>:feature:terminal:domain</code> 의 Android 호스트 테스트로 돈다. 화면에서 볼 것이 없어 기기 확인은 하지 않는다.</p>
+</section>
+
 
 
 <section class="feature" id="terminal-browser">
@@ -1120,6 +1155,121 @@ class JarvisApplication : Application() {
 
 <h3>검증</h3>
 <p>메뉴와 제스처는 skiko 테스트가 확인하지만 Android 렌더링·에이전트 왕복은 테스트가 없어 <span class="badge untested">미검증</span>이다. 데스크톱 앱을 띄운 채 에뮬레이터에 <code>./gradlew :androidApp:installDebug</code> 로 깔아 터미널 → + → 기기를 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-tab-label">
+<h2>탭 종류 표시와 이름 바꾸기 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/terminal-tab-label.html">탭 종류 표시와 이름 바꾸기</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>더블탭: <code>Modifier.clickable</code> + 간격 재기</td><td>채택. <code>clickable</code> 은 <code>MotionEvent</code> 를 옮긴 포인터 이벤트를 받는다. 간격 기준은 <code>LocalViewConfiguration.current.doubleTapTimeoutMillis</code> 이고 Android 에서는 <code>android.view.ViewConfiguration.getDoubleTapTimeout()</code> 값이다</td></tr>
+    <tr><td>길게 누르기</td><td>버렸다. 터치의 길게 누르기는 탭 끌기가 쓴다(<a href="#terminal-tab-dock">탭 끌어 놓기</a>)</td></tr>
+    <tr><td><code>GestureDetector.OnDoubleTapListener</code></td><td>버렸다. View 시스템 API 라 Compose 화면에서 쓰려면 포인터 입력을 다시 옮겨야 한다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드. <code>androidMain</code> 에는 없다</dd>
+  <dt>동작</dt><dd>공통 스펙 R1–R10 그대로. 입력칸이 포커스를 받으면 소프트 키보드가 뜨고, 키보드의 완료(<code>ImeAction.Done</code>)가 확정이다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>공통 스펙의 <a href="../common/terminal-tab-label.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 코드라 skiko 테스트와 같은 경로다. 기기에서는 자동 테스트가 없다. 터미널 화면에서 탭 제목을 두 번 눌러 손으로 본다.</p>
+</section>
+
+<section class="feature" id="terminal-panel-item-layout">
+<h2>패널 줄의 버튼을 아래 줄로 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-panel-item-layout.html">패널 줄의 버튼을 아래 줄로</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Compose <code>Column</code>·<code>Row</code> 배치</td><td>채택. 플랫폼 API 를 부르지 않는 공통 레이아웃이다. Android 에서도 같은 측정·배치 코드가 돈다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드. 플랫폼 소스셋에는 없다</dd>
+  <dt>동작</dt><dd>공통 스펙 R1–R6 그대로</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>공통 스펙의 <a href="../common/terminal-panel-item-layout.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 코드라 skiko 테스트(<code>JarvisAppTerminalPanelTest</code>)와 같은 경로다. 기기에서는 자동 테스트가 없다. 터미널 화면의 패널 목록을 손으로 본다.</p>
+</section>
+
+<section class="feature" id="terminal-panel-text-marquee">
+<h2>패널 줄 글자 흐르게 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-panel-text-marquee.html">패널 줄 글자 흐르게</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>Modifier.basicMarquee</code>(foundation 1.12)</td><td>채택. 플랫폼 API 를 부르지 않는 공통 modifier 다. 자식을 너비 제한 없이 재고, 글자를 레이어에 그린 뒤 그 레이어의 그리기 위치를 <code>Animatable</code> 로 옮긴다. 프레임은 Android <code>Choreographer</code>(Compose 의 <code>AndroidUiFrameClock</code>) 가 준다</td></tr>
+    <tr><td><code>TextView</code> 의 <code>ellipsize="marquee"</code></td><td>버렸다. <code>AndroidView</code> 로 감싸야 하고, 선택(<code>isSelected</code>)된 뷰에서만 흐르며 Compose 글자와 글꼴·색 경로가 갈라진다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드. 플랫폼 소스셋에는 없다</dd>
+  <dt>동작</dt><dd>공통 스펙 R1–R5 그대로</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>공통 스펙의 <a href="../common/terminal-panel-text-marquee.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 코드라 skiko 테스트(<code>JarvisAppTerminalPanelTest.longPanelTextsAreNotEllipsized</code>)와 같은 경로다. 기기에서는 자동 테스트가 없다. 터미널 화면의 패널 목록에 긴 이름의 패널을 만들어 손으로 본다.</p>
+</section>
+
+<section class="feature" id="claude-notification">
+<h2>Claude 턴 알림 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/claude-notification.html">Claude 턴 알림</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Claude 세션 상태 읽기</td><td>불가. Claude 탭이 없다 — Claude Code CLI 가 Android 용으로 없고 파이프 셸에는 pty 도 없다(<a href="#terminal-claude">터미널에서 Claude 실행</a>). 알릴 세션이 없으니 알림 채널(<code>NotificationManager</code>)도 만들지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/androidMain/…/Terminal.android.kt</code> 의 <code>PipeTerminalDataSource</code></dd>
+  <dt>동작</dt><dd>세션 상태는 <a href="#terminal-claude-status">Claude 상태 표시</a>의 대체 동작 그대로 빈 지도라 턴의 끝이 없고, 유스케이스는 <code>isClaudeSupported</code> 가 거짓이라 조회도 하지 않는다. <code>showNotification</code> 은 no-op 이다. 알림 권한을 묻지 않는다(R6)</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>해당 없음.</li>
+</ul>
+
+<h3>검증</h3>
+<p>알릴 세션이 없으므로 확인할 동작이 없다. 컴파일만 확인한다.</p>
 </section>
 
 <section class="feature" id="device-mirroring">

@@ -2,6 +2,8 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.automation.AgentBrowserTab
 import io.github.taetae98coding.jarvis.automation.AgentTabs
+import io.github.taetae98coding.jarvis.automation.AutomationPlatform
+import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspaceRepository
@@ -37,7 +39,7 @@ internal class WorkspaceAgentTabs(
             .map { AgentBrowserTab(it.id, it.url ?: TerminalTab.DefaultBrowserUrl) }
     }
 
-    override suspend fun showDevice(sessionId: String, deviceId: String, deviceName: String) {
+    override suspend fun showDevice(sessionId: String, deviceId: String, deviceName: String, platform: AutomationPlatform) {
         repository.updateWorkspace { workspace ->
             val caller = workspace.findClaudeTab(sessionId) ?: return@updateWorkspace workspace
             val shown = caller.panel.tabs.any { it.program == TerminalProgram.Device && it.deviceId == deviceId }
@@ -45,7 +47,16 @@ internal class WorkspaceAgentTabs(
             if (shown) {
                 workspace
             } else {
-                workspace.appendTab(caller.group.id, TerminalProgram.Device, deviceId = deviceId, deviceName = deviceName)
+                workspace.appendTab(
+                    caller.group.id,
+                    TerminalProgram.Device,
+                    deviceId = deviceId,
+                    deviceName = deviceName,
+                    devicePlatform = when (platform) {
+                        AutomationPlatform.ANDROID -> DevicePlatform.Android
+                        AutomationPlatform.IOS -> DevicePlatform.IOS
+                    },
+                )
             }
         }
     }

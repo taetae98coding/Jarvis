@@ -1,11 +1,14 @@
 package io.github.taetae98coding.jarvis.ui.terminal
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,47 +23,44 @@ import androidx.compose.foundation.style.pressed
 import androidx.compose.foundation.style.rememberUpdatedStyleState
 import androidx.compose.foundation.style.selected
 import androidx.compose.foundation.style.styleable
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.text.input.selectAll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisShapes
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
 
@@ -79,11 +79,21 @@ fun terminalWorktreePanelTestTag(id: Long): String = "terminal:worktree-panel:$i
 
 fun terminalPanelBranchTestTag(id: Long): String = "terminal:panel-branch:$id"
 
+fun terminalPanelClaudeStatusTestTag(panelId: Long, tabId: Long): String = "terminal:panel-claude-status:$panelId:$tabId"
+
+fun terminalPendingWorktreeTestTag(id: Long): String = "terminal:pending-worktree:$id"
+
+fun terminalPanelBusyTestTag(id: Long): String = "terminal:panel-busy:$id"
+
 /**
  * 왼쪽의 패널 목록. 최상위 패널마다 그 워크트리 패널을 바로 아래 들여써 그린다. 닫아서 패널이 하나도 남지 않게
  * 되는 줄에는 ✕ 가 없다. "새 패널" 은 [NewPanelDialog] 를 거쳐 [onAdd] 를, [worktrees] 에 있는 패널의 + 는
  * [NewWorktreeDialog] 를 거쳐 [onAddWorktree] 를 부른다. 워크트리 패널 줄의 현재 브랜치는 [worktrees] 에서
- * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다.
+ * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다. 워크트리 패널의 ✕ 는 지울 워크트리가 관측되면
+ * [CloseWorktreeDialog] 를 거쳐 [onCloseWorktree] 를, 아니면 다른 줄처럼 곧바로 [onClose] 를 부른다. 두 창은 git 을
+ * 기다리지 않고 닫힌다. 뒤에서 도는 동안 [pendingWorktrees] 는 부모 가족 뒤에 흐린 줄로, [removingPanelIds] 의
+ * 줄은 흐리게 그리고, 실패한 [worktreeFailures] 는 목록의 창이 모두 닫혀 있을 때 하나씩 창을 다시 띄운다.
+ * [claudeStatuses] 에 있는 패널 줄에는 Claude 탭마다 상태 표시가 있고, 누르면 [onSelectTab] 으로 그 탭을 고른다.
  */
 @Composable
 internal fun TerminalPanelList(
@@ -91,16 +101,24 @@ internal fun TerminalPanelList(
     selectedPanelId: Long?,
     nextPanelName: String,
     worktrees: Map<Long, GitWorktree>,
+    pendingWorktrees: List<PendingWorktree>,
+    removingPanelIds: Set<Long>,
+    worktreeFailures: List<WorktreeFailure>,
+    claudeStatuses: Map<Long, List<ClaudeTabStatus>>,
     onSelect: (Long) -> Unit,
+    onSelectTab: (Long) -> Unit,
     onRename: (Long, String) -> Unit,
     onClose: (Long) -> Unit,
     onAdd: (name: String, directory: String) -> Unit,
-    onAddWorktree: suspend (parentId: Long, branch: String, baseBranch: String?, directory: String) -> Result<Unit>,
+    onAddWorktree: (parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String) -> Unit,
+    onCloseWorktree: (panelId: Long, worktree: GitWorktree, removeWorktree: Boolean, deleteDirectory: Boolean) -> Unit,
+    onDismissWorktreeFailure: (id: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var creating by remember { mutableStateOf(false) }
     // 창이 떠 있는 동안 폴링이 워크트리를 바꿔도 창은 열 때의 값으로 간다.
     var creatingWorktree by remember { mutableStateOf<Pair<TerminalPanel, GitWorktree>?>(null) }
+    var closingWorktree by remember { mutableStateOf<Pair<TerminalPanel, GitWorktree>?>(null) }
 
     Column(
         modifier = modifier.width(TerminalPanelListDefaults.width).fillMaxHeight(),
@@ -120,12 +138,17 @@ internal fun TerminalPanelList(
                     directory = panel.directory,
                     selected = panel.id == selectedPanelId,
                     closable = closable,
+                    busy = panel.id in removingPanelIds,
                     isWorktree = isWorktree,
                     branch = if (isWorktree) worktree?.branch ?: panel.branch else null,
                     baseBranch = if (isWorktree) panel.baseBranch else null,
+                    claudeStatuses = claudeStatuses[panel.id].orEmpty(),
                     onSelect = { onSelect(panel.id) },
+                    onSelectClaudeTab = onSelectTab,
                     onRename = { onRename(panel.id, it) },
-                    onClose = { onClose(panel.id) },
+                    onClose = {
+                        if (isWorktree && worktree != null && !worktree.isMain) closingWorktree = panel to worktree else onClose(panel.id)
+                    },
                     onAddWorktree = worktree?.let { { creatingWorktree = panel to it } },
                     modifier = Modifier.fillMaxWidth().testTag(terminalPanelTestTag(panel.id)),
                     renameModifier = Modifier.testTag(terminalPanelRenameTestTag(panel.id)),
@@ -133,7 +156,14 @@ internal fun TerminalPanelList(
                     addWorktreeModifier = Modifier.testTag(terminalNewWorktreeTestTag(panel.id)),
                     worktreeIconModifier = Modifier.testTag(terminalWorktreePanelTestTag(panel.id)),
                     branchModifier = Modifier.testTag(terminalPanelBranchTestTag(panel.id)),
+                    claudeStatusModifier = { tabId -> Modifier.testTag(terminalPanelClaudeStatusTestTag(panel.id, tabId)) },
+                    busyModifier = Modifier.testTag(terminalPanelBusyTestTag(panel.id)),
                 )
+            }
+
+            // 워크트리 패널에서 + 를 눌렀으면 그 부모의 가족에 들어간다. 부모가 닫혔으면 들어갈 자리가 없다.
+            val pendingByRoot = pendingWorktrees.groupBy { pending ->
+                panels.firstOrNull { it.id == pending.parentId }?.let { it.parentId ?: it.id }
             }
 
             panels.filter { it.parentId == null }.forEach { parent ->
@@ -141,10 +171,28 @@ internal fun TerminalPanelList(
 
                 item(parent, closable = panels.size > children.size + 1)
                 children.forEach { child -> item(child, closable = panels.size > 1) }
+                pendingByRoot[parent.id].orEmpty().forEach { pending ->
+                    key(pending) {
+                        TerminalPanelItem(
+                            name = pending.branch,
+                            directory = pending.directory,
+                            selected = false,
+                            closable = false,
+                            busy = true,
+                            onSelect = {},
+                            onRename = {},
+                            onClose = {},
+                            isWorktree = true,
+                            branch = pending.branch,
+                            baseBranch = pending.baseBranch,
+                            modifier = Modifier.fillMaxWidth().testTag(terminalPendingWorktreeTestTag(pending.id)),
+                        )
+                    }
+                }
             }
         }
 
-        TextButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth().testTag(TerminalNewPanelTestTag)) {
+        Button(onClick = { creating = true }, modifier = Modifier.fillMaxWidth().testTag(TerminalNewPanelTestTag)) {
             Icon(
                 imageVector = JarvisIcons.Add,
                 contentDescription = null,
@@ -168,8 +216,73 @@ internal fun TerminalPanelList(
     creatingWorktree?.let { (parent, worktree) ->
         NewWorktreeDialog(
             worktree = worktree,
-            onCreate = { branch, baseBranch, directory -> onAddWorktree(parent.id, branch, baseBranch, directory) },
+            onCreate = { branch, baseBranch, directory ->
+                creatingWorktree = null
+                onAddWorktree(parent.id, worktree, branch, baseBranch, directory)
+            },
             onDismiss = { creatingWorktree = null },
+        )
+    }
+
+    closingWorktree?.let { (panel, worktree) ->
+        CloseWorktreeDialog(
+            worktree = worktree,
+            onClose = { removeWorktree, deleteDirectory ->
+                closingWorktree = null
+                onCloseWorktree(panel.id, worktree, removeWorktree, deleteDirectory)
+            },
+            onDismiss = { closingWorktree = null },
+        )
+    }
+
+    if (!creating && creatingWorktree == null && closingWorktree == null) {
+        val failure = worktreeFailures.firstOrNull { failure ->
+            val panelId = when (failure) {
+                is WorktreeFailure.Create -> failure.pending.parentId
+                is WorktreeFailure.Remove -> failure.panelId
+            }
+            panels.any { it.id == panelId }
+        }
+
+        // 실패마다 창의 입력 상태를 새로 시작한다.
+        if (failure != null) key(failure.id) { WorktreeFailureDialog(failure, onAddWorktree, onCloseWorktree, onDismissWorktreeFailure) }
+    }
+}
+
+@Composable
+private fun WorktreeFailureDialog(
+    failure: WorktreeFailure,
+    onAddWorktree: (parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String) -> Unit,
+    onCloseWorktree: (panelId: Long, worktree: GitWorktree, removeWorktree: Boolean, deleteDirectory: Boolean) -> Unit,
+    onDismiss: (id: Long) -> Unit,
+) {
+    when (failure) {
+        is WorktreeFailure.Create -> {
+            val pending = failure.pending
+            NewWorktreeDialog(
+                worktree = pending.parent,
+                onCreate = { branch, baseBranch, directory ->
+                    onDismiss(failure.id)
+                    onAddWorktree(pending.parentId, pending.parent, branch, baseBranch, directory)
+                },
+                onDismiss = { onDismiss(failure.id) },
+                initialBranch = pending.branch,
+                initialBaseBranch = pending.baseBranch,
+                initialDirectory = pending.directory,
+                error = failure.message,
+            )
+        }
+
+        is WorktreeFailure.Remove -> CloseWorktreeDialog(
+            worktree = failure.worktree,
+            onClose = { removeWorktree, deleteDirectory ->
+                onDismiss(failure.id)
+                onCloseWorktree(failure.panelId, failure.worktree, removeWorktree, deleteDirectory)
+            },
+            onDismiss = { onDismiss(failure.id) },
+            initialRemoveWorktree = failure.removeWorktree,
+            initialDeleteDirectory = failure.deleteDirectory,
+            error = failure.message,
         )
     }
 }
@@ -177,7 +290,11 @@ internal fun TerminalPanelList(
 /**
  * 패널 한 줄. 이름을 바꾸는 동안은 이름 자리에 입력 필드가 온다. 편집 중인지는 이 줄만 아는 값이라
  * ViewModel 에 두지 않는다. [isWorktree] 면 들여쓰고 이름 앞에 브랜치 아이콘을 둔다. [branch] 가 있으면 이름과
- * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. [onAddWorktree] 가 있으면 ✎ 앞에 + 가 있다.
+ * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. 이름·브랜치·폴더 줄은 넘치면 말줄임 없이
+ * 끝없이 옆으로 흐른다. 이름이 폭을 다 쓰도록 [claudeStatuses] 표시와 버튼(+ · ✎ · ✕)은 글자 아래 따로 된 줄에 둔다 —
+ * 표시는 왼쪽부터 탭 순서로, 버튼은 오른쪽 끝이다. 표시가 버튼 앞 폭에 넘치면 다음 줄로 넘어가고 버튼은 첫 줄에 남는다.
+ * 이름을 바꾸는 동안은 버튼이 없고 표시만 남는다. [onAddWorktree] 가 있으면 ✎ 앞에 + 가 있다. [busy] 면 뒤에서 git 이
+ * 도는 줄이다 — 줄 전체가 흐려지고 가운데에 진행 표시가 겹치며, 아무것도 누를 수 없다.
  */
 @Composable
 internal fun TerminalPanelItem(
@@ -189,6 +306,7 @@ internal fun TerminalPanelItem(
     onRename: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    busy: Boolean = false,
     isWorktree: Boolean = false,
     branch: String? = null,
     baseBranch: String? = null,
@@ -198,6 +316,10 @@ internal fun TerminalPanelItem(
     addWorktreeModifier: Modifier = Modifier,
     worktreeIconModifier: Modifier = Modifier,
     branchModifier: Modifier = Modifier,
+    claudeStatuses: List<ClaudeTabStatus> = emptyList(),
+    onSelectClaudeTab: (tabId: Long) -> Unit = {},
+    claudeStatusModifier: (tabId: Long) -> Modifier = { Modifier },
+    busyModifier: Modifier = Modifier,
     style: Style = Style,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -208,84 +330,123 @@ internal fun TerminalPanelItem(
     // 워크트리 줄은 브랜치 아이콘이 들여쓰기 자리에 오고 이름은 그 바로 옆에 붙는다.
     val namePadding = if (isWorktree) spacing.xs else spacing.m
 
-    Row(
-        modifier = modifier
-            .hoverable(interactionSource)
-            .styleable(styleState, TerminalPanelItemDefaults.style, style),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (isWorktree) {
-            Icon(
-                imageVector = JarvisIcons.GitBranch,
-                contentDescription = null,
-                tint = TerminalPanelItemDefaults.directoryColor(selected),
-                modifier = worktreeIconModifier
-                    .padding(start = spacing.m + spacing.s)
-                    .size(JarvisTheme.dimens.iconSize.small),
-            )
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .alpha(if (busy) TerminalPanelItemDefaults.BusyAlpha else 1f)
+                .hoverable(interactionSource, enabled = !busy)
+                .styleable(styleState, TerminalPanelItemDefaults.style, style),
+        ) {
+            // 줄 전체에 clickable 을 붙이면 글자와 브랜치 아이콘의 semantics 가 한 노드로 합쳐진다. 글자 묶음과
+            // 버튼 줄에 따로 붙이고, 눌림은 Style 의 배경이 보여 주므로 물결은 그리지 않는다.
+            val select = Modifier.clickable(interactionSource = interactionSource, indication = null, enabled = !busy, onClick = onSelect)
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isWorktree) {
+                    Icon(
+                        imageVector = JarvisIcons.GitBranch,
+                        contentDescription = null,
+                        tint = TerminalPanelItemDefaults.directoryColor(selected),
+                        modifier = worktreeIconModifier
+                            .padding(start = spacing.m + spacing.s)
+                            .size(JarvisTheme.dimens.iconSize.small),
+                    )
+                }
+
+                if (editing) {
+                    TerminalNameField(
+                        initial = name,
+                        textStyle = TerminalPanelItemDefaults.nameStyle,
+                        color = contentColor,
+                        onDone = { value ->
+                            editing = false
+                            onRename(value)
+                        },
+                        onCancel = { editing = false },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s)
+                            .testTag(TerminalPanelNameFieldTestTag),
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(JarvisTheme.shapes.small)
+                            .then(select)
+                            // 아래는 버튼 줄의 여백이 대신한다.
+                            .padding(start = namePadding, end = spacing.xs, top = spacing.s),
+                    ) {
+                        Text(
+                            text = name,
+                            style = TerminalPanelItemDefaults.nameStyle,
+                            color = contentColor,
+                            maxLines = 1,
+                            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                        )
+                        if (branch != null) {
+                            Text(
+                                text = if (baseBranch != null) "$baseBranch → $branch" else branch,
+                                style = TerminalPanelItemDefaults.directoryStyle,
+                                color = TerminalPanelItemDefaults.directoryColor(selected),
+                                maxLines = 1,
+                                modifier = branchModifier.basicMarquee(iterations = Int.MAX_VALUE),
+                            )
+                        }
+                        if (directory != null) {
+                            Text(
+                                text = directory,
+                                style = TerminalPanelItemDefaults.directoryStyle,
+                                color = TerminalPanelItemDefaults.directoryColor(selected),
+                                maxLines = 1,
+                                modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!editing || claudeStatuses.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(JarvisTheme.shapes.small)
+                        .then(select)
+                        // 첫 표시의 아이콘이 이름(워크트리 줄은 브랜치 아이콘)과 같은 세로선에 오도록 표시의 안쪽 여백만큼 당긴다.
+                        .padding(start = (if (isWorktree) spacing.m + spacing.s else spacing.m) - ClaudeStatusIndicatorDefaults.horizontalPadding),
+                ) {
+                    FlowRow(modifier = Modifier.weight(1f)) {
+                        claudeStatuses.forEach { (tabId, status) ->
+                            ClaudeStatusIndicator(
+                                status = status,
+                                contentColor = contentColor,
+                                interactionSource = interactionSource,
+                                enabled = !busy,
+                                onClick = { onSelectClaudeTab(tabId) },
+                                modifier = claudeStatusModifier(tabId),
+                            )
+                        }
+                    }
+                    if (!editing) {
+                        if (onAddWorktree != null) {
+                            PanelItemIcon(JarvisIcons.Add, "워크트리 추가", contentColor, !busy, onClick = onAddWorktree, modifier = addWorktreeModifier)
+                        }
+                        PanelItemIcon(JarvisIcons.Edit, "이름 바꾸기", contentColor, !busy, onClick = { editing = true }, modifier = renameModifier)
+                        if (closable) {
+                            PanelItemIcon(JarvisIcons.Close, "패널 닫기", contentColor, !busy, onClick = onClose, modifier = closeModifier)
+                        }
+                    }
+                }
+            }
         }
 
-        val nameModifier = Modifier
-            .weight(1f)
-            .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s)
-
-        if (editing) {
-            PanelNameField(
-                initial = name,
+        if (busy) {
+            CircularProgressIndicator(
+                modifier = busyModifier.size(JarvisTheme.dimens.iconSize.small),
                 color = contentColor,
-                onDone = { value ->
-                    editing = false
-                    onRename(value)
-                },
-                onCancel = { editing = false },
-                modifier = nameModifier,
+                strokeWidth = TerminalPanelItemDefaults.busyStrokeWidth,
             )
-        } else {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(JarvisTheme.shapes.small)
-                    // 눌림은 Style 의 배경이 보여 준다. 물결까지 그리면 같은 표시가 두 번 겹친다.
-                    .clickable(interactionSource = interactionSource, indication = null, onClick = onSelect)
-                    .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s),
-            ) {
-                Text(
-                    text = name,
-                    style = TerminalPanelItemDefaults.nameStyle,
-                    color = contentColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (branch != null) {
-                    Text(
-                        text = if (baseBranch != null) "$baseBranch → $branch" else branch,
-                        style = TerminalPanelItemDefaults.directoryStyle,
-                        color = TerminalPanelItemDefaults.directoryColor(selected),
-                        maxLines = 1,
-                        // 끝의 현재 브랜치가 알아보는 데 중요하다.
-                        overflow = TextOverflow.StartEllipsis,
-                        modifier = branchModifier,
-                    )
-                }
-                if (directory != null) {
-                    Text(
-                        text = directory,
-                        style = TerminalPanelItemDefaults.directoryStyle,
-                        color = TerminalPanelItemDefaults.directoryColor(selected),
-                        maxLines = 1,
-                        // 경로는 끝의 폴더 이름이 알아보는 데 중요하다.
-                        overflow = TextOverflow.StartEllipsis,
-                    )
-                }
-            }
-
-            if (onAddWorktree != null) {
-                PanelItemIcon(JarvisIcons.Add, "워크트리 추가", contentColor, onClick = onAddWorktree, modifier = addWorktreeModifier)
-            }
-            PanelItemIcon(JarvisIcons.Edit, "이름 바꾸기", contentColor, onClick = { editing = true }, modifier = renameModifier)
-            if (closable) {
-                PanelItemIcon(JarvisIcons.Close, "패널 닫기", contentColor, onClick = onClose, modifier = closeModifier)
-            }
         }
     }
 }
@@ -295,13 +456,14 @@ private fun PanelItemIcon(
     icon: ImageVector,
     contentDescription: String,
     tint: Color,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .clip(JarvisTheme.shapes.small)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(JarvisTheme.dimens.spacing.s),
     ) {
         Icon(
@@ -313,55 +475,71 @@ private fun PanelItemIcon(
     }
 }
 
-/** Enter·포커스를 잃으면 확정, Esc 는 취소. 들어올 때 이름 전체가 선택돼 곧바로 덮어쓸 수 있다. */
+/**
+ * 줄의 Claude 탭 하나의 상태. 위아래는 아이콘 버튼과 같은 칸·여백이라 + ✎ ✕ 와 줄이 맞고, 좌우 여백은 좁혀 여럿이
+ * 한 줄에 더 들어간다. 마우스를 올리면 설명이 툴팁으로 뜨고, 누르면 그 탭을 고른다. 모양과 색은 docs/common/terminal-claude-status.html#behavior 에 있다.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PanelNameField(
-    initial: String,
-    color: Color,
-    onDone: (String) -> Unit,
-    onCancel: () -> Unit,
+private fun ClaudeStatusIndicator(
+    status: ClaudeStatus,
+    contentColor: Color,
+    interactionSource: MutableInteractionSource,
+    enabled: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val state = rememberTextFieldState(initial)
-    val focusRequester = remember { FocusRequester() }
-    // 포커스를 받기 전의 "포커스 없음" 알림을 확정으로 읽지 않게, 한 번 포커스를 받은 뒤부터 본다.
-    var focused by remember { mutableStateOf(false) }
-    var finished by remember { mutableStateOf(false) }
+    val description = ClaudeStatusIndicatorDefaults.description(status)
+    val size = JarvisTheme.dimens.iconSize.small
 
-    fun finish(commit: Boolean) {
-        if (finished) return
-        finished = true
-        if (commit) onDone(state.text.toString()) else onCancel()
-    }
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(description) } },
+        state = rememberTooltipState(),
+    ) {
+        Box(
+            modifier = modifier
+                .semantics { contentDescription = description }
+                .clip(JarvisTheme.shapes.small)
+                .clickable(interactionSource = interactionSource, indication = null, enabled = enabled, onClick = onClick)
+                .padding(horizontal = ClaudeStatusIndicatorDefaults.horizontalPadding, vertical = JarvisTheme.dimens.spacing.s)
+                .size(size),
+            contentAlignment = Alignment.Center,
+        ) {
+            when (status) {
+                ClaudeStatus.Working -> CircularProgressIndicator(
+                    modifier = Modifier.size(ClaudeStatusIndicatorDefaults.progressSize),
+                    color = contentColor,
+                    strokeWidth = ClaudeStatusIndicatorDefaults.progressStrokeWidth,
+                )
 
-    LaunchedEffect(Unit) {
-        state.edit { selectAll() }
-        focusRequester.requestFocus()
-    }
+                ClaudeStatus.AwaitingReply -> Box(
+                    modifier = Modifier
+                        .size(ClaudeStatusIndicatorDefaults.dotSize)
+                        .background(JarvisTheme.colors.warning, CircleShape),
+                )
 
-    BasicTextField(
-        state = state,
-        lineLimits = TextFieldLineLimits.SingleLine,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        textStyle = TerminalPanelItemDefaults.nameStyle.copy(color = color),
-        cursorBrush = SolidColor(color),
-        onKeyboardAction = { finish(commit = true) },
-        modifier = modifier
-            .testTag(TerminalPanelNameFieldTestTag)
-            .focusRequester(focusRequester)
-            .onFocusChanged {
-                if (it.isFocused) focused = true else if (focused) finish(commit = true)
+                ClaudeStatus.Checked -> Icon(JarvisIcons.Check, null, Modifier.size(size), tint = JarvisTheme.colors.success)
+
+                ClaudeStatus.Monitoring -> Icon(JarvisIcons.Eye, null, Modifier.size(size), tint = contentColor)
             }
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (event.key) {
-                    Key.Enter, Key.NumPadEnter -> finish(commit = true)
-                    Key.Escape -> finish(commit = false)
-                    else -> return@onPreviewKeyEvent false
-                }
-                true
-            },
-    )
+        }
+    }
+}
+
+internal object ClaudeStatusIndicatorDefaults {
+    val horizontalPadding: Dp = 4.dp
+    val progressSize: Dp = 14.dp
+    val progressStrokeWidth: Dp = 2.dp
+    val dotSize: Dp = 8.dp
+
+    fun description(status: ClaudeStatus): String =
+        when (status) {
+            ClaudeStatus.Working -> "Claude 작업 중"
+            ClaudeStatus.AwaitingReply -> "Claude 응답 대기"
+            ClaudeStatus.Checked -> "Claude 확인함"
+            ClaudeStatus.Monitoring -> "Claude 모니터링 중"
+        }
 }
 
 internal object TerminalPanelListDefaults {
@@ -369,6 +547,10 @@ internal object TerminalPanelListDefaults {
 }
 
 internal object TerminalPanelItemDefaults {
+    // "살짝" 흐리게라서 M3 비활성 값(0.38)보다 덜 흐려 이름·브랜치를 계속 읽을 수 있다.
+    const val BusyAlpha = 0.5f
+    val busyStrokeWidth: Dp = 2.dp
+
     val nameStyle: TextStyle
         @Composable @ReadOnlyComposable get() = JarvisTheme.typography.labelLarge
 

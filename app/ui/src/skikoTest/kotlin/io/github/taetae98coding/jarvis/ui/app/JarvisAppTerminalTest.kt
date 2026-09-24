@@ -20,9 +20,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.withKeyDown
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
@@ -471,7 +474,9 @@ class JarvisAppTerminalTest {
     @Test
     fun closingTheLastTabLeavesAnEmptyPanelWithANewTabButton() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
-        openTerminal(terminal)
+        val workspace = FakeTerminalWorkspaceRepository()
+        openTerminal(terminal, workspace)
+        val groupButton = onNodeWithTag(terminalNewTabTestTag(workspace.workspace.value.groups.single().id)).fetchSemanticsNode().boundsInRoot
 
         pressTerminalShortcut(Key.W)
 
@@ -481,6 +486,9 @@ class JarvisAppTerminalTest {
         onNodeWithTag(TerminalScreenTestTag).assertIsDisplayed()
         onNodeWithText("탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다.").assertIsDisplayed()
         assertTrue(terminal.sessions.single().closed)
+        val emptyButton = onNodeWithTag(terminalNewTabTestTag(null)).fetchSemanticsNode().boundsInRoot
+        assertEquals(groupButton.size, emptyButton.size)
+        assertEquals(groupButton.top, emptyButton.top)
 
         onNodeWithTag(terminalNewTabTestTag(null)).performClick()
         onNodeWithTag(TerminalNewShellTabTestTag).performClick()
@@ -544,6 +552,24 @@ class JarvisAppTerminalTest {
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) {
             terminal.sessions.single().written.joinToString("") { it.decodeToString() } == "ls"
+        }
+    }
+
+    @Test
+    fun commandArrowsAndBackspaceEditTheLine() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        openTerminal(terminal)
+
+        onNode(hasSetTextAction() and hasAnyAncestor(pane)).performKeyInput {
+            withKeyDown(Key.MetaLeft) {
+                pressKey(Key.DirectionLeft)
+                pressKey(Key.DirectionRight)
+                pressKey(Key.Backspace)
+            }
+        }
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            terminal.sessions.single().written.joinToString("") { it.decodeToString() } == "\u0001\u0005\u0015"
         }
     }
 

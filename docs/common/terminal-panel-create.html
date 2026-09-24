@@ -12,7 +12,7 @@
 
 <header>
   <h1>새 패널 제목·폴더</h1>
-  <p class="lead">"새 패널" 을 누르면 제목과 폴더를 받는 창이 뜨고, "확인" 이 그 제목·폴더를 가진 빈 패널을 만든다. 탭은 빈 패널의 새 탭(+)으로 그 폴더에서 연다. 둘 다 비워 두면 "패널 N" 이고 폴더는 홈이다.</p>
+  <p class="lead">"새 패널" 을 누르면 제목과 폴더를 받는 창이 뜨고, "확인" 이 그 제목·폴더를 가진 패널을 그 폴더에서 연 Claude 탭 하나로 만든다. 다른 탭은 새 탭(+)으로 그 폴더에서 연다. 둘 다 비워 두면 "패널 N" 이고 폴더는 홈이다.</p>
 </header>
 
 <nav class="toc">
@@ -40,13 +40,19 @@
   <footer>2026-09-25 대화. 빈 패널(그룹이 없는 패널)은 이미 있었다 — 마지막 탭을 닫으면 남는 상태(<a href="terminal-panels.html#behavior">패널</a>)다. 이 지시는 그 상태로 "시작" 도 할 수 있게 하라는 것으로 읽었다: 창의 "터미널"·"Claude (YOLO)" 두 버튼이 "확인" 하나가 되고, 만든 패널은 탭이 없다. 첫 탭은 빈 패널의 새 탭(+) 메뉴에서 연다. 앞 지시의 "해당 폴더에서 claude나 터미널 열 수 있도록" 은 그 + 가 패널 폴더에서 여는 것(R8)으로 계속 지킨다. "워크트리도 동일하게" 는 <a href="terminal-worktree.html">패널에서 git 워크트리 추가</a>의 창에 그대로 적용한다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>처음 시작할 때 tab이 없는게 아니라 claude로 시작하도록 해줘.</p>
+  <footer>2026-09-25 대화. "처음 시작할 때" 는 창의 "확인" 으로 만든 패널이 처음 뜰 때로 읽었다 — 탭이 없는 채로 시작하는 곳은 앞 지시로 빈 채 만들어지는 새 패널·워크트리 패널뿐이고, 앱을 처음 켤 때의 "패널 1" 은 이미 셸 탭 하나로 시작한다(스코프에서 뺀 것). 창은 앞 지시대로 "취소"·"확인" 만 두고, "확인" 이 만드는 패널이 패널 폴더에서 연 Claude 탭 하나를 갖는다. 워크트리 패널도 같다. 마지막 탭을 닫아 빈 패널이 되는 것은 그대로다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
   <li><strong>R1.</strong> 패널 목록 아래 "새 패널" 버튼을 누르면 곧바로 패널을 만들지 않고 "새 패널" 창이 뜬다. 창에는 제목 입력란, 폴더 입력란, 그리고 "취소"·"확인" 버튼만 있다. 창이 뜨면 제목 입력란이 포커스를 받는다.</li>
   <li><strong>R2.</strong> 제목은 넣지 않아도 된다. 앞뒤 공백을 떼고, 비어 있으면 "패널 N"(N 은 지금 패널 수 + 1)이다. 제목 입력란은 비어 있는 동안 그 기본 제목을 흐리게 보여 준다.</li>
   <li><strong>R3.</strong> 폴더도 넣지 않아도 된다. 경로를 직접 입력할 수 있고, 폴더 선택 창이 있는 타깃에서는 "찾아보기" 버튼으로 고른 폴더의 절대 경로가 입력란에 채워진다. 고르다 취소하면 입력란은 그대로다. 앞뒤 공백을 떼고, 비어 있으면 폴더가 없는 패널이다. <code>~</code> 또는 <code>~/</code> 로 시작하는 경로는 그 셸의 홈 디렉터리 기준으로 읽는다.</li>
-  <li><strong>R4.</strong> "확인" 을 누르면 그 제목·폴더를 가진 빈 패널(그룹·탭 없음)을 목록 끝에 붙이고 선택한다. 창은 닫힌다. 오른쪽에는 빈 패널 안내와 새 탭(+)이 뜨고(<a href="terminal-panels.html#behavior">패널</a>), 거기서 여는 첫 탭은 R8 대로 패널 폴더에서 시작한다. 창은 어떤 탭도 열지 않는다 — 터미널·Claude·웹 브라우저·기기는 모두 + 메뉴에서 고른다.</li>
+  <li><strong>R4.</strong> "확인" 을 누르면 그 제목·폴더를 가진 패널을 목록 끝에 붙이고 선택한다. 창은 닫힌다. 패널은 그룹 하나에 Claude(YOLO) 탭 하나로 시작하고, 그 탭은 새 Claude 세션으로 R8 대로 패널 폴더에서 뜬다 — 그룹의 + 메뉴에서 "Claude (YOLO)" 를 고른 것과 같다. 다른 탭(터미널·웹 브라우저·기기)은 + 메뉴에서 연다.</li>
+  <li><strong>R4b.</strong> Claude 를 띄울 수 없는 타깃(<code>isClaudeSupported</code> 가 false)에서는 R4 의 Claude 탭 없이 빈 패널(그룹·탭 없음)로 시작한다. 오른쪽에 빈 패널 안내와 새 탭(+)이 뜨고(<a href="terminal-panels.html#behavior">패널</a>), 첫 탭은 그 + 메뉴에서 연다.</li>
   <li><strong>R5.</strong> 제목·폴더 입력란에서 Enter 는 "확인" 과 같다.</li>
   <li><strong>R6.</strong> "취소", Esc, 창 바깥 누르기는 아무것도 만들지 않고 창을 닫는다. 다음에 창을 열면 입력란은 비어 있다.</li>
   <li><strong>R7.</strong> 패널의 폴더는 패널과 함께 저장되고 앱을 다시 켜도 그대로다(<a href="terminal-panels.html#requirements">패널 R9</a>). 폴더가 있는 패널은 목록 줄에서 이름 아래에 폴더 경로가 한 줄로 보이고, 넘치면 앞쪽을 줄인다(폴더 이름이 보이게).</li>
@@ -58,7 +64,7 @@
   <strong>스코프에서 뺀 것</strong>
   <ul>
     <li>만든 뒤 패널 폴더 바꾸기. 이름 바꾸기(<a href="terminal-panels.html#requirements">패널 R3</a>)처럼 붙일 수 있지만 지시는 "추가할 때" 다. 이미 열린 탭의 작업 디렉터리는 폴더를 바꿔도 따라가지 않으므로 뜻도 모호하다.</li>
-    <li>처음 켤 때의 "패널 1". 창 없이 지금처럼 셸 탭 하나로 만든다(폴더 없음). 빈 패널 지시는 "만들 때" 의 창에 대한 것이고, 처음 켠 화면이 빈 채로 시작할 이유는 없다.</li>
+    <li>처음 켤 때의 "패널 1". 창 없이 지금처럼 셸 탭 하나로 만든다(폴더 없음). 빈 패널·Claude 로 시작 지시는 "만들 때" 의 창에 대한 것이다. Claude 로 바꾸지 않는 이유는 <a href="#implementation">결정</a>에 있다.</li>
     <li>최근 폴더 목록, 폴더 즐겨찾기. 지시에 없다.</li>
   </ul>
 </aside>
@@ -71,16 +77,16 @@
 │ 폴더                                          │
 │ [홈 디렉터리                     ] [찾아보기] │ ← 찾아보기는 폴더 선택 창이 있는 타깃만
 │                                               │
-│                                 [취소] [확인] │ ← 확인은 탭 없는 패널을 만든다
+│                                 [취소] [확인] │ ← 확인은 Claude 탭 하나짜리 패널을 만든다
 └───────────────────────────────────────────────┘
 
 오른쪽(만든 직후)
-│ [+]                                           │ ← 빈 패널의 새 탭 메뉴: 터미널 / Claude (YOLO) / 웹 브라우저 / 기기
-│      탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다.     │
+│ [Claude ✕] [+]                    [⇆] [⇅]     │ ← + 메뉴: 터미널 / Claude (YOLO) / 웹 브라우저 / 기기
+│ claude --dangerously-skip-permissions …       │ ← 패널 폴더에서 뜬 새 Claude 세션
 
 패널 목록 줄
 │▌백엔드          ✎ ✕│
-│  …/projects/api     │ ← 폴더가 있을 때만, 앞쪽 말줄임</code></pre>
+│  …/projects/api     │ ← 폴더가 있을 때만, 넘치면 흐른다</code></pre>
 
 <table>
   <thead><tr><th>항목</th><th>값</th></tr></thead>
@@ -89,7 +95,7 @@
     <tr><td>제목 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "제목", placeholder 기본 제목("패널 N")</td></tr>
     <tr><td>폴더 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "폴더", placeholder "홈 디렉터리". 오른쪽에 <code>TextButton</code> "찾아보기"(폴더 선택 창이 있는 타깃만)</td></tr>
     <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 늘 활성이다 — 제목·폴더 모두 비워도 된다</td></tr>
-    <tr><td>패널 줄의 폴더</td><td>이름 아래 <code>labelSmall</code>, <code>onSurfaceVariant</code>(선택된 줄은 이름과 같은 색), 한 줄, <code>TextOverflow.StartEllipsis</code></td></tr>
+    <tr><td>패널 줄의 폴더</td><td>이름 아래 <code>labelSmall</code>, <code>onSurfaceVariant</code>(선택된 줄은 이름과 같은 색), 한 줄, 넘치면 옆으로 흐른다(<a href="terminal-panel-text-marquee.html">글자 흐르게</a>. 그 전에는 <code>TextOverflow.StartEllipsis</code>)</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:new-panel</code>(목록의 버튼, 그대로), <code>terminal:new-panel-dialog</code>, <code>terminal:new-panel-name</code>, <code>terminal:new-panel-directory</code>,
       <code>terminal:new-panel-browse</code>, <code>terminal:new-panel-confirm</code>, <code>terminal:new-panel-cancel</code>
@@ -104,12 +110,12 @@ TerminalPanelDto(id, name, directory: String? = null, root, focusedGroupId)</cod
 
 <dl class="meta">
   <dt>도메인 규칙</dt><dd>
-    <code>TerminalWorkspace.addPanel(name: String? = null, directory: String? = null)</code> — R2·R3 의 공백 떼기와 기본값, R4 의 빈 패널(<code>root = null</code>, <code>focusedGroupId = null</code>). 첫 탭은 빈 패널에서 <code>addTab</code> 이 만들고(<a href="terminal-panels.html">패널</a>), 그 <code>directory</code> 는 <code>startDirectory</code> 가 패널 폴더로 채운다. 처음 켤 때의 <code>initial()</code> 만 <code>addPanel().addTab()</code> 으로 셸 탭 하나를 넣는다. 기본 제목은 <code>nextPanelName</code> 이고 창의 placeholder 도 이것을 쓴다.<br>
+    <code>TerminalWorkspace.addPanel(name: String? = null, directory: String? = null, claudeSessionId: String? = null)</code> — R2·R3 의 공백 떼기와 기본값. <code>claudeSessionId</code> 가 있으면 R4 대로 그 세션의 Claude 탭 하나를 가진 그룹 하나로, 탭의 <code>directory</code> 는 패널 폴더다. 없으면 R4b 의 빈 패널(<code>root = null</code>, <code>focusedGroupId = null</code>)이다. 빈 패널의 첫 탭은 <code>addTab</code> 이 만들고(<a href="terminal-panels.html">패널</a>), 그 <code>directory</code> 는 <code>startDirectory</code> 가 패널 폴더로 채운다. 처음 켤 때의 <code>initial()</code> 은 <code>addPanel().addTab()</code> 으로 셸 탭 하나를 넣는다. 기본 제목은 <code>nextPanelName</code> 이고 창의 placeholder 도 이것을 쓴다.<br>
     <code>TerminalWorkspace.startDirectory(groupId: Long?): String?</code> — R8. 그룹(null 이면 포커스된 그룹)에서 선택된 탭의 디렉터리, 없으면 선택된 패널의 폴더. ViewModel 에 있던 <code>directoryOf</code> 를 도메인으로 옮긴다.
   </dd>
   <dt>저장</dt><dd><code>TerminalPanelDto.directory</code>. 없는 키는 null 로 읽으므로 이전 파일도 그대로 읽힌다</dd>
   <dt>홈 펼치기</dt><dd><code>internal fun expandHome(path: String, home: String): String</code> — <code>:feature:terminal:data</code> commonMain. 셸을 띄우는 쪽(플랫폼 <code>startDirectory</code>)이 부른다(R3). 홈이 플랫폼마다 달라 도메인에 두지 않는다</dd>
-  <dt>상태</dt><dd><code>TerminalViewModel.addPanel(name: String, directory: String)</code>. 창이 떠 있는지와 입력 중인 글자는 화면 안의 <code>remember</code> 다</dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.addPanel(name: String, directory: String)</code> — <code>isClaudeSupported</code> 면 <code>newClaudeSessionId()</code> 를 넘기고(R4), 아니면 null(R4b). sessionId 는 <code>update</code> 의 변환 밖에서 한 번 만든다 — <code>addClaudeTab</code> 과 같다. 창이 떠 있는지와 입력 중인 글자는 화면 안의 <code>remember</code> 다</dd>
   <dt>UI</dt><dd><code>feature/terminal/ui/.../NewPanelDialog.kt</code>(<code>NewPanelDialog</code>), <code>TerminalPanelList.kt</code>(버튼이 창을 띄우고 줄에 폴더를 보여 준다)</dd>
   <dt>공급</dt><dd>
     <code>internal expect val directoryPicker: DirectoryPicker?</code> — <code>:feature:terminal:ui</code>. null 이면 이 타깃에 폴더 선택 창이 없어 "찾아보기" 를 숨긴다.<br>
@@ -118,13 +124,18 @@ TerminalPanelDto(id, name, directory: String? = null, root, focusedGroupId)</cod
 </dl>
 
 <aside class="decision">
+  <strong>결정: 처음 켤 때의 "패널 1" 은 셸 탭 그대로다</strong>
+  <code>initial()</code> 은 저장 파일이 없거나 그룹이 하나도 없을 때 data 계층이 부르고(<code>TerminalWorkspaceSerializer.defaultValue</code>, <code>toDomain</code>), 읽을 때마다 다시 만든다. Claude 탭은 무작위 sessionId 가 있어야 해서, 저장되기 전까지 읽을 때마다 다른 sessionId 가 나오고 화면이 띄운 세션과 저장된 탭이 어긋난다. 고정 sessionId 는 저장을 지운 뒤 예전 백그라운드 세션에 다시 붙는다. 지시가 가리키는 것도 탭 없이 시작하는 새 패널이라 바꾸지 않는다.
+</aside>
+
+<aside class="decision">
   <strong>결정: 폴더가 있는지 창에서 미리 확인하지 않는다</strong>
   확인하려면 UI 가 파일 시스템을 한 번 묻는 플랫폼 조회가 하나 더 생긴다. 셸을 띄우는 쪽은 이미 "없으면 홈" 으로 떨어지고(<a href="terminal-panels.html#requirements">패널 R14</a>), 저장된 폴더가 나중에 지워져도 같은 규칙으로 되살아나야 하므로 그 규칙 하나로 충분하다. 잘못 친 경로는 홈에서 뜬 셸의 프롬프트로 곧바로 드러난다. 한계에 적는다.
 </aside>
 
 <aside class="decision">
-  <strong>결정: 창은 탭을 열지 않는다</strong>
-  처음(2026-09-24)에는 "터미널"·"Claude (YOLO)" 두 확인 버튼으로 첫 탭 종류를 골랐다 — 그룹의 새 탭(+) 메뉴와 같은 모양이고 누르는 횟수가 적어서다. 빈 패널 지시(2026-09-25)로 버튼은 "확인" 하나가 됐고 패널은 탭 없이 시작한다. 첫 탭은 빈 패널의 + 메뉴에서 고른다 — 그 메뉴에 이미 터미널·Claude·웹 브라우저·기기가 있어 창이 종류를 다시 물을 이유가 없고, 창은 Claude 를 쓸 수 있는 타깃인지(<code>canOpenClaude</code>) 알 필요도 없어진다. 버린 후보: "확인" 옆에 "터미널로 시작" 을 남기는 것 — 지시가 "취소/확인만" 이다. 도메인의 <code>addPanel</code> 에서 <code>program</code>·<code>claudeSessionId</code> 를 남겨 두는 것 — 부르는 곳이 없는 인자다.
+  <strong>결정: 창은 종류를 묻지 않고 "확인" 이 Claude 탭으로 연다</strong>
+  처음(2026-09-24)에는 "터미널"·"Claude (YOLO)" 두 확인 버튼으로 첫 탭 종류를 골랐다. 빈 패널 지시(2026-09-25)로 버튼은 "확인" 하나가 됐고 패널은 탭 없이 시작했다. 그 뒤 Claude 로 시작 지시(같은 날)로 "확인" 은 Claude 탭 하나를 연다. 창은 여전히 "취소"·"확인" 뿐이고 Claude 를 쓸 수 있는 타깃인지도 모른다 — 그것은 ViewModel 이 <code>claudeSessionId</code> 를 넘길지로 가린다(R4b). 버린 후보: 창에 "터미널"·"Claude" 두 버튼을 되살리는 것 — 빈 패널 지시의 "취소/확인만" 과 어긋난다. ViewModel 이 <code>addPanel</code> 뒤에 <code>addTab</code> 을 따로 부르는 것 — 워크트리 패널은 use case 가 만들어 같은 규칙을 두 곳에 적어야 한다.
 </aside>
 
 <h2 id="platforms">플랫폼별 판정</h2>
@@ -132,9 +143,9 @@ TerminalPanelDto(id, name, directory: String? = null, root, focusedGroupId)</cod
 <table>
   <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
   <tbody>
-    <tr><td>Android</td><td><span class="badge workaround">우회</span> <span class="badge untested">미검증</span></td><td>제목·폴더 경로 입력은 구현. 폴더 선택 창은 SAF 가 파일 경로가 아니라 <code>content://</code> URI 를 줘서 셸이 들어갈 수 없다 — "찾아보기" 없이 경로를 직접 입력한다. <code>~</code> 는 <code>filesDir</code></td><td><a href="../platform/android.html#terminal-panel-create">android.html</a></td></tr>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span> <span class="badge untested">미검증</span></td><td>제목·폴더 경로 입력은 구현. Claude 실행이 불가라 "확인" 은 빈 패널을 만든다(R4b). 폴더 선택 창은 SAF 가 파일 경로가 아니라 <code>content://</code> URI 를 줘서 셸이 들어갈 수 없다 — "찾아보기" 없이 경로를 직접 입력한다. <code>~</code> 는 <code>filesDir</code></td><td><a href="../platform/android.html#terminal-panel-create">android.html</a></td></tr>
     <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다. <code>directoryPicker</code> 는 null</td><td><a href="../platform/ios.html#terminal-panel-create">ios.html</a></td></tr>
-    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>"찾아보기" 는 <code>java.awt.FileDialog</code> + <code>apple.awt.fileDialogForDirectories</code> → macOS <code>NSOpenPanel</code>(폴더만). <code>~</code> 는 <code>user.home</code></td><td><a href="../platform/jvm.html#terminal-panel-create">jvm.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>"확인" 이 연 Claude 탭은 <a href="../platform/jvm.html#terminal-claude">Claude 실행</a> 그대로. "찾아보기" 는 <code>java.awt.FileDialog</code> + <code>apple.awt.fileDialogForDirectories</code> → macOS <code>NSOpenPanel</code>(폴더만). <code>~</code> 는 <code>user.home</code></td><td><a href="../platform/jvm.html#terminal-panel-create">jvm.html</a></td></tr>
     <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다. <code>directoryPicker</code> 는 null</td><td><a href="../platform/web.html#terminal-panel-create">web.html</a></td></tr>
   </tbody>
 </table>
@@ -144,10 +155,10 @@ TerminalPanelDto(id, name, directory: String? = null, root, focusedGroupId)</cod
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>TerminalWorkspaceTest</code></td><td>R2–R4, R8. 제목 공백 떼기·빈 제목은 "패널 N", 폴더 공백 떼기·빈 폴더는 null, 새 패널은 그룹·탭이 없고 선택됨, 처음 켤 때의 패널만 셸 탭 하나, 빈 패널에서 연 첫 탭이 패널 폴더에서 시작, <code>startDirectory</code> 가 선택된 탭 → 패널 폴더 → null 순으로 고름</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R2–R4, R8. 제목 공백 떼기·빈 제목은 "패널 N", 폴더 공백 떼기·빈 폴더는 null, 새 패널은 선택되고 sessionId 를 주면 패널 폴더의 그 Claude 탭 하나, 주지 않으면 그룹·탭이 없음, 처음 켤 때의 패널은 셸 탭 하나, 빈 패널에서 연 첫 탭이 패널 폴더에서 시작, <code>startDirectory</code> 가 선택된 탭 → 패널 폴더 → null 순으로 고름</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R7. 패널 폴더가 파일에 쓰이고 다시 읽힘, 폴더 키가 없는 이전 파일은 null 로 읽힘</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
     <tr><td><code>ExpandHomeTest</code></td><td>R3. <code>~</code>, <code>~/a</code> 는 홈 기준, <code>~user</code>·절대·상대 경로는 그대로</td><td>같음</td></tr>
-    <tr><td><code>JarvisAppTerminalPanelTest</code></td><td>R1, R2, R4–R8. 버튼이 창을 띄움, 창에는 취소·확인뿐, 빈 입력은 탭 없는 "패널 N"(세션이 열리지 않고 빈 패널 안내가 보임), 제목·폴더를 넣으면 그 이름·폴더의 빈 패널이 선택되고 + 로 연 셸이 그 폴더에서 시작, + 메뉴의 Claude 는 그 폴더에서 Claude 탭, 취소는 아무것도 안 만듦, Enter 는 확인, 패널 줄에 폴더가 보임</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalPanelTest</code></td><td>R1, R2, R4–R8. 버튼이 창을 띄움, 창에는 취소·확인뿐, 빈 입력은 Claude 탭 하나의 "패널 N", 제목·폴더를 넣으면 그 이름·폴더의 패널이 선택되고 Claude 세션이 그 폴더에서 시작, + 로 연 셸도 그 폴더에서 시작, Claude 를 띄울 수 없으면 탭 없는 패널(빈 패널 안내), 취소는 아무것도 안 만듦, Enter 는 확인, 패널 줄에 폴더가 보임</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 

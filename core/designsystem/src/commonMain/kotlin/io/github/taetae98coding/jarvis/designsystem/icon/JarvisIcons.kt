@@ -16,7 +16,27 @@ import androidx.compose.ui.unit.dp
 object JarvisIcons {
     val Add: ImageVector by lazy { outline("Add", "M12 5v14M5 12h14") }
 
+    val Android: ImageVector by lazy {
+        outline(
+            "Android",
+            "M4 17a8 8 0 0 1 16 0z" +
+                "M7.5 10.5L5.5 7M16.5 10.5l2-3.5" +
+                "M9 14h.01M15 14h.01",
+        )
+    }
+
+    val Apple: ImageVector by lazy {
+        outline(
+            "Apple",
+            "M12 20.94c1.5 0 2.75 1.06 4 1.06c3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2" +
+                "c-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06z" +
+                "M10 2c1 .5 2 2 2 5",
+        )
+    }
+
     val Back: ImageVector by lazy { outline("Back", "M19 12H5M12 19l-7-7 7-7") }
+
+    val Check: ImageVector by lazy { outline("Check", "M20 6L9 17l-5-5") }
 
     val ChevronRight: ImageVector by lazy { outline("ChevronRight", "M9 6l6 6-6 6") }
 
@@ -104,7 +124,7 @@ object JarvisIcons {
 
     internal val all: List<ImageVector>
         get() = listOf(
-            Add, Back, ChevronRight, Claude, Close, Edit, Eye, Forward, GitBranch, Globe, Monitor, Play, RotateLeft,
+            Add, Android, Apple, Back, Check, ChevronRight, Claude, Close, Edit, Eye, Forward, GitBranch, Globe, Monitor, Play, RotateLeft,
             RotateRight, Smartphone, Sun, Terminal, User, Wifi,
         )
 }

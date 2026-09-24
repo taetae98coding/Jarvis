@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
-import io.github.taetae98coding.jarvis.domain.terminal.AddWorktreePanelUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
@@ -12,6 +12,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.IsBrowserSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsChromeImportSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveChromeProfilesUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveClaudeActivitiesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitWorktreeUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
@@ -20,14 +21,17 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import io.github.taetae98coding.jarvis.domain.terminal.UpdateTerminalWorkspaceUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.claudeSessionIds
+import io.github.taetae98coding.jarvis.domain.terminal.claudeStatuses
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
+import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -50,7 +54,9 @@ internal class TerminalViewModel(
     private val observeChromeProfiles: ObserveChromeProfilesUseCase,
     private val importChromeCookies: ImportChromeCookiesUseCase,
     private val observeGitWorktree: ObserveGitWorktreeUseCase,
-    private val addWorktree: AddWorktreePanelUseCase,
+    private val worktreeTasks: WorktreeTaskHost,
+    observeClaudeActivities: ObserveClaudeActivitiesUseCase,
+    private val claudeAttention: ClaudeAttention,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -90,7 +96,36 @@ internal class TerminalViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyMap())
 
+    private val windowFocused = MutableStateFlow(false)
+
+    /**
+     * Claude 탭이 있는 패널마다 줄에 보일 탭별 상태. 조회는 Claude sessionId 집합이 바뀔 때만 다시 묶는다. 창이 포커스를
+     * 가지면 보이는 탭의 끝난 결과를 확인한 것으로 계산하고 저장한다 — 계산에 먼저 반영해서 저장이 돌아오기 전
+     * 한 프레임도 "응답 대기" 로 깜빡이지 않는다(docs/common/terminal-claude-status.html#implementation).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val claudeStatuses: StateFlow<Map<Long, List<ClaudeTabStatus>>> = combine(
+        workspace.filterNotNull(),
+        workspace
+            .map { if (this.isClaudeSupported) it?.claudeSessionIds.orEmpty() else emptySet() }
+            .distinctUntilChanged()
+            .flatMapLatest { observeClaudeActivities(it) },
+        windowFocused,
+    ) { current, activities, focused ->
+        val checked = if (focused) current.checkVisibleClaudeTabs(activities) else current
+        if (checked !== current) update { it.checkVisibleClaudeTabs(activities) }
+
+        checked.panels.mapNotNull { panel -> panel.claudeStatuses(activities).takeIf { it.isNotEmpty() }?.let { panel.id to it } }.toMap()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyMap())
+
+    fun setWindowFocused(focused: Boolean) {
+        windowFocused.value = focused
+    }
+
     fun pane(tabId: Long): TerminalPaneState? = host.pane(tabId)
+
+    /** 사용자가 지금 보고 있는 Claude 탭. 이 탭들은 턴이 끝나도 알리지 않는다. */
+    fun watchClaude(sessionIds: Set<String>) = claudeAttention.watch(sessionIds)
 
     /** 셸 창은 셸이 정한 제목, 브라우저 탭은 페이지 제목. */
     fun title(tab: TerminalTab): StateFlow<String?>? =
@@ -102,18 +137,33 @@ internal class TerminalViewModel(
 
     private fun viewedBrowserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
-    fun addPanel(name: String, directory: String) = update { it.addPanel(name, directory) }
+    fun addPanel(name: String, directory: String) {
+        val sessionId = firstClaudeSessionId()
+        update { it.addPanel(name, directory, sessionId) }
+    }
 
-    /**
-     * [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 빈 패널을 붙인다. 창이 닫혀 이 호출이 취소돼도 git 명령과
-     * 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게.
-     */
-    suspend fun addWorktreePanel(parentId: Long, branch: String, baseBranch: String?, directory: String): Result<Unit> =
-        viewModelScope.async { addWorktree(parentId, branch, baseBranch, directory).map { } }.await()
+    val pendingWorktrees: StateFlow<List<PendingWorktree>> = worktreeTasks.pending
+
+    val removingWorktreePanels: StateFlow<Set<Long>> = worktreeTasks.removing
+
+    val worktreeFailures: StateFlow<List<WorktreeFailure>> = worktreeTasks.failures
+
+    /** [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 패널을 Claude 탭 하나로 붙이는 일을 뒤에서 시작한다. */
+    fun addWorktreePanel(parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String) =
+        worktreeTasks.add(parentId, parent, branch, baseBranch, directory, firstClaudeSessionId())
+
+    // 새 패널의 첫 Claude 탭. Claude 를 띄울 수 없는 타깃이면 null 이고 패널은 빈 채로 시작한다.
+    private fun firstClaudeSessionId(): String? = if (isClaudeSupported) newClaudeSessionId() else null
 
     fun renamePanel(panelId: Long, name: String) = update { it.renamePanel(panelId, name) }
 
     fun closePanel(panelId: Long) = update { it.closePanel(panelId) }
+
+    /** [removeWorktree] 면 워크트리 패널의 워크트리·브랜치(와 [deleteDirectory] 면 폴더)를 지우고 패널을 닫는 일을 뒤에서 시작한다. */
+    fun closeWorktreePanel(panelId: Long, worktree: GitWorktree, removeWorktree: Boolean, deleteDirectory: Boolean) =
+        worktreeTasks.remove(panelId, worktree, removeWorktree, deleteDirectory)
+
+    fun dismissWorktreeFailure(id: Long) = worktreeTasks.dismissFailure(id)
 
     fun selectPanel(panelId: Long) = update { it.selectPanel(panelId) }
 
@@ -134,8 +184,16 @@ internal class TerminalViewModel(
 
     fun setUrl(tabId: Long, url: String) = update { it.setUrl(tabId, url) }
 
-    fun addDeviceTab(groupId: Long?, deviceId: String, deviceName: String) =
-        update { it.addTab(groupId, TerminalProgram.Device, deviceId = deviceId, deviceName = deviceName) }
+    fun addDeviceTab(groupId: Long?, choice: DeviceChoice) =
+        update {
+            it.addTab(
+                groupId = groupId,
+                program = TerminalProgram.Device,
+                deviceId = choice.id,
+                deviceName = choice.name,
+                devicePlatform = choice.devicePlatform,
+            )
+        }
 
     /** 드롭다운을 열 때 지금 Chrome 프로필 목록을 읽는다(명령이 지금 값을 읽음). */
     suspend fun chromeProfiles(): List<ChromeProfile> = observeChromeProfiles().first()
@@ -146,6 +204,8 @@ internal class TerminalViewModel(
     fun closeFocusedTab() = update { it.closeFocusedTab() }
 
     fun closeTab(tabId: Long) = update { it.closeTab(tabId) }
+
+    fun renameTab(tabId: Long, name: String) = update { it.renameTab(tabId, name) }
 
     fun selectTab(tabId: Long) = update { it.selectTab(tabId) }
 

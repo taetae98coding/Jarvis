@@ -1,6 +1,8 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.automation.AgentBrowserTab
+import io.github.taetae98coding.jarvis.automation.AutomationPlatform
+import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
@@ -46,7 +48,7 @@ class WorkspaceAgentTabsTest {
     fun unknownCallerGetsNoTab() = runTest {
         assertFalse(tabs.hasCaller("other"))
         assertNull(tabs.openBrowserTab("other", "https://example.com"))
-        tabs.showDevice("other", "emulator-5554", "Pixel")
+        tabs.showDevice("other", "emulator-5554", "Pixel", AutomationPlatform.ANDROID)
         assertEquals(initial, repository.state.value)
         assertEquals(emptyList(), tabs.browserTabs("other"))
     }
@@ -55,13 +57,14 @@ class WorkspaceAgentTabsTest {
     fun deviceTabIsAddedOncePerPanel() = runTest {
         assertTrue(tabs.hasCaller(Session))
 
-        tabs.showDevice(Session, "emulator-5554", "Pixel")
-        tabs.showDevice(Session, "emulator-5554", "Pixel")
+        tabs.showDevice(Session, "emulator-5554", "Pixel", AutomationPlatform.ANDROID)
+        tabs.showDevice(Session, "emulator-5554", "Pixel", AutomationPlatform.ANDROID)
 
         val panel = repository.state.value.findClaudeTab(Session)!!.panel
         val devices = panel.tabs.filter { it.program == TerminalProgram.Device }
         assertEquals(listOf("emulator-5554"), devices.map { it.deviceId })
         assertEquals("Pixel", devices.single().deviceName)
+        assertEquals(DevicePlatform.Android, devices.single().devicePlatform)
     }
 
     @Test

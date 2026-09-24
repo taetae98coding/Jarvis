@@ -22,7 +22,12 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  *
  * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
  * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만, [url] 은 [TerminalProgram.Browser] 탭에만,
- * [deviceId]·[deviceName] 은 [TerminalProgram.Device] 탭에만 있다. [deviceName] 은 고를 때의 이름이다.
+ * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만 있다. [deviceName]·[devicePlatform] 은
+ * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다.
+ *
+ * [claudeCheckedAt] 은 사용자가 본 마지막 끝난 결과의 [ClaudeActivity.Finished.at] 이다(docs/common/terminal-claude-status.html).
+ *
+ * [name] 은 사용자가 정한 이름이다. null 이면 화면이 창의 제목이나 순번으로 자동 제목을 짓는다.
  */
 data class TerminalTab(
     val id: Long,
@@ -32,7 +37,22 @@ data class TerminalTab(
     val url: String? = null,
     val deviceId: String? = null,
     val deviceName: String? = null,
+    val devicePlatform: DevicePlatform? = null,
+    val name: String? = null,
+    val claudeCheckedAt: Long? = null,
 ) {
+    val kind: TerminalTabKind
+        get() = when (program) {
+            TerminalProgram.Shell -> TerminalTabKind.Terminal
+            TerminalProgram.Claude -> TerminalTabKind.Claude
+            TerminalProgram.Browser -> TerminalTabKind.Browser
+            TerminalProgram.Device -> when (devicePlatform) {
+                DevicePlatform.Android -> TerminalTabKind.Android
+                DevicePlatform.IOS -> TerminalTabKind.IOS
+                null -> TerminalTabKind.Device
+            }
+        }
+
     companion object {
         const val DefaultBrowserUrl = "https://www.google.com"
     }
@@ -154,17 +174,17 @@ data class TerminalWorkspace(
     fun children(panelId: Long): List<TerminalPanel> = panels.filter { it.parentId == panelId }
 
     /**
-     * 그룹이 없는 빈 패널을 끝에 붙이고 고른다. [name]·[directory] 는 앞뒤 공백을 떼고, 비면
-     * [nextPanelName]·폴더 없음이다. 탭은 열지 않는다 — 첫 탭은 [addTab] 이 [startDirectory] 대로 패널 폴더에서 연다.
+     * 패널을 끝에 붙이고 고른다. [name]·[directory] 는 앞뒤 공백을 떼고, 비면 [nextPanelName]·폴더 없음이다.
+     * [claudeSessionId] 가 있으면 패널 폴더에서 그 세션의 Claude 탭 하나로 시작하고, 없으면 그룹이 없는 빈 패널이다.
      */
-    fun addPanel(name: String? = null, directory: String? = null): TerminalWorkspace {
+    fun addPanel(name: String? = null, directory: String? = null, claudeSessionId: String? = null): TerminalWorkspace {
         val panel = newPanel(name, directory)
 
-        return copy(panels = panels + panel, selectedPanelId = panel.id, nextId = nextId + 1)
+        return copy(panels = panels + panel, selectedPanelId = panel.id, nextId = nextId + 1).startClaude(claudeSessionId)
     }
 
     /**
-     * [addPanel] 과 같은 빈 패널을 [parentId] 패널의 워크트리 패널로 붙이고 고른다. 부모가 워크트리 패널이면 그
+     * [addPanel] 과 같은 패널을 [parentId] 패널의 워크트리 패널로 붙이고 고른다. 부모가 워크트리 패널이면 그
      * 부모의 부모 아래 형제로 들어간다(한 단계). 부모와 그 워크트리 패널들 바로 뒤에 놓인다. 모르는 부모면 그대로다.
      * [branch]·[baseBranch] 는 앞뒤 공백을 떼고 비면 없는 것이다.
      */
@@ -174,6 +194,7 @@ data class TerminalWorkspace(
         directory: String? = null,
         branch: String? = null,
         baseBranch: String? = null,
+        claudeSessionId: String? = null,
     ): TerminalWorkspace {
         val parent = findPanel { it.id == parentId } ?: return this
         val rootId = parent.parentId ?: parent.id
@@ -185,8 +206,12 @@ data class TerminalWorkspace(
         )
         val inserted = panels.toMutableList().apply { add(familyEnd + 1, panel) }
 
-        return copy(panels = inserted, selectedPanelId = panel.id, nextId = nextId + 1)
+        return copy(panels = inserted, selectedPanelId = panel.id, nextId = nextId + 1).startClaude(claudeSessionId)
     }
+
+    // 막 붙여 고른 빈 패널에 첫 탭을 연다. 탭 디렉터리는 startDirectory 가 패널 폴더로 채운다.
+    private fun startClaude(claudeSessionId: String?): TerminalWorkspace =
+        if (claudeSessionId == null) this else addTab(program = TerminalProgram.Claude, directory = startDirectory(), claudeSessionId = claudeSessionId)
 
     // 패널 id 로 nextId 를 쓴다. 부르는 쪽이 nextId 를 1 늘린다.
     private fun newPanel(name: String?, directory: String?): TerminalPanel =
@@ -242,12 +267,13 @@ data class TerminalWorkspace(
         url: String? = null,
         deviceId: String? = null,
         deviceName: String? = null,
+        devicePlatform: DevicePlatform? = null,
     ): TerminalWorkspace {
         val panel = (if (groupId == null) selectedPanel else findPanel { panel -> panel.groups.any { it.id == groupId } })
             ?: return this
         val group = if (groupId == null) panel.focusedGroup else panel.groups.first { it.id == groupId }
         val tabId = nextId
-        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName)
+        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform)
 
         if (group == null) {
             val newGroupId = nextId + 1
@@ -272,10 +298,11 @@ data class TerminalWorkspace(
         url: String? = null,
         deviceId: String? = null,
         deviceName: String? = null,
+        devicePlatform: DevicePlatform? = null,
     ): TerminalWorkspace {
         if (findGroup { it.id == groupId } == null) return this
 
-        val tab = TerminalTab(nextId, program, url = url, deviceId = deviceId, deviceName = deviceName)
+        val tab = TerminalTab(nextId, program, url = url, deviceId = deviceId, deviceName = deviceName, devicePlatform = devicePlatform)
 
         return replaceGroup(groupId) { it.copy(tabs = it.tabs + tab) }.copy(nextId = nextId + 1)
     }
@@ -414,6 +441,23 @@ data class TerminalWorkspace(
 
     fun setUrl(tabId: Long, url: String): TerminalWorkspace = replaceTab(tabId) { it.copy(url = url) }
 
+    /** 앞뒤 공백을 뗀다. 비어 있으면 사용자가 정한 이름을 지워 자동 제목으로 돌아간다. */
+    fun renameTab(tabId: Long, name: String): TerminalWorkspace = replaceTab(tabId) { it.copy(name = name.trim().ifEmpty { null }) }
+
+    /**
+     * 지금 보이는 Claude 탭 중 끝난 결과가 있는 탭의 확인 기록을 그 결과로 올린다. 올릴 것이 없으면 자신이다.
+     * 보이는지는 [visibleTabs] 이고, 앱 창이 포커스를 가졌는지는 부르는 쪽이 가린다.
+     */
+    fun checkVisibleClaudeTabs(activities: Map<String, ClaudeActivity>): TerminalWorkspace =
+        visibleTabs.fold(this) { workspace, tab ->
+            val finished = tab.claudeSessionId?.let(activities::get) as? ClaudeActivity.Finished
+            if (finished == null || (tab.claudeCheckedAt ?: Long.MIN_VALUE) >= finished.at) {
+                workspace
+            } else {
+                workspace.replaceTab(tab.id) { it.copy(claudeCheckedAt = finished.at) }
+            }
+        }
+
     /**
      * 형제가 부모 자리를 채운다. 사라진 그룹이 포커스를 갖고 있었으면 형제 쪽에서 닫힌 자리와 맞닿은
      * 그룹이 포커스를 받는다. 패널의 마지막 그룹이면 패널이 빈다.
@@ -456,7 +500,10 @@ data class TerminalWorkspace(
 
         const val DefaultPanelName = "패널"
 
-        /** 처음 켰을 때. 패널 하나, 그룹 하나, 셸 탭 하나. 창으로 만드는 패널과 달리 여기만 탭을 넣는다. */
+        /**
+         * 처음 켰을 때. 패널 하나, 그룹 하나, 셸 탭 하나. 창으로 만드는 패널과 달리 Claude 가 아니다 — data 계층이
+         * 저장 전까지 읽을 때마다 다시 부르므로, 무작위 sessionId 가 매번 달라진다(docs/common/terminal-panel-create.html).
+         */
         fun initial(): TerminalWorkspace =
             TerminalWorkspace(panels = emptyList(), selectedPanelId = null, nextId = 1).addPanel().addTab()
     }

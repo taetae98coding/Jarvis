@@ -14,7 +14,11 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
+import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalTabKind
+import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
+import io.github.taetae98coding.jarvis.ui.device.DeviceChoicePlatform
 import io.github.taetae98coding.jarvis.ui.device.DeviceScreens
 
 fun terminalDeviceTestTag(tabId: Long): String = "terminal:device:$tabId"
@@ -53,3 +57,15 @@ internal fun TerminalDevice(
         }
     }
 }
+
+internal val DeviceChoice.devicePlatform: DevicePlatform
+    get() = when (platform) {
+        DeviceChoicePlatform.Android -> DevicePlatform.Android
+        DeviceChoicePlatform.IOS -> DevicePlatform.IOS
+    }
+
+internal val DeviceChoice.tabKind: TerminalTabKind
+    get() = when (platform) {
+        DeviceChoicePlatform.Android -> TerminalTabKind.Android
+        DeviceChoicePlatform.IOS -> TerminalTabKind.IOS
+    }

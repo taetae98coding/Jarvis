@@ -14,8 +14,8 @@ interface AgentTabs {
     /** 호출한 패널의 브라우저 탭. 호출한 탭이 없으면 빈 목록이다. */
     suspend fun browserTabs(sessionId: String): List<AgentBrowserTab>
 
-    /** 호출한 패널에 [deviceId] 기기 탭이 없으면 호출한 그룹에 선택하지 않고 붙인다. */
-    suspend fun showDevice(sessionId: String, deviceId: String, deviceName: String)
+    /** 호출한 패널에 [deviceId] 기기 탭이 없으면 호출한 그룹에 선택하지 않고 붙인다. [platform] 은 탭 아이콘에 쓴다. */
+    suspend fun showDevice(sessionId: String, deviceId: String, deviceName: String, platform: AutomationPlatform)
 
     /** 호출한 패널의 탭이면 닫는다. 닫았으면 true. */
     suspend fun closeTab(sessionId: String, tabId: Long): Boolean

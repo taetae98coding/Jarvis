@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class TerminalWorkspaceTest {
@@ -271,6 +272,18 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    fun newPanelWithAClaudeSessionStartsWithThatClaudeTabInThePanelDirectory() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work", claudeSessionId = "session")
+
+        val panel = workspace.selectedPanel!!
+        assertEquals(workspace.panels.last().id, panel.id)
+        assertEquals(1, panel.groups.size)
+        assertEquals(TerminalTab(panel.tabs.single().id, TerminalProgram.Claude, "/work", "session"), workspace.focusedTab)
+        assertEquals(panel.groups.single().id, workspace.focusedGroupId)
+        assertEquals(workspace.tabIds.toSet().size, workspace.tabIds.size)
+    }
+
+    @Test
     fun firstTabOfANewPanelIsOpenedByAddTabInThePanelDirectory() {
         val empty = TerminalWorkspace.initial().addPanel(directory = "/work")
 
@@ -279,6 +292,19 @@ class TerminalWorkspaceTest {
         assertEquals(1, opened.selectedPanel!!.groups.size)
         assertEquals(TerminalTab(opened.focusedTab!!.id, TerminalProgram.Shell, "/work"), opened.focusedTab)
         assertEquals(opened.groups.single().id, opened.focusedGroupId)
+    }
+
+    @Test
+    fun worktreePanelWithAClaudeSessionStartsWithThatClaudeTabInTheWorktreeFolder() {
+        val workspace = TerminalWorkspace.initial().addPanel(name = "Jarvis", directory = "/work/jarvis")
+        val parent = workspace.selectedPanel!!
+
+        val added = workspace.addWorktreePanel(parent.id, name = "a", directory = "/work/a", claudeSessionId = "session")
+
+        val child = added.selectedPanel!!
+        assertEquals(parent.id, child.parentId)
+        assertEquals(TerminalTab(child.tabs.single().id, TerminalProgram.Claude, "/work/a", "session"), added.focusedTab)
+        assertEquals(workspace, workspace.addWorktreePanel(999, name = "a", directory = "/work/a", claudeSessionId = "session"))
     }
 
     @Test
@@ -695,6 +721,64 @@ class TerminalWorkspaceTest {
         assertEquals(claudeGroup, location.group.id)
         assertEquals("session-1", location.tab.claudeSessionId)
         assertNull(workspace.findClaudeTab("unknown"))
+    }
+
+    @Test
+    fun tabKindFollowsTheProgramAndTheDevicePlatform() {
+        assertEquals(TerminalTabKind.Terminal, TerminalTab(1).kind)
+        assertEquals(TerminalTabKind.Claude, TerminalTab(1, TerminalProgram.Claude, claudeSessionId = "s").kind)
+        assertEquals(TerminalTabKind.Browser, TerminalTab(1, TerminalProgram.Browser, url = "https://a.com").kind)
+        assertEquals(TerminalTabKind.Android, TerminalTab(1, TerminalProgram.Device, deviceId = "d", devicePlatform = DevicePlatform.Android).kind)
+        assertEquals(TerminalTabKind.IOS, TerminalTab(1, TerminalProgram.Device, deviceId = "d", devicePlatform = DevicePlatform.IOS).kind)
+        assertEquals(TerminalTabKind.Device, TerminalTab(1, TerminalProgram.Device, deviceId = "d").kind)
+    }
+
+    @Test
+    fun deviceTabKeepsThePlatformItWasOpenedWith() {
+        val added = TerminalWorkspace.initial()
+            .addTab(program = TerminalProgram.Device, deviceId = "sim", deviceName = "iPhone 15", devicePlatform = DevicePlatform.IOS)
+
+        assertEquals(DevicePlatform.IOS, added.focusedTab!!.devicePlatform)
+        assertEquals(TerminalTabKind.IOS, added.focusedTab!!.kind)
+    }
+
+    @Test
+    fun renamingATabTrimsTheName() {
+        val workspace = TerminalWorkspace.initial()
+        val tabId = workspace.focusedTab!!.id
+
+        val renamed = workspace.renameTab(tabId, "  서버 로그  ")
+
+        assertEquals("서버 로그", renamed.focusedTab!!.name)
+    }
+
+    @Test
+    fun renamingATabToBlankClearsTheName() {
+        val workspace = TerminalWorkspace.initial()
+        val tabId = workspace.focusedTab!!.id
+
+        val cleared = workspace.renameTab(tabId, "서버").renameTab(tabId, "   ")
+
+        assertNull(cleared.focusedTab!!.name)
+    }
+
+    @Test
+    fun renamingToTheSameNameReturnsTheSameWorkspace() {
+        val workspace = TerminalWorkspace.initial().let { it.renameTab(it.focusedTab!!.id, "서버") }
+
+        assertSame(workspace, workspace.renameTab(workspace.focusedTab!!.id, "서버"))
+        assertSame(workspace, workspace.renameTab(-1, "다른"))
+    }
+
+    @Test
+    fun theNameFollowsATabDockedIntoAnotherGroup() {
+        val workspace = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
+        val (left, right) = workspace.groups
+        val moved = left.tabs.single().id
+
+        val docked = workspace.renameTab(moved, "서버").dockTab(moved, right.id, DockEdge.Center)
+
+        assertEquals("서버", docked.tabs.single { it.id == moved }.name)
     }
 }
 

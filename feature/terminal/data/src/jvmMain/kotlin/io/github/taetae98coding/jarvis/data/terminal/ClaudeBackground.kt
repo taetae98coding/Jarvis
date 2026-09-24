@@ -157,11 +157,11 @@ internal fun parseBackgroundedId(output: String): String? =
  * Claude Code 는 대화를 `<설정 디렉터리>/projects/<cwd 를 바꾼 이름>/<sessionId>.jsonl` 에 쓴다. cwd 를
  * 이름으로 바꾸는 규칙을 따라 하지 않고 모든 프로젝트 디렉터리를 본다.
  */
-private fun hasClaudeTranscript(sessionId: String): Boolean {
-    val config = System.getenv("CLAUDE_CONFIG_DIR")?.let(::File) ?: File(System.getProperty("user.home"), ".claude")
+private fun hasClaudeTranscript(sessionId: String): Boolean =
+    File(claudeConfigDirectory(), "projects").listFiles().orEmpty().any { File(it, "$sessionId.jsonl").isFile }
 
-    return File(config, "projects").listFiles().orEmpty().any { File(it, "$sessionId.jsonl").isFile }
-}
+internal fun claudeConfigDirectory(): File =
+    System.getenv("CLAUDE_CONFIG_DIR")?.let(::File) ?: File(System.getProperty("user.home"), ".claude")
 
 /**
  * 출력은 파이프가 아니라 파일로 받는다. `claude --bg` 가 처음 띄우는 백그라운드 서비스가 표준 출력을

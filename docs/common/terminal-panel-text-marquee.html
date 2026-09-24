@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>패널 줄 글자 흐르게 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>패널 줄 글자 흐르게</span></nav>
+
+<header>
+  <h1>패널 줄 글자 흐르게</h1>
+  <p class="lead">왼쪽 패널 목록 한 줄의 이름·브랜치·폴더 글자가 목록 폭을 넘으면 말줄임하지 않고 옆으로 끝없이 흘려(marquee) 글자 전체를 볼 수 있게 한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>왼쪽 사이드 탭 text들 basicMarquee Int.MAX_VALUE 적용해서 항상 모든 텍스트 볼 수 있도록 수정해줘.</p>
+  <footer>2026-09-25 대화. "왼쪽 사이드 탭" 은 터미널 화면 왼쪽의 패널 목록(<a href="terminal-panels.html">패널</a>)으로, "text들" 은 패널 줄의 이름·브랜치 줄(<a href="terminal-worktree.html">워크트리</a>)·폴더 줄(<a href="terminal-panel-create.html">새 패널 제목·폴더</a>)로 읽었다. "Int.MAX_VALUE" 는 <code>Modifier.basicMarquee</code> 의 <code>iterations</code> 로, 흐름이 세 번(기본값)에서 멈추지 않고 계속 되풀이되는 것이다. "항상" 은 hover·포커스·선택과 무관하게 흐르는 것으로 읽었다.</footer>
+</blockquote>
+
+<p>이 지시로 <a href="terminal-panel-item-layout.html">버튼을 아래 줄로</a> R2 의 "넘칠 때만 끝을 말줄임", <a href="terminal-worktree.html#behavior">워크트리</a>의 브랜치 줄과 <a href="terminal-panel-create.html#behavior">새 패널</a>의 폴더 줄의 "앞을 줄임(<code>StartEllipsis</code>)" 이 이 문서의 흐름으로 바뀐다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 패널 줄의 이름·브랜치 줄·폴더 줄은 각각 한 줄이고, 글자가 그 줄 폭보다 길면 말줄임(…) 없이 옆으로 흘러 글자 전체가 차례로 보인다.</li>
+  <li><strong>R2.</strong> 흐름은 멈추지 않고 되풀이된다(<code>iterations = Int.MAX_VALUE</code>). 화면에 들어오면 바로 시작하고 hover·포커스·선택 여부와 무관하다.</li>
+  <li><strong>R3.</strong> 줄 폭 안에 다 들어가는 글자는 움직이지 않고 이전처럼 왼쪽에 붙어 있다.</li>
+  <li><strong>R4.</strong> 세 줄은 저마다 따로 흐른다. 한 줄이 넘친다고 다른 줄이 움직이지 않는다.</li>
+  <li><strong>R5.</strong> 줄 높이·여백·색·글꼴, 선택 클릭, 버튼 줄, 이름 입력 필드는 이전과 같다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>위쪽 탭 줄의 탭 이름(<a href="terminal-tab-label.html">탭 종류 표시</a>). 지시는 "왼쪽 사이드 탭" 이다.</li>
+    <li>목록 맨 아래 "새 패널" 버튼 글자. 짧은 고정 글자라 넘치지 않는다.</li>
+    <li>이름 입력 필드. 입력 중에는 커서를 따라 필드가 스스로 스크롤한다.</li>
+    <li>가장자리 흐림(fade), 흐름 속도·쉼 조절. 지시에 없다. 기본값을 쓴다.</li>
+    <li>hover·포커스일 때만 흐르기. 지시가 "항상" 이다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>패널 목록 (폭 200dp)
+│▌Jarvis-feature-very-long-name│ → ←흐름: 끝까지 흐르고 1.2초 쉬고 처음부터
+│  ~/projects/Jarvis           │   ← 폭 안에 들어오면 멈춰 있다
+│  ◌                  + ✎ ✕   │
+│    ⑂ feature/login           │
+│      main → feature/login    │
+│      /Users/me/projects/Jarvi│ → ←흐름: 폴더 줄만 따로 흐른다
+│    ●                + ✎ ✕   │</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>대상</td><td><code>TerminalPanelItem</code> 의 이름 <code>Text</code>, 브랜치 줄 <code>Text</code>, 폴더 줄 <code>Text</code></td></tr>
+    <tr><td>흐름</td><td><code>Modifier.basicMarquee(iterations = Int.MAX_VALUE)</code>. 나머지는 <code>MarqueeDefaults</code>: 속도 30dp/초, 한 바퀴마다(처음 포함) 1,200ms 쉼, 글자 끝과 다시 나오는 처음 사이 간격은 줄 폭의 1/3, <code>MarqueeAnimationMode.Immediately</code></td></tr>
+    <tr><td>방향</td><td>레이아웃 방향(왼쪽→오른쪽)대로 글자가 왼쪽으로 흘러간다. 시작 위치는 글자의 처음이다</td></tr>
+    <tr><td>글자</td><td><code>maxLines = 1</code>, <code>overflow</code> 는 지정하지 않는다(기본 <code>Clip</code>). 잘라내기는 marquee 가 줄 폭에서 한다</td></tr>
+    <tr><td>테스트 태그</td><td>바뀌지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>UI</dt><dd><code>feature/terminal/ui/src/commonMain/.../TerminalPanelList.kt</code> 의 <code>TerminalPanelItem</code> — 세 <code>Text</code> 에서 <code>overflow = TextOverflow.Ellipsis</code>·<code>StartEllipsis</code> 를 걷고 <code>Modifier.basicMarquee(iterations = Int.MAX_VALUE)</code> 를 붙인다</dd>
+  <dt>상태</dt><dd>해당 없음. 모델·ViewModel 은 바뀌지 않는다</dd>
+  <dt>공급</dt><dd>해당 없음. <code>expect</code> 가 없다. <code>basicMarquee</code> 는 <code>androidx.compose.foundation</code> 1.12 의 안정 API 라 opt-in 이 필요 없다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 말줄임을 걷는다</strong>
+  <code>basicMarquee</code> 는 자식을 너비 제한 없이(<code>Constraints.Infinity</code>) 재고 자기 폭에서 잘라 그린다. 그래서 <code>Text</code> 는 늘 글자 전체 폭으로 배치되고 <code>overflow</code> 가 끼어들 자리가 없다. 남겨 두면 읽는 사람이 말줄임이 된다고 오해하므로 지운다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 브랜치·폴더 줄의 "앞을 줄임" 을 흐름으로 바꾼다</strong>
+  <code>StartEllipsis</code> 는 끝(현재 브랜치·폴더 이름)을 늘 보여 주는 대신 앞을 숨겼다. 지시가 "항상 모든 텍스트" 라 흐름으로 바꾼다. 끝은 흐르는 동안 지나간다. 앞은 말줄임하고 hover 때만 흐르게 하는 안은 "항상" 과 맞지 않고 터치(Android)에 hover 가 없어 버렸다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>공통 코드 그대로</td><td><a href="../platform/android.html#terminal-panel-text-marquee">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-panel-text-marquee">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 코드 그대로</td><td><a href="../platform/jvm.html#terminal-panel-text-marquee">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-panel-text-marquee">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTerminalPanelTest.longPanelTextsAreNotEllipsized</code></td><td>R1·R3. 긴 이름·폴더의 패널에서 두 글자의 <code>TextLayoutResult</code> 가 줄 폭을 넘치지 않고(말줄임 없음) 한 줄이며 글자 폭이 줄 폭보다 넓고, 짧은 이름은 줄 폭 안에 있음</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalPanelTest</code>·<code>JarvisAppTerminalWorktreeTest</code>·<code>JarvisAppTerminalClaudeStatusTest</code> 의 기존 테스트</td><td>R5. 끝없는 애니메이션이 있어도 테스트가 idle 에 닿고 버튼·입력 필드·선택 동작이 그대로임</td><td>같음</td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 실제로 흐르는지, 속도가 읽기 알맞은지(R2·R4). <code>./gradlew :desktopApp:run</code> 으로 눈으로 본다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>넘치는 줄이 있는 동안 그 줄은 매 프레임 다시 그려진다. marquee 가 글자를 자기 레이어에 그려 목록 전체는 다시 그리지 않지만, 긴 이름의 패널이 많으면 그만큼 계속 일한다.</li>
+  <li>폴더·브랜치 줄의 끝(폴더 이름·현재 브랜치)이 늘 보이지 않는다. 흐름이 끝으로 갈 때까지 기다려야 한다.</li>
+  <li><code>basicMarquee</code> 는 시스템의 애니메이션 줄이기 설정을 따르지 않는다(<code>FixedMotionDurationScale</code>). 설정을 꺼도 흐른다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>
