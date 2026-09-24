@@ -330,9 +330,11 @@ private fun TerminalGroup(
             } else if (tab.program == TerminalProgram.File) {
                 key(tab.id) {
                     val content = tab.filePath?.let { viewModel.fileContent(it).collectAsStateWithLifecycle().value } ?: FileContent.Unreadable
+                    val diff = tab.filePath?.let { viewModel.fileDiff(it).collectAsStateWithLifecycle().value }
                     TerminalFileViewer(
                         tab = tab,
                         content = content,
+                        diff = diff,
                         onFocus = { viewModel.focusGroup(group.id) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )

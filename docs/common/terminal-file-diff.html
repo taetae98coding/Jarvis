@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>파일 탭에 git diff 표시 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>파일 탭에 git diff 표시</span></nav>
+
+<header>
+  <h1>파일 탭에 git diff 표시</h1>
+  <p class="lead">사이드 바의 "파일"·"Git" 구획에서 연 파일 탭이, 파일 내용 안에 HEAD 대비 바뀐 줄을 겹쳐 보인다. 더한 줄은 초록 바탕에 +, 지운 줄은 그 자리에 빨간 바탕의 − 줄로 끼워 넣고, 위에 "HEAD 대비 +n −m" 을 붙인다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>git이나 fileDirectory에서 파일 열어서 볼 때 diff도 보였으면 좋겠어.</p>
+  <footer>2026-09-25 대화.</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<dl class="meta">
+  <dt>파일 탭</dt><dd><a href="terminal-side-bar.html">사이드 바</a> R9·R17 로 여는 읽기 전용 탭(<code>TerminalProgram.File</code>). 지시의 "fileDirectory" 는 "파일" 구획, "git" 은 "Git" 구획이다</dd>
+  <dt>diff</dt><dd>파일의 HEAD 커밋 내용과 지금 디스크(작업 트리) 내용의 차이. stage 여부와 무관하게 커밋 뒤에 바뀐 것 전부다</dd>
+  <dt>더한 줄</dt><dd>지금 파일에 있고 HEAD 에 없는 줄. 바꾼 줄은 지운 줄 + 더한 줄이다</dd>
+  <dt>지운 줄</dt><dd>HEAD 에 있고 지금 파일에 없는 줄</dd>
+</dl>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>D1.</strong> 파일 탭의 파일이 git 작업 트리 안에 있고 HEAD 와 다르면, 파일 내용의 줄마다 더한 줄은 <code>successContainer</code> 바탕에 표시 칸 "+", 지운 줄은 원래 있던 자리(그 뒤에 오는 지금 파일의 줄 바로 앞)에 <code>errorContainer</code> 바탕에 표시 칸 "−" 로 끼워 보인다. 지운 줄은 줄 번호 칸이 비어 있고, 나머지 줄 번호는 지금 파일 기준 그대로다. 바뀌지 않은 줄은 표시 칸이 비어 있다.</li>
+  <li><strong>D2.</strong> 바뀐 줄이 하나라도 있으면 내용 위에 "HEAD 대비 +n −m" 이 붙는다. n 은 더한 줄 수, m 은 지운 줄 수다.</li>
+  <li><strong>D3.</strong> 추적하지 않는 파일(<code>.gitignore</code> 로 빠진 것 제외)은 모든 줄이 더한 줄이다. 커밋이 하나도 없는 저장소에서는 무시되지 않는 모든 파일이 그렇다.</li>
+  <li><strong>D4.</strong> HEAD 에 있고 디스크에서 지워진 파일은 "파일을 읽을 수 없습니다" 대신 HEAD 의 모든 줄을 지운 줄로 보이고 D2 의 요약을 붙인다.</li>
+  <li><strong>D5.</strong> 저장소 밖이거나, 무시된 파일이거나, HEAD 와 같거나, git 을 쓸 수 없는 플랫폼이면 파일 탭은 diff 이전(<a href="terminal-side-bar.html">사이드 바</a> R11)과 똑같다. 텍스트가 아닌 파일은 diff 가 있어도 R11 의 문구 그대로다.</li>
+  <li><strong>D6.</strong> diff 는 파일 탭이 보이는 동안만 읽고, 셸에서 파일을 고치거나 커밋하면 플랫폼 스펙의 간격 안에 따라간다. 파일 내용(R13)과 diff 는 따로 따라가므로 두 간격 사이에는 잠깐 어긋날 수 있다.</li>
+  <li><strong>D7.</strong> 파일이 <code>FileViewerMaxBytes</code> 보다 커서 앞부분만 보일 때는 보이는 줄 범위의 표시만 붙이고, 그 뒤의 지운 줄은 보이지 않는다. 요약(D2)은 파일 전체 기준이다.</li>
+  <li><strong>D8.</strong> 글자 고르기·복사(R11)는 줄 번호·표시 칸을 뺀 내용만 고른다. 지운 줄의 글자도 고를 수 있다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  diff 끄기·켜기 버튼, 좌우 나란히 보기, index(스테이지된 쪽)만 따로 보기, 다른 커밋·브랜치와 비교, 줄 단위 stage, 단어 단위 강조. 지시는 "diff 도 보였으면" 이라 내용 보기에 겹치는 한 가지로 둔다. 스테이지된 것만 보려면 셸에서 <code>git diff --cached</code> 한다.
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌ 파일 탭 ──────────────────────────────┐
+│ HEAD 대비 +2 −1                         │
+│    1   a                                │
+│      − b                  ← errorContainer
+│    2 + B                  ← successContainer
+│    3   c                                │
+│    4   d                                │
+│    5 + e                  ← successContainer
+└─────────────────────────────────────────┘</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>줄</td><td>줄 번호(<code>onSurfaceVariant</code>, 지운 줄은 빈칸) · 표시 칸 한 글자("+", "−", 빈칸) · 내용. 모두 <code>codeTextStyle</code></td></tr>
+    <tr><td>바탕</td><td>더한 줄 <code>JarvisTheme.colors.successContainer</code>, 지운 줄 <code>JarvisTheme.colorScheme.errorContainer</code>. 줄 전체 폭(보이는 영역 폭 이상)을 칠한다</td></tr>
+    <tr><td>요약</td><td>"HEAD 대비 +n −m", <code>labelMedium</code> <code>onSurfaceVariant</code>. 512 KiB 문구(R11)가 있으면 그 아래</td></tr>
+    <tr><td>테스트 태그</td><td><code>terminal:file-viewer:diff-summary</code>, <code>terminal:file-viewer:added:&lt;지금 줄 번호&gt;</code>, <code>terminal:file-viewer:removed:&lt;HEAD 줄 번호&gt;</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd>
+    <code>GitDiffHunk(oldStart, oldCount, newStart, newCount, removed)</code>, <code>GitFileDiff(hunks)</code>(<code>added</code>·<code>removed</code> 합계),
+    <code>GitChangesRepository.observeFileDiff(path): Flow&lt;GitFileDiff?&gt;</code>(null 은 저장소 밖·git 없음, 같거나 무시된 파일은 빈 <code>hunks</code>), 유스케이스 <code>ObserveGitFileDiffUseCase</code>.
+    줄 만들기는 순수 함수 <code>diffedLines(lines, diff): List&lt;DiffedLine&gt;</code>(<code>Current(number, text, added)</code> / <code>Removed(oldNumber, text)</code>) — 지금 파일의 줄에 더한 줄 표시를 붙이고, 덩어리마다 지운 줄을 끼운다. <code>newCount</code> 가 0 이면 지운 줄은 지금 파일의 <code>newStart</code> 번째 줄 뒤, 아니면 <code>newStart</code> 번째 줄 앞이다. 보이는 줄 범위 밖의 표시는 버린다(D7)</dd>
+  <dt>data</dt><dd>
+    <code>GitDataSource.observeFileDiff</code>. 해석은 공통 함수 <code>parseGitDiff</code>(<code>-U0</code> 출력의 <code>@@ -a,b +c,d @@</code> 머리와 <code>-</code> 줄). JVM 은 사이드 바 Git 구획과 같은 신호(폴링 + stage·unstage 신호)로 다시 읽는다</dd>
+  <dt>UI</dt><dd>
+     <code>TerminalFileViewer(tab, content, diff, onFocus)</code> 가 <code>diffedLines</code> 를 그린다. 지운 파일(D4)은 빈 줄 목록에 diff 를 겹친 것이다.
+    <code>TerminalViewModel.fileDiff(path)</code> 가 <code>fileContent(path)</code> 와 같이 경로마다 <code>stateIn(viewModelScope, WhileSubscribed(replayExpirationMillis = 0), null)</code> 로 내놓는다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 파일 내용 위에 <code>-U0</code> 덩어리를 겹친다.</strong>
+  <code>git diff -U&lt;아주 큰 수&gt;</code> 로 파일 전체를 diff 출력으로 받아 그것만 그리는 방법을 버렸다. 파일 탭의 내용 읽기(512 KiB 자르기, 바이너리 판정, 디스크 변경 따라가기)를 git 출력으로 한 번 더 만들어야 하고, git 이 없는 플랫폼에서는 내용 보기와 갈라진다. <code>-U0</code> 는 바뀐 줄만 오므로 출력이 작고, 더한 줄은 번호만 쓰면 되며 지운 줄의 글자만 받으면 된다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 비교 대상은 HEAD 다.</strong>
+  작업 트리 대 index(<code>git diff</code>)만 보이면 stage 한 순간 표시가 사라져, "Git" 구획의 "스테이지된 변경" 에서 연 파일에 아무것도 보이지 않는다. HEAD 대비면 어느 목록에서 열어도 커밋할 것 전체가 보인다. stage·unstage 가 표시를 바꾸지 않는 것도 같은 이유다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 한 화면에 겹쳐 보이고 끄는 버튼을 두지 않는다.</strong>
+  "내용 / Diff" 전환이나 좌우 보기는 탭마다 상태가 늘고, 바뀐 것이 없는 파일에서는 둘이 같다. 바뀌지 않은 파일은 표시가 없어 예전과 같으므로(D5) 겹쳐도 방해가 되지 않는다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>기기에 <code>git</code> 이 없다. diff 는 늘 null 이라 파일 탭은 예전과 같다(D5)</td><td><a href="../platform/android.html#terminal-file-diff">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-file-diff">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. <code>git diff --no-color --no-ext-diff -U0 HEAD -- &lt;파일&gt;</code>, 추적 안 함은 <code>git ls-files --others --exclude-standard</code> 로 가려 <code>git diff --no-index -U0 -- /dev/null &lt;파일&gt;</code></td><td><a href="../platform/jvm.html#terminal-file-diff">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-file-diff">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>GitStatusParserTest</code></td><td><code>parseGitDiff</code>: 수가 빠진 머리(<code>@@ -2 +2 @@</code>), 더하기만·지우기만인 덩어리, <code>\ No newline at end of file</code> 무시, 여러 덩어리, 빈 출력</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>GitDataSourceTest</code></td><td>D1, D3–D6. 임시 저장소에서 고친 파일·추적 안 함·지운 파일·커밋 없는 저장소·무시된 파일·저장소 밖·같은 파일의 diff</td><td>같음</td></tr>
+    <tr><td><code>DiffedLinesTest</code></td><td>D1, D4, D7. 바꾼 줄·끝에 더한 줄·맨 앞과 맨 끝에서 지운 줄의 자리, 지운 줄의 HEAD 줄 번호, 빈 줄 목록(지운 파일), 잘린 내용 밖의 표시 버림</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalSideBarTest</code></td><td>D1, D2, D4, D5. 파일 탭에 요약과 더한·지운 줄이 보이고, diff 가 없으면 요약이 없고, 지운 파일은 지운 줄로 보인다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 실제 화면의 색과 D6 의 간격. <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>파일 경로가 심볼릭 링크를 지나 저장소 밖을 가리키면 git 이 경로를 저장소 밖으로 보아 diff 가 없다(D5).</li>
+  <li>파일이 든 폴더째 지웠으면 남아 있는 가장 가까운 위 폴더에서 git 을 불러 D4 대로 보인다. 저장소 폴더까지 지웠으면 diff 가 없다.</li>
+  <li>이름 바꾼 파일은 새 경로의 diff 만 본다. <code>git diff</code> 는 경로를 하나 주면 이름 바꿈을 찾지 않아, stage 한 이름 바꿈도 추적하는 새 파일처럼 모든 줄이 더한 줄이 될 수 있다.</li>
+  <li>줄 끝(CRLF)·<code>core.autocrlf</code> 로 바뀐 줄은 글자가 같아 보여도 더한·지운 줄로 나온다.</li>
+  <li>UTF-8 이 아닌 파일은 지운 줄 글자가 깨진다(R11 과 같다).</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

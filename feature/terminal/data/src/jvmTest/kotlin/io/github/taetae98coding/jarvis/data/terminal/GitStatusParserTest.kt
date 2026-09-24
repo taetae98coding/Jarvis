@@ -3,6 +3,8 @@ package io.github.taetae98coding.jarvis.data.terminal
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
+import io.github.taetae98coding.jarvis.domain.terminal.GitDiffHunk
+import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -97,5 +99,43 @@ class GitStatusParserTest {
     @Test
     fun edgeOnlyLinesHaveNoCommit() {
         assertEquals(listOf(GitGraphLine("|\\")), parseGitGraph("|\\  \n"))
+    }
+
+    @Test
+    fun diffHunksReadCountsThatGitLeavesOut() {
+        val diff = parseGitDiff(
+            """
+            diff --git a/f.txt b/f.txt
+            index d68dd40..6fe8acc 100644
+            --- a/f.txt
+            +++ b/f.txt
+            @@ -2 +2 @@ a
+            -b
+            +B
+            @@ -4,0 +5,2 @@ d
+            +e
+            +f
+            @@ -9,2 +10,0 @@
+            --- 줄
+            -끝
+            \ No newline at end of file
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            GitFileDiff(
+                listOf(
+                    GitDiffHunk(oldStart = 2, oldCount = 1, newStart = 2, newCount = 1, removed = listOf("b")),
+                    GitDiffHunk(oldStart = 4, oldCount = 0, newStart = 5, newCount = 2, removed = emptyList()),
+                    GitDiffHunk(oldStart = 9, oldCount = 2, newStart = 10, newCount = 0, removed = listOf("-- 줄", "끝")),
+                ),
+            ),
+            diff,
+        )
+    }
+
+    @Test
+    fun emptyDiffHasNoHunks() {
+        assertEquals(GitFileDiff(emptyList()), parseGitDiff(""))
     }
 }

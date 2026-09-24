@@ -3,6 +3,7 @@ package io.github.taetae98coding.jarvis.data.terminal
 import io.github.taetae98coding.jarvis.data.state.observeByPolling
 import io.github.taetae98coding.jarvis.data.state.observeOnSignals
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
@@ -107,6 +108,9 @@ internal class ProcessGitDataSource(
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> =
         observeOnSignals(changeSignals()) { readGraph(directory) }.flowOn(Dispatchers.IO)
 
+    override fun observeFileDiff(path: String): Flow<GitFileDiff?> =
+        observeOnSignals(changeSignals()) { readFileDiff(path) }.flowOn(Dispatchers.IO)
+
     override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> =
         withContext(Dispatchers.IO) {
             val paths = changes.map { it.path }.distinct()
@@ -155,6 +159,32 @@ internal class ProcessGitDataSource(
         if (result.exitCode != 0) return emptyList()
 
         return parseGitGraph(result.output)
+    }
+
+    // 경로를 있는 가장 가까운 폴더 기준으로 주면 최상위를 따로 읽지 않는다. 폴더째 지운 파일도 그 위 폴더에서 읽는다
+    // (docs/platform/jvm.html#terminal-file-diff).
+    private suspend fun readFileDiff(path: String): GitFileDiff? {
+        val file = File(expandHome(path, home)).absoluteFile
+        val folder = generateSequence(file.parentFile) { it.parentFile }.firstOrNull { it.isDirectory } ?: return null
+        if (!hasGitAncestor(folder)) return null
+        val name = file.relativeTo(folder).path
+
+        val hasHead = run(git(folder, "rev-parse", "--verify", "--quiet", "HEAD")).exitCode == 0
+        if (hasHead) {
+            val tracked = run(git(folder, "--no-optional-locks", "diff", "--no-color", "--no-ext-diff", "-U0", "HEAD", "--", name))
+            if (tracked.exitCode != 0) return null
+            if (tracked.output.isNotBlank()) return parseGitDiff(tracked.output)
+        }
+
+        // HEAD 에 없는 파일. 커밋이 없는 저장소면 index 에 넣은 파일도 새 파일이다(docs/common/terminal-file-diff.html D3).
+        val scope = if (hasHead) listOf("--others") else listOf("--cached", "--others")
+        val listed = run(git(folder, "ls-files", *scope.toTypedArray(), "--exclude-standard", "--", name))
+        if (listed.exitCode != 0) return null
+        if (listed.output.isBlank() || !file.isFile) return GitFileDiff(emptyList())
+
+        // --no-index 는 차이가 있으면 1 로 끝난다.
+        val untracked = run(git(folder, "diff", "--no-index", "--no-color", "--no-ext-diff", "-U0", "--", "/dev/null", name))
+        return if (untracked.exitCode in 0..1) parseGitDiff(untracked.output) else null
     }
 
     private suspend fun readRoot(directory: String): String? {

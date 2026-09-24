@@ -66,6 +66,12 @@ interface GitChangesRepository {
     /** [directory] 를 담은 저장소의 커밋 그래프. 저장소 밖이거나 커밋이 없으면 빈 목록이다. cold. */
     fun observeGraph(directory: String): Flow<List<GitGraphLine>>
 
+    /**
+     * [path] 파일의 HEAD 대비 차이. 추적하지 않는 파일은 모든 줄을 더한 것이고, 같거나 무시된 파일은 빈 diff 다. 저장소
+     * 밖이거나 git 을 쓸 수 없으면 null 이다. cold.
+     */
+    fun observeFileDiff(path: String): Flow<GitFileDiff?>
+
     /** [root] 저장소에서 [changes] 를 stage 한다. 실패는 [GitWorktreeException] 이다. */
     suspend fun stage(root: String, changes: List<GitChange>): Result<Unit>
 
@@ -83,6 +89,12 @@ class ObserveGitGraphUseCase(
     private val repository: GitChangesRepository,
 ) {
     operator fun invoke(directory: String): Flow<List<GitGraphLine>> = repository.observeGraph(directory)
+}
+
+class ObserveGitFileDiffUseCase(
+    private val repository: GitChangesRepository,
+) {
+    operator fun invoke(path: String): Flow<GitFileDiff?> = repository.observeFileDiff(path)
 }
 
 class StageGitChangesUseCase(

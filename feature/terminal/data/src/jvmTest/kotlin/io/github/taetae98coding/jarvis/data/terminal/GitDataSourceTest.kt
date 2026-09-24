@@ -2,6 +2,8 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
+import io.github.taetae98coding.jarvis.domain.terminal.GitDiffHunk
+import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import kotlinx.coroutines.flow.first
@@ -353,6 +355,72 @@ class GitDataSourceTest {
         assertNull(source.observeStatus(outside.path).first())
         assertEquals(emptyList(), source.observeGraph(outside.path).first())
         assertEquals(emptyList(), source.observeGraph(unborn.path).first())
+    }
+
+    @Test
+    fun fileDiffIsAgainstHeadIncludingStagedChanges() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val file = File(repository, "src/f.txt").apply { parentFile.mkdirs() }
+        file.writeText("a\nb\nc\nd\n")
+        git(repository, "add", ".")
+        commit(repository, "f")
+        assertEquals(GitFileDiff(emptyList()), source.observeFileDiff(file.path).first())
+
+        file.writeText("a\nB\nc\nd\ne\n")
+        git(repository, "add", ".")
+
+        assertEquals(
+            GitFileDiff(
+                listOf(
+                    GitDiffHunk(oldStart = 2, oldCount = 1, newStart = 2, newCount = 1, removed = listOf("b")),
+                    GitDiffHunk(oldStart = 4, oldCount = 0, newStart = 5, newCount = 1, removed = emptyList()),
+                ),
+            ),
+            source.observeFileDiff(file.path).first(),
+        )
+    }
+
+    @Test
+    fun deletedFilesAreAllRemovedLinesEvenWhenTheirFolderIsGone() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val file = File(repository, "gone/f.txt").apply { parentFile.mkdirs() }
+        file.writeText("a\nb\n")
+        git(repository, "add", ".")
+        commit(repository, "f")
+        file.parentFile.deleteRecursively()
+
+        assertEquals(
+            GitFileDiff(listOf(GitDiffHunk(oldStart = 1, oldCount = 2, newStart = 0, newCount = 0, removed = listOf("a", "b")))),
+            source.observeFileDiff(file.path).first(),
+        )
+    }
+
+    @Test
+    fun untrackedFilesAndFilesBeforeTheFirstCommitAreAllAddedLines() = runTest {
+        if (!gitAvailable) return@runTest
+        val allAdded = GitFileDiff(listOf(GitDiffHunk(oldStart = 0, oldCount = 0, newStart = 1, newCount = 2, removed = emptyList())))
+        val repository = newRepository()
+        val untracked = File(repository, "new.txt").apply { writeText("a\nb\n") }
+        val unborn = newDirectory().also { git(it, "init", "-q", "-b", "main") }
+        val staged = File(unborn, "staged.txt").apply { writeText("a\nb\n") }
+        git(unborn, "add", "staged.txt")
+
+        assertEquals(allAdded, source.observeFileDiff(untracked.path).first())
+        assertEquals(allAdded, source.observeFileDiff(staged.path).first())
+    }
+
+    @Test
+    fun ignoredFilesHaveNoDiffAndFilesOutsideARepositoryAreNull() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        File(repository, ".gitignore").writeText("*.log\n")
+        val ignored = File(repository, "app.log").apply { writeText("x\n") }
+        val outside = File(newDirectory(), "f.txt").apply { writeText("x\n") }
+
+        assertEquals(GitFileDiff(emptyList()), source.observeFileDiff(ignored.path).first())
+        assertNull(source.observeFileDiff(outside.path).first())
     }
 
     @Test

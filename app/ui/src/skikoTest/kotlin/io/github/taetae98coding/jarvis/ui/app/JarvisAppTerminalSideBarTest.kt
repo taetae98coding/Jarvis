@@ -15,10 +15,13 @@ import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
+import io.github.taetae98coding.jarvis.domain.terminal.GitDiffHunk
+import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerDiffSummaryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerNoticeTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFilesRootTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitBranchTestTag
@@ -35,6 +38,8 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarToggleTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileEntryTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerAddedTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerRemovedTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalGitCommitTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalGitStageTestTag
@@ -292,6 +297,52 @@ class JarvisAppTerminalSideBarTest {
 
         onNodeWithTag(terminalFileEntryTestTag(main.path)).performClick()
         waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("파일을 읽을 수 없습니다").fetchSemanticsNodes().size == 1 }
+    }
+
+    // docs/common/terminal-file-diff.html D1, D2, D4, D5, D6
+    @Test
+    fun fileTabsOverlayTheDiffAgainstHead() = runComposeUiTest {
+        val git = git()
+        git.diffs.value = mapOf(
+            // "a b c d" → "a B c d e"
+            readme.path to GitFileDiff(
+                listOf(
+                    GitDiffHunk(oldStart = 2, oldCount = 1, newStart = 2, newCount = 1, removed = listOf("b")),
+                    GitDiffHunk(oldStart = 4, oldCount = 0, newStart = 5, newCount = 1, removed = emptyList()),
+                ),
+            ),
+            main.path to GitFileDiff(listOf(GitDiffHunk(oldStart = 1, oldCount = 2, newStart = 0, newCount = 0, removed = listOf("fun main()", "}")))),
+        )
+        openTerminal(files = files(readme.path to FileContent.Text("a\nB\nc\nd\ne", truncated = false)), git = git)
+        awaitTag(terminalFileEntryTestTag(readme.path))
+
+        onNodeWithTag(terminalFileEntryTestTag(readme.path)).performClick()
+        awaitTag(TerminalFileViewerDiffSummaryTestTag)
+        onNodeWithTag(TerminalFileViewerDiffSummaryTestTag).assertTextEquals("HEAD 대비 +2 −1")
+        onNodeWithTag(terminalFileViewerAddedTestTag(2)).assertIsDisplayed()
+        onNodeWithTag(terminalFileViewerAddedTestTag(5)).assertIsDisplayed()
+        onNodeWithTag(terminalFileViewerRemovedTestTag(2)).assertIsDisplayed()
+        onNodeWithText("b").assertIsDisplayed()
+        assertEquals(0, count(terminalFileViewerAddedTestTag(1)))
+        assertTrue(
+            onNodeWithTag(terminalFileViewerRemovedTestTag(2)).fetchSemanticsNode().boundsInRoot.top <
+                onNodeWithTag(terminalFileViewerAddedTestTag(2)).fetchSemanticsNode().boundsInRoot.top,
+        )
+
+        // 커밋해 HEAD 와 같아지면 표시가 사라진다.
+        git.diffs.value = git.diffs.value + (readme.path to GitFileDiff(emptyList()))
+        awaitTag(TerminalFileViewerDiffSummaryTestTag, count = 0)
+        assertEquals(0, count(terminalFileViewerAddedTestTag(2)))
+        assertEquals(0, onAllNodesWithText("b").fetchSemanticsNodes().size)
+
+        // 디스크에서 지운 파일은 HEAD 의 줄이 모두 지운 줄이다.
+        onNodeWithTag(terminalFileEntryTestTag(src.path)).performClick()
+        awaitTag(terminalFileEntryTestTag(main.path))
+        onNodeWithTag(terminalFileEntryTestTag(main.path)).performClick()
+        awaitTag(terminalFileViewerRemovedTestTag(1))
+        onNodeWithTag(TerminalFileViewerDiffSummaryTestTag).assertTextEquals("HEAD 대비 +0 −2")
+        onNodeWithText("fun main()").assertIsDisplayed()
+        assertEquals(0, onAllNodesWithText("파일을 읽을 수 없습니다").fetchSemanticsNodes().size)
     }
 
     @Test
