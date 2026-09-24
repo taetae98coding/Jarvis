@@ -247,7 +247,7 @@
     <tr><td><code>View.keepScreenOn</code> / 윈도우 <code>FLAG_KEEP_SCREEN_ON</code></td><td>권한 불필요. 윈도우가 보이는 동안만 유효하다. 정식 권장 경로</td></tr>
     <tr><td><code>PowerManager.SCREEN_BRIGHT_WAKE_LOCK</code></td><td>API 17에서 deprecated된 뒤 실제로 화면을 켜 두지 못한다. <code>WAKE_LOCK</code> 권한도 필요하다</td></tr>
     <tr><td>foreground service + wake lock</td><td>CPU는 깨워 두지만 화면은 켜 두지 못한다. 앱 권한으로 백그라운드 화면을 유지하는 길은 없고, 시스템 설정을 바꾸는 <a href="#system-keep-screen-awake">별도 기능</a>으로 돌아갔다</td></tr>
-    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td>CMP 1.12.0 Android 구현은 <code>AndroidComposeView</code>가 요청 수를 세어 <code>View.setKeepScreenOn(count &gt; 0)</code>을 부른다. 첫 후보를 그대로 쓴다</td></tr>
+    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td>CMP 1.12.1 Android 구현은 <code>AndroidComposeView</code>가 요청 수를 세어 <code>View.setKeepScreenOn(count &gt; 0)</code>을 부른다. 첫 후보를 그대로 쓴다</td></tr>
   </tbody>
 </table>
 

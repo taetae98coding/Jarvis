@@ -3,7 +3,7 @@ appVersion = "1.0.0"
 
 kotlin = "2.4.20"
 agp = "9.4.1"
-composeMultiplatform = "1.12.0"
+composeMultiplatform = "1.12.1"
 # Compose Multiplatform material3 ships on its own version line
 composeMaterial3 = "1.9.0"
 
@@ -15,14 +15,16 @@ androidx-activityCompose = "1.13.0"
 
 koin = "4.2.2"
 
-# Compose Multiplatform 1.12.0 이 쓰는 androidx.compose.runtime 과 같은 버전 줄이어야 한다.
-composeRuntimeRetain = "1.12.0"
+# Compose Multiplatform 1.12.1 이 쓰는 androidx.compose.runtime 과 같은 버전 줄이어야 한다.
+composeRuntimeRetain = "1.12.1"
 
 androidx-lifecycle = "2.11.0"
-androidx-navigation3 = "1.1.1"
+# JetBrains 의 navigation3-ui 1.1.2 가 끌고 오는 androidx 런타임 버전에 맞춘다. 두 버전 줄은 번호가 다르다.
+androidx-navigation3 = "1.1.7"
+jetbrains-navigation3 = "1.1.2"
 
 kotlinx-browser = "0.5.0"
-kotlinx-coroutines = "1.10.2"
+kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
 
 [libraries]
@@ -36,7 +38,7 @@ koin-compose-navigation3 = { module = "io.insert-koin:koin-compose-navigation3",
 # ViewModel 과 Navigation3 는 JetBrains 가 skiko 타깃까지 퍼블리시하는 쪽을 쓴다.
 androidx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
 androidx-lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "androidx-lifecycle" }
-androidx-navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "androidx-navigation3" }
+androidx-navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "jetbrains-navigation3" }
 # 런타임은 androidx 가 직접 KMP 로 퍼블리시한다. JetBrains 쪽에는 -ui 만 있다.
 androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "androidx-navigation3" }
 

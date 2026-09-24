@@ -101,7 +101,7 @@ internal sealed interface EmulatorRoute : NavKey {
 
 <blockquote>
   <p>You must pass a <code>SavedStateConfiguration.serializersModule</code> configured to handle <code>NavKey</code> open polymorphism. Define it with: <code>polymorphic(NavKey::class) { ... }</code></p>
-  <footer><code>androidx.navigation3:navigation3-runtime</code> 1.1.1 의 <code>rememberNavBackStack</code>.</footer>
+  <footer><code>androidx.navigation3:navigation3-runtime</code> 1.1.7 의 <code>rememberNavBackStack</code>.</footer>
 </blockquote>
 
 <p>등록 목록을 앱 셸에 두면 화면을 더할 때마다 셸을 고쳐야 한다. 그래서 <code>:core:ui</code> 가 <code>NavKeySerializers</code> 를 정의하고, 기능이 자기 라우트를 Koin 에 등록하고, 셸이 <code>getAll</code> 로 모은다(<a href="module-architecture.html#decision-navkeys">모듈 구조의 결정</a>).</p>
@@ -173,14 +173,14 @@ navigation&lt;EmulatorRoute.Screen&gt; { route -&gt;
 <h3 id="deps">의존성</h3>
 
 <dl class="meta">
-  <dt>런타임</dt><dd><code>androidx.navigation3:navigation3-runtime</code> 1.1.1 — <code>NavKey</code>, <code>NavBackStack</code>, <code>rememberNavBackStack</code>, <code>entryProvider</code>. androidx 가 직접 퍼블리시하는 KMP 아티팩트다(android/desktop/ios/wasm-js)</dd>
-  <dt>화면</dt><dd><code>org.jetbrains.androidx.navigation3:navigation3-ui</code> 1.1.1 — <code>NavDisplay</code>, Scene 전략. JetBrains 가 skiko 타깃까지 퍼블리시하는 쪽이고, 같은 버전의 androidx 런타임을 끌고 온다</dd>
+  <dt>런타임</dt><dd><code>androidx.navigation3:navigation3-runtime</code> 1.1.7 — <code>NavKey</code>, <code>NavBackStack</code>, <code>rememberNavBackStack</code>, <code>entryProvider</code>. androidx 가 직접 퍼블리시하는 KMP 아티팩트다(android/desktop/ios/wasm-js)</dd>
+  <dt>화면</dt><dd><code>org.jetbrains.androidx.navigation3:navigation3-ui</code> 1.1.2 — <code>NavDisplay</code>, Scene 전략. JetBrains 가 skiko 타깃까지 퍼블리시하는 쪽이다. 버전 번호가 androidx 와 다른 줄이라, 런타임은 이 버전이 끌고 오는 1.1.7 에 맞춘다. androidx 1.2.0 은 짝이 되는 JetBrains 안정판이 아직 없어서 쓰지 않는다</dd>
   <dt>Koin 연동</dt><dd><code>io.insert-koin:koin-compose-navigation3</code> 4.2.2 — <code>navigation&lt;T&gt;</code>, <code>koinEntryProvider()</code></dd>
 </dl>
 
 <aside class="note">
   <strong>버전 조합</strong>
-  <code>koin-compose-navigation3</code> 4.2.2 의 POM 은 <code>navigation3-runtime</code> 1.0.1 을 가리킨다. 1.1.1 로 올려도 Koin 이 부르는 <code>EntryProviderScope.addEntryProvider(KClass, …)</code> 시그니처가 그대로라 바이너리 호환이다. 이 조합이 깨지면 증상은 <code>NoSuchMethodError</code>이고, 그때는 Koin 의 DSL 대신 <code>entryProvider { entry&lt;…&gt; { } }</code>를 <code>JarvisApp()</code>에 직접 쓰면 된다.
+  <code>koin-compose-navigation3</code> 4.2.2 의 POM 은 <code>navigation3-runtime</code> 1.0.1 을 가리킨다. 1.1.7 로 올려도 Koin 이 부르는 <code>EntryProviderScope.addEntryProvider(KClass, …)</code> 시그니처가 그대로라 바이너리 호환이다. 이 조합이 깨지면 증상은 <code>NoSuchMethodError</code>이고, 그때는 Koin 의 DSL 대신 <code>entryProvider { entry&lt;…&gt; { } }</code>를 <code>JarvisApp()</code>에 직접 쓰면 된다.
 </aside>
 
 <h2 id="platforms">플랫폼별 판정</h2>

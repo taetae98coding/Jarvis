@@ -9,11 +9,11 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 |---|---|
 | Kotlin | 2.4.20 |
 | Android Gradle Plugin | 9.4.1 |
-| Compose Multiplatform | 1.12.0 (material3만 별도 라인인 1.9.0) |
+| Compose Multiplatform | 1.12.1 (material3만 별도 라인인 1.9.0) |
 | Koin | 4.2.2 (`koin-compose`, `koin-compose-viewmodel`, `koin-compose-navigation3`) |
 | Lifecycle (ViewModel) | 2.11.0 (`org.jetbrains.androidx.lifecycle`) |
-| Navigation3 | 1.1.1 (`navigation3-ui`는 JetBrains, `navigation3-runtime`은 androidx) |
-| `compose-runtime-retain` | 1.12.0 (`retain` 은 `runtime` 과 다른 아티팩트다) |
+| Navigation3 | `navigation3-ui` 1.1.2 (JetBrains), `navigation3-runtime` 1.1.7 (androidx) |
+| `compose-runtime-retain` | 1.12.1 (`retain` 은 `runtime` 과 다른 아티팩트다) |
 | Gradle | 9.7.1 |
 | compileSdk / targetSdk / minSdk | 37 / 37 / 24 |
 | JVM toolchain | 21 |

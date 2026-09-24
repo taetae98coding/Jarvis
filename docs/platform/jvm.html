@@ -234,7 +234,7 @@
 <table>
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
-    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td><strong>JVM에서는 no-op.</strong> CMP 1.12.0의 <code>PlatformContext.setKeepScreenOnEnabled</code>는 본문이 <code>return</code> 하나인 빈 기본 구현이고, Swing/AWT 씬 중 이를 오버라이드하는 것이 없다</td></tr>
+    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td><strong>JVM에서는 no-op.</strong> CMP 1.12.1의 <code>PlatformContext.setKeepScreenOnEnabled</code>는 본문이 <code>return</code> 하나인 빈 기본 구현이고, Swing/AWT 씬 중 이를 오버라이드하는 것이 없다</td></tr>
     <tr><td>JVM 표준 API</td><td>유휴 타이머를 막는 이식 가능한 API가 없다. <code>java.awt.Robot</code>으로 입력을 흉내 내는 방법은 사용자 입력을 방해해 제외</td></tr>
     <tr><td>macOS <code>caffeinate</code></td><td>시스템 기본 탑재. <code>-d</code>는 디스플레이 슬립, <code>-i</code>는 시스템 유휴 슬립을 막는다. 프로세스가 살아 있는 동안만 유효하다</td></tr>
     <tr><td>macOS <code>IOPMAssertionCreateWithName</code></td><td>정식 API지만 JNA/Panama 바인딩이 필요하다. 의존성 추가 없이 되는 <code>caffeinate</code>를 택했다</td></tr>

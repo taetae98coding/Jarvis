@@ -85,7 +85,7 @@
 
 <p>R3을 위해 <code>App()</code>의 루트 <code>Surface</code>에 붙인다. 화면 전환은 그 아래에서 일어난다.</p>
 
-<p>예외는 데스크톱이다. Compose Multiplatform 1.12.0의 <code>PlatformContext.setKeepScreenOnEnabled</code>는 본문이 빈 기본 구현이고 이를 오버라이드하는 Swing/AWT 구현이 없어서, JVM에서는 modifier가 아무 일도 하지 않는다. 그래서 <code>data</code>에 <code>IdleInhibitor</code>를 나란히 두고 JVM actual만 실제 동작을 갖는다. 나머지 세 타깃은 <code>NoIdleInhibitor</code>다. CMP가 데스크톱 경로를 구현하면 <code>createIdleInhibitor()</code>와 <code>ApplyKeepScreenAwakeUseCase</code>는 통째로 걷어낸다.</p>
+<p>예외는 데스크톱이다. Compose Multiplatform 1.12.1의 <code>PlatformContext.setKeepScreenOnEnabled</code>는 본문이 빈 기본 구현이고 이를 오버라이드하는 Swing/AWT 구현이 없어서, JVM에서는 modifier가 아무 일도 하지 않는다. 그래서 <code>data</code>에 <code>IdleInhibitor</code>를 나란히 두고 JVM actual만 실제 동작을 갖는다. 나머지 세 타깃은 <code>NoIdleInhibitor</code>다. CMP가 데스크톱 경로를 구현하면 <code>createIdleInhibitor()</code>와 <code>ApplyKeepScreenAwakeUseCase</code>는 통째로 걷어낸다.</p>
 
 <pre><code>// :domain — 언제 거는지
 class ApplyKeepScreenAwakeUseCase(settings, screenAwake) {

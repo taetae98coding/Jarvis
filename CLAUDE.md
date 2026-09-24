@@ -57,7 +57,7 @@ override fun getBoolean(key: String, defaultValue: Boolean): Boolean =
 외부 제약이 코드 형태를 결정했고 그 이유가 코드에 드러나지 않을 때:
 
 ```kotlin
-// Modifier.keepScreenOn() 의 데스크탑 경로만 비어 있다. Compose Multiplatform 1.12.0 의
+// Modifier.keepScreenOn() 의 데스크탑 경로만 비어 있다. Compose Multiplatform 1.12.1 의
 // PlatformContext.setKeepScreenOnEnabled 는 본문이 빈 기본 구현이고 이를 오버라이드하는 Swing/AWT
 // 구현이 없어서, JVM 에서는 modifier 가 아무 일도 하지 않는다.
 @Composable

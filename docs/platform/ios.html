@@ -250,7 +250,7 @@
   <tbody>
     <tr><td><code>UIApplication.sharedApplication.idleTimerDisabled</code></td><td>유일한 정식 API. 프로세스 전역 boolean이고, 앱이 foreground일 때만 시스템이 존중한다. 권한도 Info.plist 항목도 필요 없다</td></tr>
     <tr><td>백그라운드에서 화면 유지</td><td>해당 API 자체가 없다. 백그라운드 모드(오디오, 위치 등)도 화면을 켜 두지는 않는다</td></tr>
-    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td>CMP 1.12.0 iOS 구현은 <code>UIKitIdleTimerManager</code>가 요청자를 집합으로 들고 있다가 비어 있는지에 따라 <code>idleTimerDisabled</code>를 토글한다</td></tr>
+    <tr><td>Compose <code>Modifier.keepScreenOn()</code></td><td>CMP 1.12.1 iOS 구현은 <code>UIKitIdleTimerManager</code>가 요청자를 집합으로 들고 있다가 비어 있는지에 따라 <code>idleTimerDisabled</code>를 토글한다</td></tr>
   </tbody>
 </table>
 
