@@ -328,6 +328,88 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    fun worktreePanelGoesRightAfterItsParentAndItsSiblingsAndIsSelected() {
+        val workspace = TerminalWorkspace.initial().addPanel(name = "Jarvis", directory = "/work/jarvis").addPanel(name = "API")
+        val (first, parent, api) = workspace.panels
+
+        val one = workspace.addWorktreePanel(parent.id, name = "feature/login", directory = "/work/jarvis-worktrees/feature/login")
+        val two = one.addWorktreePanel(parent.id, name = "fix", directory = "/work/jarvis-worktrees/fix")
+
+        val (login, fix) = two.children(parent.id)
+        assertEquals(listOf(first.id, parent.id, login.id, fix.id, api.id), two.panels.map { it.id })
+        assertEquals(listOf(first, parent, api).map { it.id }, two.topLevelPanels.map { it.id })
+        assertEquals(fix.id, two.selectedPanelId)
+        assertEquals(parent.id, fix.parentId)
+        assertEquals("fix", fix.name)
+        assertEquals("/work/jarvis-worktrees/fix", fix.directory)
+        assertEquals("/work/jarvis-worktrees/fix", two.focusedTab!!.directory)
+        assertEquals(1, fix.tabs.size)
+    }
+
+    @Test
+    fun worktreePanelMadeFromAWorktreePanelIsASiblingUnderTheSameParent() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis")
+        val parent = workspace.panels.last()
+        val withChild = workspace.addWorktreePanel(parent.id, name = "a", directory = "/work/a")
+        val child = withChild.selectedPanel!!
+
+        val withSibling = withChild.addWorktreePanel(child.id, name = "b", directory = "/work/b")
+
+        assertEquals(listOf("a", "b"), withSibling.children(parent.id).map { it.name })
+        assertEquals(parent.id, withSibling.selectedPanel!!.parentId)
+        assertEquals(emptyList(), withSibling.children(child.id))
+    }
+
+    @Test
+    fun worktreePanelForAnUnknownParentChangesNothing() {
+        val workspace = TerminalWorkspace.initial()
+
+        assertEquals(workspace, workspace.addWorktreePanel(999, name = "a", directory = "/work/a"))
+    }
+
+    @Test
+    fun closingAParentClosesItsWorktreePanelsToo() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis")
+        val parent = workspace.panels.last()
+        val withChildren = workspace
+            .addWorktreePanel(parent.id, name = "a", directory = "/work/a")
+            .addWorktreePanel(parent.id, name = "b", directory = "/work/b")
+            .addPanel(name = "after")
+        val children = withChildren.children(parent.id)
+        val selectedChild = withChildren.selectPanel(children.first().id)
+
+        val closed = selectedChild.closePanel(parent.id)
+
+        assertEquals(listOf(workspace.panels.first().id, withChildren.panels.last().id), closed.panels.map { it.id })
+        assertEquals(withChildren.panels.last().id, closed.selectedPanelId)
+        assertTrue(children.flatMap { it.tabs }.none { it.id in closed.tabIds })
+        assertTrue(parent.tabs.none { it.id in closed.tabIds })
+    }
+
+    @Test
+    fun closingAWorktreePanelKeepsItsParent() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis")
+        val parent = workspace.panels.last()
+        val withChild = workspace.addWorktreePanel(parent.id, name = "a", directory = "/work/a")
+        val child = withChild.selectedPanel!!
+
+        val closed = withChild.closePanel(child.id)
+
+        assertEquals(workspace.panels.map { it.id }, closed.panels.map { it.id })
+        assertEquals(parent.id, closed.selectedPanelId)
+    }
+
+    @Test
+    fun theLastFamilyIsNotClosed() {
+        val workspace = TerminalWorkspace.initial()
+        val parent = workspace.panels.single()
+        val withChild = workspace.addWorktreePanel(parent.id, name = "a", directory = "/work/a")
+
+        assertEquals(withChild, withChild.closePanel(parent.id))
+        assertEquals(1, withChild.closePanel(withChild.selectedPanelId!!).panels.size)
+    }
+
+    @Test
     fun closingTheSelectedPanelSelectsTheNextOne() {
         val workspace = TerminalWorkspace.initial().addPanel().addPanel()
         val (first, middle, last) = workspace.panels

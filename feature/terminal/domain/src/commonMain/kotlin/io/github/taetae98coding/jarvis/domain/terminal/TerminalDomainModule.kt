@@ -13,4 +13,6 @@ val terminalDomainModule = module {
     factoryOf(::OpenTerminalSessionUseCase)
     factoryOf(::ObserveTerminalWorkspaceUseCase)
     factoryOf(::UpdateTerminalWorkspaceUseCase)
+    factoryOf(::ObserveGitWorktreeUseCase)
+    factoryOf(::AddWorktreePanelUseCase)
 }

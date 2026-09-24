@@ -88,6 +88,7 @@ internal fun TerminalScreen(
     modifier: Modifier = Modifier,
 ) {
     val workspace by viewModel.workspace.collectAsStateWithLifecycle()
+    val worktrees by viewModel.worktrees.collectAsStateWithLifecycle()
     val drag = remember { TerminalTabDragState() }
     // 기기 기능이 빠진 조립에서는 없다. 그때는 메뉴에 기기 구획이 없다. getKoin() 은 처음 본 Koin 을 붙잡아 두어
     // Koin 을 다시 세우면(테스트) 닫힌 것을 돌려주므로, 닫히면 다시 찾는 currentKoinScope() 로 받는다.
@@ -119,10 +120,12 @@ internal fun TerminalScreen(
                     selectedPanelId = current.selectedPanelId,
                     nextPanelName = current.nextPanelName,
                     canOpenClaude = viewModel.isClaudeSupported,
+                    worktrees = worktrees,
                     onSelect = viewModel::selectPanel,
                     onRename = viewModel::renamePanel,
                     onClose = viewModel::closePanel,
                     onAdd = viewModel::addPanel,
+                    onAddWorktree = viewModel::addWorktreePanel,
                 )
 
                 val panel = current.selectedPanel
