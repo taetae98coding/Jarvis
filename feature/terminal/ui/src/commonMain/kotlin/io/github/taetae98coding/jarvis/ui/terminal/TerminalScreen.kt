@@ -250,10 +250,13 @@ private fun TerminalGroup(
                     TerminalBrowser(
                         tab = tab,
                         isSupported = viewModel.isBrowserSupported,
+                        isChromeImportSupported = viewModel.isChromeImportSupported,
                         pageHidden = drag.coversPages,
                         onUrl = { viewModel.setUrl(tab.id, it) },
                         onTitle = { viewModel.setBrowserTitle(tab.id, it) },
                         onFocus = { viewModel.focusGroup(group.id) },
+                        chromeProfiles = { viewModel.chromeProfiles() },
+                        importCookies = { viewModel.importCookies(it) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 }

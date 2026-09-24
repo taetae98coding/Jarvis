@@ -4,6 +4,8 @@ import com.pty4j.PtyProcess
 import com.pty4j.PtyProcessBuilder
 import com.pty4j.WinSize
 import io.github.taetae98coding.jarvis.data.PlatformContext
+import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
+import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
@@ -53,6 +55,14 @@ internal class PtyTerminalDataSource(
 
     // 데스크탑은 macOS 만 지원한다. 다른 OS 에서는 웹뷰 네이티브를 불러 보지도 않고 메뉴 항목을 뺀다.
     override val isBrowserSupported: Boolean = System.getProperty("os.name").orEmpty().startsWith("Mac")
+
+    // macOS 이고 Chrome 이 깔려 있을 때만. 읽기·복호화는 ChromeCookieReader 가 한다.
+    override val isChromeImportSupported: Boolean = ChromeCookieReader.isSupported
+
+    override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = ChromeCookieReader.observeProfiles()
+
+    override suspend fun importChromeCookies(profileDirectory: String): List<BrowserCookie> =
+        ChromeCookieReader.importCookies(profileDirectory)
 
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? =
         withContext(Dispatchers.IO) {

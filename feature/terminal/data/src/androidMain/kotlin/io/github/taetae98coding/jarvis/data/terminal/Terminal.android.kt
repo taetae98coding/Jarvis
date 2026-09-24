@@ -1,6 +1,8 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.data.PlatformContext
+import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
+import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
@@ -9,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -29,6 +32,9 @@ private class PipeTerminalDataSource(
 
     override val isBrowserSupported: Boolean = true
 
+    // PC 에 로그인된 Chrome 의 데이터·키체인에 접근할 수 없다(다른 기기·다른 앱 샌드박스).
+    override val isChromeImportSupported: Boolean = false
+
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? {
         if (tab.program != TerminalProgram.Shell) return null
 
@@ -36,6 +42,10 @@ private class PipeTerminalDataSource(
     }
 
     override suspend fun stopClaude(sessionId: String) = Unit
+
+    override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = flowOf(emptyList())
+
+    override suspend fun importChromeCookies(profileDirectory: String): List<BrowserCookie> = emptyList()
 
     private suspend fun openShell(directory: File): TerminalSession? =
         withContext(Dispatchers.IO) {

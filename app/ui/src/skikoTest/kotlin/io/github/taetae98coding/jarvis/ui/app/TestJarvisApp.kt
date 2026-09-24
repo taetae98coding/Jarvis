@@ -25,6 +25,8 @@ import io.github.taetae98coding.jarvis.domain.rotation.rotationDomainModule
 import io.github.taetae98coding.jarvis.domain.screen.screenDomainModule
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
+import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
+import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
@@ -44,6 +46,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOf
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
@@ -245,6 +248,8 @@ internal class FakeTerminalRepository(
     override val isClaudeSupported: Boolean = true,
     // 켜면 브라우저 탭이 네이티브 웹뷰를 띄우려 한다. 테스트 화면에는 붙지 않으니 메뉴를 보는 테스트만 켠다.
     override val isBrowserSupported: Boolean = false,
+    override val isChromeImportSupported: Boolean = false,
+    private val chromeProfiles: List<ChromeProfile> = emptyList(),
 ) : TerminalRepository {
     val sessions = mutableListOf<FakeTerminalSession>()
 
@@ -256,6 +261,10 @@ internal class FakeTerminalRepository(
     override suspend fun stopClaude(sessionId: String) {
         stoppedClaudeSessions += sessionId
     }
+
+    override fun observeChromeProfiles(): Flow<List<ChromeProfile>> = flowOf(chromeProfiles)
+
+    override suspend fun importChromeCookies(profileDirectory: String): List<BrowserCookie> = emptyList()
 }
 
 /**
