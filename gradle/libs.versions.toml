@@ -41,6 +41,10 @@ bytedeco-ffmpeg = "8.1.2-1.5.14"
 bytedeco-javacpp = "1.5.14"
 
 pty4j = "0.13.13"
+# 앱 안 브라우저(JVM)의 Chromium 엔진. 버린 후보는 docs/platform/jvm.html#terminal-browser 에 있다.
+# 네이티브의 버전 문자열은 jcefmaven 이 가리키는 jcef-api 의 버전과 같아야 한다.
+jcefmaven = "146.0.10"
+jcef-natives = "jcef-d3de827+cef-146.0.10+g8219561+chromium-146.0.7680.179"
 composeWebView = "1.0.0-beta-02"
 
 [libraries]
@@ -77,6 +81,8 @@ bytedeco-ffmpeg = { module = "org.bytedeco:ffmpeg", version.ref = "bytedeco-ffmp
 bytedeco-javacpp = { module = "org.bytedeco:javacpp", version.ref = "bytedeco-javacpp" }
 
 pty4j = { module = "org.jetbrains.pty4j:pty4j", version.ref = "pty4j" }
+jcefmaven = { module = "me.friwi:jcefmaven", version.ref = "jcefmaven" }
+jcef-natives-macosx-arm64 = { module = "me.friwi:jcef-natives-macosx-arm64", version.ref = "jcef-natives" }
 compose-webview = { module = "io.github.kdroidfilter:composewebview", version.ref = "composeWebView" }
 
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }

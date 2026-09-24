@@ -9,6 +9,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(projects.feature.terminal.domain)
+            // Claude 가 쓴 브라우저·기기를 패널에 탭으로 붙이는 이음새(docs/common/mcp-server.html#modules).
+            implementation(projects.core.automation)
             implementation(projects.core.data)
             implementation(libs.androidx.datastore.core.okio)
             implementation(libs.kotlinx.serialization.json)

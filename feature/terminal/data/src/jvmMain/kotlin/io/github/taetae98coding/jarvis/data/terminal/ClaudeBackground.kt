@@ -2,12 +2,16 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
+import io.github.taetae98coding.jarvis.automation.AgentServer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
@@ -85,6 +89,7 @@ internal fun claudeJobName(sessionId: String): String = "jarvis-$sessionId"
 internal fun claudeStartScript(sessionId: String, resume: String?): String =
     "claude --bg --name ${shellQuote(claudeJobName(sessionId))}" +
         resume?.let { " --resume ${shellQuote(it)}" }.orEmpty() +
+        mcpConfigArgument(sessionId) +
         " --dangerously-skip-permissions"
 
 // attach 는 짧은 id 만 받는다. 전체 sessionId 를 주면 "No job matching" 이다.
@@ -99,8 +104,25 @@ internal fun claudeForegroundScript(sessionId: String, resume: String?, reason: 
     val message = reason.trim().takeIf { it.isNotEmpty() }?.let { "printf '%s\\n\\n' ${shellQuote(it)}; " }.orEmpty()
     val launch = if (resume != null) "--resume ${shellQuote(resume)}" else "--session-id ${shellQuote(sessionId)}"
 
-    return "${message}claude --dangerously-skip-permissions $launch"
+    return "${message}claude${mcpConfigArgument(sessionId)} --dangerously-skip-permissions $launch"
 }
+
+/**
+ * 세션이 앱의 MCP 서버에 붙게 한다. 헤더의 창 sessionId 로 서버가 어느 탭의 Claude 인지 안다
+ * (docs/common/mcp-server.html R2·R3). `--mcp-config` 는 값을 여럿 받으므로 바로 뒤에 옵션이 와야 다음 낱말을 먹지 않는다.
+ */
+private fun mcpConfigArgument(sessionId: String): String = " --mcp-config ${shellQuote(jarvisMcpConfig(sessionId))}"
+
+internal fun jarvisMcpConfig(sessionId: String): String =
+    buildJsonObject {
+        putJsonObject("mcpServers") {
+            putJsonObject(AgentServer.Name) {
+                put("type", "http")
+                put("url", AgentServer.Url)
+                putJsonObject("headers") { put(AgentServer.SessionHeader, sessionId) }
+            }
+        }
+    }.toString()
 
 /**
  * `claude agents --json --all` 의 출력. 셸 설정이 앞에 글자를 찍을 수 있어서 `[` 로 시작하는 줄부터 읽는다.

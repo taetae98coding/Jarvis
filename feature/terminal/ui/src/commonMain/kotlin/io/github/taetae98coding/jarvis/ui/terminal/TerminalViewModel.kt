@@ -4,9 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
-import io.github.taetae98coding.jarvis.domain.terminal.AddWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
-import io.github.taetae98coding.jarvis.domain.terminal.CloseWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.FileContent
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
@@ -30,7 +28,6 @@ import io.github.taetae98coding.jarvis.domain.terminal.claudeStatuses
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
 import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,8 +56,7 @@ internal class TerminalViewModel(
     private val observeChromeProfiles: ObserveChromeProfilesUseCase,
     private val importChromeCookies: ImportChromeCookiesUseCase,
     private val observeGitWorktree: ObserveGitWorktreeUseCase,
-    private val addWorktree: AddWorktreePanelUseCase,
-    private val closeWorktree: CloseWorktreePanelUseCase,
+    private val worktreeTasks: WorktreeTaskHost,
     observeClaudeActivities: ObserveClaudeActivitiesUseCase,
     private val claudeAttention: ClaudeAttention,
     private val observeFile: ObserveFileUseCase,
@@ -71,11 +67,16 @@ internal class TerminalViewModel(
 
     val isChromeImportSupported: Boolean = isChromeImportSupported()
 
-    // 페이지 제목은 웹뷰가 떠 있을 때만 알 수 있다. 저장하지 않고, 가려진 탭은 마지막으로 본 제목을 보인다.
+    // 페이지 제목은 저장하지 않는다. 엔진이 탭마다 제목을 알면(JVM) 그것을, 모르면(Android 의 웹뷰는 떠 있을 때만)
+    // 마지막으로 본 제목을 보인다.
     private val browserTitles = mutableMapOf<Long, MutableStateFlow<String?>>()
 
     // 경로마다 하나. 같은 파일을 두 패널에서 열어도 디스크는 한 번만 따라간다.
     private val fileContents = mutableMapOf<String, StateFlow<FileContent?>>()
+
+    // 이 ViewModel 이 본 적 있는 탭. 사라진 것만 닫는다 — Claude 가 막 붙인 탭의 페이지를, 그 탭이 아직 없는
+    // 옛 배치로 닫지 않게 한다(docs/common/mcp-server.html R5).
+    private var knownTabIds: Set<Long> = emptySet()
 
     /** null 은 저장된 배치를 아직 읽지 못한 것이다. */
     val workspace: StateFlow<TerminalWorkspace?> = observeWorkspace()
@@ -134,10 +135,10 @@ internal class TerminalViewModel(
 
     /** 셸 창은 셸이 정한 제목, 브라우저 탭은 페이지 제목. */
     fun title(tab: TerminalTab): StateFlow<String?>? =
-        if (tab.program == TerminalProgram.Browser) browserTitle(tab.id) else host.pane(tab.id)?.title
+        if (tab.program == TerminalProgram.Browser) browserTitle(tab.id) ?: viewedBrowserTitle(tab.id) else host.pane(tab.id)?.title
 
     fun setBrowserTitle(tabId: Long, title: String?) {
-        browserTitle(tabId).value = title
+        viewedBrowserTitle(tabId).value = title
     }
 
     /** 파일 탭의 내용. null 은 아직 읽지 못한 것이다. 탭이 보이는 동안만 디스크를 따라간다. */
@@ -148,19 +149,22 @@ internal class TerminalViewModel(
 
     fun openFile(path: String) = update { it.openFile(path) }
 
-    private fun browserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
+    private fun viewedBrowserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
     fun addPanel(name: String, directory: String) {
         val sessionId = firstClaudeSessionId()
         update { it.addPanel(name, directory, sessionId) }
     }
 
-    /**
-     * [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 패널을 Claude 탭 하나로 붙인다. 창이 닫혀 이 호출이 취소돼도 git 명령과
-     * 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게.
-     */
-    suspend fun addWorktreePanel(parentId: Long, branch: String, baseBranch: String?, directory: String): Result<Unit> =
-        viewModelScope.async { addWorktree(parentId, branch, baseBranch, directory, firstClaudeSessionId()).map { } }.await()
+    val pendingWorktrees: StateFlow<List<PendingWorktree>> = worktreeTasks.pending
+
+    val removingWorktreePanels: StateFlow<Set<Long>> = worktreeTasks.removing
+
+    val worktreeFailures: StateFlow<List<WorktreeFailure>> = worktreeTasks.failures
+
+    /** [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 패널을 Claude 탭 하나로 붙이는 일을 뒤에서 시작한다. */
+    fun addWorktreePanel(parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String) =
+        worktreeTasks.add(parentId, parent, branch, baseBranch, directory, firstClaudeSessionId())
 
     // 새 패널의 첫 Claude 탭. Claude 를 띄울 수 없는 타깃이면 null 이고 패널은 빈 채로 시작한다.
     private fun firstClaudeSessionId(): String? = if (isClaudeSupported) newClaudeSessionId() else null
@@ -169,14 +173,11 @@ internal class TerminalViewModel(
 
     fun closePanel(panelId: Long) = update { it.closePanel(panelId) }
 
-    /**
-     * [removeWorktree] 면 워크트리 패널의 워크트리·브랜치(와 [deleteDirectory] 면 폴더)를 지우고 패널을 닫는다. 창이 닫혀
-     * 취소돼도 끝까지 간다 — 지워진 워크트리를 가리키는 패널이 남지 않게.
-     */
-    suspend fun closeWorktreePanel(panelId: Long, removeWorktree: Boolean, deleteDirectory: Boolean): Result<Unit> =
-        viewModelScope.async {
-            closeWorktree(panelId, removeWorktree, deleteDirectory).map { change -> host.release(change.removedTabs.map { it.id }) }
-        }.await()
+    /** [removeWorktree] 면 워크트리 패널의 워크트리·브랜치(와 [deleteDirectory] 면 폴더)를 지우고 패널을 닫는 일을 뒤에서 시작한다. */
+    fun closeWorktreePanel(panelId: Long, worktree: GitWorktree, removeWorktree: Boolean, deleteDirectory: Boolean) =
+        worktreeTasks.remove(panelId, worktree, removeWorktree, deleteDirectory)
+
+    fun dismissWorktreeFailure(id: Long) = worktreeTasks.dismissFailure(id)
 
     fun selectPanel(panelId: Long) = update { it.selectPanel(panelId) }
 
@@ -251,6 +252,8 @@ internal class TerminalViewModel(
         host.retain(tabIds)
         browserTitles.keys.retainAll(tabIds)
         fileContents.keys.retainAll(workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath })
+        closeBrowserPages(knownTabIds - tabIds)
+        knownTabIds = tabIds
 
         val visible = workspace.visibleTabs.filter { it.program == TerminalProgram.Shell || it.program == TerminalProgram.Claude }
 

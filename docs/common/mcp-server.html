@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>Claude 에게 브라우저·기기 조작 맡기기</span></nav>
+
+<header>
+  <h1>Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</h1>
+  <p class="lead">데스크톱 앱이 MCP 서버 하나로 동작해서, Jarvis 가 띄운 Claude 가 앱 안의 브라우저 탭과 Android·iOS 기기(에뮬레이터·시뮬레이터·실물)를 직접 보고 누르고 입력한다. Claude 가 쓰는 브라우저·기기는 그 Claude 가 있는 패널(워크트리)에 탭으로 붙어서, 사용자가 원할 때 눌러 볼 수 있다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#tools">도구</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>Jarvis가 JVM 환경에서는 하나의 MCP 서버로 동작하고, Browser조작과 Android/iOS 실기기 or 에뮬레이터 조작을 지원할 수 있어?? Claude에게 브라우저 조작/디바이스 조작을 시키도록 진행하고 싶어.</p>
+  <footer>2026-09-25 대화. 첫 답에서 브라우저는 앱 밖 Chrome 을 CDP 로 조작하는 안을 권했다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>앱 안의 브라우저는 안돼? Orca는 해당 기능 제공하던데 Open source라서 참고 할 수 있을 것 같아.</p>
+  <footer>2026-09-25 대화. Orca 는 Electron 이라 앱 안 브라우저가 Chromium 이고, <code>webContents.debugger</code> 로 CDP 를 직접 부른다(설치된 <code>Orca.app</code> 번들에서 <code>Input.dispatchMouseEvent</code>·<code>Page.captureScreenshot</code> 호출을 확인했다). 지금 브라우저 탭의 WKWebView 는 CDP 가 없어서 엔진을 Chromium 으로 바꾸는 안(JCEF)을 권했다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>JCEF로 진행하자. Android/iOS도 지원해줘. 그리고 해당 기능을 쓸 땐 해당 Worktree에 탭을 추가해서 사용자가 원할 때 볼 수 있도록 해줘 Android/iOS도 마찬가지야.</p>
+  <footer>2026-09-25 대화. "Android/iOS도 지원" 은 조작 대상 기기로 읽었다 — 첫 답에서 iOS 는 화면만 1차로 두자고 권했던 것을 받지 않고 iOS 입력까지 넣으라는 뜻이다. MCP 서버를 Android·iOS 앱 타깃에 띄우라는 뜻으로 읽지 않았다(첫 지시가 "JVM 환경에서는 하나의 MCP 서버"). "해당 Worktree" 는 그 도구를 부른 Claude 탭이 있는 패널(워크트리 패널이면 그 패널)로, "탭을 추가해서 원할 때 볼 수 있도록" 은 탭을 붙이되 사용자가 보던 탭·포커스를 빼앗지 않는 것으로 읽었다(결정).</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<h3>서버와 연결</h3>
+<ol>
+  <li><strong>R1.</strong> 데스크톱 앱(JVM, macOS)이 켜져 있는 동안 루프백(<code>127.0.0.1:47891</code>)에 MCP 서버 하나가 떠 있다. 전송은 MCP Streamable HTTP(<code>POST /mcp</code>, JSON 응답)다. 앱을 끄면 닫힌다. 포트가 이미 쓰이고 있으면 조용히 서버 없이 뜬다(<a href="emulator-control.html#agent">호스트 에이전트</a>와 같은 규칙).</li>
+  <li><strong>R2.</strong> Jarvis 가 새로 띄우는 Claude 탭의 세션은 따로 설정하지 않아도 이 서버에 붙는다. 세션을 만들 때 <code>--mcp-config</code> 로 서버 주소와, 그 탭을 가리키는 값(<code>X-Jarvis-Session: &lt;탭의 claudeSessionId&gt;</code> 헤더)을 넘긴다. 앱을 다시 켜도 포트와 값이 같아서 살아 있던 백그라운드 세션이 그대로 다시 붙는다.</li>
+  <li><strong>R3.</strong> 요청의 <code>X-Jarvis-Session</code> 으로 작업 공간에서 그 값을 가진 Claude 탭을 찾고, 그 탭이 있는 패널을 "호출한 패널", 그 탭이 있는 그룹을 "호출한 그룹" 이라 한다. 헤더가 없거나 그런 탭이 없으면(밖에서 등록한 Claude, 닫힌 탭) 호출한 패널이 없다.</li>
+  <li><strong>R4.</strong> 루프백 밖에서는 닿지 않는다. <code>Origin</code> 헤더가 붙은 요청(브라우저 안 웹 페이지가 보낸 요청, DNS rebinding)은 403 으로 거절한다. 브라우저 엔진은 원격 디버깅 포트를 열지 않는다 — CDP 는 엔진 안의 브라우저 객체에 직접 보낸다.</li>
+</ol>
+
+<h3>탭</h3>
+<ol start="5">
+  <li><strong>R5.</strong> Claude 가 브라우저를 새로 열면(<code>browser_open</code>) 호출한 그룹의 탭 줄 끝에 브라우저 탭이 붙는다. <strong>선택하지 않는다</strong> — 선택된 패널, 포커스된 그룹, 그룹마다 선택된 탭이 그대로다. 사용자가 그 탭을 누르면 Claude 가 조작하고 있는 그 페이지가 보인다(새로 부르지 않는다).</li>
+  <li><strong>R6.</strong> Claude 가 기기 도구를 쓰면 호출한 패널에 그 기기의 기기 탭이 있는지 본다. 없으면 호출한 그룹의 탭 줄 끝에 붙인다(선택하지 않는다, R5 와 같다). 있으면 그대로 둔다 — 같은 기기에 탭을 거듭 만들지 않는다. <code>device_list</code> 처럼 기기를 가리키지 않는 도구는 탭을 만들지 않는다.</li>
+  <li><strong>R7.</strong> 호출한 패널이 없으면 브라우저 도구는 "Jarvis 터미널의 Claude 탭에서만 브라우저를 쓸 수 있습니다" 오류를 주고, 기기 도구는 탭 없이 동작한다.</li>
+  <li><strong>R8.</strong> Claude 가 연 탭도 사용자가 연 탭과 똑같다. 닫기, 끌어 놓기, 저장·복원 규칙이 같다(<a href="terminal-browser.html">웹 브라우저</a>, <a href="terminal-device.html">기기 화면</a>). 사용자가 닫으면 그 탭을 가리키는 다음 도구 호출은 "탭이 닫혔습니다" 오류다.</li>
+</ol>
+
+<h3>브라우저</h3>
+<ol start="9">
+  <li><strong>R9.</strong> 브라우저 도구는 호출한 패널의 브라우저 탭만 다룬다. 사용자가 연 브라우저 탭도 포함한다. 탭은 <code>tabId</code> 로 가리키고, 빼면 이 세션이 마지막으로 연·쓴 탭, 그것도 없으면 그 패널의 첫 브라우저 탭이다. 하나도 없으면 오류로 <code>browser_open</code> 을 먼저 부르라고 알린다.</li>
+  <li><strong>R10.</strong> 가려진 브라우저 탭(선택되지 않았거나 다른 패널, 터미널 화면을 벗어난 뒤)도 페이지가 살아 있어서 Claude 가 보고 누를 수 있다. 이것은 <a href="terminal-browser.html#requirements">웹 브라우저 R6</a> 을 바꾼다.</li>
+  <li><strong>R11.</strong> 클릭·키 입력은 페이지에 신뢰된 입력(<code>isTrusted = true</code>)으로 들어간다. 스크립트로 만든 가짜 이벤트가 아니다.</li>
+  <li><strong>R12.</strong> 좌표는 CSS 픽셀이다. <code>browser_screenshot</code> 은 지금 보이는 뷰포트를 배율 1 로 찍어서 이미지의 픽셀이 곧 클릭 좌표다. <code>browser_snapshot</code> 은 눌러 볼 만한 요소마다 역할·이름·가운데 좌표를 준다.</li>
+</ol>
+
+<h3>기기</h3>
+<ol start="13">
+  <li><strong>R13.</strong> <code>device_list</code> 는 <a href="emulator-control.html">기기 목록</a>과 같은 기기를 같은 식별자로 준다. 식별자는 다른 기기 도구에 그대로 넣는다.</li>
+  <li><strong>R14.</strong> Android(에뮬레이터·실물)는 화면 캡처, 탭·길게 누르기, 스와이프, 글자 입력(한글 등 ASCII 밖 글자 포함), 키(뒤로·홈·최근 앱·Enter·지우기·전원·볼륨), UI 트리, 앱 실행, 꺼진 AVD 켜기가 된다.</li>
+  <li><strong>R15.</strong> iOS 시뮬레이터도 R14 와 같은 도구가 된다(키는 홈·Enter·지우기·볼륨). 입력 경로(WebDriverAgent)는 처음 쓸 때 Jarvis 가 스스로 준비한다(소스를 받아 Xcode 로 빌드한다). 사용자는 Xcode 말고 따로 설치하지 않는다.</li>
+  <li><strong>R16.</strong> 실물 iOS 기기도 R15 와 같다. 다만 기기에 앱을 올리려면 사용자의 Apple 개발 팀으로 서명해야 해서, Xcode 에 개발 팀 계정이 없거나 기기에서 개발자를 신뢰하지 않았으면 무엇을 해야 하는지 적은 오류를 준다.</li>
+  <li><strong>R17.</strong> 좌표는 <code>device_screenshot</code> 이 준 이미지의 픽셀이다. 이미지는 긴 변 1280 px 을 넘지 않게 줄여서 준다(iOS 는 포인트 크기). 기기 탭이 가려져 있어도, 아무 화면도 그 기기를 보고 있지 않아도 캡처·입력이 된다.</li>
+  <li><strong>R18.</strong> Claude 의 기기 조작은 그 기기를 보고 있는 모든 화면(기기 탭, 기기 목록의 화면)에 그대로 보인다. 같은 기기를 보는 곳이 여럿이어도 기기 쪽 에이전트는 하나다(<a href="device-mirroring.html#requirements">영상 스트림 R5</a>).</li>
+</ol>
+
+<h3>도구 결과</h3>
+<ol start="19">
+  <li><strong>R19.</strong> 도구가 실패하면 MCP 도구 결과의 <code>isError = true</code> 와 한 줄짜리 이유를 준다. 서버가 죽거나 다른 도구에 영향을 주지 않는다.</li>
+  <li><strong>R20.</strong> 한 도구 호출은 30초 안에 끝난다. 넘으면 오류다. 예외는 WebDriverAgent 를 처음 준비할 때(내려받기·빌드)이고, 그때는 180초다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>Android·iOS·Web 앱 타깃에 MCP 서버를 띄우는 것. 지시가 "JVM 환경에서는 하나의 MCP 서버" 다. 이 타깃들은 바뀌지 않는다.</li>
+    <li>이미 살아 있는 백그라운드 Claude 세션을 서버에 붙이는 것. 세션의 MCP 설정은 만들 때만 줄 수 있다. 이 기능 전에 만든 Claude 탭은 닫고 새로 열어야 도구가 생긴다(한계).</li>
+    <li>Claude Code 전역 설정(<code>~/.claude.json</code>)에 서버를 등록하는 것. 사용자의 설정 파일을 앱이 고치지 않는다. 밖에서 쓰고 싶으면 사용자가 <code>claude mcp add</code> 로 직접 등록한다(그때는 R7 대로 브라우저 도구가 없다).</li>
+    <li>기기 탭에서 사람이 iOS 시뮬레이터·실물 iOS 에 제스처를 보내는 것. 입력 경로가 생기지만 지시는 Claude 의 조작이다. <a href="terminal-device.html#requirements">기기 화면 R7</a> 은 그대로다.</li>
+    <li>실물 iOS 기기의 화면을 기기 탭에 흘리는 것. 도구의 캡처(R16)는 되지만 기기 탭은 <a href="emulator-control.html#requirements">기기 목록 R13</a> 대로 목록에서 누를 수 없는 채다. Claude 가 실물 iOS 를 쓰면 기기 탭은 붙지만 "[기기 화면을 볼 수 없습니다]" 만 보인다(한계).</li>
+    <li>브라우저 파일 받기·올리기, 새 창(<code>target="_blank"</code>)을 따로 된 탭으로 여는 것, 여러 탭을 동시에 조작하는 것 말고 탭 사이 끌어 놓기. <a href="terminal-browser.html">웹 브라우저</a>가 빼 둔 것을 그대로 뺀다.</li>
+    <li>멀티터치·핀치, 기기 오디오, 기기 파일 올리기·설치(<code>adb install</code>). 지시에 없다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<p>새 화면은 없다. 사용자에게 보이는 변화는 Claude 가 붙인 탭뿐이다.</p>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>Claude 가 연 브라우저 탭</td><td>호출한 그룹의 탭 줄 끝. 선택되지 않는다. 이름은 페이지 제목(가려져 있어도 엔진이 알려 준다), 없으면 "웹 N"</td></tr>
+    <tr><td>Claude 가 쓴 기기 탭</td><td>호출한 그룹의 탭 줄 끝. 선택되지 않는다. 이름은 기기 이름</td></tr>
+    <tr><td>서버 주소</td><td><code>http://127.0.0.1:47891/mcp</code>. MCP 서버 이름 <code>jarvis</code></td></tr>
+    <tr><td>Claude 탭에 넘기는 설정</td><td><code>{"mcpServers":{"jarvis":{"type":"http","url":"http://127.0.0.1:47891/mcp","headers":{"X-Jarvis-Session":"&lt;claudeSessionId&gt;"}}}}</code></td></tr>
+    <tr><td>테스트 태그</td><td>바뀌지 않는다. 붙은 탭은 기존 태그(<code>terminal:browser:&lt;tabId&gt;</code>, <code>terminal:device:&lt;tabId&gt;</code>)를 쓴다</td></tr>
+  </tbody>
+</table>
+
+<h2 id="tools">도구</h2>
+
+<p>인자 이름은 camelCase 다. <code>tabId?</code> 는 빼도 되는 인자다(R9). 이미지 결과는 MCP <code>image</code> 콘텐츠(JPEG 품질 0.85, base64 — PNG 는 1280px 한 장이 1~2MB 라 무겁다)와 크기를 적은 <code>text</code> 콘텐츠 둘이다.</p>
+
+<table>
+  <thead><tr><th>도구</th><th>인자</th><th>하는 일</th></tr></thead>
+  <tbody>
+    <tr><td><code>browser_open</code></td><td><code>url</code></td><td>R5. 호출한 그룹에 새 브라우저 탭을 붙이고 그 주소를 연다. 스킴이 없으면 <code>https://</code>(<code>localhost</code>·<code>127.0.0.1</code> 은 <code>http://</code>)를 붙인다 — 주소 줄의 검색어 규칙(<a href="terminal-browser.html#requirements">웹 브라우저 R4</a>)은 따르지 않는다. <code>browserAddress</code> 는 터미널 기능의 것이라 MCP 가 부를 수 없다. 새 <code>tabId</code> 를 돌려준다</td></tr>
+    <tr><td><code>browser_tabs</code></td><td>—</td><td>호출한 패널의 브라우저 탭마다 <code>tabId</code>·제목·주소</td></tr>
+    <tr><td><code>browser_navigate</code></td><td><code>tabId?</code>, <code>url</code></td><td>그 탭에서 주소를 연다. 불러올 때까지 기다린다</td></tr>
+    <tr><td><code>browser_back</code></td><td><code>tabId?</code></td><td>뒤로</td></tr>
+    <tr><td><code>browser_screenshot</code></td><td><code>tabId?</code></td><td>R12. 뷰포트 JPEG</td></tr>
+    <tr><td><code>browser_snapshot</code></td><td><code>tabId?</code></td><td>R12. 주소·제목과, 보이는 상호작용 요소(링크·버튼·입력칸·역할이 있는 요소)의 역할·이름·가운데 좌표 목록, 본문 글자 앞부분</td></tr>
+    <tr><td><code>browser_click</code></td><td><code>tabId?</code>, <code>x</code>, <code>y</code>, <code>doubleClick?</code></td><td>R11. 그 좌표에 마우스 누르고 떼기</td></tr>
+    <tr><td><code>browser_type</code></td><td><code>tabId?</code>, <code>text</code></td><td>포커스된 요소에 글자를 넣는다(IME 조합 없이 그대로)</td></tr>
+    <tr><td><code>browser_press_key</code></td><td><code>tabId?</code>, <code>key</code></td><td><code>Enter</code>, <code>Tab</code>, <code>Backspace</code>, <code>Delete</code>, <code>Escape</code>, <code>ArrowUp/Down/Left/Right</code>, <code>Home</code>, <code>End</code>, <code>PageUp</code>, <code>PageDown</code></td></tr>
+    <tr><td><code>browser_scroll</code></td><td><code>tabId?</code>, <code>deltaY</code>, <code>x?</code>, <code>y?</code></td><td>그 자리(빼면 뷰포트 가운데)에서 휠을 굴린다. 양수가 아래</td></tr>
+    <tr><td><code>browser_evaluate</code></td><td><code>tabId?</code>, <code>expression</code></td><td>페이지에서 JavaScript 식을 실행하고 결과를 JSON 글자로 준다. Promise 는 기다린다</td></tr>
+    <tr><td><code>browser_close</code></td><td><code>tabId</code></td><td>그 탭을 닫는다(사용자가 ✕ 를 누른 것과 같다)</td></tr>
+    <tr><td><code>device_list</code></td><td>—</td><td>R13. 식별자·이름·플랫폼·실물 여부·실행 중·조작 가능 여부</td></tr>
+    <tr><td><code>device_boot</code></td><td><code>deviceId</code></td><td>꺼진 AVD·시뮬레이터를 켠다(<a href="emulator-launch.html">꺼진 에뮬레이터 실행</a>). 켜진 뒤의 식별자는 <code>device_list</code> 로 다시 본다</td></tr>
+    <tr><td><code>device_screenshot</code></td><td><code>deviceId</code></td><td>R17. 화면 JPEG</td></tr>
+    <tr><td><code>device_tap</code></td><td><code>deviceId</code>, <code>x</code>, <code>y</code>, <code>durationMs?</code></td><td>누르고 뗀다. <code>durationMs</code> 를 주면 그만큼 누르고 있는다(길게 누르기)</td></tr>
+    <tr><td><code>device_swipe</code></td><td><code>deviceId</code>, <code>fromX</code>, <code>fromY</code>, <code>toX</code>, <code>toY</code>, <code>durationMs?</code></td><td>끌기. 기본 300ms</td></tr>
+    <tr><td><code>device_type</code></td><td><code>deviceId</code>, <code>text</code></td><td>포커스된 입력칸에 글자를 넣는다</td></tr>
+    <tr><td><code>device_press</code></td><td><code>deviceId</code>, <code>key</code></td><td><code>back</code>, <code>home</code>, <code>app_switch</code>, <code>enter</code>, <code>delete</code>, <code>power</code>, <code>volume_up</code>, <code>volume_down</code>. 그 플랫폼에 없는 키는 오류</td></tr>
+    <tr><td><code>device_ui_tree</code></td><td><code>deviceId</code></td><td>화면의 UI 요소를 한 줄씩(종류·글자·식별자·가운데 좌표). 좌표는 R17 과 같은 이미지 픽셀</td></tr>
+    <tr><td><code>device_launch_app</code></td><td><code>deviceId</code>, <code>appId</code></td><td>Android 패키지 이름 / iOS 번들 식별자로 앱을 앞으로 띄운다</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<h3 id="modules">모듈</h3>
+<p>도구는 두 기능(터미널의 탭·브라우저, emulator 의 기기)을 가로지른다. 기능은 서로를 의존하지 않으므로(<a href="module-architecture.html#requirements">모듈 구조 R3</a>) 이음새를 <code>:core:automation</code> 에 두고 각 기능이 구현을 Koin 에 등록한다. <a href="terminal-device.html#implementation">기기 탭의 <code>DeviceScreens</code></a> 와 같은 방식이다.</p>
+
+<table>
+  <thead><tr><th>모듈</th><th>패키지</th><th>내용</th></tr></thead>
+  <tbody>
+    <tr><td><code>:core:automation</code></td><td><code>…automation</code></td><td>이음새 인터페이스와 값 타입만. <code>AgentTabs</code>, <code>BrowserAutomation</code>, <code>DeviceAutomation</code>, <code>AutomationImage</code>, <code>AutomationDevice</code>, <code>DeviceKey</code>, <code>AutomationException</code>. commonMain 만 있고 플랫폼 코드가 없다</td></tr>
+    <tr><td><code>:core:browser</code></td><td><code>…browser</code></td><td>JVM: Chromium(JCEF) 엔진, 탭 id 마다 살아 있는 브라우저, CDP 클라이언트, <code>BrowserAutomation</code> 구현. 다른 타깃은 빈 모듈. <code>:feature:terminal:ui</code> 가 브라우저 창을 그리려고, Koin 이 <code>BrowserAutomation</code> 을 꺼내려고 쓴다(<a href="terminal-browser.html#implementation">웹 브라우저</a>)</td></tr>
+    <tr><td><code>:feature:mcp:domain</code></td><td><code>…domain.mcp</code></td><td>도구 목록(이름·설명·인자 스키마)과 호출을 이음새에 나눠 주는 <code>McpToolbox</code>. 플랫폼·직렬화에 의존하지 않는다</td></tr>
+    <tr><td><code>:feature:mcp:data</code></td><td><code>…data.mcp</code></td><td>JVM: HTTP 서버, JSON-RPC 2.0 ↔ <code>McpToolbox</code>, <code>startMcpServer()</code>. 다른 타깃은 no-op</td></tr>
+    <tr><td><code>:feature:terminal:domain</code>·<code>data</code></td><td>기존</td><td><code>TerminalWorkspace.appendTab</code>(선택하지 않고 붙이기), <code>findClaudeTab</code>. <code>AgentTabs</code> 구현(<code>WorkspaceAgentTabs</code>). Claude 세션 시작 명령에 <code>--mcp-config</code></td></tr>
+    <tr><td><code>:feature:emulator:data</code></td><td>기존</td><td><code>DeviceAutomation</code> 구현. JVM 만(<code>adb</code>·scrcpy 제어 소켓·<code>simctl</code>·WebDriverAgent). 다른 타깃은 등록하지 않는다</td></tr>
+  </tbody>
+</table>
+
+<p><code>:feature:mcp:domain</code> 이 <code>:core:automation</code> 을 의존하는 것은 <a href="module-architecture.html#requirements">모듈 구조 R5</a>(domain 의 의존은 coroutines·koin 뿐)의 예외다. <code>:core:automation</code> 은 인터페이스와 데이터 클래스만 있고 플랫폼·Compose 를 끌어오지 않는다. <code>:feature:mcp</code> 에는 화면이 없어서 <code>ui</code> 모듈이 없다.</p>
+
+<h3 id="seams">이음새</h3>
+<pre><code>interface AgentTabs {
+    /** R3. 그 Claude 탭이 작업 공간에 있는지. */
+    suspend fun hasCaller(sessionId: String): Boolean
+    /** R5. 붙인 탭 id. 호출한 탭이 없으면 null. */
+    suspend fun openBrowserTab(sessionId: String, url: String): Long?
+    suspend fun browserTabs(sessionId: String): List&lt;AgentBrowserTab&gt;   // (tabId, url)
+    /** R6. 이미 있으면 아무것도 하지 않는다. */
+    suspend fun showDevice(sessionId: String, deviceId: String, deviceName: String)
+    /** 호출한 패널의 브라우저 탭만 닫는다. 닫았으면 true. */
+    suspend fun closeTab(sessionId: String, tabId: Long): Boolean
+}
+
+interface BrowserAutomation {
+    suspend fun page(tabId: Long, initialUrl: String): BrowserPageInfo   // 없으면 만든다. (url, title)
+    suspend fun navigate(tabId: Long, url: String)
+    suspend fun back(tabId: Long)
+    suspend fun screenshot(tabId: Long): AutomationImage
+    suspend fun snapshot(tabId: Long): String
+    suspend fun click(tabId: Long, x: Int, y: Int, clickCount: Int)
+    suspend fun type(tabId: Long, text: String)
+    suspend fun pressKey(tabId: Long, key: String)
+    suspend fun scroll(tabId: Long, x: Int?, y: Int?, deltaY: Int)
+    suspend fun evaluate(tabId: Long, expression: String): String
+    fun close(tabId: Long)   // 페이지를 닫는다. browser_close 가 탭을 닫은 뒤 부른다
+}
+
+interface DeviceAutomation {
+    suspend fun devices(): List&lt;AutomationDevice&gt;
+    suspend fun boot(deviceId: String)
+    suspend fun screenshot(deviceId: String): AutomationImage
+    suspend fun tap(deviceId: String, x: Int, y: Int, durationMs: Long)
+    suspend fun swipe(deviceId: String, fromX: Int, fromY: Int, toX: Int, toY: Int, durationMs: Long)
+    suspend fun type(deviceId: String, text: String)
+    suspend fun press(deviceId: String, key: DeviceKey)
+    suspend fun uiTree(deviceId: String): String
+    suspend fun launchApp(deviceId: String, appId: String)
+}</code></pre>
+
+<p>전부 명령이라 <code>suspend</code> 다(<a href="state-observation.html">상태 조회 규칙</a>). 실패는 <code>AutomationException(message)</code> 로 던지고 <code>McpToolbox</code> 가 R19 의 오류 결과로 바꾼다. 그 밖의 예외도 같은 자리에서 잡는다.</p>
+
+<h3 id="toolbox">McpToolbox</h3>
+<dl class="meta">
+  <dt>입력</dt><dd><code>call(sessionId: String?, name: String, arguments: Map&lt;String, Any?&gt;): ToolResult</code>. 인자는 JSON 을 푼 값(<code>String</code>·<code>Long</code>·<code>Double</code>·<code>Boolean</code>·<code>Map</code>·<code>List</code>)이다. JSON 을 푸는 일은 data 가 한다</dd>
+  <dt>출력</dt><dd><code>ToolResult(content: List&lt;ToolContent&gt;, isError)</code>. <code>ToolContent.Text</code>, <code>ToolContent.Image(bytes, mimeType)</code></dd>
+  <dt>탭 규칙</dt><dd>기기 도구는 <code>DeviceAutomation</code> 을 부르기 전에 <code>AgentTabs.showDevice</code> 를 부른다(R6). 이름은 <code>devices()</code> 에서 찾는다. 브라우저 도구는 <code>tabId</code> 를 R9 대로 정하고 <code>browserTabs</code> 에 있는지 본 뒤(R8), <code>BrowserAutomation.page(tabId, url)</code> 로 페이지를 살린다</dd>
+  <dt>세션 기억</dt><dd>세션마다 마지막으로 쓴 브라우저 탭 id(R9). 메모리에만 있다</dd>
+  <dt>시간 제한</dt><dd>R20. 호출마다 <code>withTimeout</code></dd>
+</dl>
+
+<h3 id="protocol">프로토콜</h3>
+<p>MCP 2025-06-18 의 Streamable HTTP 중 서버가 꼭 해야 하는 부분만 한다. 스트림(SSE)은 열지 않는다.</p>
+<table>
+  <thead><tr><th>요청</th><th>응답</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST /mcp</code> <code>initialize</code></td><td><code>protocolVersion</code>(클라이언트가 보낸 것이 아는 버전이면 그것, 아니면 <code>2025-06-18</code>), <code>capabilities.tools</code>, <code>serverInfo {name: "jarvis"}</code>. <code>Mcp-Session-Id</code> 헤더는 주지 않는다 — 서버에 연결별 상태가 없다</td></tr>
+    <tr><td><code>POST /mcp</code> 알림·응답(id 없음)</td><td><code>202 Accepted</code>, 본문 없음</td></tr>
+    <tr><td><code>POST /mcp</code> <code>tools/list</code></td><td>도구 표 전체. 페이지를 나누지 않는다</td></tr>
+    <tr><td><code>POST /mcp</code> <code>tools/call</code></td><td><code>{content: [...], isError}</code></td></tr>
+    <tr><td><code>POST /mcp</code> <code>ping</code></td><td><code>{}</code></td></tr>
+    <tr><td><code>POST /mcp</code> 모르는 메서드</td><td>JSON-RPC 오류 <code>-32601</code></td></tr>
+    <tr><td><code>GET /mcp</code></td><td><code>405</code>. 서버가 먼저 보낼 알림이 없다</td></tr>
+    <tr><td><code>Origin</code> 헤더가 있는 요청</td><td><code>403</code>(R4)</td></tr>
+  </tbody>
+</table>
+
+<aside class="decision">
+  <strong>결정: MCP 는 손으로 짠다</strong>
+  공식 Kotlin SDK(<code>io.modelcontextprotocol:kotlin-sdk</code>)는 Ktor 서버·클라이언트를 끌고 오고, 여기서 쓰는 것은 요청 네 가지(<code>initialize</code>·<code>tools/list</code>·<code>tools/call</code>·<code>ping</code>)의 JSON 응답뿐이다. 이미 있는 <a href="../platform/jvm.html#emulator">호스트 에이전트</a>처럼 JDK <code>HttpServer</code> 와 <code>kotlinx-serialization-json</code> 으로 짜면 의존성이 늘지 않는다. SDK 가 해 주는 SSE 스트림·재개·세션은 이 서버에 필요가 없다(서버가 먼저 보낼 것이 없다). 프로토콜 버전이 바뀌어 요청 모양이 달라지면 이 표를 먼저 고친다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 호출한 Claude 를 헤더로 가른다</strong>
+  후보는 셋이었다. (1) 탭마다 다른 경로(<code>/mcp/&lt;id&gt;</code>) — 헤더와 같지만 주소가 로그에 남고 서버 이름이 탭마다 달라 보인다. (2) MCP <code>roots</code> 로 작업 디렉터리를 받아 패널 폴더와 맞추기 — 같은 워크트리에 Claude 탭이 여럿이면 가를 수 없고, 폴더가 없는 패널은 찾을 수 없다. (3) 채택: 세션을 만들 때 <code>--mcp-config</code> 의 <code>headers</code> 에 탭의 <code>claudeSessionId</code> 를 넣는다. 탭에 저장된 값이라 앱을 다시 켜도, 탭을 다른 그룹으로 옮겨도 같은 탭을 가리킨다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 붙인 탭은 선택하지 않는다</strong>
+  지시의 "사용자가 원할 때 볼 수 있도록" 을 따른다. 기존 <code>addTab</code> 은 붙인 탭을 고르고 그 그룹·패널에 포커스를 준다. Claude 가 페이지를 열 때마다 사용자가 보던 Claude 창이 브라우저로 바뀌면 원할 때 보는 것이 아니다. 그래서 선택·포커스·선택된 패널을 건드리지 않는 <code>appendTab</code> 을 새로 둔다. 붙는 자리는 호출한 그룹이다 — 패널의 포커스된 그룹에 붙이면 사용자가 다른 그룹을 보고 있을 때 Claude 와 먼 곳에 생긴다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>서버는 JVM 에만 있다(스코프). 앱은 바뀌지 않는다</td><td><a href="../platform/android.html#mcp-server">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>같음</td><td><a href="../platform/ios.html#mcp-server">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge partial">조건부</span></td><td>macOS. 브라우저는 JCEF + CDP, Android 는 scrcpy 제어 소켓 + <code>adb</code>, iOS 는 WebDriverAgent. 실물 iOS 는 개발 팀 서명이 있어야 한다</td><td><a href="../platform/jvm.html#mcp-server">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>같음</td><td><a href="../platform/web.html#mcp-server">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R5, R6. <code>appendTab</code> 이 그룹 끝에 붙이고 선택·포커스·선택된 패널을 바꾸지 않는다. <code>findClaudeTab</code> 이 다른 패널의 탭도 찾는다</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>WorkspaceAgentTabsTest</code></td><td>R3, R5–R8. 호출한 그룹에 붙고, 같은 기기 탭을 거듭 만들지 않고, 호출한 패널의 브라우저 탭만 나온다</td><td><code>:feature:terminal:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalCommandTest</code></td><td>R2. 시작 명령(백그라운드·직접 띄우기)에 <code>--mcp-config</code> 가 옵션 앞에 들어가고, 설정 JSON 이 서버 주소와 헤더를 담는다</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>McpToolboxTest</code></td><td>R6, R7, R9, R19, R20. 가짜 이음새로 도구마다 부르는 곳과 오류 결과</td><td><code>:feature:mcp:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>McpServerTest</code></td><td>R1, R4, 프로토콜 표. 실제 포트에 띄워 <code>initialize</code>·<code>tools/list</code>·<code>tools/call</code>·알림·<code>GET</code>·<code>Origin</code> 거절</td><td><code>:feature:mcp:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>ControlMessagesTest</code></td><td>R14. 키·글자·클립보드 메시지의 바이트 모양</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>UiTreesTest</code></td><td>R14, R15, R17. <code>uiautomator</code> XML·WDA 트리의 줄과 가운데 좌표, <code>wm size</code>, 이미지 배율 규칙</td><td>같음</td></tr>
+    <tr><td>수동 확인</td><td>R10–R12, R14–R18. <code>./gradlew :desktopApp:run</code> → Claude 탭에서 "브라우저로 … 해 줘", "기기에서 … 해 줘". 결과는 <a href="../platform/jvm.html#mcp-server">JVM 문서</a>의 검증에 날짜와 함께 적는다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>이 기능 전에 만든 Claude 탭(이미 살아 있는 백그라운드 세션)에는 도구가 없다. 탭을 닫고 새 Claude 탭을 연다.</li>
+  <li>앱이 꺼져 있으면 Claude 의 도구 호출이 연결 실패로 끝난다. 앱을 켜면 다음 호출부터 된다.</li>
+  <li>Claude 가 브라우저를 조작하는 동안 사용자가 같은 페이지를 누르면 두 입력이 섞인다. 막지 않는다.</li>
+  <li>브라우저 탭마다 Chromium 렌더러가 하나씩 살아 있다. 탭을 닫기 전까지 메모리를 쥔다(R10 의 대가).</li>
+  <li>기기 탭은 Claude 가 쓴 기기마다 하나씩 쌓인다. Claude 가 기기를 다 쓴 뒤에도 닫지 않는다 — 사용자가 닫는다.</li>
+  <li>플랫폼마다의 한계는 <a href="../platform/jvm.html#mcp-server">JVM 문서</a>에 있다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

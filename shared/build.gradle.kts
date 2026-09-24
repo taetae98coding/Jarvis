@@ -21,9 +21,11 @@ kotlin {
             // Koin 모듈을 합치는 데만 쓰이므로 밖으로 내보내지 않는다.
             api(projects.app.ui)
 
+            implementation(projects.core.browser)
             implementation(projects.core.data)
             implementation(projects.feature.appinfo.data)
             implementation(projects.feature.emulator.data)
+            implementation(projects.feature.mcp.data)
             implementation(projects.feature.screen.data)
             implementation(projects.feature.rotation.data)
             implementation(projects.feature.terminal.data)
