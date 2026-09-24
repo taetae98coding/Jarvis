@@ -132,7 +132,10 @@ internal class TerminalViewModel(
 
     private fun browserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
-    fun addPanel(name: String, directory: String) = update { it.addPanel(name, directory) }
+    fun addPanel(name: String, directory: String) {
+        val sessionId = firstClaudeSessionId()
+        update { it.addPanel(name, directory, sessionId) }
+    }
 
     val pendingWorktrees: StateFlow<List<PendingWorktree>> = worktreeTasks.pending
 
@@ -140,9 +143,12 @@ internal class TerminalViewModel(
 
     val worktreeFailures: StateFlow<List<WorktreeFailure>> = worktreeTasks.failures
 
-    /** [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 빈 패널을 붙이는 일을 뒤에서 시작한다. */
+    /** [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 패널을 Claude 탭 하나로 붙이는 일을 뒤에서 시작한다. */
     fun addWorktreePanel(parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String) =
-        worktreeTasks.add(parentId, parent, branch, baseBranch, directory)
+        worktreeTasks.add(parentId, parent, branch, baseBranch, directory, firstClaudeSessionId())
+
+    // 새 패널의 첫 Claude 탭. Claude 를 띄울 수 없는 타깃이면 null 이고 패널은 빈 채로 시작한다.
+    private fun firstClaudeSessionId(): String? = if (isClaudeSupported) newClaudeSessionId() else null
 
     fun renamePanel(panelId: Long, name: String) = update { it.renamePanel(panelId, name) }
 

@@ -41,6 +41,16 @@ class AddWorktreePanelUseCaseTest {
     }
 
     @Test
+    fun theWorktreePanelStartsWithTheGivenClaudeSessionInTheWorktreeFolder() = runTest {
+        val result = useCase(RecordingGitWorktreeRepository()).invoke(parent.id, "fix", null, "/tmp/fix", claudeSessionId = "session")
+
+        val after = result.getOrThrow().after
+        val tab = after.selectedPanel!!.tabs.single()
+        assertEquals(TerminalTab(tab.id, TerminalProgram.Claude, "/tmp/fix", "session"), tab)
+        assertEquals(tab, after.focusedTab)
+    }
+
+    @Test
     fun aBlankBaseBranchIsPassedAsNullAndNotRemembered() = runTest {
         val git = RecordingGitWorktreeRepository()
 

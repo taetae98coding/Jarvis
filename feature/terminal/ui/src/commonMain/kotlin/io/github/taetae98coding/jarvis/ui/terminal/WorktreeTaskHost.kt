@@ -65,12 +65,12 @@ internal class WorktreeTaskHost(
     private val _failures = MutableStateFlow<List<WorktreeFailure>>(emptyList())
     val failures: StateFlow<List<WorktreeFailure>> = _failures.asStateFlow()
 
-    fun add(parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String) {
+    fun add(parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String, claudeSessionId: String?) {
         val task = PendingWorktree(nextId++, parentId, parent, branch, baseBranch, directory)
         _pending.update { it + task }
 
         scope.launch {
-            val result = addWorktree(parentId, branch, baseBranch, directory)
+            val result = addWorktree(parentId, branch, baseBranch, directory, claudeSessionId)
             _pending.update { tasks -> tasks.filterNot { it.id == task.id } }
             result.onFailure { error -> fail(WorktreeFailure.Create(task, error.message(default = "워크트리를 만들지 못했습니다"))) }
         }
