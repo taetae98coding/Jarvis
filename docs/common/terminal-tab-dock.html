@@ -41,12 +41,17 @@
 
 <p>뒤따른 <a href="terminal-tab-groups.html">분할 그룹</a> 지시로 놓는 대상이 창에서 그룹으로, 옮겨지는 것이 탭의 분할 트리에서 탭 하나로 바뀌었고 가운데 영역(그 그룹에 넣기)이 생겼다. 아래 R4–R9 는 그에 맞춰 고쳤고, 충돌하면 그 문서의 R7–R9 가 우선한다. + 버튼(R2·R3)은 그룹마다 하나다.</p>
 
+<blockquote class="instruction">
+  <p>왜 탭이 없을 때 탭 추가 버튼과 탭이 없을 때 탭 추가 버튼이 달라? 탭 있을 때 탭 추가버튼으로 통일해줘.</p>
+  <footer>2026-09-25 대화. 앞의 "탭이 없을 때" 는 "탭이 있을 때" 의 오타로 읽었다. 빈 패널의 + 는 같은 컴포저블이었지만, 탭 줄 높이를 탭에 맞추는 <code>IntrinsicSize.Min</code> 줄에 탭이 없어서 아이콘 크기(small)까지 줄어든 작은 사각형으로 보였다. 이 지시로 R2 에 "빈 패널의 + 도 모양·크기가 같다" 가 붙었다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <h3>상단 막대와 새 탭</h3>
 <ol>
   <li><strong>R1.</strong> 터미널 상단 막대에는 뒤로 버튼과 제목 "터미널" 만 있다. 좌우 분할·상하 분할·새 탭·닫기 아이콘 버튼이 없다.</li>
-  <li><strong>R2.</strong> 그룹의 탭 줄에서 마지막 탭 바로 오른쪽에 새 탭(+) 버튼이 있다. 누르면 <strong>그 그룹</strong>의 탭 줄 끝에 탭이 붙고 선택된다(<a href="terminal-tab-groups.html#requirements">분할 그룹 R2</a>). Claude 를 실행할 수 있는 타깃에서는 <a href="terminal-claude.html#requirements">Claude 실행 R1</a> 의 "터미널 / Claude (YOLO)" 메뉴가 이 버튼 아래로 뜨고, 아니면 곧바로 셸 탭이 열린다(R6). 패널에 그룹이 하나도 없어도 + 버튼은 남는다.</li>
+  <li><strong>R2.</strong> 그룹의 탭 줄에서 마지막 탭 바로 오른쪽에 새 탭(+) 버튼이 있다. 누르면 <strong>그 그룹</strong>의 탭 줄 끝에 탭이 붙고 선택된다(<a href="terminal-tab-groups.html#requirements">분할 그룹 R2</a>). Claude 를 실행할 수 있는 타깃에서는 <a href="terminal-claude.html#requirements">Claude 실행 R1</a> 의 "터미널 / Claude (YOLO)" 메뉴가 이 버튼 아래로 뜨고, 아니면 곧바로 셸 탭이 열린다(R6). 패널에 그룹이 하나도 없어도 + 버튼은 남고, 그 + 는 탭이 있는 줄의 + 와 모양·크기와 세로 자리(탭 줄의 위쪽, 아래 내용과의 간격)가 같다.</li>
   <li><strong>R3.</strong> 새 탭은 그 그룹 안에서 열린다. 다른 패널을 골라도 그 패널의 그룹마다 + 가 있고, 누르면 그 그룹에 붙는다. 탭은 만든 패널을 벗어나지 않는다(<a href="terminal-panels.html#requirements">패널 R5</a>).</li>
 </ol>
 
@@ -89,11 +94,11 @@
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
     <tr><td>상단 막대</td><td><code>JarvisTopBar(title = "터미널", onBack)</code>. <code>actions</code> 는 비어 있다</td></tr>
-    <tr><td>새 탭 버튼</td><td>탭 줄에서 탭들 다음, 같은 줄에 <code>Add</code> 아이콘(small). 탭과 같은 높이·모서리(<code>TerminalTabDefaults.style</code> 의 surfaceVariant 배경, hover·눌림 한 단계 진하게). contentDescription "새 탭". 메뉴는 <a href="terminal-claude.html#behavior">Claude 실행</a>과 같은 <code>DropdownMenu</code></td></tr>
+    <tr><td>새 탭 버튼</td><td>탭 줄에서 탭들 다음, 같은 줄에 <code>Add</code> 아이콘(small). 탭과 같은 높이의 정사각형·모서리(<code>TerminalTabDefaults.style</code> 의 surfaceVariant 배경, hover·눌림 한 단계 진하게). contentDescription "새 탭". 메뉴는 <a href="terminal-claude.html#behavior">Claude 실행</a>과 같은 <code>DropdownMenu</code></td></tr>
     <tr><td>끌기 칩</td><td>포인터 위치에서 오른쪽 아래로 조금 떨어져 따라오는 둥근 칩. 끌던 탭의 이름, primaryContainer 배경, 투명도 <code>TerminalTabDragDefaults.GhostAlpha</code>(0.85). 포인터 이벤트를 받지 않는다</td></tr>
     <tr><td>놓일 자리 미리 보기</td><td>대상 그룹 위에 그 절반(변) 또는 전체(가운데) 크기의 상자. primary 색을 <code>TerminalTabDragDefaults.PreviewAlpha</code>(0.25)로 채우고 primary 1dp 테두리. 대상 그룹이나 자리가 바뀌면 상자가 바뀐다</td></tr>
     <tr><td>끌 수 있는 것</td><td>모든 그룹의 모든 탭(선택된 탭 포함). 놓을 수 없는 자리(R9)에서는 강조가 뜨지 않고 놓아도 아무 일이 없다</td></tr>
-    <tr><td>빈 패널</td><td>탭 줄 자리에 + 만 있다. 안내 글은 <a href="terminal-panels.html#behavior">패널</a>과 같다</td></tr>
+    <tr><td>빈 패널</td><td>탭 줄 자리에 + 만 있다. + 는 탭이 있을 때와 같은 크기다 — 탭이 없어도 버튼이 탭 높이(제목 한 줄 + 위아래 <code>spacing.s</code>)를 최소로 갖는다. 탭 줄과 아래 내용의 간격도 그룹과 같은 <code>spacing.xs</code> 다. 안내 글은 <a href="terminal-panels.html#behavior">패널</a>과 같다</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:new-tab:&lt;groupId&gt;</code>(그룹의 + 버튼), <code>terminal:new-tab:none</code>(빈 패널의 +), <code>terminal:new-tab-menu:shell</code>, <code>terminal:new-tab-menu:claude</code>,
       <code>terminal:drag-ghost</code>(끌기 칩), <code>terminal:drop-preview:&lt;groupId&gt;</code>(미리 보기 상자).
@@ -111,7 +116,7 @@
   </dd>
   <dt>상태</dt><dd><code>TerminalViewModel.dockTab(tabId, groupId, edge)</code>. 끄는 중인 탭·포인터 위치·그룹의 경계는 화면에서만 쓰는 값이라 ViewModel 에 두지 않는다</dd>
   <dt>UI</dt><dd>
-    <code>TerminalScreen</code> — 상단 막대에서 동작 버튼을 뺀다(R1). <code>TerminalTabRow</code> 끝에 <code>NewTabButton</code>(R2). 화면 루트를 <code>Box</code> 로 감싸 끌기 칩을 맨 위에 그린다.<br>
+    <code>TerminalScreen</code> — 상단 막대에서 동작 버튼을 뺀다(R1). <code>TerminalTabRow</code> 끝에 <code>NewTabButton</code>(R2). 빈 패널도 같은 <code>NewTabButton</code> 을 쓴다. 탭 줄은 <code>IntrinsicSize.Min</code> 이라 버튼이 <code>fillMaxHeight</code> 로 탭 높이를 따라가는데, 탭이 없으면 줄 높이를 정할 것이 버튼뿐이다. 그때 <code>aspectRatio(1f, matchHeightConstraintsFirst = true)</code> 는 intrinsic 높이를 콘텐츠 너비(아이콘 small)로 정해 버튼이 아이콘 크기로 줄어든다. 그래서 <code>TerminalNewTabButton</code> 은 <code>heightIn(min = TerminalTabDefaults.height())</code> 로 탭 높이를 최소로 둔다. <code>height()</code> 는 <code>rememberTextMeasurer</code> 로 잰 제목 한 줄(아이콘 small 보다 작으면 아이콘)에 위아래 <code>spacing.s</code> 를 더한 값이다. 화면 루트를 <code>Box</code> 로 감싸 끌기 칩을 맨 위에 그린다.<br>
     <code>TerminalTabDrag.kt</code> — <code>TerminalTabDragState</code>(<code>remember</code>): 끌고 있는 탭 id·이름, 화면 좌표의 포인터 위치, 창 id → <code>LayoutCoordinates</code>. 그룹은 자기 탭 id 목록과 함께 등록되고 <code>target()</code> 이 R7·R9 대로 대상 그룹과 자리를 계산한다(자기 그룹의 가운데, 탭 하나뿐인 자기 그룹의 변은 건너뛴다). <code>Modifier.terminalTabDragSource(...)</code> 가 R10 의 제스처를 <code>pointerInput</code> 으로 만든다: 첫 포인터가 <code>PointerType.Mouse</code> 면 <code>viewConfiguration.touchSlop</code> 만큼 움직인 뒤, 아니면 <code>awaitLongPressOrCancellation</code> 을 지나야 시작하고, 그 뒤 <code>drag()</code> 가 끝날 때까지 이동을 소비한다. 마우스에 <code>awaitTouchSlopOrCancellation</code> 을 쓰지 않는 이유는 그 함수가 마우스에는 터치 슬롭의 1/144(0.125dp)만 주어, 누르는 동안의 1px 떨림에도 끌기가 시작돼 탭 선택(클릭)이 사라지기 때문이다.<br>
     <code>PaneTree</code> 의 잎(그룹)은 <code>onGloballyPositioned</code> 로 좌표를 등록하고, 대상이면 <code>TerminalDropPreview</code> 상자를 겹친다(R8).
   </dd>
@@ -153,6 +158,7 @@
   <tbody>
     <tr><td><code>TerminalWorkspaceTest</code></td><td>R4–R6, R9. 네 변마다 방향과 앞뒤, 가운데는 탭 줄 끝, 끌어온 탭이 원래 그룹에서 빠지고 빈 그룹이 사라짐, 포커스·선택, 탭이 하나도 사라지지 않음, 놓을 수 없는 자리는 그대로</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>JarvisAppTerminalTest</code></td><td>R1, R2, R4, R5, R8–R10. 상단 막대에 동작 버튼이 없음, 그룹의 + 로 탭 추가(메뉴 포함), 마우스로 탭을 그룹의 오른쪽·위에 끌어 놓으면 그룹이 둘이 되고 세션은 그대로, 가운데에 놓으면 그 그룹의 탭, 끄는 동안 미리 보기 상자가 뜸, 그룹 밖에 놓으면 그대로, 자기 그룹 가운데는 놓이지 않음, 슬롭 안에서 떼면 탭 선택</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalTest</code></td><td>R2 의 빈 패널. 마지막 탭을 닫은 빈 패널의 + 가 탭이 있을 때의 + 와 너비·높이·위쪽 좌표가 같음</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTerminalPanelTest</code></td><td>R3. 두 번째 패널의 + 가 그 패널에 탭을 붙임</td><td>같음</td></tr>
   </tbody>
 </table>
