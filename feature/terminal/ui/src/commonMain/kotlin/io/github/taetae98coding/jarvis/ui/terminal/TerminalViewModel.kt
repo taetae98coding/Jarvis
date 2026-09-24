@@ -64,8 +64,13 @@ internal class TerminalViewModel(
 
     val isChromeImportSupported: Boolean = isChromeImportSupported()
 
-    // 페이지 제목은 웹뷰가 떠 있을 때만 알 수 있다. 저장하지 않고, 가려진 탭은 마지막으로 본 제목을 보인다.
+    // 페이지 제목은 저장하지 않는다. 엔진이 탭마다 제목을 알면(JVM) 그것을, 모르면(Android 의 웹뷰는 떠 있을 때만)
+    // 마지막으로 본 제목을 보인다.
     private val browserTitles = mutableMapOf<Long, MutableStateFlow<String?>>()
+
+    // 이 ViewModel 이 본 적 있는 탭. 사라진 것만 닫는다 — Claude 가 막 붙인 탭의 페이지를, 그 탭이 아직 없는
+    // 옛 배치로 닫지 않게 한다(docs/common/mcp-server.html R5).
+    private var knownTabIds: Set<Long> = emptySet()
 
     /** null 은 저장된 배치를 아직 읽지 못한 것이다. */
     val workspace: StateFlow<TerminalWorkspace?> = observeWorkspace()
@@ -124,13 +129,13 @@ internal class TerminalViewModel(
 
     /** 셸 창은 셸이 정한 제목, 브라우저 탭은 페이지 제목. */
     fun title(tab: TerminalTab): StateFlow<String?>? =
-        if (tab.program == TerminalProgram.Browser) browserTitle(tab.id) else host.pane(tab.id)?.title
+        if (tab.program == TerminalProgram.Browser) browserTitle(tab.id) ?: viewedBrowserTitle(tab.id) else host.pane(tab.id)?.title
 
     fun setBrowserTitle(tabId: Long, title: String?) {
-        browserTitle(tabId).value = title
+        viewedBrowserTitle(tabId).value = title
     }
 
-    private fun browserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
+    private fun viewedBrowserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
     fun addPanel(name: String, directory: String) {
         val sessionId = firstClaudeSessionId()
@@ -232,6 +237,8 @@ internal class TerminalViewModel(
         val tabIds = workspace.tabIds.toSet()
         host.retain(tabIds)
         browserTitles.keys.retainAll(tabIds)
+        closeBrowserPages(knownTabIds - tabIds)
+        knownTabIds = tabIds
 
         val visible = workspace.visibleTabs.filter { it.program == TerminalProgram.Shell || it.program == TerminalProgram.Claude }
 

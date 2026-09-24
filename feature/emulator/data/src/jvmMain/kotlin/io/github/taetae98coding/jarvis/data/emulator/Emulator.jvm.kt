@@ -47,7 +47,7 @@ private val emulatorDevices: Flow<List<EmulatorDevice>> =
         .shareIn(emulatorScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), replay = 1)
 
 // adb 시리얼 기기의 화면 스트림·제스처. SDK 가 없으면(다른 OS) null 이라 프레임은 없는 것이 된다.
-private val screenMirror: ScreenMirror? = androidSdkDirectory()?.let(::ScreenMirror)
+internal val screenMirror: ScreenMirror? = androidSdkDirectory()?.let(::ScreenMirror)
 
 internal actual val emulatorDataSource: EmulatorDataSource = object : EmulatorDataSource {
     override fun observeStatus(): Flow<EmulatorStatus> = emulatorStatuses
@@ -295,7 +295,7 @@ internal fun parseIosConnections(json: String): Map<String, DeviceConnection> =
  * `adb -s` 에 그대로 넘길 수 있는 식별자인지. 나머지 세 종류는 접두사나 UDID 모양으로 갈린다.
  * 에뮬레이터와 실물 Android 기기는 여기서 구분하지 않는다. 화면도 제스처도 같은 명령을 쓴다.
  */
-private fun isAdbSerial(deviceId: String): Boolean =
+internal fun isAdbSerial(deviceId: String): Boolean =
     !deviceId.startsWith(StoppedAvdPrefix) &&
         !deviceId.startsWith(PhysicalIosPrefix) &&
         !SimulatorUdid.matches(deviceId)
@@ -304,11 +304,11 @@ private fun isAdbSerial(deviceId: String): Boolean =
 // 실물 기기를 가른다.
 private const val EmulatorSerialPrefix = "emulator-"
 
-private const val StoppedAvdPrefix = "avd:"
+internal const val StoppedAvdPrefix = "avd:"
 
 // 실물 iOS 기기의 UDID(`00008030-001A2B3C11E8802E`)는 Android 시리얼과 모양으로 갈리지 않는다.
 // 시뮬레이터 UUID 와 달리 접두사를 붙여야 어느 도구를 부를지 정할 수 있다.
-private const val PhysicalIosPrefix = "ios:"
+internal const val PhysicalIosPrefix = "ios:"
 
 internal fun parseAvdNames(output: String): List<String> =
     output.lineSequence().map(String::trim).filter(String::isNotEmpty).toList()
@@ -414,7 +414,7 @@ internal fun parsePhysicalIosDevices(output: String): List<EmulatorDevice> =
 
 private val SimulatorLine = Regex("""^\s*(.+) \(([0-9A-F-]{36})\) \((\w+)\)\s*$""", RegexOption.MULTILINE)
 
-private val SimulatorUdid = Regex("""[0-9A-F-]{36}""")
+internal val SimulatorUdid = Regex("""[0-9A-F-]{36}""")
 
 private val PhysicalIosLine = Regex("""(.+) \((\d[\d.]*)\) \(([0-9A-Fa-f-]{25,})\)""")
 
@@ -432,7 +432,7 @@ internal fun adbBinary(sdk: File): String = File(sdk, "platform-tools/adb").path
 
 private fun emulatorBinary(sdk: File): String = File(sdk, "emulator/emulator").path
 
-private fun xcodeToolCommand(tool: String): List<String>? {
+internal fun xcodeToolCommand(tool: String): List<String>? {
     // `xcrun` 은 xcode-select 가 정식 Xcode 를 가리킬 때만 simctl·xctrace 를 찾는다. Command Line Tools
     // 만 선택된 머신에도 Xcode.app 안에는 두 도구가 있으므로, 없다고 답하기 전에 기본 설치 경로를 한 번
     // 더 본다. 예전에는 simctl 에만 이 대비가 있어서 시뮬레이터는 보이는데 실물 iPhone 은 0개였다.
@@ -456,7 +456,7 @@ internal fun runCommandOutput(command: List<String>, timeoutSeconds: Long): Stri
     runCommandBytes(command, mergeError = true, timeoutSeconds = timeoutSeconds, requireSuccess = false)
         ?.decodeToString()
 
-private fun runCommandBytes(
+internal fun runCommandBytes(
     command: List<String>,
     mergeError: Boolean = false,
     timeoutSeconds: Long = CommandTimeoutSeconds,

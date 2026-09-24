@@ -58,6 +58,13 @@ data class TerminalTab(
     }
 }
 
+/** 탭 하나가 어느 패널·그룹에 있는지. */
+data class TabLocation(
+    val panel: TerminalPanel,
+    val group: PaneNode.Group,
+    val tab: TerminalTab,
+)
+
 sealed interface PaneNode {
     /** 나뉜 칸 하나. 자기 탭 줄을 가진다. [tabs] 는 비지 않는다 — 마지막 탭이 닫히면 그룹이 사라진다. */
     data class Group(
@@ -279,6 +286,35 @@ data class TerminalWorkspace(
             .focusGroup(group.id)
             .copy(nextId = nextId + 1)
     }
+
+    /**
+     * [groupId] 그룹의 탭 줄 끝에 탭을 붙이되 고르지 않는다. 선택된 패널, 포커스된 그룹, 그룹마다 선택된 탭이
+     * 그대로다 — Claude 가 연 탭이 사용자가 보던 창을 가리지 않게 한다(docs/common/mcp-server.html R5). 붙는 탭의
+     * id 는 부르기 전의 [nextId] 다. 모르는 그룹이면 그대로다.
+     */
+    fun appendTab(
+        groupId: Long,
+        program: TerminalProgram,
+        url: String? = null,
+        deviceId: String? = null,
+        deviceName: String? = null,
+        devicePlatform: DevicePlatform? = null,
+    ): TerminalWorkspace {
+        if (findGroup { it.id == groupId } == null) return this
+
+        val tab = TerminalTab(nextId, program, url = url, deviceId = deviceId, deviceName = deviceName, devicePlatform = devicePlatform)
+
+        return replaceGroup(groupId) { it.copy(tabs = it.tabs + tab) }.copy(nextId = nextId + 1)
+    }
+
+    /** [sessionId] 를 가진 Claude 탭과 그 탭이 있는 패널·그룹. 선택되지 않은 패널도 찾는다. */
+    fun findClaudeTab(sessionId: String): TabLocation? =
+        panels.firstNotNullOfOrNull { panel ->
+            panel.groups.firstNotNullOfOrNull { group ->
+                group.tabs.firstOrNull { it.program == TerminalProgram.Claude && it.claudeSessionId == sessionId }
+                    ?.let { TabLocation(panel, group, it) }
+            }
+        }
 
     /** 포커스된 그룹을 나눠 셸 탭 하나짜리 새 그룹을 오른쪽·아래에 두고 포커스한다. Claude·브라우저·기기는 새 탭 메뉴로만 뜬다. */
     fun split(direction: SplitDirection, directory: String? = null): TerminalWorkspace {

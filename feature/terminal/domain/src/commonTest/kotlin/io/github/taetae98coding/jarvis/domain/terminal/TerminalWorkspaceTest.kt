@@ -678,6 +678,52 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    fun appendedTabGoesToTheGroupEndWithoutTakingSelectionOrFocus() {
+        // 패널 둘: 첫 패널을 나눠 그룹 둘, 둘째 패널이 선택된 상태에서 첫 패널의 첫 그룹에 붙인다.
+        val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
+        val firstPanel = split.selectedPanel!!
+        val target = firstPanel.groups.first()
+        val workspace = split.addPanel().addTab()
+
+        val appended = workspace.appendTab(target.id, TerminalProgram.Browser, url = "https://example.com")
+        val group = appended.panels.first { it.id == firstPanel.id }.groups.first { it.id == target.id }
+
+        assertEquals(target.tabs.size + 1, group.tabs.size)
+        assertEquals(TerminalProgram.Browser, group.tabs.last().program)
+        assertEquals("https://example.com", group.tabs.last().url)
+        assertEquals(workspace.nextId, group.tabs.last().id)
+        assertEquals(workspace.nextId + 1, appended.nextId)
+        assertEquals(target.selectedTabId, group.selectedTabId)
+        assertEquals(workspace.selectedPanelId, appended.selectedPanelId)
+        assertEquals(firstPanel.focusedGroupId, appended.panels.first { it.id == firstPanel.id }.focusedGroupId)
+        assertEquals(workspace.focusedTab, appended.focusedTab)
+    }
+
+    @Test
+    fun appendingToAnUnknownGroupChangesNothing() {
+        val workspace = TerminalWorkspace.initial()
+
+        assertEquals(workspace, workspace.appendTab(groupId = -1, program = TerminalProgram.Browser))
+    }
+
+    @Test
+    fun findsTheClaudeTabInAnyPanel() {
+        val first = TerminalWorkspace.initial()
+        val claudeGroup = first.focusedGroup!!.id
+        val workspace = first
+            .addTab(claudeGroup, TerminalProgram.Claude, claudeSessionId = "session-1")
+            .addPanel()
+            .addTab()
+
+        val location = workspace.findClaudeTab("session-1")!!
+
+        assertEquals(first.selectedPanelId, location.panel.id)
+        assertEquals(claudeGroup, location.group.id)
+        assertEquals("session-1", location.tab.claudeSessionId)
+        assertNull(workspace.findClaudeTab("unknown"))
+    }
+
+    @Test
     fun tabKindFollowsTheProgramAndTheDevicePlatform() {
         assertEquals(TerminalTabKind.Terminal, TerminalTab(1).kind)
         assertEquals(TerminalTabKind.Claude, TerminalTab(1, TerminalProgram.Claude, claudeSessionId = "s").kind)
