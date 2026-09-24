@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeUiTest
@@ -21,10 +22,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.text.TextLayoutResult
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalEmptyPanelTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewClaudeTabTestTag
@@ -42,6 +45,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelRenameTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelTestTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -126,6 +130,36 @@ class JarvisAppTerminalPanelTest {
         onNodeWithTag(terminalPanelTestTag(first)).performTouchInput { click(Offset(10f, height - 10f)) }
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.selectedPanelId == first }
+    }
+
+    @Test
+    fun longPanelTextsAreNotEllipsized() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        val name = "아주 긴 패널 이름이라 목록 폭을 한참 넘는다"
+        val directory = "/Users/someone/projects/very/deep/folder/that/overflows"
+        addPanel(name = name, directory = directory)
+        val row = onNodeWithTag(terminalPanelTestTag(workspace.workspace.value.selectedPanelId!!)).fetchSemanticsNode().size.width
+
+        fun layoutOf(text: String): TextLayoutResult {
+            val layout = mutableListOf<TextLayoutResult>()
+            onNodeWithText(text, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layout) }
+            return layout.single()
+        }
+
+        // basicMarquee 는 글자를 너비 제한 없이 재서 Paragraph 폭이 무한대가 되므로 didOverflowWidth 는 늘 true 다.
+        // 말줄임 여부는 줄 단위로 본다.
+        listOf(name, directory).forEach { text ->
+            val layout = layoutOf(text)
+            assertEquals(1, layout.lineCount)
+            assertFalse(layout.isLineEllipsized(0), "말줄임 없이 글자 전체가 배치되어야 한다: $text")
+            assertTrue(layout.size.width > row, "글자가 줄 폭보다 넓어야 흐른다: $text")
+        }
+        assertTrue(layoutOf("패널 1").size.width < row)
     }
 
     @Test

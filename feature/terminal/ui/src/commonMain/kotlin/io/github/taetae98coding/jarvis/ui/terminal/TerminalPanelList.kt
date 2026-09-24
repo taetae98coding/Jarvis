@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.ui.terminal
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -50,7 +51,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
@@ -193,9 +193,10 @@ internal fun TerminalPanelList(
 /**
  * 패널 한 줄. 이름을 바꾸는 동안은 이름 자리에 입력 필드가 온다. 편집 중인지는 이 줄만 아는 값이라
  * ViewModel 에 두지 않는다. [isWorktree] 면 들여쓰고 이름 앞에 브랜치 아이콘을 둔다. [branch] 가 있으면 이름과
- * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. 이름이 폭을 다 쓰도록 [claudeStatus] 표시와
- * 버튼(+ · ✎ · ✕)은 글자 아래 따로 된 줄에 둔다 — 표시는 왼쪽 끝, 버튼은 오른쪽 끝이다. 이름을 바꾸는 동안은 버튼이 없고
- * 표시만 남는다. [onAddWorktree] 가 있으면 ✎ 앞에 + 가 있다.
+ * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. 이름·브랜치·폴더 줄은 넘치면 말줄임 없이
+ * 끝없이 옆으로 흐른다. 이름이 폭을 다 쓰도록 [claudeStatus] 표시와 버튼(+ · ✎ · ✕)은 글자 아래 따로 된 줄에 둔다 —
+ * 표시는 왼쪽 끝, 버튼은 오른쪽 끝이다. 이름을 바꾸는 동안은 버튼이 없고 표시만 남는다. [onAddWorktree] 가 있으면
+ * ✎ 앞에 + 가 있다.
  */
 @Composable
 internal fun TerminalPanelItem(
@@ -278,7 +279,7 @@ internal fun TerminalPanelItem(
                         style = TerminalPanelItemDefaults.nameStyle,
                         color = contentColor,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
                     )
                     if (branch != null) {
                         Text(
@@ -286,9 +287,7 @@ internal fun TerminalPanelItem(
                             style = TerminalPanelItemDefaults.directoryStyle,
                             color = TerminalPanelItemDefaults.directoryColor(selected),
                             maxLines = 1,
-                            // 끝의 현재 브랜치가 알아보는 데 중요하다.
-                            overflow = TextOverflow.StartEllipsis,
-                            modifier = branchModifier,
+                            modifier = branchModifier.basicMarquee(iterations = Int.MAX_VALUE),
                         )
                     }
                     if (directory != null) {
@@ -297,8 +296,7 @@ internal fun TerminalPanelItem(
                             style = TerminalPanelItemDefaults.directoryStyle,
                             color = TerminalPanelItemDefaults.directoryColor(selected),
                             maxLines = 1,
-                            // 경로는 끝의 폴더 이름이 알아보는 데 중요하다.
-                            overflow = TextOverflow.StartEllipsis,
+                            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
                         )
                     }
                 }
