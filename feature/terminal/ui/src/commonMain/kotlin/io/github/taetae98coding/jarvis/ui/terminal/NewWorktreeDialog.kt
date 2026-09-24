@@ -37,23 +37,27 @@ import kotlinx.coroutines.launch
 
 const val TerminalNewWorktreeDialogTestTag = "terminal:new-worktree-dialog"
 const val TerminalNewWorktreeBranchTestTag = "terminal:new-worktree-branch"
+const val TerminalNewWorktreeBaseTestTag = "terminal:new-worktree-base"
 const val TerminalNewWorktreeDirectoryTestTag = "terminal:new-worktree-directory"
 const val TerminalNewWorktreeErrorTestTag = "terminal:new-worktree-error"
 const val TerminalNewWorktreeConfirmTestTag = "terminal:new-worktree-confirm"
 const val TerminalNewWorktreeCancelTestTag = "terminal:new-worktree-cancel"
 
 /**
- * 새 워크트리의 브랜치·폴더를 받는다. 탭 종류는 묻지 않는다 — 만든 패널은 비어 있고 첫 탭은 빈 패널의 + 메뉴에서 연다.
+ * 새 워크트리의 브랜치·기준 브랜치·폴더를 받는다. 탭 종류는 묻지 않는다 — 만든 패널은 비어 있고 첫 탭은 빈 패널의 + 메뉴에서 연다.
+ * 기준 브랜치는 + 를 누른 패널의 워크트리 [worktree] 가 지금 체크아웃한 브랜치로 시작하고, 비우면 그 값으로 돌아간다
+ * (둘 다 없으면 null — git 의 HEAD).
  * [onCreate] 가 git 을 돌리는 동안 창은 남고 입력이 잠기며, 실패하면 그 문구를 보이고 다시 누를 수 있다.
  * 성공하면 [onDismiss] 로 닫는다. 입력 중인 글자는 창이 닫히면 버린다.
  */
 @Composable
 internal fun NewWorktreeDialog(
     worktree: GitWorktree,
-    onCreate: suspend (branch: String, directory: String) -> Result<Unit>,
+    onCreate: suspend (branch: String, baseBranch: String?, directory: String) -> Result<Unit>,
     onDismiss: () -> Unit,
 ) {
     var branch by remember { mutableStateOf("") }
+    var baseBranch by remember { mutableStateOf(worktree.branch.orEmpty()) }
     var directory by remember { mutableStateOf("") }
     // 폴더를 한 번 직접 고치면 브랜치를 더 따라가지 않는다.
     var directoryEdited by remember { mutableStateOf(false) }
@@ -66,13 +70,14 @@ internal fun NewWorktreeDialog(
     val defaultDirectory = if (trimmedBranch.isEmpty()) "" else worktree.defaultWorktreePath(trimmedBranch)
     val shownDirectory = if (directoryEdited) directory else defaultDirectory
     val canCreate = trimmedBranch.isNotEmpty() && !creating
+    val effectiveBase = baseBranch.trim().ifEmpty { worktree.branch.orEmpty() }.ifEmpty { null }
 
     fun create() {
         if (!canCreate) return
         creating = true
         error = null
         scope.launch {
-            onCreate(trimmedBranch, shownDirectory.trim().ifEmpty { defaultDirectory })
+            onCreate(trimmedBranch, effectiveBase, shownDirectory.trim().ifEmpty { defaultDirectory })
                 .onSuccess { onDismiss() }
                 .onFailure {
                     error = it.message?.takeIf(String::isNotBlank) ?: "워크트리를 만들지 못했습니다"
@@ -110,6 +115,21 @@ internal fun NewWorktreeDialog(
                         .focusRequester(branchFocus)
                         .then(enterCreates)
                         .testTag(TerminalNewWorktreeBranchTestTag),
+                )
+
+                OutlinedTextField(
+                    value = baseBranch,
+                    onValueChange = { baseBranch = it },
+                    label = { Text("기준 브랜치") },
+                    placeholder = { Text("HEAD") },
+                    singleLine = true,
+                    enabled = !creating,
+                    keyboardOptions = keyboardOptions,
+                    keyboardActions = keyboardActions,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(enterCreates)
+                        .testTag(TerminalNewWorktreeBaseTestTag),
                 )
 
                 OutlinedTextField(

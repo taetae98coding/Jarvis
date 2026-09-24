@@ -40,8 +40,30 @@ class GitDataSourceTest {
         val repository = newRepository()
         val nested = File(repository, "src/main").apply { mkdirs() }
 
-        assertEquals(GitWorktree(repository.path, repository.path), source.observeWorktree(repository.path).first())
-        assertEquals(GitWorktree(repository.path, repository.path), source.observeWorktree(nested.path).first())
+        assertEquals(GitWorktree(repository.path, repository.path, "main"), source.observeWorktree(repository.path).first())
+        assertEquals(GitWorktree(repository.path, repository.path, "main"), source.observeWorktree(nested.path).first())
+    }
+
+    @Test
+    fun theCurrentBranchFollowsHeadAndIsNullWhenDetached() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        git(repository, "switch", "-q", "-c", "work")
+
+        assertEquals("work", source.observeWorktree(repository.path).first()!!.branch)
+
+        git(repository, "switch", "-q", "--detach")
+
+        assertNull(source.observeWorktree(repository.path).first()!!.branch)
+    }
+
+    // 커밋이 없는 새 저장소도 저장소이고 브랜치 이름이 있다. rev-parse HEAD 는 여기서 실패한다.
+    @Test
+    fun aRepositoryWithoutCommitsStillReportsItsBranch() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newDirectory().also { git(it, "init", "-q", "-b", "main") }
+
+        assertEquals(GitWorktree(repository.path, repository.path, "main"), source.observeWorktree(repository.path).first())
     }
 
     @Test
@@ -58,25 +80,55 @@ class GitDataSourceTest {
         val repository = newRepository()
         val path = File(repository.parentFile, "${repository.name}-worktrees/feature/login")
 
-        val worktree = source.addWorktree(repository.path, "feature/login", path.path).getOrThrow()
+        val worktree = source.addWorktree(repository.path, "feature/login", path.path, baseBranch = null).getOrThrow()
 
         assertEquals(path.canonicalPath, worktree.path)
         assertEquals(repository.path, worktree.mainPath)
+        assertEquals("feature/login", worktree.branch)
         assertTrue(File(path, ".git").isFile)
         assertEquals(worktree, source.observeWorktree(path.path).first())
         assertEquals("feature/login", currentBranch(path))
     }
 
     @Test
-    fun addWorktreeChecksOutAnExistingBranch() = runTest {
+    fun addWorktreeStartsTheNewBranchAtTheBaseBranch() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        git(repository, "branch", "release")
+        git(repository, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", "after release")
+        val path = File(repository.parentFile, "${repository.name}-worktrees/hotfix")
+
+        val worktree = source.addWorktree(repository.path, "hotfix", path.path, baseBranch = "release").getOrThrow()
+
+        assertEquals("hotfix", worktree.branch)
+        assertEquals(revision(repository, "release"), revision(path, "HEAD"))
+        assertTrue(revision(repository, "main") != revision(path, "HEAD"))
+    }
+
+    @Test
+    fun anUnknownBaseBranchIsGitsErrorMessage() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val path = File(repository.parentFile, "${repository.name}-worktrees/fix")
+
+        val result = source.addWorktree(repository.path, "fix", path.path, baseBranch = "nope")
+
+        val error = assertIs<GitWorktreeException>(result.exceptionOrNull())
+        assertTrue(error.message!!.contains("nope"), error.message)
+        assertTrue(!path.exists())
+    }
+
+    @Test
+    fun addWorktreeChecksOutAnExistingBranchIgnoringTheBaseBranch() = runTest {
         if (!gitAvailable) return@runTest
         val repository = newRepository()
         git(repository, "branch", "existing")
         val path = File(repository.parentFile, "${repository.name}-existing")
 
-        val worktree = source.addWorktree(repository.path, "existing", path.path).getOrThrow()
+        val worktree = source.addWorktree(repository.path, "existing", path.path, baseBranch = "nope").getOrThrow()
 
         assertEquals(path.canonicalPath, worktree.path)
+        assertEquals("existing", worktree.branch)
         assertEquals("existing", currentBranch(path))
     }
 
@@ -86,7 +138,7 @@ class GitDataSourceTest {
         val repository = newRepository()
 
         // main 은 저장소 자신이 체크아웃하고 있어 다른 워크트리에 다시 낼 수 없다.
-        val result = source.addWorktree(repository.path, "main", File(repository.parentFile, "${repository.name}-main").path)
+        val result = source.addWorktree(repository.path, "main", File(repository.parentFile, "${repository.name}-main").path, baseBranch = null)
 
         val error = assertIs<GitWorktreeException>(result.exceptionOrNull())
         assertTrue(error.message!!.contains("main"), error.message)
@@ -108,8 +160,12 @@ class GitDataSourceTest {
         assertNull(parseWorktree("${directory.path}\n", directory))
     }
 
-    private fun currentBranch(directory: File): String {
-        val process = ProcessBuilder("git", "-C", directory.path, "branch", "--show-current").start()
+    private fun currentBranch(directory: File): String = read(directory, "branch", "--show-current")
+
+    private fun revision(directory: File, ref: String): String = read(directory, "rev-parse", ref)
+
+    private fun read(directory: File, vararg args: String): String {
+        val process = ProcessBuilder("git", "-C", directory.path, *args).start()
         return process.inputStream.bufferedReader().readText().trim().also { process.waitFor() }
     }
 }

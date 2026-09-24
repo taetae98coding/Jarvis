@@ -9,6 +9,6 @@ internal class DefaultGitWorktreeRepository(
 ) : GitWorktreeRepository {
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = dataSource.observeWorktree(directory)
 
-    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String): Result<GitWorktree> =
-        dataSource.addWorktree(repositoryDirectory, branch, path)
+    override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> =
+        dataSource.addWorktree(repositoryDirectory, branch, path, baseBranch)
 }

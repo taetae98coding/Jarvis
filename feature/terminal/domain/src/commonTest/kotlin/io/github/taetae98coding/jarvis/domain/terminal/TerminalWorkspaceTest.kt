@@ -365,6 +365,30 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    fun worktreePanelRemembersItsBranchAndBaseBranchAndDropsBlankOnes() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis")
+        val parent = workspace.panels.last()
+
+        val remembered = workspace
+            .addWorktreePanel(parent.id, name = "a", directory = "/work/a", branch = " a ", baseBranch = " main ")
+            .selectedPanel!!
+        val blank = workspace
+            .addWorktreePanel(parent.id, name = "b", directory = "/work/b", branch = "b", baseBranch = "  ")
+            .selectedPanel!!
+
+        assertEquals("a", remembered.branch)
+        assertEquals("main", remembered.baseBranch)
+        assertEquals("b", blank.branch)
+        assertNull(blank.baseBranch)
+        assertNull(parent.branch)
+
+        // 이름을 바꿔도 브랜치는 그대로다.
+        val renamed = workspace.addWorktreePanel(parent.id, branch = "a", baseBranch = "main").let { it.renamePanel(it.selectedPanelId!!, "x") }
+        assertEquals("x", renamed.selectedPanel!!.name)
+        assertEquals("a", renamed.selectedPanel!!.branch)
+    }
+
+    @Test
     fun worktreePanelForAnUnknownParentChangesNothing() {
         val workspace = TerminalWorkspace.initial()
 

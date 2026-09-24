@@ -74,6 +74,7 @@ val PaneNode.tabs: List<TerminalTab>
  *
  * [directory] 는 만들 때 정한 폴더다. 탭의 작업 디렉터리를 모를 때 새 탭이 여기서 시작한다.
  * [parentId] 가 있으면 그 패널 아래 들여쓰는 워크트리 패널이다. 부모는 늘 최상위 패널이라 한 단계뿐이다.
+ * [branch]·[baseBranch] 는 워크트리 패널이 만들 때 기억한 브랜치와 기준 브랜치다. 이름을 바꿔도 그대로다.
  */
 data class TerminalPanel(
     val id: Long,
@@ -82,6 +83,8 @@ data class TerminalPanel(
     val focusedGroupId: Long?,
     val directory: String? = null,
     val parentId: Long? = null,
+    val branch: String? = null,
+    val baseBranch: String? = null,
 ) {
     val groups: List<PaneNode.Group>
         get() = root?.groups.orEmpty()
@@ -156,12 +159,23 @@ data class TerminalWorkspace(
     /**
      * [addPanel] 과 같은 빈 패널을 [parentId] 패널의 워크트리 패널로 붙이고 고른다. 부모가 워크트리 패널이면 그
      * 부모의 부모 아래 형제로 들어간다(한 단계). 부모와 그 워크트리 패널들 바로 뒤에 놓인다. 모르는 부모면 그대로다.
+     * [branch]·[baseBranch] 는 앞뒤 공백을 떼고 비면 없는 것이다.
      */
-    fun addWorktreePanel(parentId: Long, name: String? = null, directory: String? = null): TerminalWorkspace {
+    fun addWorktreePanel(
+        parentId: Long,
+        name: String? = null,
+        directory: String? = null,
+        branch: String? = null,
+        baseBranch: String? = null,
+    ): TerminalWorkspace {
         val parent = findPanel { it.id == parentId } ?: return this
         val rootId = parent.parentId ?: parent.id
         val familyEnd = panels.indexOfLast { it.id == rootId || it.parentId == rootId }
-        val panel = newPanel(name, directory).copy(parentId = rootId)
+        val panel = newPanel(name, directory).copy(
+            parentId = rootId,
+            branch = branch?.trim()?.ifEmpty { null },
+            baseBranch = baseBranch?.trim()?.ifEmpty { null },
+        )
         val inserted = panels.toMutableList().apply { add(familyEnd + 1, panel) }
 
         return copy(panels = inserted, selectedPanelId = panel.id, nextId = nextId + 1)
