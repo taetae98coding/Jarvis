@@ -8,6 +8,8 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -19,6 +21,12 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeCancelTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeConfirmTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeDeleteDirectoryTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeDialogTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeErrorTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeRemoveTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalEmptyPanelTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeBaseTestTag
@@ -293,6 +301,7 @@ class JarvisAppTerminalWorktreeTest {
 
         onNodeWithTag(terminalPanelCloseTestTag(jarvis.id)).performClick()
 
+        assertEquals(0, count(TerminalCloseWorktreeDialogTestTag))
         waitUntil(timeoutMillis = FrameTimeoutMillis) { panelCount() == 2 }
         val current = workspace.workspace.value
         assertEquals(listOf(plain.id, api.id), current.panels.map { it.id })
@@ -301,11 +310,8 @@ class JarvisAppTerminalWorktreeTest {
         assertTrue(terminal.sessions[1].closed)
     }
 
-    @Test
-    fun closingAWorktreePanelKeepsTheParentSelected() = runComposeUiTest {
-        val terminal = FakeTerminalRepository()
-        val workspace = FakeTerminalWorkspaceRepository(initial)
-        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git()) }
+    /** 워크트리 패널 "a" 를 만들고 셸 탭을 하나 연 뒤, 그 패널의 ✕ 로 "워크트리 닫기" 창을 띄운다. */
+    private fun ComposeUiTest.openCloseWorktreeDialog(workspace: FakeTerminalWorkspaceRepository, terminal: FakeTerminalRepository): Long {
         openTerminal()
         awaitSessions(terminal, 1)
         addWorktree(jarvis.id, "a")
@@ -315,10 +321,149 @@ class JarvisAppTerminalWorktreeTest {
         val child = workspace.workspace.value.selectedPanel!!
 
         onNodeWithTag(terminalPanelCloseTestTag(child.id)).performClick()
+        awaitTag(TerminalCloseWorktreeDialogTestTag)
+        return child.id
+    }
 
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { panelCount() == 3 }
+    private fun ComposeUiTest.awaitClosed(panels: Int) {
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { count(TerminalCloseWorktreeDialogTestTag) == 0 && panelCount() == panels }
+    }
+
+    @Test
+    fun closingAWorktreePanelAsksAndRemovesTheWorktreeBranchAndFolderByDefault() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+
+        val child = openCloseWorktreeDialog(workspace, terminal)
+
+        onNodeWithTag(TerminalCloseWorktreeRemoveTestTag).assertIsOn()
+        onNodeWithTag(TerminalCloseWorktreeDeleteDirectoryTestTag).assertIsOn()
+        assertEquals(4, panelCount())
+        assertEquals(emptyList(), git.removed)
+
+        onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).performClick()
+
+        awaitClosed(panels = 3)
+        val removed = git.removed.single()
+        assertEquals("/work/jarvis-worktrees/a", removed.directory)
+        assertTrue(removed.deleteDirectory)
+        assertNull(workspace.workspace.value.panels.firstOrNull { it.id == child })
         assertEquals(jarvis.id, workspace.workspace.value.selectedPanelId)
         assertTrue(terminal.sessions[1].closed)
+    }
+
+    @Test
+    fun theFolderChoiceFollowsTheWorktreeChoiceAndCanKeepTheFolder() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        openCloseWorktreeDialog(workspace, terminal)
+
+        onNodeWithTag(TerminalCloseWorktreeDeleteDirectoryTestTag).performClick()
+        onNodeWithTag(TerminalCloseWorktreeDeleteDirectoryTestTag).assertIsOff()
+
+        onNodeWithTag(TerminalCloseWorktreeRemoveTestTag).performClick()
+        onNodeWithTag(TerminalCloseWorktreeRemoveTestTag).assertIsOff()
+        onNodeWithTag(TerminalCloseWorktreeDeleteDirectoryTestTag).assertIsOff().assertIsNotEnabled()
+
+        // 다시 켜면 폴더 선택은 끄기 전 값(끔)으로 돌아온다.
+        onNodeWithTag(TerminalCloseWorktreeRemoveTestTag).performClick()
+        onNodeWithTag(TerminalCloseWorktreeDeleteDirectoryTestTag).assertIsOff().assertIsEnabled()
+
+        onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).performClick()
+
+        awaitClosed(panels = 3)
+        val removed = git.removed.single()
+        assertEquals("/work/jarvis-worktrees/a", removed.directory)
+        assertEquals(false, removed.deleteDirectory)
+    }
+
+    @Test
+    fun withBothChoicesOffOnlyThePanelIsClosed() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        openCloseWorktreeDialog(workspace, terminal)
+
+        onNodeWithTag(TerminalCloseWorktreeRemoveTestTag).performClick()
+        onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).performClick()
+
+        awaitClosed(panels = 3)
+        assertEquals(emptyList(), git.removed)
+        assertTrue(terminal.sessions[1].closed)
+    }
+
+    @Test
+    fun gitFailureKeepsTheCloseDialogAndThePanel() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        val child = openCloseWorktreeDialog(workspace, terminal)
+        git.failure = "fatal: '/work/jarvis-worktrees/a' contains modified or untracked files, use --force to delete it"
+
+        onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).performClick()
+
+        awaitTag(TerminalCloseWorktreeErrorTestTag)
+        onNodeWithText("fatal: '/work/jarvis-worktrees/a' contains modified or untracked files, use --force to delete it").assertIsDisplayed()
+        assertEquals(1, count(TerminalCloseWorktreeDialogTestTag))
+        assertEquals(4, panelCount())
+        assertTrue(!terminal.sessions[1].closed)
+        onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).assertIsEnabled()
+
+        // 폴더를 남기면 된다.
+        git.failure = null
+        onNodeWithTag(TerminalCloseWorktreeDeleteDirectoryTestTag).performClick()
+        onNodeWithTag(TerminalCloseWorktreeConfirmTestTag).performClick()
+
+        awaitClosed(panels = 3)
+        assertEquals(false, git.removed.last().deleteDirectory)
+        assertNull(workspace.workspace.value.panels.firstOrNull { it.id == child })
+    }
+
+    @Test
+    fun cancelClosesNothing() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        openCloseWorktreeDialog(workspace, terminal)
+
+        onNodeWithTag(TerminalCloseWorktreeCancelTestTag).performClick()
+
+        assertEquals(0, count(TerminalCloseWorktreeDialogTestTag))
+        assertEquals(4, panelCount())
+        assertEquals(emptyList(), git.removed)
+        assertTrue(!terminal.sessions[1].closed)
+    }
+
+    @Test
+    fun aWorktreePanelWhoseWorktreeCannotBeObservedClosesWithoutAsking() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        addWorktree(jarvis.id, "a")
+        awaitWorktreePanel(panels = 4)
+        val child = workspace.workspace.value.selectedPanel!!
+        awaitTag(terminalNewWorktreeTestTag(child.id))
+
+        // 셸에서 폴더를 지운 것처럼 더는 저장소가 아니다.
+        git.worktrees.update { it - child.directory!! }
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { count(terminalNewWorktreeTestTag(child.id)) == 0 }
+
+        onNodeWithTag(terminalPanelCloseTestTag(child.id)).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { panelCount() == 3 }
+        assertEquals(0, count(TerminalCloseWorktreeDialogTestTag))
+        assertEquals(emptyList(), git.removed)
+        assertEquals(jarvis.id, workspace.workspace.value.selectedPanelId)
     }
 
     private companion object {

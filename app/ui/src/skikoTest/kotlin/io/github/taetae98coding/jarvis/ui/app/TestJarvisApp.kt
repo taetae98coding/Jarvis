@@ -298,7 +298,7 @@ internal class FakeTerminalWorkspaceRepository(
 /**
  * 폴더마다 정해 둔 워크트리를 답한다. 기본값은 어느 폴더도 저장소가 아닌 것이다. 만들기는 요청을 기록하고
  * 새 경로도 그 브랜치를 체크아웃한 저장소로 등록해서, 진짜 git 처럼 워크트리 패널에도 + 가 붙고 현재 브랜치가 보인다.
- * [failure] 가 있으면 그것으로 실패한다.
+ * 지우기는 요청을 기록하고 그 경로를 저장소가 아닌 것으로 되돌린다. [failure] 가 있으면 둘 다 그것으로 실패한다.
  */
 internal class FakeGitWorktreeRepository(
     worktrees: Map<String, GitWorktree> = emptyMap(),
@@ -308,7 +308,11 @@ internal class FakeGitWorktreeRepository(
 
     val worktrees = MutableStateFlow(worktrees)
 
+    class Removed(val directory: String, val deleteDirectory: Boolean)
+
     val added = mutableListOf<Added>()
+
+    val removed = mutableListOf<Removed>()
 
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = worktrees.map { it[directory] }
 
@@ -324,6 +328,14 @@ internal class FakeGitWorktreeRepository(
         worktrees.update { it + (path to worktree) }
 
         return Result.success(worktree)
+    }
+
+    override suspend fun removeWorktree(directory: String, deleteDirectory: Boolean): Result<Unit> {
+        removed += Removed(directory, deleteDirectory)
+        failure?.let { return Result.failure(GitWorktreeException(it)) }
+
+        worktrees.update { it - directory }
+        return Result.success(Unit)
     }
 }
 
