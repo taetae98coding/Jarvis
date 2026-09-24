@@ -272,6 +272,18 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    fun newPanelWithAClaudeSessionStartsWithThatClaudeTabInThePanelDirectory() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work", claudeSessionId = "session")
+
+        val panel = workspace.selectedPanel!!
+        assertEquals(workspace.panels.last().id, panel.id)
+        assertEquals(1, panel.groups.size)
+        assertEquals(TerminalTab(panel.tabs.single().id, TerminalProgram.Claude, "/work", "session"), workspace.focusedTab)
+        assertEquals(panel.groups.single().id, workspace.focusedGroupId)
+        assertEquals(workspace.tabIds.toSet().size, workspace.tabIds.size)
+    }
+
+    @Test
     fun firstTabOfANewPanelIsOpenedByAddTabInThePanelDirectory() {
         val empty = TerminalWorkspace.initial().addPanel(directory = "/work")
 
@@ -280,6 +292,19 @@ class TerminalWorkspaceTest {
         assertEquals(1, opened.selectedPanel!!.groups.size)
         assertEquals(TerminalTab(opened.focusedTab!!.id, TerminalProgram.Shell, "/work"), opened.focusedTab)
         assertEquals(opened.groups.single().id, opened.focusedGroupId)
+    }
+
+    @Test
+    fun worktreePanelWithAClaudeSessionStartsWithThatClaudeTabInTheWorktreeFolder() {
+        val workspace = TerminalWorkspace.initial().addPanel(name = "Jarvis", directory = "/work/jarvis")
+        val parent = workspace.selectedPanel!!
+
+        val added = workspace.addWorktreePanel(parent.id, name = "a", directory = "/work/a", claudeSessionId = "session")
+
+        val child = added.selectedPanel!!
+        assertEquals(parent.id, child.parentId)
+        assertEquals(TerminalTab(child.tabs.single().id, TerminalProgram.Claude, "/work/a", "session"), added.focusedTab)
+        assertEquals(workspace, workspace.addWorktreePanel(999, name = "a", directory = "/work/a", claudeSessionId = "session"))
     }
 
     @Test

@@ -993,7 +993,7 @@ class JarvisApplication : Application() {
     <tr><td>SAF <code>Intent.ACTION_OPEN_DOCUMENT_TREE</code>(<code>ActivityResultContracts.OpenDocumentTree</code>)</td><td>버렸다. 결과가 <code>content://com.android.externalstorage.documents/tree/primary%3A…</code> 같은 트리 URI 이고, 받은 권한은 <code>ContentResolver</code> 로 문서에 접근하는 권한일 뿐 파일 경로 접근 권한이 아니다. 셸(<code>/system/bin/sh</code>)은 경로로 <code>chdir</code> 해야 한다. <code>primary:</code> 를 <code>/storage/emulated/0/</code> 로 바꿔 경로를 만들 수는 있지만, Android 11+ 에서 앱 uid 가 그 경로의 다른 앱 파일을 읽으려면 <code>MANAGE_EXTERNAL_STORAGE</code> 가 필요하고 이 권한은 Play 정책상 파일 관리자 앱에만 허용된다. 권한 없이 고른 폴더는 셸이 비어 있거나 들어가지 못해 "고른 폴더에서 연다" 는 R4 를 지키지 못한다</td></tr>
     <tr><td>앱 안에서 <code>java.io.File.listFiles()</code> 로 폴더를 훑는 자체 선택 창</td><td>버렸다. 셸이 들어갈 수 있는 곳은 사실상 앱의 <code>filesDir</code> 아래뿐이라 훑을 나무가 작고, 그만큼을 위해 목록 화면 하나를 새로 만들 값이 없다. 경로 입력으로 같은 일을 한다</td></tr>
     <tr><td><code>~</code> 펼치기</td><td>앱의 <code>filesDir</code>. 셸의 <code>$HOME</code> 으로 넘기는 값과 같다(<a href="#terminal">터미널</a>)</td></tr>
-    <tr><td>첫 탭</td><td>창은 탭을 열지 않는다(공통). 빈 패널의 + 메뉴에는 "터미널" 만 있다 — <a href="#terminal-claude">Claude 실행</a>이 불가다</td></tr>
+    <tr><td>첫 탭</td><td><a href="#terminal-claude">Claude 실행</a>이 불가라 "확인" 은 빈 패널을 만든다(공통 R4b). 빈 패널의 + 메뉴에는 "터미널" 만 있다 — <a href="#terminal-claude">Claude 실행</a>이 불가다</td></tr>
   </tbody>
 </table>
 

@@ -167,17 +167,17 @@ data class TerminalWorkspace(
     fun children(panelId: Long): List<TerminalPanel> = panels.filter { it.parentId == panelId }
 
     /**
-     * 그룹이 없는 빈 패널을 끝에 붙이고 고른다. [name]·[directory] 는 앞뒤 공백을 떼고, 비면
-     * [nextPanelName]·폴더 없음이다. 탭은 열지 않는다 — 첫 탭은 [addTab] 이 [startDirectory] 대로 패널 폴더에서 연다.
+     * 패널을 끝에 붙이고 고른다. [name]·[directory] 는 앞뒤 공백을 떼고, 비면 [nextPanelName]·폴더 없음이다.
+     * [claudeSessionId] 가 있으면 패널 폴더에서 그 세션의 Claude 탭 하나로 시작하고, 없으면 그룹이 없는 빈 패널이다.
      */
-    fun addPanel(name: String? = null, directory: String? = null): TerminalWorkspace {
+    fun addPanel(name: String? = null, directory: String? = null, claudeSessionId: String? = null): TerminalWorkspace {
         val panel = newPanel(name, directory)
 
-        return copy(panels = panels + panel, selectedPanelId = panel.id, nextId = nextId + 1)
+        return copy(panels = panels + panel, selectedPanelId = panel.id, nextId = nextId + 1).startClaude(claudeSessionId)
     }
 
     /**
-     * [addPanel] 과 같은 빈 패널을 [parentId] 패널의 워크트리 패널로 붙이고 고른다. 부모가 워크트리 패널이면 그
+     * [addPanel] 과 같은 패널을 [parentId] 패널의 워크트리 패널로 붙이고 고른다. 부모가 워크트리 패널이면 그
      * 부모의 부모 아래 형제로 들어간다(한 단계). 부모와 그 워크트리 패널들 바로 뒤에 놓인다. 모르는 부모면 그대로다.
      * [branch]·[baseBranch] 는 앞뒤 공백을 떼고 비면 없는 것이다.
      */
@@ -187,6 +187,7 @@ data class TerminalWorkspace(
         directory: String? = null,
         branch: String? = null,
         baseBranch: String? = null,
+        claudeSessionId: String? = null,
     ): TerminalWorkspace {
         val parent = findPanel { it.id == parentId } ?: return this
         val rootId = parent.parentId ?: parent.id
@@ -198,8 +199,12 @@ data class TerminalWorkspace(
         )
         val inserted = panels.toMutableList().apply { add(familyEnd + 1, panel) }
 
-        return copy(panels = inserted, selectedPanelId = panel.id, nextId = nextId + 1)
+        return copy(panels = inserted, selectedPanelId = panel.id, nextId = nextId + 1).startClaude(claudeSessionId)
     }
+
+    // 막 붙여 고른 빈 패널에 첫 탭을 연다. 탭 디렉터리는 startDirectory 가 패널 폴더로 채운다.
+    private fun startClaude(claudeSessionId: String?): TerminalWorkspace =
+        if (claudeSessionId == null) this else addTab(program = TerminalProgram.Claude, directory = startDirectory(), claudeSessionId = claudeSessionId)
 
     // 패널 id 로 nextId 를 쓴다. 부르는 쪽이 nextId 를 1 늘린다.
     private fun newPanel(name: String?, directory: String?): TerminalPanel =
@@ -459,7 +464,10 @@ data class TerminalWorkspace(
 
         const val DefaultPanelName = "패널"
 
-        /** 처음 켰을 때. 패널 하나, 그룹 하나, 셸 탭 하나. 창으로 만드는 패널과 달리 여기만 탭을 넣는다. */
+        /**
+         * 처음 켰을 때. 패널 하나, 그룹 하나, 셸 탭 하나. 창으로 만드는 패널과 달리 Claude 가 아니다 — data 계층이
+         * 저장 전까지 읽을 때마다 다시 부르므로, 무작위 sessionId 가 매번 달라진다(docs/common/terminal-panel-create.html).
+         */
         fun initial(): TerminalWorkspace =
             TerminalWorkspace(panels = emptyList(), selectedPanelId = null, nextId = 1).addPanel().addTab()
     }
