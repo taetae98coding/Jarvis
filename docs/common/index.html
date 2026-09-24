@@ -48,6 +48,7 @@
   <li><a href="card-ripple.html">카드 물결 효과</a><p>누를 수 있는 카드의 물결이 카드의 둥근 모서리 안에서만 퍼진다</p></li>
   <li><a href="device-rotation.html">화면 회전</a><p>화면을 0·90·180·270도로 돌리고 그 각도에 고정한다</p></li>
   <li><a href="home-screen-widget.html">홈 화면 위젯</a><p>Android 홈 화면에서 앱을 열지 않고 화면 회전과 시스템 전역 화면 꺼짐 방지를 조작한다</p></li>
+  <li><a href="notification-widget.html">알림 위젯과 빠른 설정 타일</a><p>Android 알림 창에 고정한 컨트롤과 빠른 설정 타일로 같은 두 기능을 조작한다. 카드의 "알림에 고정" 스위치로 켠다</p></li>
   <li><a href="home-staggered-grid.html">홈 그리드 세로 배치</a><p>높이가 제각각인 기능 카드를 행으로 묶지 않고 가장 짧은 열에 이어 붙인다</p></li>
   <li><a href="design-system.html">디자인 시스템</a><p>M3 위의 JarvisTheme 토큰, *Defaults 와 Style 로 정의한 컴포넌트, ImageVector 아이콘</p></li>
   <li><a href="terminal.html">터미널</a><p>iTerm 처럼 셸을 띄우고 좌우·상하 분할과 탭을 쓴다. JVM 은 pty, Android 는 파이프, iOS·Web 은 불가</p></li>
@@ -64,7 +65,7 @@
 
 <h2 id="modules">모듈</h2>
 
-<p>공용 코드는 기능마다 <code>domain</code>(모델·규칙) · <code>data</code>(플랫폼 구현) · <code>ui</code>(Compose 화면) 세 모듈을 갖는다. Android 홈 화면 위젯이 있는 기능(<code>rotation</code>, <code>screen</code>)은 Android 전용 <code>widget</code> 모듈을 하나 더 갖는다(<a href="home-screen-widget.html">홈 화면 위젯</a>). 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code>, <code>terminal</code> 다섯이고 서로를 의존하지 않는다. 의존은 한 방향이고 Gradle이 강제한다. 자세한 규칙과 패키지 배치는 <a href="module-architecture.html">모듈 구조</a>, 조립 규칙은 <a href="dependency-injection.html">의존성 주입</a>에 있다.</p>
+<p>공용 코드는 기능마다 <code>domain</code>(모델·규칙) · <code>data</code>(플랫폼 구현) · <code>ui</code>(Compose 화면) 세 모듈을 갖는다. Android 시스템 표면 컨트롤(홈 화면 위젯·알림·빠른 설정 타일)이 있는 기능(<code>rotation</code>, <code>screen</code>)은 Android 전용 <code>widget</code> 모듈을 하나 더 갖는다(<a href="home-screen-widget.html">홈 화면 위젯</a>, <a href="notification-widget.html">알림 위젯과 빠른 설정 타일</a>). 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code>, <code>terminal</code> 다섯이고 서로를 의존하지 않는다. 의존은 한 방향이고 Gradle이 강제한다. 자세한 규칙과 패키지 배치는 <a href="module-architecture.html">모듈 구조</a>, 조립 규칙은 <a href="dependency-injection.html">의존성 주입</a>에 있다.</p>
 
 <pre class="tree"><code>:shared                  App(), MainViewController(), startJarvisKoin(), platformModule
 └─ :app:ui               JarvisApp(), Home 화면, FeatureGrid, 백스택
@@ -84,7 +85,8 @@
     <tr><td><code>platformName: String</code></td><td><code>data.appinfo</code></td><td>실행 중인 플랫폼 표시용 문자열</td><td><a href="app-info.html">앱 정보 카드</a></td></tr>
     <tr><td><code>createIdleInhibitor(): IdleInhibitor</code></td><td><code>data.screen</code></td><td>Compose가 커버하지 않는 플랫폼의 화면 꺼짐 방지. JVM만 본문이 있다</td><td><a href="keep-screen-awake.html">화면 꺼짐 방지</a></td></tr>
     <tr><td><code>createSystemScreenAwakeDataSource(context): SystemScreenAwakeDataSource</code></td><td><code>data.screen</code></td><td>앱이 없는 동안의 화면 유지. 상태를 읽고 효과를 적용한다. Android만 본문이 있다</td><td><a href="system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a></td></tr>
-    <tr><td><code>createSettingsStore(context): SettingsStore</code></td><td><code>data.settings</code></td><td>설정을 영구 저장하고 변경을 알리는 키-값 저장소</td><td><a href="settings-persistence.html">설정 영구 저장</a></td></tr>
+    <tr><td><code>createSettingsStore(context): SettingsStore</code></td><td><code>data.settings</code> (<code>:core:data</code>)</td><td>설정을 영구 저장하고 변경을 알리는 키-값 저장소. <code>screen</code>·<code>rotation</code> 이 쓴다</td><td><a href="settings-persistence.html">설정 영구 저장</a></td></tr>
+    <tr><td><code>createNotificationPermission(context): NotificationPermission</code></td><td><code>data.notification</code> (<code>:core:data</code>)</td><td>알림 게시 권한의 지원 여부·허용 여부·요청. Android만 본문이 있다</td><td><a href="notification-widget.html">알림 위젯과 빠른 설정 타일</a></td></tr>
     <tr><td><code>emulatorDataSource: EmulatorDataSource</code></td><td><code>data.emulator</code></td><td>가상 기기와 연결된 실물 기기의 개수·목록·화면을 흘려보내고, 제스처·실행·화면 깨우기 요청을 전달하는 데이터 소스. JVM은 SDK 도구를 직접 실행하고 나머지는 로컬 에이전트에 묻는다</td><td><a href="emulator-count.html">에뮬레이터 개수</a>, <a href="emulator-control.html">목록·화면·제스처</a>, <a href="emulator-launch.html">실행</a>, <a href="emulator-wake.html">화면 깨우기</a></td></tr>
     <tr><td><code>devicePairingDataSource: DevicePairingDataSource</code></td><td><code>data.emulator</code></td><td>mDNS 로 찾은 페어링 대기 Android 기기를 흘려보내고, 주소·코드로 페어링한 결과를 돌려준다. JVM은 <code>adb</code> 를 직접 실행하고 나머지는 로컬 에이전트에 묻는다</td><td><a href="wireless-pairing.html">Wi-Fi 기기 페어링</a></td></tr>
     <tr><td><code>createDeviceRotationDataSource(context): DeviceRotationDataSource</code></td><td><code>data.rotation</code></td><td>화면 회전 각도와 잠금을 읽고 바꾼다. Android만 본문이 있다</td><td><a href="device-rotation.html">화면 회전</a></td></tr>
@@ -134,7 +136,7 @@
 
 <h3 id="limit-sync-store">SettingsStore는 동기 API다</h3>
 
-<p><code>:feature:screen:data</code> <code>SettingsStore</code>의 읽기·쓰기는 동기다. 리포지토리가 첫 값을 동기로 읽어 화면의 첫 프레임에 넘기므로 boolean 몇 개까지는 문제가 없지만, 다음 경우에는 맞지 않는다.</p>
+<p><code>:core:data</code> <code>SettingsStore</code>의 읽기·쓰기는 동기다. 리포지토리가 첫 값을 동기로 읽어 화면의 첫 프레임에 넘기므로 boolean 몇 개까지는 문제가 없지만, 다음 경우에는 맞지 않는다.</p>
 <ul>
   <li>값이 커지거나 많아져 읽기가 프레임을 막는 경우</li>
   <li>마이그레이션이나 트랜잭션이 필요한 경우</li>

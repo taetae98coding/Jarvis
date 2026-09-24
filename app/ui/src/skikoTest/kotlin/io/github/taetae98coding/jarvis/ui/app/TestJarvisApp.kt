@@ -13,11 +13,15 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
 import io.github.taetae98coding.jarvis.domain.emulator.PairingService
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationRepository
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationRepository
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
 import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeRepository
 import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeSettingsRepository
+import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeNotificationRepository
+import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeNotificationStatus
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeRepository
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
 import io.github.taetae98coding.jarvis.domain.appinfo.appInfoDomainModule
@@ -72,9 +76,11 @@ internal val TestAppInfo = AppInfo(version = "1.2.3-test", platform = "Test Plat
 internal fun TestJarvisApp(
     settings: ScreenAwakeSettingsRepository = FakeScreenAwakeSettingsRepository(),
     systemScreenAwake: SystemScreenAwakeRepository = FakeSystemScreenAwakeRepository(),
+    systemScreenAwakeNotification: SystemScreenAwakeNotificationRepository = FakeSystemScreenAwakeNotificationRepository(),
     emulator: EmulatorRepository = FakeEmulatorRepository(),
     pairing: DevicePairingRepository = FakeDevicePairingRepository(),
     deviceRotation: DeviceRotationRepository = FakeDeviceRotationRepository(),
+    deviceRotationNotification: DeviceRotationNotificationRepository = FakeDeviceRotationNotificationRepository(),
     screenAwake: ScreenAwakeRepository = ScreenAwakeRepository { },
     terminal: TerminalRepository = FakeTerminalRepository(),
     terminalWorkspace: TerminalWorkspaceRepository = FakeTerminalWorkspaceRepository(),
@@ -90,7 +96,9 @@ internal fun TestJarvisApp(
             single<ScreenAwakeSettingsRepository> { settings }
             single<ScreenAwakeRepository> { screenAwake }
             single<SystemScreenAwakeRepository> { systemScreenAwake }
+            single<SystemScreenAwakeNotificationRepository> { systemScreenAwakeNotification }
             single<DeviceRotationRepository> { deviceRotation }
+            single<DeviceRotationNotificationRepository> { deviceRotationNotification }
             single<TerminalRepository> { terminal }
             single<TerminalWorkspaceRepository> { terminalWorkspace }
         }
@@ -238,6 +246,39 @@ internal class FakeDeviceRotationRepository(
 
     override fun setLocked(locked: Boolean) {
         status.value = status.value.copy(locked = locked)
+    }
+
+    override fun requestPermission() = Unit
+}
+
+// 기본값은 Skiko 로 렌더링하는 세 타깃의 실제 상태와 같다. 셋 다 알림 컨트롤을 만들 수 없다.
+internal class FakeDeviceRotationNotificationRepository(
+    initial: DeviceRotationNotificationStatus = DeviceRotationNotificationStatus(),
+) : DeviceRotationNotificationRepository {
+    val status = MutableStateFlow(initial)
+
+    override fun observeStatus() = status
+
+    override fun readStatus() = status.value
+
+    override fun setPinned(pinned: Boolean) {
+        status.value = status.value.copy(pinned = pinned)
+    }
+
+    override fun requestPermission() = Unit
+}
+
+internal class FakeSystemScreenAwakeNotificationRepository(
+    initial: SystemScreenAwakeNotificationStatus = SystemScreenAwakeNotificationStatus(),
+) : SystemScreenAwakeNotificationRepository {
+    val status = MutableStateFlow(initial)
+
+    override fun observeStatus() = status
+
+    override fun readStatus() = status.value
+
+    override fun setPinned(pinned: Boolean) {
+        status.value = status.value.copy(pinned = pinned)
     }
 
     override fun requestPermission() = Unit

@@ -47,6 +47,7 @@
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
     <li><a href="#home-screen-widget">홈 화면 위젯</a></li>
+    <li><a href="#notification-widget">알림 위젯과 빠른 설정 타일</a></li>
     <li><a href="#card-ripple">카드 물결 효과</a></li>
     <li><a href="#home-staggered-grid">홈 그리드 세로 배치</a></li>
     <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
@@ -332,7 +333,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>feature/screen/data/src/iosMain/.../settings/SettingsStore.ios.kt</code></dd>
+  <dt>파일</dt><dd><code>core/data/src/iosMain/.../settings/SettingsStore.ios.kt</code> (2026-09-25 에 <code>:feature:screen:data</code>에서 올라왔다)</dd>
   <dt>읽기</dt><dd><code>if (defaults.objectForKey(key) == null) defaultValue else defaults.boolForKey(key)</code></dd>
   <dt>쓰기</dt><dd><code>defaults.setBool(value, key)</code></dd>
   <dt>변경 감지</dt><dd><code>NSNotificationCenter.defaultCenter.addObserverForName(NSUserDefaultsDidChangeNotification, object = defaults)</code>를 <code>callbackFlow</code>로 감싼다</dd>
@@ -480,6 +481,37 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p>해당 없음. iOS 빌드에 위젯 코드가 들어가지 않는 것은 <code>:shared</code>의 <code>iosMain</code>이 위젯 모듈을 의존하지 않는 것으로 보장된다.</p>
+</section>
+
+<section class="feature" id="notification-widget">
+<h2>알림 위젯과 빠른 설정 타일 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/notification-widget.html">알림 위젯과 빠른 설정 타일</a></p>
+
+<h3>기술 조사</h3>
+<p>지시가 Android 한정이다(<a href="../common/notification-widget.html#requirements">R15</a>). 다음 사람이 같은 조사를 하지 않게 후보를 남긴다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>UNNotificationAction</code> (알림 액션 버튼)</td><td>버렸다. 알림에 버튼을 넷까지 놓을 수 있지만, 눌렀을 때 부를 시스템 동작이 없다. <a href="#device-rotation">화면 회전</a>과 <a href="#system-keep-screen-awake">시스템 전역 화면 꺼짐 방지</a>가 iOS 에서 불가다. 지속 알림 개념도 없어 사용자가 언제든 지운다</td></tr>
+    <tr><td>Live Activities (<code>ActivityKit</code>)</td><td>버렸다. 잠금 화면·Dynamic Island 에 상주하는 가장 가까운 대응물이지만 SwiftUI 전용 extension 이고, 버튼은 <code>AppIntent</code>만 부른다. 부를 동작이 없다</td></tr>
+    <tr><td>Control Center controls (iOS 18, <code>ControlWidget</code>)</td><td>버렸다. 빠른 설정 타일의 대응물이다. Swift 전용 extension 이고 앱의 <code>AppIntent</code>만 부른다. 회전 잠금은 시스템 컨트롤이 이미 있고 앱이 대신 바꿀 수 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>없다. 알림·타일 코드는 <code>com.android.library</code> 모듈에 있어 iOS 프레임워크에 링크되지 않는다. <code>createNotificationPermission</code>의 iOS <code>actual</code>은 <code>UnsupportedNotificationPermission</code>(<code>supported = false</code>)</dd>
+  <dt>동작</dt><dd>카드에 "알림에 고정" 행이 그려지지 않는다. <code>DeviceRotationNotificationStatus.supported</code>가 <code>false</code>라 행 자체가 없다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>기능 자체가 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>JarvisAppTest.notificationRowIsHiddenWhereNotificationsAreNotSupported</code>가 <code>skikoTest</code>에서 행이 없는 것을 본다. iOS 빌드에 알림·타일 코드가 들어가지 않는 것은 <code>:shared</code>의 <code>iosMain</code>이 위젯 모듈을 의존하지 않는 것으로 보장된다.</p>
 </section>
 
 <section class="feature" id="card-ripple">

@@ -13,11 +13,15 @@ import android.net.Uri
 import android.os.PersistableBundle
 
 /**
- * 시스템 설정(콘텐트 URI)이 바뀌면 위젯을 다시 그리게 한다.
+ * 시스템 설정(콘텐트 URI)이 바뀌면 위젯이나 알림을 다시 그리게 한다.
  *
- * 위젯에는 ContentObserver 를 붙잡아 둘 프로세스가 없다. JobScheduler 의 콘텐트 URI 트리거는 시스템이
+ * 위젯·알림에는 ContentObserver 를 붙잡아 둘 프로세스가 없다. JobScheduler 의 콘텐트 URI 트리거는 시스템이
  * 대신 URI 알림을 지켜보다가 job 을 띄워 주므로, 앱 카드가 ContentObserver 로 따라가는 것과 같은
- * 변화를 프로세스 없이 받는다. 트리거 job 은 한 번 뜨면 끝이라 위젯 리시버의 onUpdate 가 다시 건다.
+ * 변화를 프로세스 없이 받는다. 트리거 job 은 한 번 뜨면 끝이라 받은 쪽(위젯 리시버의 onUpdate, 알림
+ * 리시버의 REFRESH)이 다시 건다.
+ *
+ * [action] 이 ACTION_APPWIDGET_UPDATE 면 살아 있는 위젯 id 를 모아 보내고, 다른 액션이면 그 액션의
+ * 명시적 브로드캐스트를 리시버에 보낸다(알림 위젯).
  */
 object WidgetRefresh {
     fun scheduleOnChange(
@@ -25,6 +29,7 @@ object WidgetRefresh {
         jobId: Int,
         receiver: Class<out BroadcastReceiver>,
         uris: List<Uri>,
+        action: String = AppWidgetManager.ACTION_APPWIDGET_UPDATE,
     ) {
         val scheduler = context.getSystemService(JobScheduler::class.java) ?: return
 
@@ -33,7 +38,12 @@ object WidgetRefresh {
             // 잠금과 각도처럼 연달아 바뀌는 값을 한 번으로 묶되 오래 기다리지는 않는다.
             .setTriggerContentUpdateDelay(TriggerUpdateDelayMillis)
             .setTriggerContentMaxDelay(TriggerMaxDelayMillis)
-            .setExtras(PersistableBundle().apply { putString(ReceiverKey, receiver.name) })
+            .setExtras(
+                PersistableBundle().apply {
+                    putString(ReceiverKey, receiver.name)
+                    putString(ActionKey, action)
+                },
+            )
             // setPersisted 는 콘텐트 트리거와 함께 쓸 수 없다. 재부팅 뒤에는 다음 onUpdate 가 다시 건다.
             .build()
 
@@ -71,8 +81,14 @@ object WidgetRefresh {
 class WidgetRefreshJobService : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         val receiverName = params.extras.getString(ReceiverKey) ?: return false
+        val receiver = ComponentName(this, receiverName)
+        val action = params.extras.getString(ActionKey) ?: AppWidgetManager.ACTION_APPWIDGET_UPDATE
 
-        WidgetRefresh.requestUpdate(this, AppWidgetManager.getInstance(this), ComponentName(this, receiverName))
+        if (action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            WidgetRefresh.requestUpdate(this, AppWidgetManager.getInstance(this), receiver)
+        } else {
+            sendBroadcast(Intent(action).setComponent(receiver))
+        }
 
         return false
     }
@@ -81,5 +97,6 @@ class WidgetRefreshJobService : JobService() {
 }
 
 private const val ReceiverKey = "receiver"
+private const val ActionKey = "action"
 private const val TriggerUpdateDelayMillis = 300L
 private const val TriggerMaxDelayMillis = 2_000L

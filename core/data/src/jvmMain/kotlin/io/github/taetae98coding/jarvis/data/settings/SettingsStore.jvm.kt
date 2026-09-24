@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import java.util.prefs.PreferenceChangeListener
 import java.util.prefs.Preferences
 
-internal actual fun createSettingsStore(context: PlatformContext): SettingsStore =
+actual fun createSettingsStore(context: PlatformContext): SettingsStore =
     PreferencesSettingsStore
 
 private object PreferencesSettingsStore : SettingsStore {

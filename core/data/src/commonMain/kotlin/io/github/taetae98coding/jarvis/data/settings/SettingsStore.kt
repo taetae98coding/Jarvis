@@ -5,7 +5,7 @@ import io.github.taetae98coding.jarvis.data.state.observeSystemState
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration.Companion.seconds
 
-internal interface SettingsStore {
+interface SettingsStore {
     fun getBoolean(key: String, defaultValue: Boolean): Boolean
 
     fun putBoolean(key: String, value: Boolean)
@@ -25,6 +25,6 @@ internal interface SettingsStore {
 }
 
 // 변경 신호가 없는 저장소를 위한 간격. 설정은 사용자가 손댈 때만 바뀌므로 촘촘히 볼 필요가 없다.
-internal val SettingsPollInterval = 2.seconds
+val SettingsPollInterval = 2.seconds
 
-internal expect fun createSettingsStore(context: PlatformContext): SettingsStore
+expect fun createSettingsStore(context: PlatformContext): SettingsStore

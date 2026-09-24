@@ -1,8 +1,10 @@
 package io.github.taetae98coding.jarvis.data.screen
 
+import io.github.taetae98coding.jarvis.data.notification.createNotificationPermission
 import io.github.taetae98coding.jarvis.data.settings.createSettingsStore
 import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeRepository
 import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeSettingsRepository
+import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeNotificationRepository
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeRepository
 import org.koin.dsl.module
 
@@ -18,5 +20,9 @@ val screenDataModule = module {
 
     single<SystemScreenAwakeRepository> {
         DefaultSystemScreenAwakeRepository(createSystemScreenAwakeDataSource(get()))
+    }
+
+    single<SystemScreenAwakeNotificationRepository> {
+        DefaultSystemScreenAwakeNotificationRepository(createSettingsStore(get()), createNotificationPermission(get()))
     }
 }

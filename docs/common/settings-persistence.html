@@ -60,13 +60,13 @@
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>인터페이스</dt><dd><code>data/settings/SettingsStore.kt</code></dd>
+  <dt>인터페이스</dt><dd><code>core/data/src/commonMain/.../data/settings/SettingsStore.kt</code>. 2026-09-25 까지 <code>:feature:screen:data</code>에 있었고, <a href="notification-widget.html">알림 위젯</a>의 "알림에 고정" 설정으로 <code>rotation</code>이 두 번째 사용자가 되어 <code>:core:data</code>로 올렸다. 그래서 <code>public</code>이다</dd>
   <dt>계약</dt><dd><code>domain/screen/ScreenAwakeSettingsRepository.kt</code> — 화면이 보는 것은 저장소가 아니라 이 인터페이스다</dd>
   <dt>상태</dt><dd><code>data/screen/DefaultScreenAwakeSettingsRepository.kt</code></dd>
-  <dt>공급</dt><dd><code>internal expect fun createSettingsStore(context: PlatformContext): SettingsStore</code></dd>
+  <dt>공급</dt><dd><code>expect fun createSettingsStore(context: PlatformContext): SettingsStore</code>. 기능 data 모듈이 각자 한 번씩 부른다. 두 인스턴스가 같은 파일·노드·저장소를 가리켜 값과 변경 알림이 어긋나지 않는다</dd>
 </dl>
 
-<pre><code>internal interface SettingsStore {
+<pre><code>interface SettingsStore {
     fun getBoolean(key: String, defaultValue: Boolean): Boolean
     fun putBoolean(key: String, value: Boolean)
     val changes: Flow&lt;Unit&gt;?

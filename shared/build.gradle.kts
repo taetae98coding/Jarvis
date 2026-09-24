@@ -30,8 +30,9 @@ kotlin {
         }
 
         androidMain.dependencies {
-            // 홈 화면 위젯은 Android 전용 com.android.library 모듈이다. 여기 붙여야 매니페스트가 합쳐져
-            // APK 에 들어가고, :androidApp 은 여전히 :shared 하나만 본다.
+            // 홈 화면 위젯·알림·빠른 설정 타일은 Android 전용 com.android.library 모듈이다. 여기 붙여야
+            // 매니페스트가 합쳐져 APK 에 들어가고, :androidApp 은 여전히 :shared 하나만 본다.
+            implementation(projects.core.widget)
             implementation(projects.feature.rotation.widget)
             implementation(projects.feature.screen.widget)
         }

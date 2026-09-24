@@ -1,10 +1,8 @@
 package io.github.taetae98coding.jarvis.data.state
 
-import android.app.Activity
 import android.app.AppOpsManager
 import android.app.Application
 import android.content.Context
-import android.os.Bundle
 import android.provider.Settings
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -39,31 +37,6 @@ private fun writeSettingsChanges(context: Context): Flow<Unit>? {
 
     return merge(opChanges, activityResumes(application))
 }
-
-private fun activityResumes(application: Application): Flow<Unit> =
-    callbackFlow {
-        val callbacks = object : Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(activity: Activity) {
-                trySend(Unit)
-            }
-
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-
-            override fun onActivityStarted(activity: Activity) = Unit
-
-            override fun onActivityPaused(activity: Activity) = Unit
-
-            override fun onActivityStopped(activity: Activity) = Unit
-
-            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-
-            override fun onActivityDestroyed(activity: Activity) = Unit
-        }
-
-        application.registerActivityLifecycleCallbacks(callbacks)
-
-        awaitClose { application.unregisterActivityLifecycleCallbacks(callbacks) }
-    }
 
 // AppOpsManager 를 얻지 못했을 때만 쓴다. 사용자가 설정 화면에서 허용하고 돌아온 것을 알아채야 한다.
 private val WriteSettingsPollInterval = 2.seconds

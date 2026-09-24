@@ -69,13 +69,19 @@
     <tr><td>설명 (지원 안 함)</td><td>이 플랫폼에서는 앱이 없는 동안의 화면 꺼짐을 막을 수 없습니다.</td></tr>
     <tr><td>설명 (권한 없음)</td><td>시스템 설정 변경 권한이 필요합니다. 켜면 권한 설정 화면이 열립니다.</td></tr>
     <tr><td>설명 (허용됨)</td><td>앱을 닫아도 화면이 꺼지지 않습니다. 현재 시스템 설정은 {시간}입니다.</td></tr>
-    <tr><td>컨트롤</td><td><code>ToggleFeatureCard(enabled = supported)</code>. 지원하지 않으면 카드와 스위치가 잠긴다</td></tr>
+    <tr><td>컨트롤</td><td><code>JarvisCard</code> + 헤더 <code>Switch(enabled = supported)</code>. 지원하지 않으면 스위치가 잠긴다. 2026-09-25 까지는 카드 전체가 스위치인 <code>ToggleFeatureCard</code>였다(아래 결정)</td></tr>
+    <tr><td>컨트롤 — 알림에 고정</td><td><code>JarvisSwitchRow</code>. 알림을 만들 수 있는 플랫폼(Android)에서만 설명 아래에 그린다(<a href="notification-widget.html#behavior">알림 위젯과 빠른 설정 타일</a>)</td></tr>
     <tr><td>켤 때</td><td>설정값을 먼저 쓰고, 권한이 없으면 권한 설정 화면을 연다</td></tr>
-    <tr><td>테스트 태그</td><td><code>feature:keepSystemScreenAwake</code></td></tr>
+    <tr><td>테스트 태그</td><td><code>feature:keepSystemScreenAwake</code>(카드), <code>keepSystemScreenAwake:toggle</code>(헤더 스위치), <code>keepSystemScreenAwake:notification</code></td></tr>
   </tbody>
 </table>
 
 <p>시간 표기는 큰 단위 하나로 줄인다(<code>24일</code>, <code>30분</code>). 이 기능이 설정하는 값은 24일이 넘어서 초 단위까지 보여줄 이유가 없다.</p>
+
+<aside class="decision">
+  <strong>결정: 카드 전체 토글을 버리고 헤더 스위치로 바꾼다 (2026-09-25)</strong>
+  <a href="notification-widget.html">알림 위젯</a>의 "알림에 고정" 스위치를 카드 안에 넣어야 했다. 카드 전체가 <code>toggleable</code>이면 안에 둔 두 번째 스위치의 클릭은 자식이 먼저 받아 동작하지만, <code>mergeDescendants</code> 시맨틱이 두 토글을 한 노드로 합쳐 접근성 서비스와 테스트가 구분하지 못한다. <a href="device-rotation.html">화면 회전</a> 카드가 같은 이유로 처음부터 헤더 <code>Switch</code>였다. 앱 수명 내 <a href="keep-screen-awake.html">화면 꺼짐 방지</a> 카드는 다른 컨트롤이 없어 <code>ToggleFeatureCard</code>를 유지한다.
+</aside>
 
 <h2 id="implementation">공통 구현</h2>
 
@@ -147,9 +153,9 @@ internal expect fun createSystemScreenAwakeDataSource(
     <tr><td><code>SetKeepSystemScreenAwakeUseCaseTest</code> (3개)</td><td>R3, R5. 권한이 없으면 설정 화면을 열고, 설정값은 그대로 저장된다</td><td><code>:feature:screen:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>ApplySystemScreenAwakeUseCaseTest</code> (3개)</td><td>R2, R4. 권한이 있을 때만 적용하고, 권한이 늦게 들어와도 적용한다</td><td><code>:feature:screen:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>SyncSystemScreenAwakeUseCaseTest</code> (3개)</td><td>R2, R4. 위젯 경로. 권한이 있을 때만 저장된 설정값을 한 번 반영한다</td><td><code>:feature:screen:domain</code> <code>commonTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code></td><td>R6. 카드가 잠기고 눌러도 켜지지 않는다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.systemScreenAwakeIsLockedWhereItIsNotSupported</code></td><td>R6. 헤더 스위치가 잠기고 눌러도 켜지지 않는다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTest.systemScreenAwakeExplainsWhyItIsUnavailable</code></td><td>R6. 불가능한 이유가 화면에 보인다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppTest.systemScreenAwakeTogglesWhereItIsSupported</code></td><td>R1. 지원하는 플랫폼에서는 토글이 열려 있고 켜진다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.systemScreenAwakeTogglesWhereItIsSupported</code></td><td>R1. 지원하는 플랫폼에서는 헤더 스위치가 열려 있고 켜진다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 

@@ -10,20 +10,27 @@ import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseC
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.WakeDeviceUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationRepository
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationRepository
+import io.github.taetae98coding.jarvis.domain.rotation.ObserveDeviceRotationNotificationUseCase
 import io.github.taetae98coding.jarvis.domain.rotation.ObserveDeviceRotationStatusUseCase
 import io.github.taetae98coding.jarvis.domain.rotation.RotateDeviceUseCase
 import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationAngleUseCase
 import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationLockUseCase
+import io.github.taetae98coding.jarvis.domain.rotation.SetDeviceRotationNotificationPinnedUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplyKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ApplySystemScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveKeepSystemScreenAwakeUseCase
+import io.github.taetae98coding.jarvis.domain.screen.ObserveSystemScreenAwakeNotificationUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ObserveSystemScreenAwakeStatusUseCase
 import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeRepository
 import io.github.taetae98coding.jarvis.domain.screen.ScreenAwakeSettingsRepository
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepScreenAwakeUseCase
 import io.github.taetae98coding.jarvis.domain.screen.SetKeepSystemScreenAwakeUseCase
+import io.github.taetae98coding.jarvis.domain.screen.SetSystemScreenAwakeNotificationPinnedUseCase
+import io.github.taetae98coding.jarvis.domain.screen.SyncSystemScreenAwakeUseCase
+import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeNotificationRepository
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeRepository
 import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsTerminalSupportedUseCase
@@ -67,6 +74,8 @@ class JarvisKoinTest {
         assertNotNull(koin.get<ScreenAwakeRepository>())
         assertNotNull(koin.get<SystemScreenAwakeRepository>())
         assertNotNull(koin.get<DeviceRotationRepository>())
+        assertNotNull(koin.get<DeviceRotationNotificationRepository>())
+        assertNotNull(koin.get<SystemScreenAwakeNotificationRepository>())
         assertNotNull(koin.get<TerminalRepository>())
         // 만들기만 하고 읽지 않는다. 읽으면 개발자의 실제 작업 공간 파일을 연다.
         assertNotNull(koin.get<TerminalWorkspaceRepository>())
@@ -85,10 +94,15 @@ class JarvisKoinTest {
         assertNotNull(koin.get<SetKeepSystemScreenAwakeUseCase>())
         assertNotNull(koin.get<ApplyKeepScreenAwakeUseCase>())
         assertNotNull(koin.get<ApplySystemScreenAwakeUseCase>())
+        assertNotNull(koin.get<SyncSystemScreenAwakeUseCase>())
+        assertNotNull(koin.get<ObserveSystemScreenAwakeNotificationUseCase>())
+        assertNotNull(koin.get<SetSystemScreenAwakeNotificationPinnedUseCase>())
         assertNotNull(koin.get<ObserveDeviceRotationStatusUseCase>())
         assertNotNull(koin.get<SetDeviceRotationAngleUseCase>())
         assertNotNull(koin.get<SetDeviceRotationLockUseCase>())
         assertNotNull(koin.get<RotateDeviceUseCase>())
+        assertNotNull(koin.get<ObserveDeviceRotationNotificationUseCase>())
+        assertNotNull(koin.get<SetDeviceRotationNotificationPinnedUseCase>())
         assertNotNull(koin.get<IsTerminalSupportedUseCase>())
         assertNotNull(koin.get<IsClaudeSupportedUseCase>())
         assertNotNull(koin.get<OpenTerminalSessionUseCase>())

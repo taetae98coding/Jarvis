@@ -8,10 +8,13 @@ composeMultiplatform = "1.12.1"
 composeMaterial3 = "1.9.0"
 
 android-compileSdk = "37"
-android-minSdk = "24"
+# 사용자 지시로 Android 13 부터만 지원한다(docs/common/notification-widget.html). POST_NOTIFICATIONS 가 항상 필요하다.
+android-minSdk = "33"
 android-targetSdk = "37"
 
 androidx-activityCompose = "1.13.0"
+# 알림 위젯의 NotificationCompat 와 DecoratedCustomViewStyle. :core:widget 만 쓴다.
+androidx-core = "1.19.0"
 # 홈 화면 위젯. RemoteViews 를 Compose 문법으로 만든다. Compose UI 가 아니라 compose.runtime 만 요구한다.
 androidx-glance = "1.2.0"
 
@@ -86,6 +89,9 @@ compose-ui-toolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-prev
 
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
 androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "androidx-glance" }
+androidx-core = { module = "androidx.core:core", version.ref = "androidx-core" }
+# ProcessLifecycleOwner. JetBrains lifecycle 2.11.0 이 Android 에서 쓰는 androidx 아티팩트와 같은 버전 줄이다.
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "androidx-lifecycle" }
 
 # build-logic 의 컨벤션 플러그인이 쓰는 플러그인 마커. plugins { } 로 적용하려면 컴파일
 # 클래스패스에 있어야 해서 라이브러리로도 선언한다.

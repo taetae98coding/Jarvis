@@ -15,6 +15,9 @@
         android:name="android.permission.WRITE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- 알림 창에 고정하는 화면 회전·화면 꺼짐 방지 컨트롤(docs/common/notification-widget.html). minSdk 33 이라 런타임 권한이다. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".JarvisApplication"
         android:allowBackup="true"

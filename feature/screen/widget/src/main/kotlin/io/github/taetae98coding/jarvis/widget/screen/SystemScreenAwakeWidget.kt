@@ -161,4 +161,4 @@ private val EnabledKey = ActionParameters.Key<Boolean>("enabled")
 
 // Glance 가 ActionCallback 과 GlanceAppWidget 을 리플렉션으로 만들어 생성자 주입이 안 된다.
 // 이 모듈에서만 Koin 을 직접 꺼낸다.
-private inline fun <reified T : Any> inject(): T = GlobalContext.get().get()
+internal inline fun <reified T : Any> inject(): T = GlobalContext.get().get()

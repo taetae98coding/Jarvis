@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.merge
 import org.w3c.dom.events.Event
 
-internal actual fun createSettingsStore(context: PlatformContext): SettingsStore =
+actual fun createSettingsStore(context: PlatformContext): SettingsStore =
     LocalStorageSettingsStore
 
 private object LocalStorageSettingsStore : SettingsStore {

@@ -13,6 +13,23 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/system_screen_awake_widget_info" />
         </receiver>
+
+        <!-- 알림 버튼의 PendingIntent 와 갱신 job 이 앱 자신의 이름으로 보내니 exported 가 필요 없다. -->
+        <receiver
+            android:name="io.github.taetae98coding.jarvis.widget.screen.SystemScreenAwakeNotificationReceiver"
+            android:exported="false" />
+
+        <!-- 빠른 설정 타일. 시스템이 바인드하므로 exported 이고, BIND_QUICK_SETTINGS_TILE 로 시스템만 붙을 수 있다. -->
+        <service
+            android:name="io.github.taetae98coding.jarvis.widget.screen.SystemScreenAwakeTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_system_screen_awake"
+            android:label="@string/system_screen_awake_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>
