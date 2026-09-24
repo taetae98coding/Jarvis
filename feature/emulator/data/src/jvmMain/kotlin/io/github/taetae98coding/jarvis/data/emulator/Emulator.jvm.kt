@@ -180,7 +180,7 @@ private fun captureScreenBlocking(deviceId: String): ByteArray? =
     when {
         isAdbSerial(deviceId) -> androidSdkDirectory()?.let { sdk ->
             // `exec-out` 이라야 바이트가 그대로 나온다. `shell` 은 개행을 변환해 PNG 를 깨뜨린다.
-            runCommandBytes(listOf(adbBinary(sdk), "-s", deviceId, "exec-out", "screencap", "-p"))
+            runCommandBytes(listOf(adbBinary(sdk), "-s", deviceId, "exec-out", "screencap", "-p"))?.let(::pngPayload)
         }
 
         SimulatorUdid.matches(deviceId) -> xcodeToolCommand("simctl")?.let { simctl ->
@@ -265,6 +265,20 @@ private const val StoppedAvdPrefix = "avd:"
 private const val PhysicalIosPrefix = "ios:"
 
 // `emulator -list-avds` 는 AVD 이름만 한 줄에 하나씩 출력한다. 진단 메시지는 stderr 로 간다.
+/**
+ * 디스플레이가 둘 이상인 기기(Galaxy Z Fold 등)에서 `-d` 없이 부른 `screencap` 은 PNG 앞에 경고 문구를 같은 stdout 으로
+ * 쓴다. 시그니처 앞을 잘라 낸다. 시그니처가 없으면 PNG 가 아니므로 null 이다.
+ */
+internal fun pngPayload(bytes: ByteArray): ByteArray? {
+    val start = (0..bytes.size - PngSignature.size).firstOrNull { offset ->
+        PngSignature.indices.all { bytes[offset + it] == PngSignature[it] }
+    } ?: return null
+
+    return if (start == 0) bytes else bytes.copyOfRange(start, bytes.size)
+}
+
+private val PngSignature = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+
 internal fun parseAvdNames(output: String): List<String> =
     output.lineSequence().map(String::trim).filter(String::isNotEmpty).toList()
 

@@ -513,6 +513,33 @@ class TerminalWorkspaceTest {
         assertNull(tab.directory)
         assertNull(tab.url)
     }
+
+    @Test
+    fun deviceTabIsAppendedToTheGroupAndSelected() {
+        val workspace = TerminalWorkspace.initial()
+
+        val added = workspace.addTab(program = TerminalProgram.Device, deviceId = "emulator-5554", deviceName = "Pixel 9")
+        val tab = added.focusedTab!!
+
+        assertEquals(2, added.groups.single().tabs.size)
+        assertEquals(TerminalProgram.Device, tab.program)
+        assertEquals("emulator-5554", tab.deviceId)
+        assertEquals("Pixel 9", tab.deviceName)
+    }
+
+    @Test
+    fun splittingADeviceTabOpensAShellInThePanelFolder() {
+        val workspace = TerminalWorkspace.initial()
+            .let { it.copy(panels = it.panels.map { panel -> panel.copy(directory = "/work") }) }
+            .addTab(program = TerminalProgram.Device, deviceId = "emulator-5554", deviceName = "Pixel 9")
+
+        val split = workspace.split(SplitDirection.SideBySide, workspace.startDirectory())
+        val tab = split.focusedTab!!
+
+        assertEquals(TerminalProgram.Shell, tab.program)
+        assertEquals("/work", tab.directory)
+        assertNull(tab.deviceId)
+    }
 }
 
 private fun TerminalPanel.withTabDirectory(directory: String?): TerminalPanel =

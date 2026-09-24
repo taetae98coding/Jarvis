@@ -56,15 +56,36 @@ const val EmulatorFrameTestTag = "emulator:frame"
 const val EmulatorScreenWakeTestTag = "emulator:screen:wake"
 
 /**
- * 기기 화면 하나. 프레임은 수집하는 동안에만 흐르고, 이 화면을 벗어나면 촬영도 멈춘다.
- *
- * 마지막 프레임은 [retain] 이 들고 있어서 컴포지션이 다시 만들어져도 빈 화면으로 돌아가지 않는다.
- * 무엇을 어디에 두는지는 docs/common/retained-state.html 에 있다.
+ * 기기 목록에서 고른 기기의 화면. 상단 막대 아래는 [EmulatorStream] 이라 터미널의 기기 탭과 같다.
  */
 @Composable
 internal fun EmulatorStreamScreen(
     viewModel: EmulatorScreenViewModel,
     onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val device by viewModel.device.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = modifier.fillMaxSize().testTag(EmulatorScreenTestTag),
+        verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m),
+    ) {
+        // 목록이 첫 답을 하기 전에는 이름을 모른다. 그 사이에는 제목 없이 뒤로만 보여준다.
+        JarvisTopBar(title = device?.name.orEmpty(), onBack = onBack)
+
+        EmulatorStream(viewModel = viewModel, modifier = Modifier.fillMaxWidth().weight(1f))
+    }
+}
+
+/**
+ * 기기 화면 하나. 프레임은 수집하는 동안에만 흐르고, 컴포지션에서 빠지거나 앱이 백그라운드로 가면 촬영도 멈춘다.
+ *
+ * 마지막 프레임은 [retain] 이 들고 있어서 컴포지션이 다시 만들어져도 빈 화면으로 돌아가지 않는다.
+ * 무엇을 어디에 두는지는 docs/common/retained-state.html 에 있다.
+ */
+@Composable
+internal fun EmulatorStream(
+    viewModel: EmulatorScreenViewModel,
     modifier: Modifier = Modifier,
 ) {
     val device by viewModel.device.collectAsStateWithLifecycle()
@@ -90,12 +111,9 @@ internal fun EmulatorStreamScreen(
     }
 
     Column(
-        modifier = modifier.fillMaxSize().testTag(EmulatorScreenTestTag),
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m),
     ) {
-        // 목록이 첫 답을 하기 전에는 이름을 모른다. 그 사이에는 제목 없이 뒤로만 보여준다.
-        JarvisTopBar(title = device?.name.orEmpty(), onBack = onBack)
-
         if (device?.canControl == false) {
             Text(
                 text = "이 기기에는 제스처를 보낼 수 없습니다. 화면만 볼 수 있습니다.",

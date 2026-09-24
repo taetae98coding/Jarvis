@@ -83,6 +83,9 @@ internal class TerminalViewModel(
 
     fun setUrl(tabId: Long, url: String) = update { it.setUrl(tabId, url) }
 
+    fun addDeviceTab(groupId: Long?, deviceId: String, deviceName: String) =
+        update { it.addTab(groupId, TerminalProgram.Device, deviceId = deviceId, deviceName = deviceName) }
+
     fun closeFocusedTab() = update { it.closeFocusedTab() }
 
     fun closeTab(tabId: Long) = update { it.closeTab(tabId) }
@@ -111,14 +114,14 @@ internal class TerminalViewModel(
     /**
      * 사라진 탭의 셸을 닫고, 지금 보이는 탭(선택된 패널에서 그룹마다 선택된 탭)의 창을 연다. 다른 탭·패널의
      * 창은 처음 보일 때 연다 — 앱을 켜자마자 모든 창을 띄우면 Claude 탭마다 백그라운드 세션을 찾는 셸이
-     * 한꺼번에 돈다. 브라우저 탭은 셸이 없어 열 창이 없다.
+     * 한꺼번에 돈다. 브라우저·기기 탭은 셸이 없어 열 창이 없다.
      */
     private fun reconcile(workspace: TerminalWorkspace) {
         val tabIds = workspace.tabIds.toSet()
         host.retain(tabIds)
         browserTitles.keys.retainAll(tabIds)
 
-        val visible = workspace.visibleTabs.filter { it.program != TerminalProgram.Browser }
+        val visible = workspace.visibleTabs.filter { it.program == TerminalProgram.Shell || it.program == TerminalProgram.Claude }
 
         // 새 창은 아직 배치되지 않았다. 이미 배치된 창의 크기로 먼저 띄우면 배치된 뒤의 크기와 가까워서,
         // 셸이 첫 프롬프트를 엉뚱한 너비로 그렸다가 다시 그리는 일이 줄어든다.

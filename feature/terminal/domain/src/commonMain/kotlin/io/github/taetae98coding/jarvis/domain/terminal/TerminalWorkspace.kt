@@ -21,7 +21,8 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  * 탭 하나 = 창 하나. 다시 열 때 무엇을 띄울지를 들고 있다 — 앱을 다시 켜면 이 값만으로 창을 되살린다.
  *
  * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
- * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만, [url] 은 [TerminalProgram.Browser] 탭에만 있다.
+ * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만, [url] 은 [TerminalProgram.Browser] 탭에만,
+ * [deviceId]·[deviceName] 은 [TerminalProgram.Device] 탭에만 있다. [deviceName] 은 고를 때의 이름이다.
  */
 data class TerminalTab(
     val id: Long,
@@ -29,6 +30,8 @@ data class TerminalTab(
     val directory: String? = null,
     val claudeSessionId: String? = null,
     val url: String? = null,
+    val deviceId: String? = null,
+    val deviceName: String? = null,
 ) {
     companion object {
         const val DefaultBrowserUrl = "https://www.google.com"
@@ -192,12 +195,14 @@ data class TerminalWorkspace(
         directory: String? = null,
         claudeSessionId: String? = null,
         url: String? = null,
+        deviceId: String? = null,
+        deviceName: String? = null,
     ): TerminalWorkspace {
         val panel = (if (groupId == null) selectedPanel else findPanel { panel -> panel.groups.any { it.id == groupId } })
             ?: return this
         val group = if (groupId == null) panel.focusedGroup else panel.groups.first { it.id == groupId }
         val tabId = nextId
-        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url)
+        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName)
 
         if (group == null) {
             val newGroupId = nextId + 1
@@ -211,7 +216,7 @@ data class TerminalWorkspace(
             .copy(nextId = nextId + 1)
     }
 
-    /** 포커스된 그룹을 나눠 셸 탭 하나짜리 새 그룹을 오른쪽·아래에 두고 포커스한다. Claude·브라우저는 새 탭 메뉴로만 뜬다. */
+    /** 포커스된 그룹을 나눠 셸 탭 하나짜리 새 그룹을 오른쪽·아래에 두고 포커스한다. Claude·브라우저·기기는 새 탭 메뉴로만 뜬다. */
     fun split(direction: SplitDirection, directory: String? = null): TerminalWorkspace {
         val group = focusedGroup ?: return this
         val splitId = nextId
