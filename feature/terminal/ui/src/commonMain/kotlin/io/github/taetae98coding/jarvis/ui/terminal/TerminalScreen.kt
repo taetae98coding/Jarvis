@@ -105,6 +105,8 @@ internal fun TerminalScreen(
                 TerminalPanelList(
                     panels = current.panels,
                     selectedPanelId = current.selectedPanelId,
+                    nextPanelName = current.nextPanelName,
+                    canOpenClaude = viewModel.isClaudeSupported,
                     onSelect = viewModel::selectPanel,
                     onRename = viewModel::renamePanel,
                     onClose = viewModel::closePanel,

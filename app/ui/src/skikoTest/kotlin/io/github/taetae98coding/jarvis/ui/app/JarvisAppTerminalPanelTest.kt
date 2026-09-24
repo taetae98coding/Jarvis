@@ -24,6 +24,12 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalEmptyPanelTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewClaudeTabTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewPanelCancelTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewPanelClaudeTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewPanelDialogTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewPanelDirectoryTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewPanelNameTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewPanelShellTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewPanelTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalPanelNameFieldTestTag
@@ -58,6 +64,15 @@ class JarvisAppTerminalPanelTest {
         onNodeWithTag(itemTag).performClick()
     }
 
+    private fun ComposeUiTest.addPanel(name: String = "", directory: String = "", buttonTag: String = TerminalNewPanelShellTestTag) {
+        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        if (name.isNotEmpty()) onNodeWithTag(TerminalNewPanelNameTestTag).performTextReplacement(name)
+        if (directory.isNotEmpty()) onNodeWithTag(TerminalNewPanelDirectoryTestTag).performTextReplacement(directory)
+        onNodeWithTag(buttonTag).performClick()
+    }
+
+    private fun ComposeUiTest.dialogCount() = onAllNodesWithTag(TerminalNewPanelDialogTestTag).fetchSemanticsNodes().size
+
     private fun ComposeUiTest.awaitSessions(terminal: FakeTerminalRepository, count: Int) {
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == count }
     }
@@ -84,12 +99,132 @@ class JarvisAppTerminalPanelTest {
         openNewTab(TerminalNewShellTabTestTag)
         awaitSessions(terminal, 2)
 
-        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        addPanel()
 
         awaitSessions(terminal, 3)
         onNodeWithText("패널 2").assertIsDisplayed()
         assertEquals(1, tabCount())
         assertEquals(workspace.workspace.value.panels.last().id, workspace.workspace.value.selectedPanelId)
+    }
+
+    @Test
+    fun newPanelButtonAsksForATitleAndFolderFirst() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        setContent { TestJarvisApp(terminal = terminal) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+
+        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+
+        assertEquals(1, dialogCount())
+        assertEquals(1, panelCount())
+        onNodeWithText("패널 2").assertIsDisplayed()
+        onNodeWithTag(TerminalNewPanelClaudeTestTag).assertIsDisplayed()
+    }
+
+    @Test
+    fun namedPanelOpensItsShellInItsFolder() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+
+        addPanel(name = " API ", directory = " /work/api ")
+
+        awaitSessions(terminal, 2)
+        assertEquals(0, dialogCount())
+        val panel = workspace.workspace.value.selectedPanel!!
+        assertEquals("API", panel.name)
+        assertEquals("/work/api", panel.directory)
+        assertEquals(TerminalProgram.Shell, terminal.sessions[1].program)
+        assertEquals("/work/api", terminal.sessions[1].tab.directory)
+        onNodeWithText("API").assertIsDisplayed()
+        onNodeWithText("/work/api").assertIsDisplayed()
+    }
+
+    @Test
+    fun claudeButtonOpensClaudeInTheFolder() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        setContent { TestJarvisApp(terminal = terminal) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+
+        addPanel(directory = "/work", buttonTag = TerminalNewPanelClaudeTestTag)
+
+        awaitSessions(terminal, 2)
+        val tab = terminal.sessions[1].tab
+        assertEquals(TerminalProgram.Claude, tab.program)
+        assertEquals("/work", tab.directory)
+        assertNotNull(tab.claudeSessionId)
+        onNodeWithText("패널 2").assertIsDisplayed()
+    }
+
+    @Test
+    fun claudeButtonIsHiddenWhereClaudeCannotRun() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isClaudeSupported = false)
+        setContent { TestJarvisApp(terminal = terminal) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+
+        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+
+        assertEquals(0, onAllNodesWithTag(TerminalNewPanelClaudeTestTag).fetchSemanticsNodes().size)
+        onNodeWithTag(TerminalNewPanelShellTestTag).assertIsDisplayed()
+    }
+
+    @Test
+    fun cancelCreatesNothingAndClearsTheFields() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository()
+        setContent { TestJarvisApp(terminalWorkspace = workspace) }
+        openTerminal()
+        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        onNodeWithTag(TerminalNewPanelNameTestTag).performTextReplacement("버릴 제목")
+
+        onNodeWithTag(TerminalNewPanelCancelTestTag).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { dialogCount() == 0 }
+        assertEquals(1, workspace.workspace.value.panels.size)
+        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        assertEquals(0, onAllNodesWithText("버릴 제목").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun enterInTheTitleOpensATerminal() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        onNodeWithTag(TerminalNewPanelNameTestTag).performTextReplacement("프론트")
+
+        onNodeWithTag(TerminalNewPanelNameTestTag).performKeyInput { pressKey(Key.Enter) }
+
+        awaitSessions(terminal, 2)
+        assertEquals("프론트", workspace.workspace.value.selectedPanel!!.name)
+        assertEquals(TerminalProgram.Shell, terminal.sessions[1].program)
+        assertEquals(1, workspace.workspace.value.panels.count { it.name == "프론트" })
+    }
+
+    @Test
+    fun newTabInAnEmptyPanelStartsInThePanelFolder() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        addPanel(directory = "/work")
+        awaitSessions(terminal, 2)
+        terminal.sessions[1].exit()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            onAllNodesWithTag(TerminalEmptyPanelTestTag).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        openNewTab(TerminalNewShellTabTestTag)
+
+        awaitSessions(terminal, 3)
+        assertEquals("/work", terminal.sessions[2].tab.directory)
     }
 
     @Test
@@ -99,7 +234,7 @@ class JarvisAppTerminalPanelTest {
         setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
         openTerminal()
         awaitSessions(terminal, 1)
-        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        addPanel()
         awaitSessions(terminal, 2)
 
         openNewTab(TerminalNewShellTabTestTag)
@@ -120,7 +255,7 @@ class JarvisAppTerminalPanelTest {
         awaitSessions(terminal, 1)
         openNewTab(TerminalNewShellTabTestTag)
         awaitSessions(terminal, 2)
-        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        addPanel()
         awaitSessions(terminal, 3)
 
         onNodeWithText("패널 1").performClick()
@@ -171,7 +306,7 @@ class JarvisAppTerminalPanelTest {
         setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
         openTerminal()
         awaitSessions(terminal, 1)
-        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        addPanel()
         awaitSessions(terminal, 2)
         openNewTab(TerminalNewClaudeTabTestTag)
         awaitSessions(terminal, 3)
@@ -240,7 +375,7 @@ class JarvisAppTerminalPanelTest {
         setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
         openTerminal()
         awaitSessions(terminal, 1)
-        onNodeWithTag(TerminalNewPanelTestTag).performClick()
+        addPanel()
         awaitSessions(terminal, 2)
 
         terminal.sessions[0].exit()

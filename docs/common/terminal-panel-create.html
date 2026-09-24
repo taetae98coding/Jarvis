@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>새 패널 제목·폴더 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>새 패널 제목·폴더</span></nav>
+
+<header>
+  <h1>새 패널 제목·폴더</h1>
+  <p class="lead">"새 패널" 을 누르면 제목과 폴더를 받는 창이 뜨고, 그 폴더에서 터미널이나 Claude 를 연 패널을 만든다. 둘 다 비워 두면 지금처럼 "패널 N" 이 홈 디렉터리에서 열린다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>패널 추가할 때 제목 입력할 수 있도록 해줘(선택으로 하고 미입력 시 기본값) 그리고 폴더 지정할 수 있도록 해줘. 해당 폴더에서 claude나 터미널 열 수 있도록</p>
+  <footer>2026-09-24 대화. "기본값" 은 지금의 "패널 N"(<a href="terminal-panels.html#requirements">패널 R2</a>)으로 읽었다. "해당 폴더에서 claude나 터미널 열 수 있도록" 은 패널을 만들 때 첫 탭을 터미널로 열지 Claude 로 열지 고르고, 그 탭이 지정한 폴더에서 시작하는 것으로 읽었다. 폴더는 제목과 달리 "선택" 이라는 말이 없지만, 비워 두면 지금처럼 홈에서 시작하는 것으로 둔다 — 폴더를 꼭 넣어야 패널을 만들 수 있게 하면 지금 되는 일이 막힌다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 패널 목록 아래 "새 패널" 버튼을 누르면 곧바로 패널을 만들지 않고 "새 패널" 창이 뜬다. 창에는 제목 입력란, 폴더 입력란, 그리고 "취소"·"터미널" 버튼이 있다. Claude 를 실행할 수 있는 타깃(<a href="terminal-claude.html#platforms">Claude 실행</a>)에서는 "Claude (YOLO)" 버튼도 있다. 창이 뜨면 제목 입력란이 포커스를 받는다.</li>
+  <li><strong>R2.</strong> 제목은 넣지 않아도 된다. 앞뒤 공백을 떼고, 비어 있으면 "패널 N"(N 은 지금 패널 수 + 1)이다. 제목 입력란은 비어 있는 동안 그 기본 제목을 흐리게 보여 준다.</li>
+  <li><strong>R3.</strong> 폴더도 넣지 않아도 된다. 경로를 직접 입력할 수 있고, 폴더 선택 창이 있는 타깃에서는 "찾아보기" 버튼으로 고른 폴더의 절대 경로가 입력란에 채워진다. 고르다 취소하면 입력란은 그대로다. 앞뒤 공백을 떼고, 비어 있으면 폴더가 없는 패널이다. <code>~</code> 또는 <code>~/</code> 로 시작하는 경로는 그 셸의 홈 디렉터리 기준으로 읽는다.</li>
+  <li><strong>R4.</strong> "터미널" 을 누르면 그 제목·폴더를 가진 패널에 셸 탭 하나, "Claude (YOLO)" 를 누르면 Claude 탭 하나(새 sessionId, <a href="terminal-panels.html#requirements">패널 R11</a>)를 넣어 목록 끝에 붙이고 선택한다. 첫 탭은 그 폴더에서 시작한다. 창은 닫힌다.</li>
+  <li><strong>R5.</strong> 제목·폴더 입력란에서 Enter 는 "터미널" 과 같다.</li>
+  <li><strong>R6.</strong> "취소", Esc, 창 바깥 누르기는 아무것도 만들지 않고 창을 닫는다. 다음에 창을 열면 입력란은 비어 있다.</li>
+  <li><strong>R7.</strong> 패널의 폴더는 패널과 함께 저장되고 앱을 다시 켜도 그대로다(<a href="terminal-panels.html#requirements">패널 R9</a>). 폴더가 있는 패널은 목록 줄에서 이름 아래에 폴더 경로가 한 줄로 보이고, 넘치면 앞쪽을 줄인다(폴더 이름이 보이게).</li>
+  <li><strong>R8.</strong> 패널 안에서 새로 여는 탭(그룹의 +, 빈 패널의 +, 분할)은 그 그룹에서 선택돼 있던 탭의 작업 디렉터리에서 시작하고, 그것을 모르면(빈 패널 포함) 패널의 폴더, 그것도 없으면 홈에서 시작한다(<a href="terminal-panels.html#requirements">패널 R8</a> 을 넓힌다).</li>
+  <li><strong>R9.</strong> 폴더가 없거나 디렉터리가 아니면 탭은 홈에서 시작한다. 창에서 미리 막지 않는다(<a href="#implementation">결정</a>).</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>만든 뒤 패널 폴더 바꾸기. 이름 바꾸기(<a href="terminal-panels.html#requirements">패널 R3</a>)처럼 붙일 수 있지만 지시는 "추가할 때" 다. 이미 열린 탭의 작업 디렉터리는 폴더를 바꿔도 따라가지 않으므로 뜻도 모호하다.</li>
+    <li>처음 켤 때의 "패널 1". 창 없이 지금처럼 만든다(폴더 없음).</li>
+    <li>최근 폴더 목록, 폴더 즐겨찾기. 지시에 없다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌ 새 패널 ─────────────────────────────────────┐
+│ 제목                                          │
+│ [패널 3                                     ] │ ← 비어 있으면 흐린 기본 제목
+│ 폴더                                          │
+│ [홈 디렉터리                     ] [찾아보기] │ ← 찾아보기는 폴더 선택 창이 있는 타깃만
+│                                               │
+│               [취소] [Claude (YOLO)] [터미널] │ ← Claude 는 실행 가능한 타깃만
+└───────────────────────────────────────────────┘
+
+패널 목록 줄
+│▌백엔드          ✎ ✕│
+│  …/projects/api     │ ← 폴더가 있을 때만, 앞쪽 말줄임</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>창</td><td>M3 <code>AlertDialog</code>. 제목 "새 패널"</td></tr>
+    <tr><td>제목 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "제목", placeholder 기본 제목("패널 N")</td></tr>
+    <tr><td>폴더 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "폴더", placeholder "홈 디렉터리". 오른쪽에 <code>TextButton</code> "찾아보기"(폴더 선택 창이 있는 타깃만)</td></tr>
+    <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "Claude (YOLO)"(<code>TextButton</code>, Claude 가능 타깃만), "터미널"(<code>Button</code>)</td></tr>
+    <tr><td>패널 줄의 폴더</td><td>이름 아래 <code>labelSmall</code>, <code>onSurfaceVariant</code>(선택된 줄은 이름과 같은 색), 한 줄, <code>TextOverflow.StartEllipsis</code></td></tr>
+    <tr><td>테스트 태그</td><td>
+      <code>terminal:new-panel</code>(목록의 버튼, 그대로), <code>terminal:new-panel-dialog</code>, <code>terminal:new-panel-name</code>, <code>terminal:new-panel-directory</code>,
+      <code>terminal:new-panel-browse</code>, <code>terminal:new-panel-shell</code>, <code>terminal:new-panel-claude</code>, <code>terminal:new-panel-cancel</code>
+    </td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<pre><code>TerminalPanel(id, name, directory: String?, root, focusedGroupId)   ← directory 가 더해진다
+TerminalPanelDto(id, name, directory: String? = null, root, focusedGroupId)</code></pre>
+
+<dl class="meta">
+  <dt>도메인 규칙</dt><dd>
+    <code>TerminalWorkspace.addPanel(name: String? = null, directory: String? = null, program = Shell, claudeSessionId: String? = null)</code> — R2·R3 의 공백 떼기와 기본값, R4 의 첫 탭. 첫 탭의 <code>directory</code> 는 패널 폴더다. 기본 제목은 <code>nextPanelName</code> 이고 창의 placeholder 도 이것을 쓴다.<br>
+    <code>TerminalWorkspace.startDirectory(groupId: Long?): String?</code> — R8. 그룹(null 이면 포커스된 그룹)에서 선택된 탭의 디렉터리, 없으면 선택된 패널의 폴더. ViewModel 에 있던 <code>directoryOf</code> 를 도메인으로 옮긴다.
+  </dd>
+  <dt>저장</dt><dd><code>TerminalPanelDto.directory</code>. 없는 키는 null 로 읽으므로 이전 파일도 그대로 읽힌다</dd>
+  <dt>홈 펼치기</dt><dd><code>internal fun expandHome(path: String, home: String): String</code> — <code>:feature:terminal:data</code> commonMain. 셸을 띄우는 쪽(플랫폼 <code>startDirectory</code>)이 부른다(R3). 홈이 플랫폼마다 달라 도메인에 두지 않는다</dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.addPanel(name: String, directory: String, program: TerminalProgram)</code> — Claude 면 여기서 sessionId 를 만든다. 창이 떠 있는지와 입력 중인 글자는 화면 안의 <code>remember</code> 다</dd>
+  <dt>UI</dt><dd><code>feature/terminal/ui/.../NewPanelDialog.kt</code>(<code>NewPanelDialog</code>), <code>TerminalPanelList.kt</code>(버튼이 창을 띄우고 줄에 폴더를 보여 준다)</dd>
+  <dt>공급</dt><dd>
+    <code>internal expect val directoryPicker: DirectoryPicker?</code> — <code>:feature:terminal:ui</code>. null 이면 이 타깃에 폴더 선택 창이 없어 "찾아보기" 를 숨긴다.<br>
+    <code>internal fun interface DirectoryPicker { suspend fun pick(initial: String?): String? }</code> — 고른 폴더의 절대 경로, 취소면 null. 창을 여는 명령이라 <code>suspend</code> 다
+  </dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 폴더가 있는지 창에서 미리 확인하지 않는다</strong>
+  확인하려면 UI 가 파일 시스템을 한 번 묻는 플랫폼 조회가 하나 더 생긴다. 셸을 띄우는 쪽은 이미 "없으면 홈" 으로 떨어지고(<a href="terminal-panels.html#requirements">패널 R14</a>), 저장된 폴더가 나중에 지워져도 같은 규칙으로 되살아나야 하므로 그 규칙 하나로 충분하다. 잘못 친 경로는 홈에서 뜬 셸의 프롬프트로 곧바로 드러난다. 한계에 적는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 첫 탭 종류는 확인 버튼 두 개로 고른다</strong>
+  라디오·세그먼트로 종류를 고른 뒤 "만들기" 를 누르게 하면 누르는 횟수가 하나 늘고, Claude 를 못 쓰는 타깃에서는 선택지가 하나뿐인 컨트롤이 남는다. 그룹의 새 탭(+) 메뉴가 "터미널 / Claude (YOLO)" 로 바로 여는 것과 같은 모양이다. 기본(Enter)은 모든 타깃에 있는 터미널이다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span> <span class="badge untested">미검증</span></td><td>제목·폴더 경로 입력은 구현. 폴더 선택 창은 SAF 가 파일 경로가 아니라 <code>content://</code> URI 를 줘서 셸이 들어갈 수 없다 — "찾아보기" 없이 경로를 직접 입력한다. Claude 는 불가라 버튼이 없다. <code>~</code> 는 <code>filesDir</code></td><td><a href="../platform/android.html#terminal-panel-create">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다. <code>directoryPicker</code> 는 null</td><td><a href="../platform/ios.html#terminal-panel-create">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>"찾아보기" 는 <code>java.awt.FileDialog</code> + <code>apple.awt.fileDialogForDirectories</code> → macOS <code>NSOpenPanel</code>(폴더만). <code>~</code> 는 <code>user.home</code></td><td><a href="../platform/jvm.html#terminal-panel-create">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다. <code>directoryPicker</code> 는 null</td><td><a href="../platform/web.html#terminal-panel-create">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R2–R4, R8. 제목 공백 떼기·빈 제목은 "패널 N", 폴더 공백 떼기·빈 폴더는 null, 첫 탭이 셸/Claude 이고 패널 폴더에서 시작, <code>startDirectory</code> 가 선택된 탭 → 패널 폴더 → null 순으로 고름</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R7. 패널 폴더가 파일에 쓰이고 다시 읽힘, 폴더 키가 없는 이전 파일은 null 로 읽힘</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>ExpandHomeTest</code></td><td>R3. <code>~</code>, <code>~/a</code> 는 홈 기준, <code>~user</code>·절대·상대 경로는 그대로</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalPanelTest</code></td><td>R1, R2, R4–R8. 버튼이 창을 띄움, 빈 입력은 "패널 N" 에 폴더 없는 셸 탭, 제목·폴더를 넣으면 그 이름과 폴더로 탭이 열림, Claude 버튼은 Claude 탭(가짜 저장소가 Claude 를 지원할 때), 취소는 아무것도 안 만듦, Enter 는 터미널, 패널 줄에 폴더가 보임, 빈 패널의 + 가 패널 폴더에서 엶</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: "찾아보기" 가 띄우는 macOS 폴더 선택 창(R3). 네이티브 창이라 skiko 테스트 화면에 뜨지 않는다. <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>없는 경로나 오타는 경고 없이 홈에서 열린다(R9).</li>
+  <li>폴더는 만들 때 한 번 정한다. 바꾸려면 새 패널을 만든다.</li>
+  <li>Android 에는 폴더 선택 창이 없다. 셸이 들어갈 수 있는 경로(앱의 <code>filesDir</code> 아래 등)를 직접 친다(<a href="../platform/android.html#terminal-panel-create">Android</a>).</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

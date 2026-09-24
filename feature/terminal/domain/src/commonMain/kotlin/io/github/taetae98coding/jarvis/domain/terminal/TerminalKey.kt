@@ -52,7 +52,9 @@ fun encodeTerminalKey(
     val m = modifiers.parameter
 
     val sequence = when (key) {
-        TerminalKey.Enter -> altPrefixed(modifiers, "\r")
+        // xterm 은 Shift+Enter 를 Enter 와 같은 CR 로 보내 구별되지 않는다. Orca 처럼 Alt+Enter 와 같은 ESC CR 을
+        // 보내 Claude Code 같은 TUI 가 줄바꿈으로 받게 한다.
+        TerminalKey.Enter -> if (modifiers.shift || modifiers.alt) "\u001b\r" else "\r"
         TerminalKey.Backspace -> if (modifiers.ctrl) "\b" else altPrefixed(modifiers, "\u007f")
         TerminalKey.Tab -> if (modifiers.shift) "\u001b[Z" else altPrefixed(modifiers, "\t")
         TerminalKey.Escape -> "\u001b"
