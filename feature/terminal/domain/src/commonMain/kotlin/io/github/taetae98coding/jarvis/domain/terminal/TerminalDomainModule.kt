@@ -7,4 +7,6 @@ val terminalDomainModule = module {
     factoryOf(::IsTerminalSupportedUseCase)
     factoryOf(::IsClaudeSupportedUseCase)
     factoryOf(::OpenTerminalSessionUseCase)
+    factoryOf(::ObserveTerminalWorkspaceUseCase)
+    factoryOf(::UpdateTerminalWorkspaceUseCase)
 }

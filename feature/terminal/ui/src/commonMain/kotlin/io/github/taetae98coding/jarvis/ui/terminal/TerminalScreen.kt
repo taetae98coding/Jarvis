@@ -18,8 +18,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.style.rememberUpdatedStyleState
 import androidx.compose.foundation.style.styleable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +48,8 @@ import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
+import io.github.taetae98coding.jarvis.domain.terminal.leaves
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
@@ -51,9 +58,11 @@ import kotlinx.coroutines.flow.StateFlow
 const val TerminalScreenTestTag = "terminal:screen"
 const val TerminalSplitSideTestTag = "terminal:split-side"
 const val TerminalSplitStackedTestTag = "terminal:split-stacked"
-const val TerminalClaudeTestTag = "terminal:claude"
 const val TerminalNewTabTestTag = "terminal:new-tab"
+const val TerminalNewShellTabTestTag = "terminal:new-tab:shell"
+const val TerminalNewClaudeTabTestTag = "terminal:new-tab:claude"
 const val TerminalCloseTestTag = "terminal:close"
+const val TerminalEmptyPanelTestTag = "terminal:empty-panel"
 
 fun terminalTabTestTag(id: Long): String = "terminal:tab:$id"
 
@@ -67,16 +76,11 @@ internal fun TerminalScreen(
 ) {
     val workspace by viewModel.workspace.collectAsStateWithLifecycle()
 
-    // iTerm 은 마지막 탭이 닫히면 창을 닫는다. 이 앱에서 창에 해당하는 것이 이 화면이다.
-    LaunchedEffect(workspace.tabs.isEmpty()) {
-        if (workspace.tabs.isEmpty()) onBack()
-    }
-
     Column(
         modifier = modifier
             .fillMaxSize()
             .testTag(TerminalScreenTestTag)
-            // 루트에서 먼저 가로채야 포커스된 패널의 입력 필드보다 앞선다.
+            // 루트에서 먼저 가로채야 포커스된 창의 입력 필드보다 앞선다.
             .onPreviewKeyEvent { event -> onShortcut(event, viewModel) },
         verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
     ) {
@@ -84,28 +88,64 @@ internal fun TerminalScreen(
             onBack = onBack,
             onSplitSideBySide = viewModel::splitSideBySide,
             onSplitStacked = viewModel::splitStacked,
-            onClaude = viewModel::addClaudeTab.takeIf { viewModel.isClaudeSupported },
             onNewTab = viewModel::addTab,
+            onNewClaudeTab = viewModel::addClaudeTab.takeIf { viewModel.isClaudeSupported },
             onClose = viewModel::closeFocusedPane,
         )
 
-        TerminalTabRow(
-            workspace = workspace,
-            titleOf = { paneId -> viewModel.pane(paneId)?.title },
-            onSelect = viewModel::selectTab,
-            onClose = viewModel::closeTab,
-        )
+        val current = workspace ?: return@Column
 
-        val tab = workspace.selectedTab ?: return@Column
-
-        key(tab.id) {
-            PaneTree(
-                node = tab.root,
-                tab = tab,
-                viewModel = viewModel,
-                modifier = Modifier.fillMaxWidth().weight(1f),
+        Row(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
+        ) {
+            TerminalPanelList(
+                panels = current.panels,
+                selectedPanelId = current.selectedPanelId,
+                onSelect = viewModel::selectPanel,
+                onRename = viewModel::renamePanel,
+                onClose = viewModel::closePanel,
+                onAdd = viewModel::addPanel,
             )
+
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
+            ) {
+                TerminalTabRow(
+                    workspace = current,
+                    titleOf = { paneId -> viewModel.pane(paneId)?.title },
+                    onSelect = viewModel::selectTab,
+                    onClose = viewModel::closeTab,
+                )
+
+                val tab = current.selectedTab
+                if (tab == null) {
+                    EmptyPanel(modifier = Modifier.fillMaxWidth().weight(1f))
+                    return@Column
+                }
+
+                key(tab.id) {
+                    PaneTree(
+                        node = tab.root,
+                        tab = tab,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun EmptyPanel(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.testTag(TerminalEmptyPanelTestTag), contentAlignment = Alignment.Center) {
+        Text(
+            text = "탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다.",
+            style = JarvisTheme.typography.bodyMedium,
+            color = JarvisTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -136,8 +176,8 @@ private fun TerminalTopBar(
     onBack: () -> Unit,
     onSplitSideBySide: () -> Unit,
     onSplitStacked: () -> Unit,
-    onClaude: (() -> Unit)?,
     onNewTab: () -> Unit,
+    onNewClaudeTab: (() -> Unit)?,
     onClose: () -> Unit,
 ) {
     JarvisTopBar(title = "터미널", onBack = onBack) {
@@ -153,26 +193,54 @@ private fun TerminalTopBar(
             onClick = onSplitStacked,
             modifier = Modifier.testTag(TerminalSplitStackedTestTag),
         )
-        if (onClaude != null) {
-            JarvisIconButton(
-                icon = JarvisIcons.Claude,
-                contentDescription = "Claude (YOLO)",
-                onClick = onClaude,
-                modifier = Modifier.testTag(TerminalClaudeTestTag),
-            )
-        }
-        JarvisIconButton(
-            icon = JarvisIcons.Add,
-            contentDescription = "새 탭",
-            onClick = onNewTab,
-            modifier = Modifier.testTag(TerminalNewTabTestTag),
-        )
+        NewTabButton(onNewTab = onNewTab, onNewClaudeTab = onNewClaudeTab)
         JarvisIconButton(
             icon = JarvisIcons.Close,
             contentDescription = "닫기",
             onClick = onClose,
             modifier = Modifier.testTag(TerminalCloseTestTag),
         )
+    }
+}
+
+// 고를 것이 셸 하나뿐이면 메뉴를 띄우지 않는다. 항목 하나짜리 메뉴는 한 번 더 누르게 할 뿐이다.
+@Composable
+private fun NewTabButton(
+    onNewTab: () -> Unit,
+    onNewClaudeTab: (() -> Unit)?,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        JarvisIconButton(
+            icon = JarvisIcons.Add,
+            contentDescription = "새 탭",
+            onClick = { if (onNewClaudeTab == null) onNewTab() else expanded = true },
+            modifier = Modifier.testTag(TerminalNewTabTestTag),
+        )
+
+        if (onNewClaudeTab != null) {
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                DropdownMenuItem(
+                    text = { Text("터미널") },
+                    leadingIcon = { Icon(imageVector = JarvisIcons.Terminal, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        onNewTab()
+                    },
+                    modifier = Modifier.testTag(TerminalNewShellTabTestTag),
+                )
+                DropdownMenuItem(
+                    text = { Text("Claude (YOLO)") },
+                    leadingIcon = { Icon(imageVector = JarvisIcons.Claude, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        onNewClaudeTab()
+                    },
+                    modifier = Modifier.testTag(TerminalNewClaudeTabTestTag),
+                )
+            }
+        }
     }
 }
 
@@ -188,8 +256,9 @@ private fun TerminalTabRow(
         horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs),
     ) {
         workspace.tabs.forEachIndexed { index, tab ->
+            val program = tab.root.leaves.firstOrNull { it.paneId == tab.focusedPaneId }?.program ?: TerminalProgram.Shell
             TerminalTab(
-                title = tabTitle(titleOf(tab.focusedPaneId), index),
+                title = tabTitle(titleOf(tab.focusedPaneId), index, program),
                 selected = tab.id == workspace.selectedTabId,
                 onSelect = { onSelect(tab.id) },
                 onClose = { onClose(tab.id) },
@@ -201,10 +270,14 @@ private fun TerminalTabRow(
 }
 
 @Composable
-private fun tabTitle(source: StateFlow<String?>?, index: Int): String {
+private fun tabTitle(source: StateFlow<String?>?, index: Int, program: TerminalProgram): String {
     val title = source?.collectAsStateWithLifecycle()?.value
+    val fallback = when (program) {
+        TerminalProgram.Shell -> "셸"
+        TerminalProgram.Claude -> "Claude"
+    }
 
-    return title?.takeIf { it.isNotBlank() } ?: "셸 ${index + 1}"
+    return title?.takeIf { it.isNotBlank() } ?: "$fallback ${index + 1}"
 }
 
 @Composable
@@ -243,10 +316,19 @@ private fun SplitPane(
     var size by remember { mutableStateOf(IntSize.Zero) }
     val sideBySide = node.direction == SplitDirection.SideBySide
 
+    // 끄는 동안의 비율은 화면에만 두고 손을 뗄 때 한 번 저장한다. 프레임마다 저장하면 매번 파일을 쓴다.
+    // 저장된 값이 돌아오면 그 값을 따른다.
+    var dragRatio by remember(node.id) { mutableStateOf<Float?>(null) }
+    LaunchedEffect(node.ratio) { dragRatio = null }
+    val ratio = dragRatio ?: node.ratio
+
     val divider = @Composable {
         val length = if (sideBySide) size.width else size.height
         val dragState = rememberDraggableState { delta ->
-            if (length > 0) viewModel.resizeSplit(node.id, delta / length)
+            if (length > 0) {
+                dragRatio = ((dragRatio ?: node.ratio) + delta / length)
+                    .coerceIn(TerminalWorkspace.MinRatio, TerminalWorkspace.MaxRatio)
+            }
         }
         val thickness = JarvisTheme.dimens.stroke.thick
         val interactionSource = remember { MutableInteractionSource() }
@@ -261,21 +343,22 @@ private fun SplitPane(
                     state = dragState,
                     orientation = if (sideBySide) Orientation.Horizontal else Orientation.Vertical,
                     interactionSource = interactionSource,
+                    onDragStopped = { dragRatio?.let { viewModel.setRatio(node.id, it) } },
                 ),
         )
     }
 
     if (sideBySide) {
         Row(modifier = modifier.onSizeChanged { size = it }) {
-            PaneTree(node.first, tab, viewModel, Modifier.weight(node.ratio).fillMaxHeight())
+            PaneTree(node.first, tab, viewModel, Modifier.weight(ratio).fillMaxHeight())
             divider()
-            PaneTree(node.second, tab, viewModel, Modifier.weight(1f - node.ratio).fillMaxHeight())
+            PaneTree(node.second, tab, viewModel, Modifier.weight(1f - ratio).fillMaxHeight())
         }
     } else {
         Column(modifier = modifier.onSizeChanged { size = it }) {
-            PaneTree(node.first, tab, viewModel, Modifier.weight(node.ratio).fillMaxWidth())
+            PaneTree(node.first, tab, viewModel, Modifier.weight(ratio).fillMaxWidth())
             divider()
-            PaneTree(node.second, tab, viewModel, Modifier.weight(1f - node.ratio).fillMaxWidth())
+            PaneTree(node.second, tab, viewModel, Modifier.weight(1f - ratio).fillMaxWidth())
         }
     }
 }

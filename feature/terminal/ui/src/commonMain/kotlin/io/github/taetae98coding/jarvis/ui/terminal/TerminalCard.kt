@@ -42,7 +42,7 @@ internal fun TerminalCard(
 
         Text(
             text = if (isSupported) {
-                "iTerm 처럼 셸을 띄운다. 패널을 좌우·상하로 나누고 탭을 더할 수 있다."
+                "iTerm 처럼 셸을 띄운다. 창을 좌우·상하로 나누고 탭을 더할 수 있다."
             } else {
                 "이 플랫폼에서는 셸을 실행할 수 없습니다."
             },

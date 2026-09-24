@@ -12,7 +12,7 @@
 
 <header>
   <h1>터미널</h1>
-  <p class="lead">iTerm 처럼 앱 안에서 셸을 띄우고, 패널을 좌우·상하로 나누고, 탭을 더한다.</p>
+  <p class="lead">iTerm 처럼 앱 안에서 셸을 띄우고, 창을 좌우·상하로 나누고, 탭을 더한다. 탭은 왼쪽 목록의 <a href="terminal-panels.html">패널</a>에 속한다.</p>
 </header>
 
 <nav class="toc">
@@ -37,31 +37,33 @@
   <footer>2026-09-24 대화. "home에 탭" 은 홈 그리드의 기능 카드 하나로 읽었다. 홈에는 탭 막대가 없고 기능마다 카드가 하나씩 놓인다(<a href="home-staggered-grid.html">홈 그리드</a>).</footer>
 </blockquote>
 
+<p>같은 날 뒤따른 지시로 탭 위에 패널 층이 생기고 배치와 세션이 앱을 다시 켜도 남게 됐다. 그 지시와 요구사항은 <a href="terminal-panels.html">터미널 패널과 세션 유지</a>에 있고, 이 문서에서 분할된 한 칸을 부르던 "패널" 은 그때부터 "창" 이다(<a href="terminal-panels.html#terms">용어</a>). 아래 R2·R10·R13·R15 는 그 지시에 맞춰 고쳤다.</p>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
   <li><strong>R1.</strong> 홈 그리드에 "터미널" 카드가 있다. 누르면 터미널 화면으로 이동한다. 셸을 띄울 수 없는 타깃에서는 카드가 같은 자리에 잠긴 채로 남고 이유를 보여준다(<a href="index.html#contract">공통 규약</a>).</li>
-  <li><strong>R2.</strong> 터미널 화면에 들어가면 탭 하나, 패널 하나가 있고 그 패널에 셸이 떠 있다.</li>
+  <li><strong>R2.</strong> 처음 터미널 화면에 들어가면 패널 하나에 탭 하나, 창 하나가 있고 그 창에 셸이 떠 있다. 그 뒤로는 저장된 배치가 복원된다(<a href="terminal-panels.html#requirements">패널 R9</a>).</li>
   <li><strong>R3.</strong> 셸 출력은 xterm 호환 제어 시퀀스로 해석해 글자 격자로 그린다. 해석 범위는 <a href="#emulation">아래 표</a>다. 한글 같은 전각 문자는 두 칸을 차지한다.</li>
-  <li><strong>R4.</strong> 포커스된 패널의 키 입력이 그 셸로 간다. 문자(IME 로 조합한 한글 포함), Enter, Backspace, Tab, Shift+Tab, Esc, 방향키, Home/End/PageUp/PageDown/Insert/Delete, F1–F12, Ctrl+문자.</li>
-  <li><strong>R5.</strong> <strong>좌우 분할</strong> — 포커스된 패널을 좌우로 나누고 오른쪽에 새 셸을 띄운다. 새 패널이 포커스를 가져간다. 아이콘 버튼 <code>SplitSideBySide</code>(contentDescription "좌우 분할"), 단축키 ⌘D.</li>
-  <li><strong>R6.</strong> <strong>상하 분할</strong> — 포커스된 패널을 위아래로 나누고 아래에 새 셸을 띄운다. 새 패널이 포커스를 가져간다. 아이콘 버튼 <code>SplitStacked</code>(contentDescription "상하 분할"), 단축키 ⌘⇧D.</li>
-  <li><strong>R7.</strong> <strong>새 탭</strong> — 탭 줄 끝에 패널 하나짜리 탭이 붙고 선택된다. 아이콘 버튼 <code>Add</code>(contentDescription "새 탭"), 단축키 ⌘T.</li>
-  <li><strong>R8.</strong> 분할은 중첩된다. 두 패널 사이 경계선을 끌어 비율을 바꾼다. 비율은 0.1–0.9 로 묶인다.</li>
-  <li><strong>R9.</strong> 패널 크기가 바뀌면 격자의 열·행 수를 다시 계산하고 셸에 알린다.</li>
-  <li><strong>R10.</strong> <strong>닫기</strong> — <code>Close</code> 아이콘 버튼(contentDescription "닫기") 또는 ⌘W 가 포커스된 패널을 닫고 그 셸을 끝낸다. 형제 패널이 부모 자리를 채우고 포커스를 받는다. 탭의 마지막 패널이면 탭이 닫히고, 마지막 탭이면 홈으로 돌아간다. 탭의 닫기 아이콘(<code>Close</code>, contentDescription "탭 닫기")은 그 탭의 패널을 전부 닫는다.</li>
-  <li><strong>R11.</strong> 셸이 스스로 끝나면(<code>exit</code>) 그 패널이 R10 과 같이 닫힌다.</li>
-  <li><strong>R12.</strong> 패널을 누르면 포커스가 그 패널로 간다. 한 탭에 패널이 둘 이상이면 포커스된 패널에 테두리가 그려진다. ⌘] / ⌘[ 는 다음·이전 패널, ⌘⇧] / ⌘⇧[ 는 다음·이전 탭, ⌘1–⌘9 는 그 번호의 탭을 고른다.</li>
-  <li><strong>R13.</strong> 탭 이름은 그 탭에서 포커스된 패널의 셸이 OSC 0/2 로 정한 제목이다. 제목이 없으면 "셸 N"(N 은 탭 순번).</li>
-  <li><strong>R14.</strong> 화면 위로 밀려난 줄은 패널마다 2,000줄까지 남는다. 휠·드래그로 거슬러 올라가 볼 수 있고, 키를 누르면 맨 아래로 돌아온다.</li>
-  <li><strong>R15.</strong> 터미널 화면을 벗어나면(뒤로) 그 화면의 셸을 전부 끝낸다.</li>
+  <li><strong>R4.</strong> 포커스된 창의 키 입력이 그 셸로 간다. 문자(IME 로 조합한 한글 포함), Enter, Backspace, Tab, Shift+Tab, Esc, 방향키, Home/End/PageUp/PageDown/Insert/Delete, F1–F12, Ctrl+문자.</li>
+  <li><strong>R5.</strong> <strong>좌우 분할</strong> — 포커스된 창을 좌우로 나누고 오른쪽에 새 셸을 띄운다. 새 창이 포커스를 가져간다. 아이콘 버튼 <code>SplitSideBySide</code>(contentDescription "좌우 분할"), 단축키 ⌘D.</li>
+  <li><strong>R6.</strong> <strong>상하 분할</strong> — 포커스된 창을 위아래로 나누고 아래에 새 셸을 띄운다. 새 창이 포커스를 가져간다. 아이콘 버튼 <code>SplitStacked</code>(contentDescription "상하 분할"), 단축키 ⌘⇧D.</li>
+  <li><strong>R7.</strong> <strong>새 탭</strong> — 탭 줄 끝에 창 하나짜리 탭이 붙고 선택된다. 아이콘 버튼 <code>Add</code>(contentDescription "새 탭"), 단축키 ⌘T.</li>
+  <li><strong>R8.</strong> 분할은 중첩된다. 두 창 사이 경계선을 끌어 비율을 바꾼다. 비율은 0.1–0.9 로 묶인다.</li>
+  <li><strong>R9.</strong> 창 크기가 바뀌면 격자의 열·행 수를 다시 계산하고 셸에 알린다.</li>
+  <li><strong>R10.</strong> <strong>닫기</strong> — <code>Close</code> 아이콘 버튼(contentDescription "닫기") 또는 ⌘W 가 포커스된 창을 닫고 그 셸을 끝낸다. 형제 창이 부모 자리를 채우고 포커스를 받는다. 탭의 마지막 창이면 탭이 닫히고, 마지막 탭이면 패널이 빈 채로 남는다(<a href="terminal-panels.html#requirements">패널 R7</a>). 탭의 닫기 아이콘(<code>Close</code>, contentDescription "탭 닫기")은 그 탭의 창을 전부 닫는다.</li>
+  <li><strong>R11.</strong> 셸이 스스로 끝나면(<code>exit</code>) 그 창이 R10 과 같이 닫힌다.</li>
+  <li><strong>R12.</strong> 창을 누르면 포커스가 그 창으로 간다. 한 탭에 창이 둘 이상이면 포커스된 창에 테두리가 그려진다. ⌘] / ⌘[ 는 다음·이전 창, ⌘⇧] / ⌘⇧[ 는 다음·이전 탭, ⌘1–⌘9 는 그 번호의 탭을 고른다.</li>
+  <li><strong>R13.</strong> 탭 이름은 그 탭에서 포커스된 창의 셸이 OSC 0/2 로 정한 제목이다. 제목이 없으면 "셸 N", Claude 창이면 "Claude N"(N 은 패널 안 탭 순번).</li>
+  <li><strong>R14.</strong> 화면 위로 밀려난 줄은 창마다 2,000줄까지 남는다. 휠·드래그로 거슬러 올라가 볼 수 있고, 키를 누르면 맨 아래로 돌아온다.</li>
+  <li><strong>R15.</strong> 터미널 화면을 벗어나도(뒤로) 셸은 끝나지 않는다. 다시 들어오면 같은 셸과 화면이 보인다(<a href="terminal-panels.html#requirements">패널 R13</a>). 셸은 사용자가 창을 닫거나 셸이 끝나거나 앱이 끝날 때 끝난다.</li>
 </ol>
 
 <aside class="warn">
   <strong>스코프에서 뺀 것</strong>
   <ul>
     <li>텍스트 선택·복사, 찾기, 마우스 리포팅(<code>?1000</code> 계열). 붙여넣기는 입력 필드가 받아 준다(⌘V).</li>
-    <li>프로필·색 테마·글꼴 설정, 패널 균등 정렬, 탭 순서 바꾸기, 패널을 다른 탭으로 옮기기.</li>
+    <li>프로필·색 테마·글꼴 설정, 창 균등 정렬, 탭 순서 바꾸기, 창을 다른 탭으로 옮기기.</li>
     <li>화면을 벗어난 뒤에도 셸을 살려 두기, 앱을 다시 켰을 때 세션 복원. 보이지 않는 셸이 떠돌지 않게 R15 로 막았다.</li>
     <li>개발자 머신의 셸을 다른 타깃에서 원격으로 쓰기. 에뮬레이터 기능은 <a href="emulator-count.html#agent">로컬 에이전트</a>로 그렇게 하지만, 셸은 인증 없는 로컬 HTTP 로 내보낼 수 없다(<a href="../platform/ios.html#terminal">iOS</a> 참고).</li>
     <li>iOS 와 Web. 셸 프로세스를 띄울 수 없다(<a href="#platforms">판정</a>). Web 은 지시에 없었지만 같은 이유로 불가다.</li>
@@ -74,13 +76,13 @@
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
     <tr><td>홈 카드 제목</td><td>터미널</td></tr>
-    <tr><td>홈 카드 설명</td><td>iTerm 처럼 셸을 띄운다. 패널을 좌우·상하로 나누고 탭을 더할 수 있다.</td></tr>
+    <tr><td>홈 카드 설명</td><td>iTerm 처럼 셸을 띄운다. 창을 좌우·상하로 나누고 탭을 더할 수 있다.</td></tr>
     <tr><td>잠긴 카드 설명</td><td>이 플랫폼에서는 셸을 실행할 수 없습니다.</td></tr>
-    <tr><td>화면 상단</td><td><code>JarvisTopBar</code>: 뒤로 아이콘 버튼, 제목 "터미널", 아이콘 버튼 넷(좌우 분할 · 상하 분할 · 새 탭 · 닫기). Claude 를 실행할 수 있는 타깃에서는 새 탭 앞에 <a href="terminal-claude.html">Claude</a> 버튼이 더 붙는다. 모양은 <a href="design-system.html#icons">디자인 시스템</a></td></tr>
+    <tr><td>화면 상단</td><td><code>JarvisTopBar</code>: 뒤로 아이콘 버튼, 제목 "터미널", 아이콘 버튼 넷(좌우 분할 · 상하 분할 · 새 탭 · 닫기). Claude 를 실행할 수 있는 타깃에서는 새 탭 버튼이 "터미널 / Claude (YOLO)" 메뉴를 띄운다(<a href="terminal-claude.html">Claude 실행</a>). 모양은 <a href="design-system.html#icons">디자인 시스템</a></td></tr>
     <tr><td>탭 줄</td><td>탭마다 이름과 닫기 아이콘. 선택된 탭은 primaryContainer 배경, 마우스를 올리거나 누르면 한 단계 진해진다(<code>TerminalTabDefaults.style</code>)</td></tr>
-    <tr><td>패널</td><td>어두운 배경(<code>JarvisTheme.colors.terminalBackground</code> #1E1E1E), 기본 글자색(<code>terminalForeground</code> #D4D4D4), 고정폭 13sp(<code>JarvisTheme.codeTextStyle</code>). 분할 중 포커스된 패널은 primary 1dp 테두리. 커서는 블록, 포커스가 없으면 테두리만. 전각 글자는 대체 글꼴 폭이 두 칸보다 좁아 두 칸 가운데에 그린다</td></tr>
+    <tr><td>창</td><td>어두운 배경(<code>JarvisTheme.colors.terminalBackground</code> #1E1E1E), 기본 글자색(<code>terminalForeground</code> #D4D4D4), 고정폭 13sp(<code>JarvisTheme.codeTextStyle</code>). 분할 중 포커스된 창은 primary 1dp 테두리. 커서는 블록, 포커스가 없으면 테두리만. 전각 글자는 대체 글꼴 폭이 두 칸보다 좁아 두 칸 가운데에 그린다</td></tr>
     <tr><td>경계선</td><td>4dp(<code>dimens.stroke.thick</code>), outlineVariant. 마우스를 올리면 primary. 끌면 비율이 바뀐다</td></tr>
-    <tr><td>셸을 띄우지 못한 패널</td><td>격자에 "[셸을 시작할 수 없습니다]" 가 찍힌 채 남는다. 닫기로 닫는다</td></tr>
+    <tr><td>셸을 띄우지 못한 창</td><td>격자에 "[셸을 시작할 수 없습니다]" 가 찍힌 채 남는다. 닫기로 닫는다</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>feature:terminal</code> (홈 카드), <code>terminal:screen</code>,
       <code>terminal:split-side</code>, <code>terminal:split-stacked</code>, <code>terminal:new-tab</code>, <code>terminal:close</code>,
@@ -107,20 +109,21 @@
   </dd>
   <dt>공급</dt><dd><code>internal expect fun createTerminalDataSource(context: PlatformContext): TerminalDataSource</code> — <code>:feature:terminal:data</code></dd>
   <dt>UI</dt><dd><code>TerminalCard</code>(홈), <code>TerminalRoute</code>, <code>TerminalScreen</code>, <code>TerminalPane</code>(Canvas + 숨은 입력 필드)</dd>
-  <dt>상태</dt><dd><code>TerminalViewModel</code> — <code>workspace: StateFlow&lt;TerminalWorkspace&gt;</code>, 패널 id 마다 에뮬레이터와 세션을 묶은 <code>TerminalPaneState</code>. ViewModel 이 치워질 때 세션을 전부 닫는다(R15)</dd>
+  <dt>상태</dt><dd><code>TerminalViewModel</code> — <code>workspace: StateFlow&lt;TerminalWorkspace?&gt;</code>. 창 id 마다 에뮬레이터와 세션을 묶은 <code>TerminalPaneState</code> 는 앱 수명의 <code>TerminalPaneHost</code> 가 든다(R15, <a href="terminal-panels.html#implementation">패널 결정</a>)</dd>
 </dl>
 
 <pre><code>TerminalWorkspace
-├─ tabs: List&lt;TerminalTab&gt;          selectedTabId
-│  └─ TerminalTab(id, root: PaneNode, focusedPaneId)
-│     └─ PaneNode
-│        ├─ Leaf(paneId)
-│        └─ Split(id, direction = SideBySide | Stacked, first, second, ratio)
-└─ nextId                            ← 탭·분할·패널이 같은 카운터를 쓴다</code></pre>
+├─ panels: List&lt;TerminalPanel&gt;      selectedPanelId          ← <a href="terminal-panels.html">패널</a>
+│  └─ TerminalPanel(id, name, tabs, selectedTabId)
+│     └─ TerminalTab(id, root: PaneNode, focusedPaneId)
+│        └─ PaneNode
+│           ├─ Leaf(paneId, program, directory?, claudeSessionId?)
+│           └─ Split(id, direction = SideBySide | Stacked, first, second, ratio)
+└─ nextId                            ← 패널·탭·분할·창이 같은 카운터를 쓴다</code></pre>
 
 <aside class="decision">
   <strong>결정: 터미널 해석과 그리기를 공통 코드로 직접 만든다</strong>
-  JVM 에서 가장 쉬운 길은 JetBrains 의 JediTerm(Swing 위젯)을 <code>SwingPanel</code> 로 끼우는 것이었다. 버렸다. (1) Swing 컴포넌트가 포커스를 쥐면 ⌘D 같은 단축키가 Compose 에 오지 않아 분할·탭을 Compose 로 만들 수 없다. (2) 패널마다 <code>SwingPanel</code> 이 생겨 분할 경계선 드래그와 겹쳐 그리기가 interop 의 제약을 그대로 받는다. (3) 화면 컴포저블이 플랫폼마다 갈라져 <code>ui</code> 에 <code>expect</code> 가 생긴다 — 이 프로젝트는 <code>ui</code> 에 <code>expect</code> 를 두지 않는다(<a href="module-architecture.html#exceptions">예외</a>). 직접 만들면 해석기를 <code>commonTest</code> 로 검증할 수 있고, Android 도 같은 화면을 쓴다. 대가는 해석 범위가 xterm 전체가 아니라는 것이고, 그 범위를 <a href="#emulation">아래</a>에 적는다.
+  JVM 에서 가장 쉬운 길은 JetBrains 의 JediTerm(Swing 위젯)을 <code>SwingPanel</code> 로 끼우는 것이었다. 버렸다. (1) Swing 컴포넌트가 포커스를 쥐면 ⌘D 같은 단축키가 Compose 에 오지 않아 분할·탭을 Compose 로 만들 수 없다. (2) 창마다 <code>SwingPanel</code> 이 생겨 분할 경계선 드래그와 겹쳐 그리기가 interop 의 제약을 그대로 받는다. (3) 화면 컴포저블이 플랫폼마다 갈라져 <code>ui</code> 에 <code>expect</code> 가 생긴다 — 이 프로젝트는 <code>ui</code> 에 <code>expect</code> 를 두지 않는다(<a href="module-architecture.html#exceptions">예외</a>). 직접 만들면 해석기를 <code>commonTest</code> 로 검증할 수 있고, Android 도 같은 화면을 쓴다. 대가는 해석 범위가 xterm 전체가 아니라는 것이고, 그 범위를 <a href="#emulation">아래</a>에 적는다.
 </aside>
 
 <aside class="decision">
@@ -178,12 +181,12 @@
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>TerminalWorkspaceTest</code></td><td>R2, R5–R8, R10, R12. 분할 방향과 새 패널 위치, 중첩, 비율 묶기, 닫기 후 형제 승격과 포커스, 탭 추가·선택·닫기, 마지막 탭</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R2, R5–R8, R10, R12. 분할 방향과 새 창 위치, 중첩, 비율 묶기, 닫기 후 형제 승격과 포커스, 탭 추가·선택·닫기, 마지막 탭</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>TerminalEmulatorTest</code></td><td>R3, R9, R13, R14. 줄바꿈, 커서 이동, 지우기, SGR 색, 스크롤 영역, 대체 화면, 전각·결합 문자, 덩어리가 나뉜 UTF-8, OSC 제목, DSR 응답, 스크롤백 상한, 크기 변경</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>TerminalKeyTest</code></td><td>R4. 방향키의 두 모드, Ctrl+문자, 기능 키</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>LineDisciplineTest</code></td><td>Android 우회. 에코, 지우기, Enter 에 한 줄 전송, Ctrl+C·Ctrl+U, 출력의 LF → CRLF</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>PtyTerminalDataSourceTest</code></td><td>JVM. 실제 pty 로 <code>/bin/sh</code> 를 띄워 명령 출력이 오고, <code>stty size</code> 가 resize 를 반영하고, <code>exit</code> 에 흐름이 끝난다</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
-    <tr><td><code>JarvisAppTerminalTest</code></td><td>R1, R2, R4, R5–R7, R10, R11, R13, R15. 가짜 세션으로 카드 이동, 버튼 분할·탭 추가·닫기, 셸 종료 시 패널 닫힘, 마지막 패널 닫으면 홈, 잠긴 카드, 입력 전달, OSC 제목이 탭 이름이 됨, 커서 위치 질의 응답</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalTest</code></td><td>R1, R2, R4, R5–R7, R10, R11, R13, R15. 가짜 세션으로 카드 이동, 버튼 분할·탭 추가·닫기, 셸 종료 시 창 닫힘, 마지막 창을 닫아도 화면에 남음, 화면을 나갔다 와도 같은 셸, 잠긴 카드, 입력 전달, OSC 제목이 탭 이름이 됨, 커서 위치 질의 응답</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
     <tr><td><code>JarvisKoinTest</code></td><td>터미널 리포지토리·유스케이스가 조립된다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
   </tbody>
 </table>
@@ -196,7 +199,7 @@
   <li>해석 범위 밖의 시퀀스를 쓰는 프로그램은 화면이 틀어질 수 있다. 특히 마우스 리포팅을 켜는 프로그램(<code>htop</code> 의 클릭, <code>vim</code> 의 <code>mouse=a</code>)은 클릭이 가지 않는다.</li>
   <li>텍스트를 선택해 복사할 수 없다.</li>
   <li>창 크기를 줄였다 늘려도 잘린 줄이 되살아나지 않는다(reflow 없음).</li>
-  <li>화면을 벗어나면 셸이 끝난다. 긴 작업은 <code>tmux</code>·<code>nohup</code> 으로 돌려야 한다.</li>
+  <li>앱을 끝내면 셸이 끝난다(<a href="terminal-panels.html#limits">패널 한계</a>). 긴 작업은 <code>tmux</code>·<code>nohup</code> 으로 돌려야 한다.</li>
   <li>출력이 매우 많으면 메인 스레드 해석이 화면을 끊기게 한다(<a href="#implementation">결정</a>).</li>
   <li>Android 는 pty 가 없어 대화형 전체 화면 프로그램이 돌지 않는다(<a href="../platform/android.html#terminal">Android</a>).</li>
 </ul>

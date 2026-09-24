@@ -123,9 +123,9 @@
     </tr>
     <tr>
       <td><code>TerminalViewModel</code><br><code>:feature:terminal:ui</code></td>
-      <td>터미널 화면. 엔트리가 빠질 때 셸을 전부 닫는다</td>
-      <td><code>workspace: StateFlow&lt;TerminalWorkspace&gt;</code>, 패널마다 <code>TerminalPaneState</code>, <code>closed: StateFlow&lt;Boolean&gt;</code></td>
-      <td>분할·탭 추가·닫기·포커스·비율, 키 입력 전달(<a href="terminal.html">터미널</a>)</td>
+      <td>터미널 화면. 셸은 닫지 않는다 — 세션은 <code>TerminalPaneHost</code> 가 든다(<a href="terminal-panels.html">패널</a>)</td>
+      <td><code>workspace: StateFlow&lt;TerminalWorkspace?&gt;</code>(저장소를 <code>WhileSubscribed</code> 로), 창마다 <code>TerminalPaneState</code>(<code>TerminalPaneHost</code> 에서)</td>
+      <td>패널 추가·이름 바꾸기·닫기·선택, 분할·탭 추가·닫기·포커스·비율(<a href="terminal.html">터미널</a>)</td>
     </tr>
   </tbody>
 </table>

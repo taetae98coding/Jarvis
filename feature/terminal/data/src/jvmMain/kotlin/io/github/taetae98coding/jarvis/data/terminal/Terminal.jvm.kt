@@ -4,45 +4,76 @@ import com.pty4j.PtyProcess
 import com.pty4j.PtyProcessBuilder
 import com.pty4j.WinSize
 import io.github.taetae98coding.jarvis.data.PlatformContext
+import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
 
-internal actual fun createTerminalDataSource(context: PlatformContext): TerminalDataSource =
-    PtyTerminalDataSource(command = { program -> terminalCommand(program, loginShell()) })
+internal actual fun createTerminalDataSource(context: PlatformContext): TerminalDataSource {
+    val shell = loginShell()
+    val claude = ClaudeBackground(shell)
+
+    return PtyTerminalDataSource(
+        launch = { pane ->
+            val directory = startDirectory(pane)
+            when (pane.program) {
+                TerminalProgram.Shell -> PtyLaunch(terminalCommand(shell), directory, tracksDirectory = true)
+                TerminalProgram.Claude -> PtyLaunch(claude.command(checkNotNull(pane.claudeSessionId), directory), directory)
+            }
+        },
+        claude = claude,
+    )
+}
+
+/** pty 에 띄울 명령. [tracksDirectory] 면 셸의 작업 디렉터리를 [TerminalSession.directory] 로 흘린다. */
+internal class PtyLaunch(
+    val command: List<String>,
+    val directory: String,
+    val tracksDirectory: Boolean = false,
+)
 
 internal class PtyTerminalDataSource(
-    private val command: (TerminalProgram) -> List<String>,
+    private val launch: suspend (PaneNode.Leaf) -> PtyLaunch,
+    private val claude: ClaudeBackground? = null,
+    private val readDirectory: (Long) -> String? = ::processDirectory,
 ) : TerminalDataSource {
     override val isSupported: Boolean = true
 
     // 설치 여부는 로그인 셸을 띄워 봐야 알 수 있어 미리 보지 않는다. 없으면 셸이 command not found 를 찍는다.
     override val isClaudeSupported: Boolean = true
 
-    override suspend fun open(size: TerminalSize, program: TerminalProgram): TerminalSession? =
+    override suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession? =
         withContext(Dispatchers.IO) {
             runCatching {
-                val process = PtyProcessBuilder(command(program).toTypedArray())
+                val launch = launch(pane)
+                val process = PtyProcessBuilder(launch.command.toTypedArray())
                     .setEnvironment(terminalEnvironment(System.getenv()))
-                    .setDirectory(System.getProperty("user.home"))
+                    .setDirectory(launch.directory)
                     .setInitialColumns(size.columns)
                     .setInitialRows(size.rows)
                     .start()
 
-                PtyTerminalSession(process)
+                val tracker = if (launch.tracksDirectory) DirectoryTracker { readDirectory(process.pid()) } else null
+                PtyTerminalSession(process, tracker)
             }.getOrNull()
         }
+
+    override suspend fun stopClaude(sessionId: String) {
+        claude?.stop(sessionId)
+    }
 }
 
 private class PtyTerminalSession(
     private val process: PtyProcess,
+    private val tracker: DirectoryTracker?,
 ) : TerminalSession {
     override val isPty: Boolean = true
 
@@ -54,11 +85,16 @@ private class PtyTerminalSession(
         while (true) {
             val read = input.read(buffer)
             if (read < 0) break
-            if (read > 0) emit(buffer.copyOf(read))
+            if (read > 0) {
+                emit(buffer.copyOf(read))
+                tracker?.onOutput()
+            }
         }
     }.catch {
         // 셸이 끝나면 macOS 의 pty 마스터는 EOF 대신 EIO 를 준다. 끝난 것과 같게 다룬다.
     }.flowOn(Dispatchers.IO)
+
+    override val directory: Flow<String> = tracker?.directory?.flowOn(Dispatchers.IO) ?: emptyFlow()
 
     override suspend fun write(bytes: ByteArray) {
         withContext(Dispatchers.IO) {
@@ -73,29 +109,52 @@ private class PtyTerminalSession(
         runCatching { process.winSize = WinSize(size.columns, size.rows) }
     }
 
+    // destroy() 는 SIGTERM 만 보내는데 대화형 셸은 SIGTERM 을 무시한다(zsh·sh 로 확인). 창을 닫은 터미널처럼
+    // pty 마스터를 닫으면 커널이 셸에 SIGHUP 을 보내고, 셸은 자기 작업들에 SIGHUP 을 넘기고 끝난다.
     override fun close() {
+        runCatching { process.inputStream.close() }
         process.destroy()
     }
 }
 
 private fun loginShell(): String = System.getenv("SHELL")?.takeIf { File(it).canExecute() } ?: DefaultShell
 
+/** 저장된 작업 디렉터리가 지금도 있으면 거기서, 아니면 홈에서 시작한다. */
+private fun startDirectory(pane: PaneNode.Leaf): String =
+    pane.directory?.takeIf { File(it).isDirectory } ?: System.getProperty("user.home")
+
 /**
  * 로그인 셸로 띄워야 `~/.zprofile` 의 PATH(Homebrew 등)가 들어온다. Finder 로 띄운 앱은 launchd 의
  * 최소 PATH 만 물려받는다.
- *
- * Claude 는 `-i` 까지 붙여 `~/.zshrc` 의 PATH 도 받는다(zsh 는 `-c` 면 비대화형이라 읽지 않는다). 끝나면
- * `exec` 가 같은 pty 를 로그인 셸로 바꿔서 패널이 닫히지 않는다.
  */
-internal fun terminalCommand(program: TerminalProgram, shell: String): List<String> =
-    when (program) {
-        TerminalProgram.Shell -> listOf(shell, "-l")
-        TerminalProgram.Claude -> listOf(shell, "-l", "-i", "-c", "$ClaudeYoloCommand; exec ${shellQuote(shell)} -l")
-    }
+internal fun terminalCommand(shell: String): List<String> = listOf(shell, "-l")
 
-private const val ClaudeYoloCommand = "claude --dangerously-skip-permissions"
+/**
+ * [script] 를 셸 설정이 적용된 셸에서 돌린다. zsh 는 `-c` 면 비대화형이라 `~/.zshrc` 를 읽지 않아서
+ * `-i` 를 붙인다 — `claude` 의 PATH 를 `~/.zshrc` 에 적는 설치가 많다. 끝나면 `exec` 가 같은 pty 를
+ * 로그인 셸로 바꿔서 창이 닫히지 않는다.
+ */
+internal fun interactiveCommand(shell: String, script: String, thenShell: Boolean): List<String> {
+    val line = if (thenShell) "$script; exec ${shellQuote(shell)} -l" else script
+    return listOf(shell, "-l", "-i", "-c", line)
+}
 
-private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+internal fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+/** 출력은 `p<pid>`, `fcwd`, `n<경로>` 줄이다. */
+internal fun parseLsofDirectory(output: String): String? =
+    output.lineSequence().firstOrNull { it.startsWith("n") }?.removePrefix("n")?.takeIf { it.isNotEmpty() }
+
+// macOS 에는 /proc 이 없다. JNA 로 proc_pidinfo 를 부르는 안을 버린 이유는 docs/platform/jvm.html#terminal-panels 에 있다.
+private fun processDirectory(pid: Long): String? {
+    val process = ProcessBuilder("lsof", "-a", "-p", pid.toString(), "-d", "cwd", "-Fn")
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText()
+    process.waitFor()
+
+    return parseLsofDirectory(output)
+}
 
 // 데스크탑은 macOS 만 지원한다. macOS 10.15 부터 기본 셸이 zsh 다. 다른 OS 에서 없으면 실행이 실패하고
 // open() 이 null 이 된다.

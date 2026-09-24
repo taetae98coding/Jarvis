@@ -8,9 +8,11 @@ import kotlin.test.assertTrue
 
 class TerminalWorkspaceTest {
     @Test
-    fun startsWithOneTabAndOnePane() {
+    fun startsWithOnePanelOneTabAndOnePane() {
         val workspace = TerminalWorkspace.initial()
 
+        assertEquals(listOf("패널 1"), workspace.panels.map { it.name })
+        assertEquals(workspace.panels.single().id, workspace.selectedPanelId)
         assertEquals(1, workspace.tabs.size)
         assertEquals(1, workspace.paneIds.size)
         assertEquals(workspace.paneIds.single(), workspace.focusedPaneId)
@@ -100,11 +102,13 @@ class TerminalWorkspaceTest {
     }
 
     @Test
-    fun closingTheLastTabLeavesAnEmptyWorkspace() {
+    fun closingTheLastTabLeavesAnEmptyPanel() {
         val workspace = TerminalWorkspace.initial()
 
         val closed = workspace.closePane(workspace.focusedPaneId!!)
 
+        assertEquals(1, closed.panels.size)
+        assertEquals(workspace.selectedPanelId, closed.selectedPanelId)
         assertTrue(closed.tabs.isEmpty())
         assertNull(closed.selectedTabId)
         assertNull(closed.focusedPaneId)
@@ -189,5 +193,120 @@ class TerminalWorkspaceTest {
         val again = closed.split(SplitDirection.SideBySide)
 
         assertTrue(again.focusedPaneId!! !in workspace.paneIds)
+    }
+
+    @Test
+    fun newPanelIsNamedByCountAndSelected() {
+        val workspace = TerminalWorkspace.initial().addPanel()
+
+        assertEquals(listOf("패널 1", "패널 2"), workspace.panels.map { it.name })
+        assertEquals(workspace.panels.last().id, workspace.selectedPanelId)
+        assertEquals(1, workspace.tabs.size)
+        assertEquals(TerminalProgram.Shell, workspace.focusedLeaf!!.program)
+    }
+
+    @Test
+    fun tabsBelongToTheSelectedPanel() {
+        val workspace = TerminalWorkspace.initial().addTab().addPanel()
+        val (first, second) = workspace.panels
+
+        val split = workspace.split(SplitDirection.SideBySide)
+
+        assertEquals(first, split.panels.first { it.id == first.id })
+        assertEquals(2, split.panels.first { it.id == second.id }.leaves.size)
+    }
+
+    @Test
+    fun selectingAPanelShowsItsOwnTabs() {
+        val workspace = TerminalWorkspace.initial().addTab()
+        val first = workspace.panels.single()
+        val withSecond = workspace.addPanel()
+
+        val back = withSecond.selectPanel(first.id)
+
+        assertEquals(first.tabs.map { it.id }, back.tabs.map { it.id })
+        assertEquals(first.selectedTabId, back.selectedTabId)
+    }
+
+    @Test
+    fun renameTrimsAndIgnoresBlankNames() {
+        val workspace = TerminalWorkspace.initial()
+        val id = workspace.panels.single().id
+
+        assertEquals("백엔드", workspace.renamePanel(id, "  백엔드 ").panels.single().name)
+        assertEquals("패널 1", workspace.renamePanel(id, "   ").panels.single().name)
+    }
+
+    @Test
+    fun theLastPanelIsNotClosed() {
+        val workspace = TerminalWorkspace.initial()
+
+        assertEquals(workspace, workspace.closePanel(workspace.panels.single().id))
+    }
+
+    @Test
+    fun closingTheSelectedPanelSelectsTheNextOne() {
+        val workspace = TerminalWorkspace.initial().addPanel().addPanel()
+        val (first, middle, last) = workspace.panels
+
+        val closed = workspace.selectPanel(middle.id).closePanel(middle.id)
+
+        assertEquals(listOf(first.id, last.id), closed.panels.map { it.id })
+        assertEquals(last.id, closed.selectedPanelId)
+        assertTrue(middle.leaves.none { it.paneId in closed.paneIds })
+    }
+
+    @Test
+    fun focusingAPaneInAnotherPanelSelectsThatPanel() {
+        val workspace = TerminalWorkspace.initial()
+        val firstPane = workspace.focusedPaneId!!
+
+        val focused = workspace.addPanel().focusPane(firstPane)
+
+        assertEquals(workspace.selectedPanelId, focused.selectedPanelId)
+        assertEquals(firstPane, focused.focusedPaneId)
+    }
+
+    @Test
+    fun claudeTabKeepsItsProgramAndSessionId() {
+        val workspace = TerminalWorkspace.initial()
+            .addTab(TerminalProgram.Claude, directory = "/work", claudeSessionId = "session")
+
+        val leaf = workspace.focusedLeaf!!
+
+        assertEquals(TerminalProgram.Claude, leaf.program)
+        assertEquals("/work", leaf.directory)
+        assertEquals("session", leaf.claudeSessionId)
+    }
+
+    @Test
+    fun splittingAClaudePaneOpensAShellInTheGivenDirectory() {
+        val workspace = TerminalWorkspace.initial()
+            .addTab(TerminalProgram.Claude, claudeSessionId = "session")
+            .split(SplitDirection.SideBySide, directory = "/work")
+
+        val leaf = workspace.focusedLeaf!!
+
+        assertEquals(TerminalProgram.Shell, leaf.program)
+        assertEquals("/work", leaf.directory)
+        assertNull(leaf.claudeSessionId)
+    }
+
+    @Test
+    fun directoryIsRecordedOnTheLeaf() {
+        val workspace = TerminalWorkspace.initial()
+        val id = workspace.focusedPaneId!!
+
+        assertEquals("/tmp", workspace.setDirectory(id, "/tmp").focusedLeaf!!.directory)
+    }
+
+    @Test
+    fun closingAPaneWithADirectoryStillPromotesItsSibling() {
+        val split = TerminalWorkspace.initial().split(SplitDirection.SideBySide)
+        val (left, right) = split.paneIds
+
+        val closed = split.setDirectory(right, "/tmp").closePane(right)
+
+        assertEquals(PaneNode.Leaf(left), closed.selectedTab!!.root)
     }
 }

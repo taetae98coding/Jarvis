@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>터미널 패널과 세션 유지 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>터미널 패널과 세션 유지</span></nav>
+
+<header>
+  <h1>터미널 패널과 세션 유지</h1>
+  <p class="lead">터미널 화면 왼쪽에 이름 붙인 패널을 세로로 두고, 패널마다 탭과 분할 창을 따로 가진다. 패널·탭·창 배치와 창마다의 작업 디렉터리·Claude sessionId 는 앱을 다시 켜도 그대로이고, Claude 는 화면이나 앱이 꺼져도 백그라운드에서 계속 일한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>개념을 분리해서 창을 나누자.</p>
+  <p>패널이라는 개념을 도입해줘.<br>
+  - 패널은 좌측에 상하로 노출하고 각 패널에는 이름을 붙일 수 있고 수정할 수 있어.<br>
+  - 앱 종료 재시작에서도 패널 유지하도록 해줘.</p>
+  <p>그리고 각 패널에서 탭이 있고 탭을 상하/좌우 분리할 수 있어.<br>
+  - 각 탭에는 클로드나 터미널이 들어갈 수 있지.<br>
+  - 이것도 앱 종료/재시작시 유지하도록 해줘.<br>
+  - claude는 sessionId를 기록해서 이어서 시작하도록 해줘.<br>
+  - claude는 지침 시킨 것도 bg로 계속 진행해야해 앱을 종료하거나 화면 밖을 나가도 지속적으로 진행하도록 해줘.<br>
+  - 터미널도 이어서 하면 좋을 것 같아. 이어서 못한다면 디렉토리라도 유지해줘.</p>
+  <p>앱에서 DB나 properties를 사용해야한다면 Room3나 DataStore androidx를 통해 Multiplatform 구현해줘.</p>
+  <footer>2026-09-24 대화. "창을 나누자" 는 지금까지 한 층이던 탭·분할 위에 패널 층을 하나 더 두는 것으로 읽었다. "탭을 상하/좌우 분리" 는 <a href="terminal.html">터미널</a>의 분할(R5·R6)이 패널 안의 탭마다 그대로 되는 것으로 읽었다. "지침 시킨 것도 bg로" 는 Claude 에게 맡긴 작업이 창을 보고 있지 않아도, 앱이 꺼져도 멈추지 않는 것으로 읽었다.</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<p>이 지시 전까지 문서와 코드는 분할된 한 칸을 "패널" 이라 불렀다. 지시의 "패널" 과 겹치므로 분할된 한 칸은 이제 <strong>창</strong>이라 부른다. 코드 이름(<code>PaneNode</code>, <code>paneId</code>, <code>TerminalPane</code>)은 영어로 이미 구분되므로 그대로 둔다.</p>
+
+<table>
+  <thead><tr><th>말</th><th>뜻</th><th>코드</th></tr></thead>
+  <tbody>
+    <tr><td>패널</td><td>왼쪽 목록의 한 줄. 이름을 가지고 자기 탭 목록을 가진다</td><td><code>TerminalPanel</code></td></tr>
+    <tr><td>탭</td><td>패널 안의 탭 줄 하나. 분할 트리를 가진다</td><td><code>TerminalTab</code></td></tr>
+    <tr><td>창</td><td>분할 트리의 잎 하나. 터미널(셸) 하나 또는 Claude 하나를 보여 준다</td><td><code>PaneNode.Leaf</code>, <code>TerminalPane</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="requirements">요구사항</h2>
+
+<h3>패널</h3>
+<ol>
+  <li><strong>R1.</strong> 터미널 화면 왼쪽에 패널 목록이 세로로 놓인다. 위에서부터 만든 순서이고 선택된 패널이 강조된다. 패널을 누르면 그 패널이 선택되고, 오른쪽 영역(탭 줄과 창)이 그 패널의 것으로 바뀐다.</li>
+  <li><strong>R2.</strong> 목록 아래의 "새 패널" 버튼은 이름이 "패널 N"(N 은 지금 패널 수 + 1)이고 터미널 탭 하나를 가진 패널을 목록 끝에 붙이고 선택한다.</li>
+  <li><strong>R3.</strong> 패널 줄의 "이름 바꾸기" 아이콘을 누르면 이름이 입력 필드로 바뀌고 포커스를 받는다. Enter 나 포커스를 잃으면 확정되고 Esc 는 취소한다. 앞뒤 공백을 떼고, 비어 있으면 이전 이름을 그대로 둔다.</li>
+  <li><strong>R4.</strong> 패널 줄의 "패널 닫기" 아이콘은 그 패널을 목록에서 지우고 그 안의 창을 전부 닫는다(R12). 패널이 하나뿐이면 닫기 아이콘이 없다. 선택된 패널을 닫으면 그 자리에 오는 패널(없으면 앞 패널)이 선택된다.</li>
+</ol>
+
+<h3>탭과 창</h3>
+<ol start="5">
+  <li><strong>R5.</strong> 탭 추가·분할·닫기·포커스·탭 선택은 선택된 패널 안에서 <a href="terminal.html#requirements">터미널</a> R5–R12 대로 동작한다. 단축키도 선택된 패널에 작용한다. 탭은 만든 패널에 속하고 다른 패널로 옮기지 않는다.</li>
+  <li><strong>R6.</strong> 창마다 내용은 터미널(셸) 또는 Claude 다. 새 탭은 새 탭(+) 메뉴에서 고르고(<a href="terminal-claude.html#requirements">Claude 실행</a> R1), 분할로 생긴 창은 터미널이다.</li>
+  <li><strong>R7.</strong> 패널의 마지막 탭이 닫혀도 패널은 남는다. 탭 자리에 "탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다." 가 보인다. 화면은 홈으로 돌아가지 않는다.</li>
+  <li><strong>R8.</strong> 새 탭과 분할로 생긴 창은 지금 포커스된 창의 작업 디렉터리에서 시작한다. 알 수 없으면 홈 디렉터리다.</li>
+</ol>
+
+<h3>저장과 복원</h3>
+<ol start="9">
+  <li><strong>R9.</strong> 다음을 바뀔 때마다 저장하고, 앱을 끝냈다 다시 켜면 그대로 복원한다: 패널 목록(이름·순서·선택), 패널마다 탭 목록과 선택된 탭, 탭마다 분할 트리(방향·비율)와 포커스된 창, 창마다 내용 종류·작업 디렉터리·Claude sessionId. 처음 켤 때는 "패널 1" 하나에 터미널 탭 하나다.</li>
+  <li><strong>R10.</strong> 분할 경계선을 끄는 동안의 비율은 화면에서만 바뀌고, 손을 뗄 때 한 번 저장한다.</li>
+</ol>
+
+<h3>세션 유지</h3>
+<ol start="11">
+  <li><strong>R11.</strong> Claude 창은 만들 때 sessionId(UUID)를 정해 저장한다. Claude 는 앱 밖의 Claude Code 백그라운드 세션으로 돌고, 창은 그 세션에 붙어 보여 줄 뿐이다. 다른 탭·패널로 가도, 터미널 화면을 벗어나도, 앱을 끝내도 세션은 맡은 일을 계속한다. 창이 다시 보이면 같은 세션에 다시 붙는다. 세션이 멈춰 있으면(재부팅 등) 같은 sessionId 로 다시 띄워 대화를 이어 간다.</li>
+  <li><strong>R12.</strong> 사용자가 Claude 창을 닫으면(창 닫기·탭 닫기·패널 닫기) 그 백그라운드 세션을 멈춘다. 대화 기록은 지우지 않는다.</li>
+  <li><strong>R13.</strong> 터미널 창의 셸은 앱이 켜져 있는 동안 창이 보이지 않아도(다른 탭·패널, 터미널 화면 밖) 살아 있다. 다시 보이면 화면과 스크롤백이 그대로다.</li>
+  <li><strong>R14.</strong> 앱을 끝내면 셸은 끝난다. 다시 켜면 그 창은 저장된 작업 디렉터리에서 새 셸로 시작한다. 이전 출력과 실행 중이던 명령은 이어지지 않는다.</li>
+  <li><strong>R15.</strong> 셸의 작업 디렉터리는 셸 출력이 잠시 멎을 때(명령이 끝나고 프롬프트가 다시 그려질 때)마다 다시 읽어 바뀌었으면 저장한다.</li>
+  <li><strong>R16.</strong> 셸이 스스로 끝나면(<code>exit</code>) 그 창이 닫힌다. 창이 보이지 않을 때도 그렇다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>패널 순서 바꾸기, 탭을 다른 패널로 옮기기, 패널 단축키. 지시에 없다.</li>
+    <li>앱을 다시 켠 뒤 셸 프로세스와 출력까지 이어 가기. 셸이 앱보다 오래 살려면 앱 밖에서 pty 를 붙잡는 프로세스(tmux 등)가 있어야 한다. macOS 에 기본으로 없고 앱이 설치할 수 없어서, 지시의 대안("디렉토리라도 유지")으로 간다(<a href="../platform/jvm.html#terminal-panels">JVM</a>).</li>
+    <li>스크롤백·화면 내용 저장. 셸이 이어지지 않으므로 옛 화면만 보여 주면 지금 셸과 맞지 않는다.</li>
+    <li>Claude 대화 기록 지우기. 닫을 때 세션을 멈출 뿐이다(R12).</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌ ← 터미널 ───────────────────────────── [좌우] [상하] [+] [닫기] ┐
+│ ┌ 패널 목록 ──┐ ┌ 탭 줄 ─────────────────────────────────────┐ │
+│ │▌패널 1  ✎ ✕│ │ [셸 1 ✕] [Claude ✕]                         │ │
+│ │ 백엔드  ✎ ✕│ ├────────────────────────────────────────────┤ │
+│ │            │ │ 창            ┃ 창                          │ │
+│ │ [+ 새 패널]│ │               ┃                             │ │
+│ └────────────┘ └────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>패널 목록</td><td>화면 왼쪽, 폭 <code>TerminalPanelListDefaults.width</code>(200dp). 세로로 스크롤된다. 맨 아래에 "새 패널" 버튼(<code>Add</code> 아이콘 + 글자)</td></tr>
+    <tr><td>패널 줄</td><td>이름(한 줄, 넘치면 말줄임) · 이름 바꾸기 아이콘 <code>Edit</code>(contentDescription "이름 바꾸기") · 닫기 아이콘 <code>Close</code>(contentDescription "패널 닫기", 패널이 둘 이상일 때만). 선택된 줄은 primaryContainer 배경, 나머지는 투명하고 hover·눌림에 한 단계 진해진다(<code>TerminalPanelItemDefaults.style</code>)</td></tr>
+    <tr><td>이름 입력 필드</td><td>줄 자리에 한 줄짜리 입력 필드. 들어올 때 이름 전체가 선택된다</td></tr>
+    <tr><td>빈 패널</td><td>탭 줄 아래 가운데에 "탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다."</td></tr>
+    <tr><td>탭 이름</td><td>창이 OSC 로 정한 제목. 없으면 터미널은 "셸 N", Claude 는 "Claude N"(N 은 패널 안 탭 순번)</td></tr>
+    <tr><td>닫기(상단 막대)·⌘W</td><td>선택된 패널에서 포커스된 창을 닫는다. 빈 패널에서는 아무 일도 하지 않는다</td></tr>
+    <tr><td>불러오는 동안</td><td>저장된 배치를 읽기 전에는 패널 목록과 탭 자리가 비어 있다. 읽는 데 파일 하나를 연다</td></tr>
+    <tr><td>테스트 태그</td><td>
+      <code>terminal:panel:&lt;id&gt;</code>(패널 줄), <code>terminal:panel-rename:&lt;id&gt;</code>, <code>terminal:panel-close:&lt;id&gt;</code>,
+      <code>terminal:panel-name-field</code>, <code>terminal:new-panel</code>, <code>terminal:empty-panel</code>
+    </td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<pre><code>TerminalWorkspace(panels, selectedPanelId, nextId)      ← 이 값 전체가 한 문서로 저장된다
+└─ TerminalPanel(id, name, tabs, selectedTabId)
+   └─ TerminalTab(id, root: PaneNode, focusedPaneId)
+      └─ PaneNode
+         ├─ Leaf(paneId, program = Shell | Claude, directory?, claudeSessionId?)
+         └─ Split(id, direction, first, second, ratio)</code></pre>
+
+<dl class="meta">
+  <dt>도메인 규칙</dt><dd>
+    <code>TerminalWorkspace</code> — 패널 추가·이름 바꾸기·닫기·선택(R1–R4)과 선택된 패널에 대한 탭·분할·닫기·포커스(R5–R8), <code>setDirectory(paneId, directory)</code>(R15). 패널·탭·분할·창 id 는 <code>nextId</code> 하나에서 나오고 다시 쓰지 않는다.<br>
+    <code>newClaudeSessionId()</code> — <code>Uuid.random()</code>. 창을 만드는 쪽이 한 번 부르고 잎에 넣는다(R11).
+  </dd>
+  <dt>리포지토리</dt><dd>
+    <code>TerminalWorkspaceRepository</code> — <code>observeWorkspace(): Flow&lt;TerminalWorkspace&gt;</code>, <code>suspend fun updateWorkspace(transform): TerminalWorkspaceChange</code>(바뀌기 전·후 값).<br>
+    <code>TerminalRepository</code> — <code>suspend fun open(size, pane: PaneNode.Leaf): TerminalSession?</code>, <code>suspend fun stopClaude(sessionId)</code>(R12).
+  </dd>
+  <dt>세션</dt><dd><code>TerminalSession.directory: Flow&lt;String&gt;</code> 가 더해진다 — 셸의 작업 디렉터리. 출력이 <code>DirectoryReadDelay</code>(500ms) 동안 멎을 때마다 다시 읽고 같으면 흘리지 않는다(R15). 모르는 세션은 아무것도 흘리지 않는다</dd>
+  <dt>유스케이스</dt><dd>
+    <code>ObserveTerminalWorkspaceUseCase</code>, <code>UpdateTerminalWorkspaceUseCase</code> — 바꾼 뒤 사라진 Claude 창의 세션을 멈춘다(R12).<br>
+    <code>OpenTerminalSessionUseCase(size, pane)</code>.
+  </dd>
+  <dt>공급</dt><dd><code>internal expect fun createTerminalWorkspaceStore(context: PlatformContext): DataStore&lt;TerminalWorkspaceDto&gt;?</code> — <code>:feature:terminal:data</code>. null 이면 저장하지 않고 늘 초기값이다(터미널을 쓸 수 없는 타깃)</dd>
+  <dt>세션 보관</dt><dd><code>TerminalPaneHost</code> — <code>:feature:terminal:ui</code>, Koin <code>single</code>. 창 id 마다 <code>TerminalPaneState</code>(세션 + 에뮬레이터)를 들고, 처음 보일 때 연다. ViewModel 이 치워져도 닫지 않는다(R13). 셸이 끝나면(R16) 스스로 작업 공간에서 창을 닫고, 작업 디렉터리가 바뀌면 저장한다(R15). 작업 공간에서 사라진 창의 세션은 닫는다</dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.workspace: StateFlow&lt;TerminalWorkspace?&gt;</code> — <code>stateIn(viewModelScope, WhileSubscribed(), null)</code>. null 은 아직 읽지 못한 것이다</dd>
+  <dt>UI</dt><dd><code>TerminalScreen</code> 에 <code>TerminalPanelList</code>·<code>TerminalPanelItem</code>(패널 목록), <code>EmptyPanel</code>. 창 선택·이름 편집 여부는 화면 안의 <code>remember</code></dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 저장은 DataStore 에 한 문서로 한다 (Room3 은 버렸다)</strong>
+  지시는 Room3 이나 DataStore 를 허락했다. 둘 다 다섯 타깃을 퍼블리시한다(<code>androidx.datastore:datastore-core-okio</code> 1.2.1, <code>androidx.room3:room3-runtime</code> 3.0.3 의 Gradle 모듈 메타데이터로 확인). 저장할 것은 패널 → 탭 → 분할 트리라는 나무 하나이고, 늘 통째로 읽어 통째로 그린다. 부분 조회가 없다. 작업 공간 규칙은 이미 불변 값을 받아 새 값을 돌려주는 함수라 <code>DataStore.updateData { transform(it) }</code> 에 그대로 들어가고, 한 번의 변경이 원자적으로 쓰인다.<br>
+  Room3 은 나무를 부모 id 가 달린 행으로 펼쳐야 해서 분할·닫기마다 여러 행을 고치는 트랜잭션과, 읽을 때 다시 나무로 엮는 코드가 생긴다. KSP 와 스키마 마이그레이션 관리도 더해진다. 얻는 것(질의, 인덱스)이 이 기능에는 쓸 데가 없어 버렸다.<br>
+  형식은 kotlinx.serialization JSON 이다. DTO(<code>TerminalWorkspaceDto</code>)를 data 에 따로 두어 도메인 모델 이름이 바뀌어도 파일 형식이 흔들리지 않게 한다. 모르는 키는 무시하고 없는 키는 기본값을 쓴다. 파일이 깨졌으면 초기값으로 되돌린다(<code>ReplaceFileCorruptionHandler</code>).
+</aside>
+
+<aside class="decision">
+  <strong>결정: Claude 는 Claude Code 의 백그라운드 세션으로 돌리고 창은 <code>claude attach</code> 로 붙는다</strong>
+  R11 은 앱이 꺼져도 Claude 가 일을 계속하라고 한다. 앱이 띄운 프로세스는 앱과 함께 끝나므로 앱 밖의 무언가가 Claude 를 붙잡고 있어야 한다. Claude Code 2.1.281 에는 그 일을 하는 백그라운드 세션이 있다: <code>claude --bg</code> 가 세션을 자기 서비스에 맡기고 곧바로 돌아오고, <code>claude attach &lt;id&gt;</code> 가 그 세션을 지금 터미널에 그린다. 붙어 있던 <code>attach</code> 를 죽여도 세션은 계속되고, 멈춘 세션(<code>claude stop</code>, 재부팅)에 <code>attach</code> 하면 다시 띄운다. 2026-09-24 에 직접 확인했다(<a href="../platform/jvm.html#terminal-panels">JVM</a>).<br>
+  sessionId 는 앱이 정한다. <code>--bg</code> 는 <code>--session-id</code> 를 무시하지만 <code>--bg --resume &lt;uuid&gt;</code> 는 그 uuid 로 새 백그라운드 세션을 만든다. 그래서 창을 만들 때 uuid 를 정해 저장하고(R9), 창을 열 때마다 "그 sessionId 의 백그라운드 세션이 있으면 붙고, 없으면 그 sessionId 로 만든 뒤 붙는다".<br>
+  버린 후보: (1) tmux 안에서 claude 를 돌리기 — macOS 에 기본으로 없다. (2) 앱이 Claude 를 직접 띄우고 다음에 <code>claude --resume</code> — 대화는 이어지지만 앱이 꺼져 있는 동안 일이 멈춘다. R11 의 "앱을 종료하거나" 를 어긴다. 백그라운드 세션을 만들 수 없을 때(작업 디렉터리를 신뢰하지 않았을 때 등)의 대체 동작으로만 남긴다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 창의 세션과 에뮬레이터는 ViewModel 이 아니라 앱 수명의 <code>TerminalPaneHost</code> 가 든다</strong>
+  R13 은 터미널 화면을 벗어나도 셸이 살아 있고 돌아오면 화면이 그대로이길 요구한다. 화면을 벗어나면 ViewModel 이 치워지므로, 세션을 ViewModel 이 들면 셸을 끝내거나(이전 동작) 출력을 버려야 한다. 출력을 바이트로 모아 두었다가 돌아올 때 새 에뮬레이터에 다시 흘리는 방법도 봤지만, 잘린 앞부분에 걸친 제어 시퀀스와 전체 화면 프로그램(Claude 의 TUI)의 화면이 복원되지 않아 버렸다. 에뮬레이터를 통째로 살려 두면 스크롤백까지 그대로다.<br>
+  이것은 <a href="state-observation.html#requirements">상태 조회</a> R12·R13 이 막는 "구독과 무관하게 붙잡는 상태" 가 아니라 사용자가 띄운 프로세스라는 자원이다. 사용자가 창을 닫거나 셸이 끝날 때 풀린다. 그래도 앱 수명 스코프이므로 그 문서의 수집 표에 한 줄을 더한다.<br>
+  창은 처음 보일 때 연다. 앱을 켜자마자 모든 패널의 창을 띄우면 Claude 창마다 백그라운드 세션 조회와 로그인 셸이 한꺼번에 돈다. 보이지 않은 셸은 아직 할 일이 없고, 보이지 않은 Claude 는 앱 밖에서 이미 일하고 있다(R11).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 작업 디렉터리는 셸 출력이 멎을 때 읽는다 (폴링하지 않는다)</strong>
+  셸의 작업 디렉터리가 바뀌었다는 콜백은 운영체제에 없다. 셸이 알려 주게 하는 OSC 7 은 zsh 가 기본으로 내지 않고(macOS 의 <code>/etc/zshrc_Apple_Terminal</code> 은 Terminal.app 에서만 켠다), 사용자 셸 설정에 훅을 끼워 넣어야 한다. 대신 디렉터리는 명령을 친 뒤에만 바뀌고, 명령이 끝나면 셸이 프롬프트를 그린다는 점을 신호로 쓴다. 출력이 <code>DirectoryReadDelay</code> 동안 멎으면 셸 프로세스의 작업 디렉터리를 운영체제에 한 번 묻는다. 출력이 없는 동안에는 아무것도 하지 않는다. 묻는 방법은 플랫폼 스펙에 있다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td>패널·탭 배치는 <code>filesDir/datastore/terminal-workspace.json</code>. 작업 디렉터리는 <code>/proc/&lt;pid&gt;/cwd</code>. Claude 는 <a href="../platform/android.html#terminal-claude">불가</a>라 R11·R12 는 해당 없음. 앱 프로세스가 백그라운드에서 죽으면 셸도 끝난다</td><td><a href="../platform/android.html#terminal-panels">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 저장소가 없고(<code>null</code>) 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-panels">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>배치는 <code>~/Library/Application Support/Jarvis/terminal-workspace.json</code>. Claude 는 <code>claude --bg --resume</code> + <code>claude attach</code>. 작업 디렉터리는 <code>lsof -a -p &lt;pid&gt; -d cwd -Fn</code></td><td><a href="../platform/jvm.html#terminal-panels">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 저장소가 없고(<code>null</code>) 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-panels">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R1–R8. 패널 추가 이름·선택, 이름 바꾸기(공백, 빈 이름), 닫기 후 선택, 마지막 패널은 닫히지 않음, 탭·분할이 선택된 패널에만 작용, 마지막 탭이 닫혀도 패널이 남음, 새 창이 포커스된 창의 디렉터리를 물려받음, 분할한 창은 터미널</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>UpdateTerminalWorkspaceUseCaseTest</code></td><td>R12. 창·탭·패널 닫기로 사라진 Claude 창만 세션을 멈추고, 남은 창·터미널 창은 건드리지 않음</td><td>같음</td></tr>
+    <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R9. 파일에 쓴 작업 공간을 새 DataStore 가 같은 값으로 읽음, 없는 파일은 초기값, 깨진 파일은 초기값</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>TerminalCommandTest</code></td><td>R11. <code>claude agents --json</code> 출력에서 sessionId 로 백그라운드 세션 찾기, attach·생성·대체 명령 줄 모양</td><td>같음</td></tr>
+    <tr><td><code>PtyTerminalDataSourceTest</code></td><td>R8, R14, R15. 저장된 디렉터리에서 셸이 뜸, <code>cd</code> 뒤 <code>directory</code> 가 새 경로를 흘림</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalPanelTest</code></td><td>R1–R4, R7, R9, R13, R16. 가짜 저장소로 패널 추가·선택·이름 바꾸기·닫기, 빈 패널 안내, 앱을 다시 띄우면(Koin 을 새로 세움) 같은 배치와 같은 Claude sessionId 로 열림, 화면을 나갔다 와도 같은 세션, 보이지 않는 창의 셸이 끝나면 창이 닫힘</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 실제 Claude 백그라운드 세션이 앱을 끈 동안 일을 계속하는지(R11), 실제 앱을 다시 켰을 때의 복원(R9 의 파일 경로 쪽), 패널 목록의 모양. <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+<p>2026-09-24 에 커밋하지 않는 임시 테스트로 실제 <code>claude</code> 2.1.281 에 대해 JVM 경로를 한 번 돌렸다: 처음 여는 sessionId 는 백그라운드 세션을 만들고 붙기까지 2.4초, 두 번째는 찾기만 해서 0.3초. 실제 pty 에 <code>attach</code> 한 화면에 <code>bypass permissions on</code> 이 보였고, 창을 닫은 뒤에도 세션이 <code>working</code> 으로 남았다. 멈춘 세션에 다시 붙으면 다시 떴다. 확인에 쓴 세션은 <code>claude rm</code> 으로 지웠다. 데스크톱 앱 화면은 아직 손으로 보지 않았다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>셸은 앱이 끝나면 끝난다(R14). 오래 도는 명령은 <code>nohup</code>·<code>tmux</code> 로 돌려야 한다. Claude 창은 그렇지 않다.</li>
+  <li>Claude 창 안에서 Claude 가 끝나면(<code>/exit</code>) 그 창은 셸이 된다. 앱을 다시 켜거나 창이 다시 열리면 같은 sessionId 에 다시 붙어 Claude 가 다시 뜬다 — 창의 내용 종류는 만들 때 정해진다.</li>
+  <li>닫은 Claude 창의 세션은 멈춘 채 <code>claude agents --all</code> 목록에 남는다(R12). 지우려면 <code>claude rm</code> 을 직접 친다.</li>
+  <li>작업 디렉터리는 출력이 멎을 때 읽으므로, 출력 없이 디렉터리를 바꾸고 곧바로 앱을 끝내면 이전 디렉터리가 저장된다.</li>
+  <li>여러 창에서 같은 파일에 쓰지 않는다. 데스크톱 앱을 두 개 띄우면 마지막에 쓴 쪽이 남는다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

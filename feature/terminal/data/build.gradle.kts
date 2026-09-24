@@ -1,6 +1,8 @@
 plugins {
     id("jarvis.kmp.library")
     id("jarvis.kmp.test")
+    // 작업 공간을 JSON 한 문서로 저장한다(docs/common/terminal-panels.html#implementation).
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -8,6 +10,8 @@ kotlin {
         commonMain.dependencies {
             api(projects.feature.terminal.domain)
             implementation(projects.core.data)
+            implementation(libs.androidx.datastore.core.okio)
+            implementation(libs.kotlinx.serialization.json)
         }
 
         jvmMain.dependencies {
