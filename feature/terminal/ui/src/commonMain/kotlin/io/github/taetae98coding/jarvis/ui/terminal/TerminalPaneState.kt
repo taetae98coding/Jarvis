@@ -17,9 +17,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 패널 하나의 셸과 에뮬레이터. [scope] 는 메인 스레드여야 한다 — 에뮬레이터는 메인에서만 만진다.
+ * 창 하나의 셸과 에뮬레이터. [scope] 는 메인 스레드여야 한다 — 에뮬레이터는 메인에서만 만진다.
  *
- * 셸이 스스로 끝나면 [onExit] 이 불린다. [close] 로 닫을 때는 불리지 않는다.
+ * 셸이 스스로 끝나면 [onExit] 이 불린다. [close] 로 닫을 때는 불리지 않는다. 셸의 작업 디렉터리가 바뀌면
+ * [onDirectory] 가 불린다.
  */
 internal class TerminalPaneState(
     val id: Long,
@@ -27,6 +28,7 @@ internal class TerminalPaneState(
     private val scope: CoroutineScope,
     open: suspend (TerminalSize) -> TerminalSession?,
     private val onExit: (Long) -> Unit,
+    private val onDirectory: (Long, String) -> Unit = { _, _ -> },
 ) {
     val emulator = TerminalEmulator(initialSize.columns, initialSize.rows)
 
@@ -67,11 +69,14 @@ internal class TerminalPaneState(
 
         session = opened
         discipline = if (opened.isPty) null else LineDiscipline()
-        // 셸이 뜨는 동안 패널이 배치되어 크기가 바뀌었을 수 있다.
+        // 셸이 뜨는 동안 창이 배치되어 크기가 바뀌었을 수 있다.
         opened.resize(TerminalSize(emulator.columns, emulator.rows))
 
         launch {
             for (bytes in writes) opened.write(bytes)
+        }
+        launch {
+            opened.directory.collect { onDirectory(id, it) }
         }
 
         opened.output.collect { bytes ->

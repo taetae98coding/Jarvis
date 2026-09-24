@@ -52,6 +52,7 @@
     <li><a href="#device-list-split">기기 목록 좌우 분할</a></li>
     <li><a href="#terminal">터미널</a></li>
     <li><a href="#terminal-claude">터미널에서 Claude 실행</a></li>
+    <li><a href="#terminal-panels">터미널 패널과 세션 유지</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
@@ -689,7 +690,7 @@
 <ul>
   <li><code>vi</code>, <code>top</code>, <code>less</code> 같은 전체 화면 프로그램은 돌지 않는다. tty 가 아니라서 화면 크기도 키도 받지 못한다.</li>
   <li>방향키·Tab 완성·히스토리가 없다. <code>LineDiscipline</code> 은 방향키를 버린다.</li>
-  <li>Ctrl+C 는 입력 중인 줄만 버린다. 실행 중인 명령에 신호를 보낼 방법이 없다(프로세스 그룹이 없다). 멈추지 않는 명령은 패널을 닫아야 끝난다.</li>
+  <li>Ctrl+C 는 입력 중인 줄만 버린다. 실행 중인 명령에 신호를 보낼 방법이 없다(프로세스 그룹이 없다). 멈추지 않는 명령은 창을 닫아야 끝난다.</li>
   <li>셸은 앱 샌드박스 안에서 돈다. 앱 uid 가 볼 수 있는 파일과 명령만 쓸 수 있다.</li>
   <li>소프트 키보드에 Esc·Ctrl·방향키가 없다.</li>
 </ul>
@@ -714,7 +715,7 @@
 <h3>대체 동작</h3>
 <dl class="meta">
   <dt>파일</dt><dd><code>feature/terminal/data/src/androidMain/.../data/terminal/Terminal.android.kt</code></dd>
-  <dt>동작</dt><dd><code>isClaudeSupported = false</code>. 터미널 화면의 Claude 버튼이 보이지 않는다. <code>open(size, Claude)</code> 는 null(유스케이스가 먼저 막아 불리지 않는다)</dd>
+  <dt>동작</dt><dd><code>isClaudeSupported = false</code>. 새 탭 버튼이 메뉴 없이 곧바로 셸 탭을 연다. <code>open(size, Claude)</code> 는 null(유스케이스가 먼저 막아 불리지 않는다)</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
 
@@ -724,8 +725,45 @@
 </ul>
 
 <h3>검증</h3>
-<p>버튼이 숨는 것은 <code>JarvisAppTerminalTest.claudeButtonIsHiddenWhereClaudeIsNotSupported</code> 가 가짜 저장소로 확인한다. Android 는 Compose UI 테스트를 돌리지 않으므로(<a href="#test">테스트</a>) 기기에서 손으로 확인한다.</p>
+<p>메뉴 없이 셸 탭이 열리는 것은 <code>JarvisAppTerminalTest.newTabOpensAShellDirectlyWhereClaudeIsNotSupported</code> 가 가짜 저장소로 확인한다. Android 는 Compose UI 테스트를 돌리지 않으므로(<a href="#test">테스트</a>) 기기에서 손으로 확인한다.</p>
 </section>
+
+<section class="feature" id="terminal-panels">
+<h2>터미널 패널과 세션 유지 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/terminal-panels.html">터미널 패널과 세션 유지</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>androidx.datastore:datastore-core-okio</code> 1.2.1 + <code>OkioStorage</code></td><td>채택. Android 타깃은 JVM 변형을 쓴다. 경로는 <code>Context.filesDir</code> 아래라 권한이 필요 없고 앱을 지우면 함께 지워진다</td></tr>
+    <tr><td>Room3</td><td>버렸다. 공통 스펙의 <a href="../common/terminal-panels.html#implementation">결정</a></td></tr>
+    <tr><td><code>/proc/&lt;pid&gt;/cwd</code> 의 실제 경로(<code>File.canonicalPath</code>)</td><td>채택. 앱이 띄운 셸은 같은 uid 라 읽을 수 있다. API 24 부터 된다</td></tr>
+    <tr><td>셸 pid 얻기: <code>Process.pid()</code></td><td>버렸다. Android 의 <code>java.lang.Process</code> 에 <code>pid()</code> 가 없는 API 수준이 minSdk 24 범위에 있다. 숨은 필드(<code>UNIXProcess.pid</code>) 반사는 비공개 API 제한에 걸릴 수 있다</td></tr>
+    <tr><td>셸 pid 얻기: <code>sh -c 'echo $$; exec sh -i'</code></td><td>채택. <code>exec</code> 가 pid 를 그대로 물려주므로 첫 줄이 곧 대화형 셸의 pid 다. 첫 줄은 화면에 흘리지 않는다</td></tr>
+    <tr><td>앱이 꺼져도 셸 유지(포그라운드 서비스)</td><td>버렸다. 앱 프로세스가 죽으면 자식도 함께 죽고, 서비스로 프로세스를 붙잡는 것은 지시의 "디렉토리라도 유지" 를 넘는다. 알림이 늘 떠 있어야 한다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/androidMain/.../data/terminal/TerminalWorkspaceStore.android.kt</code>, <code>Terminal.android.kt</code></dd>
+  <dt>저장 위치</dt><dd><code>filesDir/datastore/terminal-workspace.json</code></dd>
+  <dt>셸 열기</dt><dd>저장된 작업 디렉터리가 있으면 거기서, 아니면 <code>filesDir</code> 에서. <code>HOME</code> 은 <code>filesDir</code></dd>
+  <dt>작업 디렉터리</dt><dd>JVM 과 같이 출력이 <code>DirectoryReadDelay</code> 동안 멎으면 <code>/proc/&lt;pid&gt;/cwd</code> 를 읽는다</dd>
+  <dt>Claude</dt><dd><a href="#terminal-claude">불가</a>. 새 탭 메뉴에 Claude 가 없으므로 Claude 창이 생기지 않는다. <code>stopClaude</code> 는 no-op</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>앱이 백그라운드에 있는 동안 시스템이 프로세스를 죽이면 셸도 끝난다. 다음에 켜면 R14 처럼 저장된 디렉터리에서 새 셸이 뜬다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-panels.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>작업 공간 규칙은 <code>:feature:terminal:domain</code> 의 Android 호스트 테스트로 돈다. 저장 파일·<code>/proc</code> 읽기는 호스트 JVM 에서 확인할 수 없어(<a href="#test">테스트</a>) 기기에서 손으로 확인한다.</p>
+</section>
+
 
 <section class="feature" id="design-system">
 <h2>디자인 시스템 <span class="badge ok">구현</span></h2>

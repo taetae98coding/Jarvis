@@ -70,7 +70,7 @@
     <li>Android 12+ 동적 색(배경화면에서 뽑는 색). 네 타깃의 모양을 같게 두려고 쓰지 않는다.</li>
     <li>글꼴 파일 번들. 플랫폼 기본 글꼴을 그대로 쓴다(<a href="#decision-font">결정</a>).</li>
     <li>앱 안에서 라이트/다크를 고르는 설정 화면. <code>JarvisTheme(darkTheme = …)</code> 인자로 받을 자리만 둔다.</li>
-    <li>터미널 글자 영역의 색. 셸 프로그램은 어두운 배경을 가정하므로 라이트 테마에서도 터미널 패널은 어둡다(<a href="terminal.html">터미널</a>).</li>
+    <li>터미널 글자 영역의 색. 셸 프로그램은 어두운 배경을 가정하므로 라이트 테마에서도 터미널 창은 어둡다(<a href="terminal.html">터미널</a>).</li>
   </ul>
 </aside>
 
@@ -112,7 +112,8 @@
     <tr><td>기기 줄</td><td><code>:feature:emulator:ui</code></td><td><code>EmulatorDeviceDefaults</code>: 상태 아이콘 색(실행 중 success / 화면 꺼짐 warning / 꺼짐 onSurfaceVariant), 실행 중 표시 크기</td><td>—</td></tr>
     <tr><td>페어링 QR</td><td><code>:feature:emulator:ui</code></td><td><code>QrCodeImageDefaults</code>: 크기 220, 사방 여백 4칸, 칸 색 검정·바탕 흰색 — 테마를 따르지 않는다(<a href="wireless-pairing.html">Wi-Fi 기기 페어링</a> R3). 기기 스캐너가 반전된 QR 을 읽지 못할 수 있어서다</td><td>—</td></tr>
     <tr><td>터미널 탭</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalTabDefaults</code>: 제목 너비 120, 글꼴 labelLarge</td><td>shapes.small, 배경 surfaceVariant → <code>selected</code> 에서 primaryContainer, <code>hovered</code>·<code>pressed</code> 에서 한 단계 진하게, 전환은 <code>animate</code></td></tr>
-    <tr><td>터미널 패널</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalPaneDefaults</code>: 글자(codeTextStyle), 배경·글자색(colors.terminal*), 흐린 글자·커서 알파 0.6</td><td>패널: 배경 terminalBackground, <code>selected</code>(분할 중 포커스된 패널)에서 <code>border(stroke.thin, primary)</code>. 경계선: 굵기 stroke.thick, outlineVariant → <code>hovered</code> 에서 primary</td></tr>
+    <tr><td>터미널 패널 목록·줄</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalPanelListDefaults</code>: 폭 200. <code>TerminalPanelItemDefaults</code>: 이름 글꼴 labelLarge</td><td>줄: shapes.small, 배경 투명 → <code>selected</code> 에서 primaryContainer, <code>hovered</code>·<code>pressed</code> 에서 한 단계 진하게</td></tr>
+    <tr><td>터미널 창</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalPaneDefaults</code>: 글자(codeTextStyle), 배경·글자색(colors.terminal*), 흐린 글자·커서 알파 0.6</td><td>창: 배경 terminalBackground, <code>selected</code>(분할 중 포커스된 창)에서 <code>border(stroke.thin, primary)</code>. 경계선: 굵기 stroke.thick, outlineVariant → <code>hovered</code> 에서 primary</td></tr>
   </tbody>
 </table>
 
@@ -125,9 +126,10 @@
   <tbody>
     <tr><td><code>Back</code></td><td>기기 목록·기기 화면·터미널 상단 막대</td><td>뒤로</td></tr>
     <tr><td><code>SplitSideBySide</code>, <code>SplitStacked</code></td><td>터미널 상단 막대</td><td>좌우 분할 / 상하 분할</td></tr>
-    <tr><td><code>Add</code></td><td>터미널 상단 막대</td><td>새 탭</td></tr>
-    <tr><td><code>Claude</code></td><td>터미널 상단 막대(<a href="terminal-claude.html">Claude 실행</a>). 여덟 갈래 광채 — 가로·세로가 길고 대각선이 짧다</td><td>Claude (YOLO)</td></tr>
-    <tr><td><code>Close</code></td><td>터미널 상단 막대(패널 닫기), 탭 닫기</td><td>닫기 / 탭 닫기</td></tr>
+    <tr><td><code>Add</code></td><td>터미널 상단 막대, 터미널 패널 목록의 새 패널 버튼</td><td>새 탭 / 없음(버튼 글자 "새 패널")</td></tr>
+    <tr><td><code>Edit</code></td><td>터미널 패널 줄(<a href="terminal-panels.html">패널</a>). 연필</td><td>이름 바꾸기</td></tr>
+    <tr><td><code>Claude</code></td><td>터미널 새 탭 메뉴의 항목 앞(<a href="terminal-claude.html">Claude 실행</a>). 여덟 갈래 광채 — 가로·세로가 길고 대각선이 짧다</td><td>Claude (YOLO)</td></tr>
+    <tr><td><code>Close</code></td><td>터미널 상단 막대(창 닫기), 탭 닫기, 패널 닫기</td><td>닫기 / 탭 닫기 / 패널 닫기</td></tr>
     <tr><td><code>Play</code></td><td>기기 줄의 실행 버튼</td><td>실행</td></tr>
     <tr><td><code>Sun</code></td><td>기기 줄의 화면 켜기 버튼</td><td>화면 켜기</td></tr>
     <tr><td><code>Wifi</code></td><td>기기 목록 상단 막대의 <a href="wireless-pairing.html">Wi-Fi 페어링</a> 버튼</td><td>Wi-Fi 로 페어링</td></tr>
@@ -158,7 +160,7 @@
   <dt>테마</dt><dd><code>core/designsystem/.../designsystem/theme/</code> — <code>JarvisTheme.kt</code>(컴포저블 + <code>object JarvisTheme</code> + Style 용 확장), <code>JarvisColorScheme.kt</code>, <code>JarvisColors.kt</code>, <code>JarvisTypography.kt</code>, <code>JarvisShapes.kt</code>, <code>JarvisDimens.kt</code></dd>
   <dt>아이콘</dt><dd><code>core/designsystem/.../designsystem/icon/JarvisIcons.kt</code></dd>
   <dt>컴포넌트</dt><dd><code>core/designsystem/.../designsystem/component/</code> — <code>JarvisCard.kt</code>, <code>JarvisCardHeader.kt</code>, <code>JarvisLabeledValue.kt</code>, <code>JarvisIconButton.kt</code>, <code>JarvisTopBar.kt</code></dd>
-  <dt>기능 Defaults</dt><dd><code>AppInfoCardDefaults</code>(AppInfoCard.kt), <code>EmulatorDeviceDefaults</code>(EmulatorListScreen.kt), <code>TerminalTabDefaults</code>(TerminalTab.kt), <code>TerminalPaneDefaults</code>(TerminalPane.kt)</dd>
+  <dt>기능 Defaults</dt><dd><code>AppInfoCardDefaults</code>(AppInfoCard.kt), <code>EmulatorDeviceDefaults</code>(EmulatorListScreen.kt), <code>TerminalTabDefaults</code>(TerminalTab.kt), <code>TerminalPaneDefaults</code>(TerminalPane.kt), <code>TerminalPanelListDefaults</code>·<code>TerminalPanelItemDefaults</code>(TerminalPanelList.kt)</dd>
   <dt>공급</dt><dd>없음. 전부 commonMain Compose 코드다. 시스템 다크 모드는 Compose 의 <code>isSystemInDarkTheme()</code> 가 플랫폼별로 읽는다(<a href="#platforms">판정</a>)</dd>
 </dl>
 

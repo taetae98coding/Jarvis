@@ -23,10 +23,14 @@ import io.github.taetae98coding.jarvis.domain.appinfo.appInfoDomainModule
 import io.github.taetae98coding.jarvis.domain.emulator.emulatorDomainModule
 import io.github.taetae98coding.jarvis.domain.rotation.rotationDomainModule
 import io.github.taetae98coding.jarvis.domain.screen.screenDomainModule
+import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspaceChange
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspaceRepository
 import io.github.taetae98coding.jarvis.domain.terminal.terminalDomainModule
 import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
@@ -39,6 +43,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filterNotNull
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
@@ -68,6 +73,7 @@ internal fun TestJarvisApp(
     deviceRotation: DeviceRotationRepository = FakeDeviceRotationRepository(),
     screenAwake: ScreenAwakeRepository = ScreenAwakeRepository { },
     terminal: TerminalRepository = FakeTerminalRepository(),
+    terminalWorkspace: TerminalWorkspaceRepository = FakeTerminalWorkspaceRepository(),
     appInfo: AppInfo = TestAppInfo,
 ) {
     remember {
@@ -82,6 +88,7 @@ internal fun TestJarvisApp(
             single<SystemScreenAwakeRepository> { systemScreenAwake }
             single<DeviceRotationRepository> { deviceRotation }
             single<TerminalRepository> { terminal }
+            single<TerminalWorkspaceRepository> { terminalWorkspace }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -239,14 +246,51 @@ internal class FakeTerminalRepository(
 ) : TerminalRepository {
     val sessions = mutableListOf<FakeTerminalSession>()
 
-    override suspend fun open(size: TerminalSize, program: TerminalProgram): TerminalSession =
-        FakeTerminalSession(size, program).also { sessions += it }
+    val stoppedClaudeSessions = mutableListOf<String>()
+
+    override suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession =
+        FakeTerminalSession(size, pane).also { sessions += it }
+
+    override suspend fun stopClaude(sessionId: String) {
+        stoppedClaudeSessions += sessionId
+    }
+}
+
+/**
+ * 파일 대신 메모리에 둔다. 같은 인스턴스를 다음 [TestJarvisApp] 에 넘기면 앱을 다시 켠 것과 같다 —
+ * 세션은 새로 열리고 배치는 남는다.
+ */
+internal class FakeTerminalWorkspaceRepository(
+    initial: TerminalWorkspace = TerminalWorkspace.initial(),
+) : TerminalWorkspaceRepository {
+    val workspace = MutableStateFlow(initial)
+
+    override fun observeWorkspace(): Flow<TerminalWorkspace> = workspace
+
+    override suspend fun updateWorkspace(transform: (TerminalWorkspace) -> TerminalWorkspace): TerminalWorkspaceChange {
+        val before = workspace.value
+        val after = transform(before)
+        workspace.value = after
+
+        return TerminalWorkspaceChange(before, after)
+    }
 }
 
 internal class FakeTerminalSession(
     var size: TerminalSize,
-    val program: TerminalProgram,
+    val pane: PaneNode.Leaf,
 ) : TerminalSession {
+    val program: TerminalProgram get() = pane.program
+
+    private val currentDirectory = MutableStateFlow<String?>(null)
+
+    override val directory: Flow<String> = currentDirectory.filterNotNull()
+
+    /** 셸이 `cd` 한 것처럼 작업 디렉터리를 알린다. */
+    fun changeDirectory(path: String) {
+        currentDirectory.value = path
+    }
+
     private val channel = Channel<ByteArray>(Channel.UNLIMITED)
 
     val written = mutableListOf<ByteArray>()

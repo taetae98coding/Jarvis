@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.data.PlatformContext
+import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.InputStream
 
 // pty 를 열 공개 API 가 없어 파이프로 띄운다. 버린 후보(Termux JNI, /dev/ptmx)는
 // docs/platform/android.html#terminal 에 있다.
@@ -25,33 +27,49 @@ private class PipeTerminalDataSource(
     // Android 용 Claude Code CLI 가 없고, 있더라도 pty 없는 파이프에서는 TUI 가 그려지지 않는다.
     override val isClaudeSupported: Boolean = false
 
-    override suspend fun open(size: TerminalSize, program: TerminalProgram): TerminalSession? {
-        if (program != TerminalProgram.Shell) return null
+    override suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession? {
+        if (pane.program != TerminalProgram.Shell) return null
 
-        return openShell()
+        return openShell(pane.directory?.let(::File)?.takeIf { it.isDirectory } ?: home)
     }
 
-    private suspend fun openShell(): TerminalSession? =
+    override suspend fun stopClaude(sessionId: String) = Unit
+
+    private suspend fun openShell(directory: File): TerminalSession? =
         withContext(Dispatchers.IO) {
             runCatching {
                 // -i 가 없으면 표준 입력이 tty 가 아니라서 mksh 가 프롬프트를 내지 않는다. 프롬프트는
-                // 표준 에러로 나오므로 합친다.
-                val process = ProcessBuilder("/system/bin/sh", "-i")
-                    .directory(home)
+                // 표준 에러로 나오므로 합친다. 첫 줄의 pid 는 작업 디렉터리를 /proc 에서 읽는 데 쓴다 —
+                // exec 가 pid 를 물려주므로 대화형 셸의 pid 와 같다. Process.pid() 는 minSdk 에서 쓸 수 없다.
+                val process = ProcessBuilder("/system/bin/sh", "-c", "echo \$\$; exec /system/bin/sh -i")
+                    .directory(directory)
                     .redirectErrorStream(true)
                     .apply {
                         environment()["HOME"] = home.path
                         environment()["TERM"] = "dumb"
                     }
                     .start()
+                val pid = process.inputStream.readLine().trim()
 
-                PipeTerminalSession(process)
+                PipeTerminalSession(process, DirectoryTracker { File("/proc/$pid/cwd").canonicalPath })
             }.getOrNull()
         }
 }
 
+// 버퍼를 두는 reader 로 읽으면 첫 줄 뒤의 셸 출력까지 삼킨다. 한 바이트씩 읽는다.
+private fun InputStream.readLine(): String {
+    val bytes = mutableListOf<Byte>()
+    while (true) {
+        val byte = read()
+        if (byte < 0 || byte == '\n'.code) break
+        bytes += byte.toByte()
+    }
+    return bytes.toByteArray().decodeToString()
+}
+
 private class PipeTerminalSession(
     private val process: Process,
+    private val tracker: DirectoryTracker,
 ) : TerminalSession {
     override val isPty: Boolean = false
 
@@ -62,11 +80,16 @@ private class PipeTerminalSession(
         while (true) {
             val read = input.read(buffer)
             if (read < 0) break
-            if (read > 0) emit(buffer.copyOf(read))
+            if (read > 0) {
+                emit(buffer.copyOf(read))
+                tracker.onOutput()
+            }
         }
     }.catch {
         // close() 가 프로세스를 죽이면 읽던 스트림이 IOException 으로 끝난다.
     }.flowOn(Dispatchers.IO)
+
+    override val directory: Flow<String> = tracker.directory.flowOn(Dispatchers.IO)
 
     override suspend fun write(bytes: ByteArray) {
         withContext(Dispatchers.IO) {

@@ -48,6 +48,7 @@
     <li><a href="#device-list-split">기기 목록 좌우 분할</a></li>
     <li><a href="#terminal">터미널</a></li>
     <li><a href="#terminal-claude">터미널에서 Claude 실행</a></li>
+    <li><a href="#terminal-panels">터미널 패널과 세션 유지</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
@@ -720,7 +721,7 @@ internal actual fun createSystemScreenAwakeDataSource(
   <dt>명령</dt><dd><code>$SHELL -l</code>. <code>SHELL</code> 이 없으면 <code>/bin/zsh</code>. 로그인 셸로 띄워야 <code>~/.zprofile</code> 의 <code>PATH</code>(Homebrew 등)가 들어온다 — Finder 로 띄운 앱은 <code>launchd</code> 의 최소 <code>PATH</code> 만 물려받는다</dd>
   <dt>환경</dt><dd>현재 환경에 <code>TERM=xterm-256color</code>, <code>COLORTERM=truecolor</code> 를 덮어쓴다. <code>LANG</code> 이 없으면 <code>en_US.UTF-8</code> 을 넣는다 — Finder 로 띄운 앱에는 <code>LANG</code> 이 없고, 그러면 zsh 가 한글을 바이트 단위로 지운다. 작업 디렉터리는 <code>user.home</code></dd>
   <dt>입출력</dt><dd>pty 마스터의 <code>inputStream</code> 을 <code>Dispatchers.IO</code> 에서 8 KB 씩 읽어 <code>Flow</code> 로 낸다. 읽기가 -1 이거나 예외면 흐름이 끝난다(R11). 쓰기도 IO 에서 한다</dd>
-  <dt>종료</dt><dd><code>close()</code> 가 <code>PtyProcess.destroy()</code>(SIGTERM 뒤 SIGKILL)를 부른다</dd>
+  <dt>종료</dt><dd><code>close()</code> 가 pty 마스터를 닫고(<code>inputStream.close()</code> → <code>Pty.close()</code>) <code>PtyProcess.destroy()</code> 를 부른다. 마스터가 닫히면 커널이 셸에 SIGHUP 을 보내고 셸은 자기 작업들에 넘긴 뒤 끝난다. <code>destroy()</code> 는 SIGTERM 만 보내는데(pty4j 0.13.13 바이트코드로 확인) 대화형 zsh·sh 는 SIGTERM 을 무시해서, 전에는 창을 닫아도 셸이 남고 읽기 스레드가 풀리지 않았다(2026-09-24 확인)</dd>
   <dt>실패</dt><dd>셸 실행이 예외를 던지면 <code>open()</code> 이 null 이다. 화면에는 "[셸을 시작할 수 없습니다]" 가 찍힌다</dd>
 </dl>
 
@@ -746,9 +747,9 @@ internal actual fun createSystemScreenAwakeDataSource(
 <table>
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
-    <tr><td><code>$SHELL -l -i -c 'claude --dangerously-skip-permissions; exec $SHELL -l'</code> 을 pty4j 로</td><td>채택. <code>-l</code> 이 <code>~/.zprofile</code>, <code>-i</code> 가 <code>~/.zshrc</code> 를 읽어 사용자가 치는 것과 같은 <code>PATH</code> 에서 <code>claude</code> 를 찾는다. 끝나면 <code>exec</code> 가 같은 프로세스·pty 를 로그인 셸로 바꿔 패널이 이어진다. 셸 경로는 작은따옴표로 감싼다</td></tr>
+    <tr><td><code>$SHELL -l -i -c 'claude … ; exec $SHELL -l'</code> 을 pty4j 로</td><td>채택(<code>…</code> 는 지금 <code>claude attach &lt;id&gt;</code>). <code>-l</code> 이 <code>~/.zprofile</code>, <code>-i</code> 가 <code>~/.zshrc</code> 를 읽어 사용자가 치는 것과 같은 <code>PATH</code> 에서 <code>claude</code> 를 찾는다. 끝나면 <code>exec</code> 가 같은 프로세스·pty 를 로그인 셸로 바꿔 창이 이어진다. 셸 경로는 작은따옴표로 감싼다</td></tr>
     <tr><td>셸을 띄운 뒤 <code>claude …\n</code> 을 입력으로 쓰기</td><td>버렸다. 셸이 raw 모드로 바꾸기 전에 pty 가 입력을 에코하고 zsh 가 프롬프트 뒤에 다시 그려 명령이 두 번 보인다</td></tr>
-    <tr><td><code>claude</code> 를 직접 실행(절대 경로 탐색)</td><td>버렸다. 설치 위치가 <code>~/.local/bin</code>, Homebrew, npm 전역(nvm)으로 갈리고 셸 설정의 <code>PATH</code>·환경 변수를 받지 못한다. 끝나면 패널이 닫힌다</td></tr>
+    <tr><td><code>claude</code> 를 직접 실행(절대 경로 탐색)</td><td>버렸다. 설치 위치가 <code>~/.local/bin</code>, Homebrew, npm 전역(nvm)으로 갈리고 셸 설정의 <code>PATH</code>·환경 변수를 받지 못한다. 끝나면 창이 닫힌다</td></tr>
     <tr><td><code>-i</code> 없이 <code>-l -c</code></td><td>버렸다. zsh 는 <code>-c</code> 로 띄우면 비대화형이라 <code>~/.zshrc</code> 를 읽지 않는다. 설치 스크립트가 <code>PATH</code> 를 <code>~/.zshrc</code> 에 쓰는 경우가 많다</td></tr>
   </tbody>
 </table>
@@ -756,7 +757,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>구현</h3>
 <dl class="meta">
   <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../data/terminal/Terminal.jvm.kt</code> — <code>terminalCommand(program, shell)</code></dd>
-  <dt>명령</dt><dd><code>Shell</code> → <code>[shell, "-l"]</code>(기존과 같다). <code>Claude</code> → <code>[shell, "-l", "-i", "-c", "claude --dangerously-skip-permissions; exec '&lt;shell&gt;' -l"]</code></dd>
+  <dt>명령</dt><dd><code>Shell</code> → <code>[shell, "-l"]</code>(기존과 같다). <code>Claude</code> → <code>[shell, "-l", "-i", "-c", "claude attach &lt;짧은 id&gt;; exec '&lt;shell&gt;' -l"]</code>. 백그라운드 세션을 찾고 만드는 순서와 만들지 못했을 때의 대체 명령은 <a href="#terminal-panels">패널과 세션 유지</a>에 있다. 처음 구현은 <code>claude --dangerously-skip-permissions; exec …</code> 로 앱 안에서 직접 띄웠다</dd>
   <dt>환경</dt><dd><a href="#terminal">터미널</a>의 환경에서 부모 Claude Code 세션이 남긴 변수를 뺀다: <code>CLAUDECODE</code>, <code>CLAUDE_PID</code>, <code>CLAUDE_CODE_ENTRYPOINT</code>, <code>CLAUDE_CODE_EXECPATH</code>, <code>CLAUDE_CODE_SESSION_ID</code>, <code>CLAUDE_CODE_CHILD_SESSION</code>, <code>CLAUDE_CODE_SESSION_ATTENDED</code>, <code>CLAUDE_CODE_MESSAGING_SOCKET</code>, <code>CLAUDE_CODE_MESSAGING_TOKEN</code>. <code>CLAUDECODE</code> 가 있으면 <code>claude</code> 가 중첩 세션이라며 실행을 거부한다. 사용자가 설정하는 <code>CLAUDE_CODE_USE_BEDROCK</code> 같은 변수는 남긴다. 일반 셸에도 같은 환경을 준다 — 셸에서 <code>claude</code> 를 쳐도 같은 문제가 나기 때문이다</dd>
   <dt>지원</dt><dd><code>isClaudeSupported = true</code>. 설치 여부는 미리 보지 않는다(<a href="../common/terminal-claude.html#requirements">스코프</a>)</dd>
   <dt>실패</dt><dd>셸이 뜨지 않으면 <a href="#terminal">터미널</a>과 같이 "[셸을 시작할 수 없습니다]". <code>claude</code> 가 없으면 셸이 <code>command not found</code> 를 찍고 로그인 셸로 이어진다</dd>
@@ -773,6 +774,79 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>검증</h3>
 <p><code>TerminalCommandTest</code> 가 명령 줄과 환경을, <code>PtyTerminalDataSourceTest.programCommandRunsThenFallsBackToAShell</code> 이 실제 pty 에서 "명령 뒤 셸로 이어짐" 을 확인한다. 실제 <code>claude</code> 실행은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
 </section>
+
+<section class="feature" id="terminal-panels">
+<h2>터미널 패널과 세션 유지 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-panels.html">터미널 패널과 세션 유지</a></p>
+
+<h3>기술 조사 — 저장</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>androidx.datastore:datastore-core-okio</code> 1.2.1 + <code>OkioStorage(FileSystem.SYSTEM)</code></td><td>채택. JVM 변형이 퍼블리시되고 <code>FileSystem.SYSTEM</code> 이 JVM 에 있다. 쓰기는 임시 파일에 쓴 뒤 이름을 바꿔 원자적이다. 한 파일에 DataStore 는 하나만 있어야 해서 Koin <code>single</code> 이다</td></tr>
+    <tr><td><code>androidx.room3:room3-runtime</code> 3.0.3 + <code>sqlite-bundled</code></td><td>버렸다. 공통 스펙의 <a href="../common/terminal-panels.html#implementation">결정</a>. JVM 에서는 번들 SQLite 네이티브 라이브러리도 더해진다</td></tr>
+    <tr><td><code>java.util.prefs</code>(설정이 쓰는 저장소)</td><td>버렸다. 지시가 Room3·DataStore 를 정했다. 값 하나가 8 KB(<code>MAX_VALUE_LENGTH</code>)로 묶여 탭이 많으면 넘친다</td></tr>
+  </tbody>
+</table>
+
+<h3>기술 조사 — Claude 백그라운드 세션</h3>
+<p>Claude Code 2.1.281 에서 2026-09-24 에 직접 확인한 동작이다(<code>claude --help</code>, <code>claude attach --help</code>, <code>claude stop --help</code> 와 실제 실행).</p>
+<table>
+  <thead><tr><th>확인한 것</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>claude --bg --session-id &lt;uuid&gt;</code></td><td><code>warning: --bg manages the session id; ignoring --session-id</code>. id 를 정할 수 없다</td></tr>
+    <tr><td><code>claude --bg --resume &lt;uuid&gt; --dangerously-skip-permissions</code>(처음 보는 uuid)</td><td>그 uuid 를 sessionId 로 하는 백그라운드 세션이 생긴다. <code>backgrounded · &lt;앞 8자&gt;</code> 를 찍고 곧바로 끝난다(exit 0). 채택</td></tr>
+    <tr><td><code>claude agents --json --all</code></td><td>세션마다 <code>id</code>(짧은 id), <code>sessionId</code>, <code>kind</code>(<code>background</code>/<code>interactive</code>), <code>cwd</code>, <code>state</code> 를 가진 JSON 배열. "for scripting; does not require a TTY". 멈춘 세션도 나온다</td></tr>
+    <tr><td><code>claude attach &lt;짧은 id&gt;</code></td><td>pty 에서 그 세션의 TUI 를 그린다. 상태 줄에 <code>bypass permissions on</code>. 전체 sessionId 는 받지 않는다(<code>No job matching</code>)</td></tr>
+    <tr><td><code>attach</code> 프로세스에 SIGHUP·SIGKILL</td><td>세션은 그대로 돈다(<code>state: working/blocked</code>). 앱이 끝나 pty 가 닫히는 경우와 같다</td></tr>
+    <tr><td><code>claude stop</code> 뒤 <code>attach</code></td><td>세션을 다시 띄워 붙는다(<code>state: stopped</code> → <code>working</code>). 재부팅 뒤와 같다</td></tr>
+    <tr><td>신뢰하지 않은 디렉터리에서 <code>--bg</code></td><td><code>Workspace not trusted. Run `claude` in … once and accept the trust prompt, then retry.</code> 로 실패한다</td></tr>
+    <tr><td>tmux 안에서 <code>claude</code></td><td>버렸다. tmux 가 macOS 에 기본으로 없다(이 머신에도 없다). 앱이 설치할 수 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>기술 조사 — 셸 이어 가기와 작업 디렉터리</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>tmux 세션에 셸을 두고 <code>tmux new -A</code> 로 다시 붙기</td><td>버렸다. 기본 설치에 없다. 있더라도 tmux 가 대체 화면을 써서 이 앱의 스크롤백이 쌓이지 않고, 접두 키(Ctrl+B)를 셸에서 빼앗는다</td></tr>
+    <tr><td><code>/usr/bin/screen</code>(macOS 기본, 4.00.03 2006년판)</td><td>버렸다. 접두 키 Ctrl+A 가 셸의 줄 처음으로 가기를 빼앗고, 대체 화면으로 스크롤백이 사라지고, 이 판은 UTF-8 전각 폭 처리가 오래됐다</td></tr>
+    <tr><td>앱과 따로 도는 세션 데몬을 만들어 pty 를 붙잡기</td><td>버렸다. 앱 밖에 설치·수명 관리가 필요한 프로세스가 생긴다. 지시가 "이어서 못한다면 디렉토리라도" 를 허락했다</td></tr>
+    <tr><td>OSC 7(셸이 작업 디렉터리를 알려 주는 시퀀스)</td><td>버렸다. zsh 는 기본으로 내지 않는다. <code>/etc/zshrc_Apple_Terminal</code> 은 <code>TERM_PROGRAM=Apple_Terminal</code> 일 때만 켜고, 그 값을 흉내 내면 Terminal.app 의 세션 저장(<code>~/.zsh_sessions</code>)까지 켜진다</td></tr>
+    <tr><td><code>lsof -a -p &lt;셸 pid&gt; -d cwd -Fn</code></td><td>채택. <code>/usr/sbin/lsof</code> 는 macOS 기본이다. <code>n</code> 으로 시작하는 줄이 경로다. 한 번에 약 0.1초. 셸 pid 는 <code>PtyProcess.pid()</code></td></tr>
+    <tr><td>JNA 로 <code>proc_pidinfo(PROC_PIDVNODEPATHINFO)</code></td><td>버렸다. 프로세스를 띄우지 않지만 <code>struct proc_vnodepathinfo</code> 배치를 손으로 옮겨야 한다. 출력이 멎을 때만 부르므로 <code>lsof</code> 비용이 문제 되지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../data/terminal/TerminalWorkspaceStore.jvm.kt</code>, <code>Terminal.jvm.kt</code>, <code>ClaudeBackground.kt</code></dd>
+  <dt>저장 위치</dt><dd><code>~/Library/Application Support/Jarvis/terminal-workspace.json</code>. 디렉터리가 없으면 만든다</dd>
+  <dt>Claude 열기</dt><dd>
+    1. 로그인·대화형 셸로 <code>claude agents --json --all</code> 을 돌려 <code>sessionId</code> 가 같은 <code>background</code> 세션을 찾는다. 셸 설정이 앞에 찍은 글자는 건너뛰고 <code>[</code> 로 시작하는 줄부터 읽는다.<br>
+    2. 없으면 창의 작업 디렉터리에서 <code>claude --bg --resume &lt;sessionId&gt; --dangerously-skip-permissions</code> 로 만들고 다시 찾는다.<br>
+    3. 찾았으면 pty 명령은 <code>$SHELL -l -i -c 'claude attach &lt;짧은 id&gt;; exec $SHELL -l'</code>.<br>
+    4. 만들지 못했으면(신뢰하지 않은 디렉터리, 로그인 안 됨) <code>--bg</code> 의 출력을 창에 찍고 앱 안에서 직접 띄운다: <code>claude --dangerously-skip-permissions --resume &lt;id&gt; || claude --dangerously-skip-permissions --session-id &lt;id&gt;</code>. 신뢰를 받아들이면 다음에 열 때부터 1–3 으로 간다
+  </dd>
+  <dt>Claude 멈추기</dt><dd>같은 방법으로 짧은 id 를 찾아 <code>claude stop &lt;id&gt;</code>. 못 찾으면 아무것도 하지 않는다</dd>
+  <dt>셸 열기</dt><dd>저장된 작업 디렉터리가 있는 디렉터리면 거기서, 아니면 <code>user.home</code> 에서 <code>$SHELL -l</code></dd>
+  <dt>작업 디렉터리</dt><dd>읽기 루프가 덩어리를 받을 때마다 신호를 낸다. <code>directory</code> 를 수집하는 동안 신호가 <code>DirectoryReadDelay</code>(500ms) 동안 없으면 <code>lsof</code> 를 한 번 돌린다. Claude 창은 흘리지 않는다</dd>
+  <dt>보조 프로세스</dt><dd><code>claude agents</code>·<code>--bg</code>·<code>stop</code> 은 창의 셸과 같은 환경(<code>terminalEnvironment</code>)에서 <code>$SHELL -l -i -c</code> 로 돌린다. 표준 입력은 닫고 <code>ClaudeCommandTimeout</code>(30초)가 지나면 죽인다</dd>
+</dl>
+
+<p>Linux·Windows 분기는 만들지 않는다. 저장 경로는 macOS 의 것이고 다른 OS 에서도 그 경로에 쓴다. <code>lsof</code> 가 없으면 작업 디렉터리를 읽지 못해 저장하지 않는다.</p>
+
+<h3>한계</h3>
+<ul>
+  <li>공통 스펙의 <a href="../common/terminal-panels.html#limits">한계</a>가 그대로 든다.</li>
+  <li>Claude 창을 열 때마다 로그인·대화형 셸을 한두 번 더 띄운다. <code>~/.zshrc</code> 가 무거우면 Claude 가 뜨기까지 그만큼 걸린다.</li>
+  <li>짧은 id 와 <code>agents --json</code> 의 필드 이름은 Claude Code 2.1.281 에서 본 것이다. 바뀌면 찾지 못해 4 의 대체 동작으로 간다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>TerminalWorkspaceStoreTest</code> 가 임시 디렉터리에 실제 DataStore 파일을 쓰고 새 인스턴스로 다시 읽는다. <code>TerminalCommandTest</code> 가 <code>agents --json</code> 해석과 명령 줄을, <code>PtyTerminalDataSourceTest</code> 가 실제 pty 에서 시작 디렉터리와 <code>cd</code> 뒤의 <code>directory</code> 를 확인한다. 실제 Claude 백그라운드 세션은 테스트가 만들지 않는다 — 사용자의 Claude 세션 목록에 흔적이 남는다. <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+</section>
+
 
 <section class="feature" id="design-system">
 <h2>디자인 시스템 <span class="badge ok">구현</span></h2>

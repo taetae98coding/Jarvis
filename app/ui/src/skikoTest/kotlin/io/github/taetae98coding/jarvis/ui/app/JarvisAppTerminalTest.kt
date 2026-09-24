@@ -5,10 +5,10 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -19,8 +19,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
-import io.github.taetae98coding.jarvis.ui.terminal.TerminalClaudeTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalEmptyPanelTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewClaudeTabTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalScreenTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalSplitSideTestTag
@@ -46,6 +48,11 @@ class JarvisAppTerminalTest {
         setContent { TestJarvisApp(terminal = terminal) }
         onNodeWithTag(TerminalTestTag).performClick()
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+    }
+
+    private fun ComposeUiTest.openNewTab(itemTag: String) {
+        onNodeWithTag(TerminalNewTabTestTag).performClick()
+        onNodeWithTag(itemTag).performClick()
     }
 
     @Test
@@ -99,20 +106,23 @@ class JarvisAppTerminalTest {
         openTerminal(terminal)
         onNodeWithTag(TerminalSplitSideTestTag).performClick()
 
-        onNodeWithTag(TerminalNewTabTestTag).performClick()
+        openNewTab(TerminalNewShellTabTestTag)
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 3 }
+        assertEquals(TerminalProgram.Shell, terminal.sessions[2].program)
         assertEquals(2, onAllNodes(tab).fetchSemanticsNodes().size)
         onNodeWithText("셸 2").assertIsDisplayed()
         assertEquals(1, paneCount())
     }
 
     @Test
-    fun claudeButtonOpensClaudeInANewTab() = runComposeUiTest {
+    fun claudeMenuItemOpensClaudeInANewTab() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         openTerminal(terminal)
 
-        onNodeWithTag(TerminalClaudeTestTag).assertContentDescriptionEquals("Claude (YOLO)").performClick()
+        assertEquals(0, onAllNodes(hasContentDescription("Claude (YOLO)")).fetchSemanticsNodes().size)
+        onNodeWithTag(TerminalNewTabTestTag).performClick()
+        onNodeWithText("Claude (YOLO)").performClick()
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
         assertEquals(listOf(TerminalProgram.Shell, TerminalProgram.Claude), terminal.sessions.map { it.program })
@@ -124,7 +134,7 @@ class JarvisAppTerminalTest {
     fun splittingAClaudePaneOpensAShell() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         openTerminal(terminal)
-        onNodeWithTag(TerminalClaudeTestTag).performClick()
+        openNewTab(TerminalNewClaudeTabTestTag)
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
 
         onNodeWithTag(TerminalSplitSideTestTag).performClick()
@@ -134,11 +144,15 @@ class JarvisAppTerminalTest {
     }
 
     @Test
-    fun claudeButtonIsHiddenWhereClaudeIsNotSupported() = runComposeUiTest {
+    fun newTabOpensAShellDirectlyWhereClaudeIsNotSupported() = runComposeUiTest {
         val terminal = FakeTerminalRepository(isClaudeSupported = false)
         openTerminal(terminal)
 
-        assertEquals(0, onAllNodesWithTag(TerminalClaudeTestTag).fetchSemanticsNodes().size)
+        onNodeWithTag(TerminalNewTabTestTag).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
+        assertEquals(TerminalProgram.Shell, terminal.sessions[1].program)
+        assertEquals(0, onAllNodesWithTag(TerminalNewClaudeTabTestTag).fetchSemanticsNodes().size)
     }
 
     @Test
@@ -156,16 +170,17 @@ class JarvisAppTerminalTest {
     }
 
     @Test
-    fun closingTheLastPaneReturnsHome() = runComposeUiTest {
+    fun closingTheLastPaneLeavesAnEmptyPanel() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         openTerminal(terminal)
 
         onNodeWithTag(TerminalCloseTestTag).performClick()
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) {
-            onAllNodesWithTag(TerminalScreenTestTag).fetchSemanticsNodes().isEmpty()
+            onAllNodesWithTag(TerminalEmptyPanelTestTag).fetchSemanticsNodes().isNotEmpty()
         }
-        onNodeWithTag(TerminalTestTag).assertIsDisplayed()
+        onNodeWithTag(TerminalScreenTestTag).assertIsDisplayed()
+        onNodeWithText("탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다.").assertIsDisplayed()
         assertTrue(terminal.sessions.single().closed)
     }
 
@@ -182,15 +197,24 @@ class JarvisAppTerminalTest {
     }
 
     @Test
-    fun leavingTheScreenEndsEveryShell() = runComposeUiTest {
+    fun leavingTheScreenKeepsEveryShell() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         openTerminal(terminal)
-        onNodeWithTag(TerminalNewTabTestTag).performClick()
+        openNewTab(TerminalNewShellTabTestTag)
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
+        terminal.sessions[1].emit("still-here")
 
         onNodeWithContentDescription("뒤로").performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            onAllNodesWithTag(TerminalScreenTestTag).fetchSemanticsNodes().isEmpty()
+        }
+        assertTrue(terminal.sessions.none { it.closed })
 
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.all { it.closed } }
+        onNodeWithTag(TerminalTestTag).performClick()
+        onNodeWithTag(TerminalScreenTestTag).assertIsDisplayed()
+
+        assertEquals(2, terminal.sessions.size)
+        assertTrue(terminal.sessions.none { it.closed })
     }
 
     @Test
