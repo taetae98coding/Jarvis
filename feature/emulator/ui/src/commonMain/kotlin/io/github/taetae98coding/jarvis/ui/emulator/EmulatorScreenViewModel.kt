@@ -3,11 +3,14 @@ package io.github.taetae98coding.jarvis.ui.emulator
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.WakeDeviceUseCase
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +39,7 @@ internal class EmulatorScreenViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), null)
 
     /** 수집하는 동안에만 기기 화면을 찍는다. 화면을 벗어나면 촬영도 멈춘다. */
-    val frames: Flow<ByteArray?> = observeEmulatorScreen(deviceId)
+    val frames: Flow<EmulatorFrame?> = observeEmulatorScreen(deviceId)
 
     // 켜기를 눌렀다. 여기 남아 있다고 해서 아직 꺼져 있다는 뜻은 아니다.
     private val wakeRequested = MutableStateFlow(false)
@@ -50,10 +53,35 @@ internal class EmulatorScreenViewModel(
         combine(wakeRequested, device) { requested, device -> requested && device?.isAsleep == true }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), false)
 
-    fun onGesture(gesture: EmulatorGesture) {
-        val target = device.value ?: return
+    // 제스처를 바로 보내지 않고 큐에 넣어 순서대로 하나씩 보낸다. 제스처마다 launch 하면 로컬 에이전트를
+    // 타는 타깃에서 UP 이 MOVE 를 앞질러, 뗀 뒤에도 끌린 것처럼 보인다.
+    private val gestures = Channel<EmulatorGesture>(Channel.UNLIMITED)
 
-        viewModelScope.launch { sendEmulatorGesture(target, gesture) }
+    init {
+        viewModelScope.launch {
+            var queued: EmulatorGesture? = gestures.receiveCatching().getOrNull()
+
+            while (queued != null) {
+                var current = queued
+                queued = null
+
+                // 보내는 동안 쌓인 MOVE·Hover 는 마지막만 남긴다. DOWN·UP·CANCEL 은 버리지 않고 다음에 보낸다.
+                if (current.isCoalescible()) {
+                    while (true) {
+                        val next = gestures.tryReceive().getOrNull() ?: break
+                        if (next.isCoalescible()) current = next else { queued = next; break }
+                    }
+                }
+
+                device.value?.let { sendEmulatorGesture(it, current) }
+
+                if (queued == null) queued = gestures.receiveCatching().getOrNull()
+            }
+        }
+    }
+
+    fun onGesture(gesture: EmulatorGesture) {
+        gestures.trySend(gesture)
     }
 
     fun onWake() {
@@ -73,6 +101,9 @@ internal class EmulatorScreenViewModel(
             }
         }
     }
+
+    private fun EmulatorGesture.isCoalescible(): Boolean =
+        this is EmulatorGesture.Hover || (this is EmulatorGesture.Touch && action == TouchAction.MOVE)
 
     private companion object {
         // 목록 폴링(5초) 두 번. 그 안에 켜졌다는 답이 없으면 켜지지 않은 것으로 보고 버튼을 되살린다.

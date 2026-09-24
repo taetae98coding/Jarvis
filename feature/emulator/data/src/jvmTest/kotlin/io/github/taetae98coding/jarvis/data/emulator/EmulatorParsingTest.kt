@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.emulator
 
+import io.github.taetae98coding.jarvis.domain.emulator.DeviceConnection
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
@@ -10,25 +11,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class EmulatorParsingTest {
-    private val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01)
-
-    @Test
-    fun screencapWarningBeforeThePngIsDropped() {
-        val warning = "[Warning] Multiple displays were found, but no display id was specified!\n".encodeToByteArray()
-
-        assertTrue(png.contentEquals(pngPayload(warning + png)))
-    }
-
-    @Test
-    fun plainPngIsKeptAsIs() {
-        assertTrue(png.contentEquals(pngPayload(png)))
-    }
-
-    @Test
-    fun outputWithoutAPngIsNoFrame() {
-        assertNull(pngPayload("error: device offline".encodeToByteArray()))
-    }
-
     @Test
     fun countsOneAvdPerNonBlankLine() {
         val output = """
@@ -298,4 +280,45 @@ class EmulatorParsingTest {
 
         assertEquals(emptyList(), parsePhysicalIosDevices(output))
     }
+
+    @Test
+    fun usbSerialsAreWired() {
+        assertEquals(DeviceConnection.WIRED, physicalConnection("39061FDJH00CNS"))
+        assertEquals(DeviceConnection.WIRED, physicalConnection("R3CY705Y62R"))
+    }
+
+    @Test
+    fun networkSerialsAreWireless() {
+        // adb connect 로 붙은 기기.
+        assertEquals(DeviceConnection.WIRELESS, physicalConnection("192.168.0.10:5555"))
+        // 무선 디버깅으로 붙은 기기의 mDNS 시리얼(공백을 품는다).
+        assertEquals(DeviceConnection.WIRELESS, physicalConnection("adb-R54T202XEHN-Y2yH0N (2)._adb-tls-connect._tcp"))
+    }
+
+    @Test
+    fun devicectlTransportTypeBecomesConnection() {
+        val json = """
+            {"result":{"devices":[
+              {"connectionProperties":{"transportType":"wired","tunnelState":"connected"},
+               "hardwareProperties":{"udid":"00008130-000A1C2E0298001C","platform":"iOS"}},
+              {"connectionProperties":{"transportType":"localNetwork"},
+               "hardwareProperties":{"udid":"00008120-001122334455001E"}}
+            ]}}
+        """.trimIndent()
+
+        assertEquals(
+            mapOf(
+                "00008130-000A1C2E0298001C" to DeviceConnection.WIRED,
+                "00008120-001122334455001E" to DeviceConnection.WIRELESS,
+            ),
+            parseIosConnections(json),
+        )
+    }
+
+    @Test
+    fun brokenDevicectlJsonIsNoConnections() {
+        assertEquals(emptyMap(), parseIosConnections("not json"))
+        assertEquals(emptyMap(), parseIosConnections("""{"result":{}}"""))
+    }
+
 }

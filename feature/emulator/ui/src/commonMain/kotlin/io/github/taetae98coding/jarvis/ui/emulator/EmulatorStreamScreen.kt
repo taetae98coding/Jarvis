@@ -1,11 +1,6 @@
 package io.github.taetae98coding.jarvis.ui.emulator
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -43,9 +40,8 @@ import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
 import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import kotlinx.coroutines.withContext
-import org.jetbrains.compose.resources.decodeToImageBitmap
-import kotlin.time.TimeSource
 
 const val EmulatorScreenTestTag = "emulator:screen"
 
@@ -96,16 +92,11 @@ internal fun EmulatorStream(
     // 앱이 백그라운드로 가면 촬영을 멈춘다. 화면은 남아 있어서 LaunchedEffect 만으로는 수집이 끝나지 않는다.
     LaunchedEffect(viewModel, lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            viewModel.frames.collect { bytes ->
-                val decoded = bytes?.let { withContext(FrameDecodeContext) { it.decodeToImageBitmapOrNull() } }
+            viewModel.frames.collect { next ->
+                val decoded = next?.let { withContext(FrameDecodeContext) { it.toImageBitmapOrNull() } }
 
-                if (decoded == null) {
-                    // 한 장이라도 받아 뒀으면 그걸 계속 보여준다. 빈 화면으로 되돌리지 않는다.
-                    frame.failed = frame.image == null
-                } else {
-                    frame.image = decoded
-                    frame.failed = false
-                }
+                // 한 장이라도 받아 뒀으면 그걸 계속 보여준다. 빈 화면으로 되돌리지 않는다.
+                if (decoded == null) frame.markFailed() else frame.updateImage(decoded)
             }
         }
     }
@@ -194,9 +185,9 @@ private fun WakePrompt(
 }
 
 /**
- * 프레임의 픽셀 크기가 곧 기기 디스플레이 해상도다. 이미지를 화면에 꽉 채우지 않고 원본 비율로
- * 놓으면, 포인터 좌표를 그린 영역의 크기로 나누는 것만으로 기기 좌표가 나온다. 레터박스를 계산할
- * 필요가 없다.
+ * 프레임의 픽셀 크기가 곧 기기 디스플레이 해상도가 아니라, 지금 보고 있는 영상 프레임의 크기다. 그 크기를
+ * 제스처에 함께 실어 보내면 기기 쪽 에이전트가 디스플레이 좌표로 되돌린다(docs/common/device-mirroring.html).
+ * 이미지를 원본 비율로 놓으므로 포인터 좌표를 그린 영역 크기로 나누면 프레임 좌표가 나온다.
  */
 @Composable
 private fun DeviceScreen(
@@ -212,64 +203,65 @@ private fun DeviceScreen(
             .testTag(EmulatorFrameTestTag)
             .aspectRatio(image.width.toFloat() / image.height.toFloat())
             .pointerInput(image.width, image.height, enabled) {
-                if (!enabled) return@pointerInput
+                // 이벤트를 분류하지 않고 누름·이동·뗌을 그대로 흘려보낸다. 탭인지 스와이프인지, 길게
+                // 누른 것인지는 기기가 가른다. 안 눌린 마우스 이동은 호버로 간다.
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.first()
+                        val point = change.position.toDevicePixels(size, image)
 
-                detectTapGestures { offset ->
-                    val point = offset.toDevicePixels(size, image)
+                        when (event.type) {
+                            PointerEventType.Press ->
+                                if (enabled) {
+                                    onGesture(touch(TouchAction.DOWN, point, image))
+                                    change.consume()
+                                }
 
-                    onGesture(EmulatorGesture.Tap(x = point.first, y = point.second))
-                }
-            }
-            .pointerInput(image.width, image.height, enabled) {
-                if (!enabled) return@pointerInput
+                            // 누른 채 움직이면 드래그. 마우스가 눌리지 않고 움직이거나(Move) 화면에
+                            // 들어오면(Enter) 호버로 간다 — 기기 안 UI 가 호버 상태를 그린다.
+                            PointerEventType.Move, PointerEventType.Enter ->
+                                when {
+                                    change.pressed ->
+                                        if (enabled && event.type == PointerEventType.Move) {
+                                            onGesture(touch(TouchAction.MOVE, point, image))
+                                            change.consume()
+                                        }
 
-                // detectDragGestures 를 쓰면 시작점이 터치 슬롭을 넘은 지점으로 보고되어, 스와이프가
-                // 손가락을 댄 자리보다 몇 픽셀 뒤에서 시작한다. 처음 누른 위치를 그대로 보내려고
-                // 제스처를 직접 푼다.
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val startedAt = TimeSource.Monotonic.markNow()
+                                    enabled && change.type == PointerType.Mouse ->
+                                        onGesture(
+                                            EmulatorGesture.Hover(
+                                                x = point.first,
+                                                y = point.second,
+                                                frameWidth = image.width,
+                                                frameHeight = image.height,
+                                            ),
+                                        )
+                                }
 
-                    // 슬롭을 넘지 못하면 탭이다. 탭은 옆의 detectTapGestures 가 맡는다.
-                    var last = awaitTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
-                        ?.position
-                        ?: return@awaitEachGesture
-
-                    drag(down.id) { change ->
-                        last = change.position
-                        change.consume()
+                            PointerEventType.Release ->
+                                if (enabled) {
+                                    onGesture(touch(TouchAction.UP, point, image))
+                                    change.consume()
+                                }
+                        }
                     }
-
-                    val from = down.position.toDevicePixels(size, image)
-                    val to = last.toDevicePixels(size, image)
-
-                    onGesture(
-                        EmulatorGesture.Swipe(
-                            fromX = from.first,
-                            fromY = from.second,
-                            toX = to.first,
-                            toY = to.second,
-                            // 사용자가 끈 시간을 그대로 보낸다. 0 에 가까우면 기기가 스와이프가
-                            // 아니라 플릭으로 받아 화면이 튕긴다.
-                            durationMillis = startedAt.elapsedNow()
-                                .inWholeMilliseconds
-                                .coerceAtLeast(MinSwipeMillis),
-                        ),
-                    )
                 }
             },
     )
 }
 
-private const val MinSwipeMillis = 50L
+private fun touch(action: TouchAction, point: Pair<Int, Int>, image: ImageBitmap): EmulatorGesture.Touch =
+    EmulatorGesture.Touch(
+        action = action,
+        x = point.first,
+        y = point.second,
+        frameWidth = image.width,
+        frameHeight = image.height,
+    )
 
 private fun Offset.toDevicePixels(size: IntSize, image: ImageBitmap): Pair<Int, Int> =
     Pair(
         (x / size.width * image.width).toInt().coerceIn(0, image.width - 1),
         (y / size.height * image.height).toInt().coerceIn(0, image.height - 1),
     )
-
-// 프레임이 깨져 있으면(에이전트가 오류 본문을 PNG 인 척 돌려주면) 디코더가 예외를 던진다. 화면 전체가
-// 죽는 것보다 그 프레임을 버리는 편이 낫다.
-private fun ByteArray.decodeToImageBitmapOrNull(): ImageBitmap? =
-    runCatching { decodeToImageBitmap() }.getOrNull()

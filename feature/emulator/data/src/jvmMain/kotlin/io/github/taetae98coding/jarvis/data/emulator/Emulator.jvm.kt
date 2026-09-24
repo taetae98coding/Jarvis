@@ -1,7 +1,10 @@
 package io.github.taetae98coding.jarvis.data.emulator
 
+import io.github.taetae98coding.jarvis.data.emulator.mirror.ScreenMirror
 import io.github.taetae98coding.jarvis.data.state.observeByPolling
+import io.github.taetae98coding.jarvis.domain.emulator.DeviceConnection
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
@@ -11,8 +14,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
@@ -37,18 +46,27 @@ private val emulatorDevices: Flow<List<EmulatorDevice>> =
     observeByPolling(interval = PollInterval, read = ::listDevices)
         .shareIn(emulatorScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), replay = 1)
 
+// adb 시리얼 기기의 화면 스트림·제스처. SDK 가 없으면(다른 OS) null 이라 프레임은 없는 것이 된다.
+private val screenMirror: ScreenMirror? = androidSdkDirectory()?.let(::ScreenMirror)
+
 internal actual val emulatorDataSource: EmulatorDataSource = object : EmulatorDataSource {
     override fun observeStatus(): Flow<EmulatorStatus> = emulatorStatuses
 
     override fun observeDevices(): Flow<List<EmulatorDevice>> = emulatorDevices
 
-    // 화면은 보는 사람마다 따로 찍는다. 목록과 달리 구독자가 여럿일 일이 없고, 묶어 두면 아무도
-    // 보지 않는 동안에도 마지막 프레임이 남는다.
-    override fun observeScreen(deviceId: String): Flow<ByteArray?> =
-        observeByPolling(interval = EmulatorScreenPollInterval) { captureScreen(deviceId) }
+    // adb 기기는 영상 스트림(스트림 하나를 여럿이 공유), 시뮬레이터는 simctl 폴링이다.
+    override fun observeScreen(deviceId: String): Flow<EmulatorFrame?> =
+        when {
+            isAdbSerial(deviceId) -> screenMirror?.observeScreen(deviceId) ?: flowOf(null)
+            SimulatorUdid.matches(deviceId) ->
+                observeByPolling(interval = SimulatorScreenPollInterval) { captureSimulatorScreen(deviceId) }
+            // 꺼진 AVD·실물 iOS 는 찍을 화면이 없다.
+            else -> flowOf(null)
+        }
 
+    // adb 기기만 제어 소켓으로 이벤트를 넣는다. iOS 는 시뮬레이터에도 실물에도 입력 주입 도구가 없다.
     override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
-        withContext(Dispatchers.IO) { sendInput(deviceId, gesture) }
+        if (isAdbSerial(deviceId)) screenMirror?.sendGesture(deviceId, gesture)
     }
 
     override suspend fun launch(deviceId: String) {
@@ -143,6 +161,7 @@ private fun androidDevices(): List<EmulatorDevice> {
             isAsleep = isScreenOff(sdk, serial),
             canStream = true,
             canControl = true,
+            connection = physicalConnection(serial),
         )
     }
 
@@ -156,13 +175,38 @@ private fun iosDevices(): List<EmulatorDevice> {
     return parseSimulatorDevices(output) + physicalIosDevices()
 }
 
-// 연결된 실물 iOS 기기는 `xctrace` 만 나열해 준다.
+// 연결된 실물 iOS 기기는 `xctrace` 만 나열해 준다. 유선·무선은 devicectl 이 UDID 로 알려준다.
 private fun physicalIosDevices(): List<EmulatorDevice> {
     val xctrace = xcodeToolCommand("xctrace") ?: return emptyList()
 
-    return runCommand(xctrace + listOf("list", "devices"), mergeError = true)
+    val devices = runCommand(xctrace + listOf("list", "devices"), mergeError = true)
         ?.let(::parsePhysicalIosDevices)
         .orEmpty()
+    if (devices.isEmpty()) return devices
+
+    val connections = iosConnectionByUdid()
+
+    return devices.map { device ->
+        device.copy(connection = connections[device.id.removePrefix(PhysicalIosPrefix)])
+    }
+}
+
+// devicectl 의 connectionProperties.transportType 을 UDID 별로 모은다. 전체 xctrace 목록과 달리
+// 여기서는 연결 방식만 쓴다(docs/common/emulator-control.html#connection). devicectl 은 정식 Xcode 에만
+// 있어서, 없으면 빈 맵이라 연결 방식이 붙지 않는다.
+private fun iosConnectionByUdid(): Map<String, DeviceConnection> {
+    val devicectl = xcodeToolCommand("devicectl") ?: return emptyMap()
+    // devicectl 의 --json-output 은 파일 경로만 받는다. stdout 에는 진행 로그가 섞이므로 파일로 받는다.
+    val output = runCatching { File.createTempFile("jarvis-devicectl", ".json") }.getOrNull() ?: return emptyMap()
+
+    return try {
+        runCommand(devicectl + listOf("list", "devices", "--json-output", output.path))
+        if (output.length() > 0) parseIosConnections(output.readText()) else emptyMap()
+    } catch (_: Exception) {
+        emptyMap()
+    } finally {
+        output.delete()
+    }
 }
 
 // 화면이 꺼져 있어도 screencap 은 오류가 아니라 검은 그림을 준다. 그걸 화면에서 구분해 주려면
@@ -171,51 +215,16 @@ private fun isScreenOff(sdk: File, serial: String): Boolean =
     runCommand(listOf(adbBinary(sdk), "-s", serial, "shell", "dumpsys", "deviceidle", "get", "screen"))
         ?.let(::parseScreenOn) == false
 
-// 폴링은 read 를 수집하는 쪽 디스패처에서 부르고, 스트리밍 화면은 EDT 에서 수집한다. 여기서 옮기지 않으면
-// 한 장(0.3~0.6초)마다 UI 가 멈춘다.
-private suspend fun captureScreen(deviceId: String): ByteArray? =
-    withContext(Dispatchers.IO) { captureScreenBlocking(deviceId) }
-
-private fun captureScreenBlocking(deviceId: String): ByteArray? =
-    when {
-        isAdbSerial(deviceId) -> androidSdkDirectory()?.let { sdk ->
-            // `exec-out` 이라야 바이트가 그대로 나온다. `shell` 은 개행을 변환해 PNG 를 깨뜨린다.
-            runCommandBytes(listOf(adbBinary(sdk), "-s", deviceId, "exec-out", "screencap", "-p"))?.let(::pngPayload)
-        }
-
-        SimulatorUdid.matches(deviceId) -> xcodeToolCommand("simctl")?.let { simctl ->
+// 폴링은 read 를 수집하는 쪽 디스패처에서 부르고, 화면은 EDT 에서 수집한다. 여기서 옮기지 않으면
+// 한 장(0.2~0.5초)마다 UI 가 멈춘다.
+private suspend fun captureSimulatorScreen(deviceId: String): EmulatorFrame? =
+    withContext(Dispatchers.IO) {
+        xcodeToolCommand("simctl")?.let { simctl ->
             // `-` 가 stdout 이다. `simctl help io` 에 적혀 있다.
             runCommandBytes(simctl + listOf("io", deviceId, "screenshot", "--type=png", "-"))
+                ?.let(EmulatorFrame::Encoded)
         }
-
-        // 꺼져 있는 AVD(`avd:이름`)와 실물 iOS 기기(`ios:UDID`)다. 전자는 찍을 화면이 없고, 후자는
-        // 찍을 수 있는 공개 도구가 없다.
-        else -> null
     }
-
-private fun sendInput(deviceId: String, gesture: EmulatorGesture) {
-    // iOS 에는 시뮬레이터에도 실물 기기에도 입력을 주입하는 공개 도구가 없다. 화면에서 이미 막지만
-    // 여기서도 빠진다.
-    if (!isAdbSerial(deviceId)) return
-
-    val sdk = androidSdkDirectory() ?: return
-
-    val input = when (gesture) {
-        is EmulatorGesture.Tap -> listOf("input", "tap", "${gesture.x}", "${gesture.y}")
-
-        is EmulatorGesture.Swipe -> listOf(
-            "input",
-            "swipe",
-            "${gesture.fromX}",
-            "${gesture.fromY}",
-            "${gesture.toX}",
-            "${gesture.toY}",
-            "${gesture.durationMillis}",
-        )
-    }
-
-    runCommand(listOf(adbBinary(sdk), "-s", deviceId, "shell") + input)
-}
 
 private fun wakeDevice(deviceId: String) {
     // 깨우는 것도 입력 주입이라 제스처와 조건이 같다. iOS 는 시뮬레이터에도 실물 기기에도 방법이 없다.
@@ -246,6 +255,43 @@ private fun launchDevice(deviceId: String) {
 }
 
 /**
+ * 실물 기기가 유선(USB)인지 무선(네트워크)인지 adb 시리얼 모양으로 가른다. `adb connect` 는
+ * `192.168.0.10:5555`, 무선 디버깅은 mDNS 이름(`adb-…_adb-tls-connect._tcp`)이라 콜론이나 `_tcp` 가
+ * 있으면 무선이고, 그 밖의 하드웨어 시리얼은 유선이다(docs/common/emulator-control.html#connection).
+ */
+internal fun physicalConnection(serial: String): DeviceConnection =
+    if (serial.contains(':') || serial.contains("_tcp")) DeviceConnection.WIRELESS else DeviceConnection.WIRED
+
+/**
+ * `devicectl list devices --json-output` 의 JSON 에서 UDID → 연결 방식을 뽑는다. 한 기기의
+ * `hardwareProperties.udid` 와 `connectionProperties.transportType`(`wired`/`localNetwork`)을 짝짓는다.
+ * 중첩이 깊어 정규식으로는 블록을 못 자르므로 JSON 트리로 읽는다. 스키마가 조금 바뀌어도 깨지지 않게
+ * 필요한 키만 집는다.
+ */
+internal fun parseIosConnections(json: String): Map<String, DeviceConnection> =
+    runCatching {
+        val devices = Json.parseToJsonElement(json)
+            .jsonObject["result"]?.jsonObject
+            ?.get("devices")?.jsonArray
+            ?: return emptyMap()
+
+        devices.mapNotNull { element ->
+            val device = element.jsonObject
+            val udid = device["hardwareProperties"]?.jsonObject?.get("udid")?.jsonPrimitive?.contentOrNull
+                ?: return@mapNotNull null
+            val transport = device["connectionProperties"]?.jsonObject?.get("transportType")?.jsonPrimitive?.contentOrNull
+
+            val connection = when (transport) {
+                "wired" -> DeviceConnection.WIRED
+                "localNetwork" -> DeviceConnection.WIRELESS
+                else -> return@mapNotNull null
+            }
+
+            udid to connection
+        }.toMap()
+    }.getOrDefault(emptyMap())
+
+/**
  * `adb -s` 에 그대로 넘길 수 있는 식별자인지. 나머지 세 종류는 접두사나 UDID 모양으로 갈린다.
  * 에뮬레이터와 실물 Android 기기는 여기서 구분하지 않는다. 화면도 제스처도 같은 명령을 쓴다.
  */
@@ -263,21 +309,6 @@ private const val StoppedAvdPrefix = "avd:"
 // 실물 iOS 기기의 UDID(`00008030-001A2B3C11E8802E`)는 Android 시리얼과 모양으로 갈리지 않는다.
 // 시뮬레이터 UUID 와 달리 접두사를 붙여야 어느 도구를 부를지 정할 수 있다.
 private const val PhysicalIosPrefix = "ios:"
-
-// `emulator -list-avds` 는 AVD 이름만 한 줄에 하나씩 출력한다. 진단 메시지는 stderr 로 간다.
-/**
- * 디스플레이가 둘 이상인 기기(Galaxy Z Fold 등)에서 `-d` 없이 부른 `screencap` 은 PNG 앞에 경고 문구를 같은 stdout 으로
- * 쓴다. 시그니처 앞을 잘라 낸다. 시그니처가 없으면 PNG 가 아니므로 null 이다.
- */
-internal fun pngPayload(bytes: ByteArray): ByteArray? {
-    val start = (0..bytes.size - PngSignature.size).firstOrNull { offset ->
-        PngSignature.indices.all { bytes[offset + it] == PngSignature[it] }
-    } ?: return null
-
-    return if (start == 0) bytes else bytes.copyOfRange(start, bytes.size)
-}
-
-private val PngSignature = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
 
 internal fun parseAvdNames(output: String): List<String> =
     output.lineSequence().map(String::trim).filter(String::isNotEmpty).toList()

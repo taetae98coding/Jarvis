@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.emulator.agent
 
+import io.github.taetae98coding.jarvis.domain.emulator.DeviceConnection
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import kotlinx.serialization.Serializable
@@ -19,6 +20,7 @@ private data class EmulatorDeviceDto(
     val streamable: Boolean = false,
     val controllable: Boolean = false,
     val launchable: Boolean = false,
+    val connection: String? = null,
 )
 
 @Serializable
@@ -47,6 +49,7 @@ private fun EmulatorDevice.toDto() =
         streamable = canStream,
         controllable = canControl,
         launchable = canLaunch,
+        connection = connection?.wireName,
     )
 
 private fun EmulatorDeviceDto.toDomain(): EmulatorDevice? {
@@ -64,8 +67,17 @@ private fun EmulatorDeviceDto.toDomain(): EmulatorDevice? {
         canStream = streamable,
         canControl = controllable,
         canLaunch = launchable,
+        // 옛 에이전트에는 없다. 모르는 값이면 null 이라 화면에 아무것도 붙지 않는다.
+        connection = DeviceConnection.entries.firstOrNull { it.wireName == connection },
     )
 }
+
+// enum 이름을 그대로 쓰지 않는다. 상수 이름을 바꿔도 프로토콜이 깨지지 않게 와이어 이름을 따로 둔다.
+private val DeviceConnection.wireName: String
+    get() = when (this) {
+        DeviceConnection.WIRED -> "wired"
+        DeviceConnection.WIRELESS -> "wireless"
+    }
 
 // enum 이름을 그대로 쓰면 상수 이름을 바꾸는 순간 프로토콜이 깨진다. 와이어에 나가는 이름은 따로 둔다.
 private val EmulatorPlatform.wireName: String

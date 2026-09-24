@@ -3,7 +3,9 @@ package io.github.taetae98coding.jarvis.data.emulator.agent
 import io.github.taetae98coding.jarvis.data.emulator.DevicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
@@ -84,12 +86,28 @@ class HostAgentServerTest {
     fun servesAFrameAsPng() {
         val frame = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte())
 
-        withAgent(FakeEmulatorDataSource(frames = mapOf(RunningDevice.id to frame))) { port ->
+        withAgent(FakeEmulatorDataSource(frames = mapOf(RunningDevice.id to EmulatorFrame.Encoded(frame)))) { port ->
             val response = request(port, hostAgentScreenPath(RunningDevice.id))
 
             assertEquals(200, response.code)
             assertEquals("image/png", response.contentType)
             assertContentEquals(frame, response.bytes)
+        }
+    }
+
+    // 스트림에서 온 디코딩된 픽셀은 JPEG 로 인코딩해 보낸다.
+    @Test
+    fun encodesPixelFramesAsJpeg() {
+        val pixels = EmulatorFrame.Pixels(width = 2, height = 2, pixels = ByteArray(2 * 2 * 4) { 0xFF.toByte() })
+
+        withAgent(FakeEmulatorDataSource(frames = mapOf(RunningDevice.id to pixels))) { port ->
+            val response = request(port, hostAgentScreenPath(RunningDevice.id))
+
+            assertEquals(200, response.code)
+            assertEquals("image/jpeg", response.contentType)
+            // JPEG 시그니처(FF D8).
+            assertEquals(0xFF.toByte(), response.bytes!![0])
+            assertEquals(0xD8.toByte(), response.bytes!![1])
         }
     }
 
@@ -106,7 +124,7 @@ class HostAgentServerTest {
     fun keepsIdentifiersIntactThroughTheQueryString() {
         val frame = byteArrayOf(1, 2, 3)
 
-        withAgent(FakeEmulatorDataSource(frames = mapOf(StoppedDevice.id to frame))) { port ->
+        withAgent(FakeEmulatorDataSource(frames = mapOf(StoppedDevice.id to EmulatorFrame.Encoded(frame)))) { port ->
             assertContentEquals(frame, request(port, hostAgentScreenPath(StoppedDevice.id)).bytes)
         }
     }
@@ -116,7 +134,8 @@ class HostAgentServerTest {
         val dataSource = FakeEmulatorDataSource()
 
         withAgent(dataSource) { port ->
-            val gesture: EmulatorGesture = EmulatorGesture.Swipe(fromX = 1, fromY = 2, toX = 3, toY = 4, durationMillis = 120)
+            val gesture: EmulatorGesture =
+                EmulatorGesture.Touch(action = TouchAction.MOVE, x = 1, y = 2, frameWidth = 1080, frameHeight = 2400)
             val response = request(
                 port = port,
                 path = HostAgentGesturePath,
@@ -298,7 +317,7 @@ class HostAgentServerTest {
     private class FakeEmulatorDataSource(
         private val statuses: Flow<EmulatorStatus> = emptyFlow(),
         private val devices: Flow<List<EmulatorDevice>> = emptyFlow(),
-        private val frames: Map<String, ByteArray> = emptyMap(),
+        private val frames: Map<String, EmulatorFrame> = emptyMap(),
     ) : EmulatorDataSource {
         val gestures = mutableListOf<Pair<String, EmulatorGesture>>()
 

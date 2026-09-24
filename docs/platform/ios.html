@@ -62,6 +62,7 @@
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
+    <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
@@ -876,6 +877,31 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>검증</h3>
 <p>화면에 들어갈 수 없으므로 확인할 동작이 없다. 컴파일만 확인한다.</p>
 </section>
+
+<section class="feature" id="device-mirroring">
+<h2>기기 화면 영상 스트림·호버 <span class="badge workaround">우회</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/device-mirroring.html">기기 화면 영상 스트림·호버</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>호스트 에이전트의 JPEG 프레임</td><td>채택. Android 와 같다. <code>NSURLSession</code> 으로 100ms 마다 받고 Skia(<code>decodeToImageBitmap</code>)가 JPEG 를 푼다</td></tr>
+    <tr><td>VideoToolbox 로 직접 디코딩</td><td>버렸다. 스코프 밖. 시뮬레이터에서만 에이전트에 닿는 타깃이라 얻는 것이 적다</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드와 <code>feature/emulator/ui/src/skikoMain/.../FrameImage.skiko.kt</code>(JVM 과 같은 actual)</dd>
+  <dt>동작</dt><dd>Android 와 같다. 마우스가 없으니 <code>Hover</code> 는 나가지 않는다(iPadOS 의 트랙패드 포인터는 Compose 가 <code>Mouse</code> 로 보고하면 나간다 — 미확인)</dd>
+  <dt>실패</dt><dd>에이전트가 없으면 예전과 같다</dd>
+</dl>
+
+<h3>검증</h3>
+<p>컴파일만 확인한다. <span class="badge untested">미검증</span>.</p>
+</section>
+
 
 <section class="feature" id="design-system">
 <h2>디자인 시스템 <span class="badge ok">구현</span></h2>

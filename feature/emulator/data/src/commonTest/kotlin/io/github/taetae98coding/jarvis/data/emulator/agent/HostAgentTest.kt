@@ -1,7 +1,10 @@
 package io.github.taetae98coding.jarvis.data.emulator.agent
 
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.DeviceConnection
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
@@ -67,17 +70,32 @@ class HostAgentTest {
     }
 
     @Test
-    fun gesturesSurviveTheWireFormat() {
-        val swipe = EmulatorGesture.Swipe(fromX = 1, fromY = 2, toX = 3, toY = 4, durationMillis = 120)
-        val decoded = decodeEmulatorGesture(encodeEmulatorGesture(RunningDevice.id, swipe))
+    fun touchesSurviveTheWireFormat() {
+        val touch = EmulatorGesture.Touch(action = TouchAction.MOVE, x = 1, y = 2, frameWidth = 1080, frameHeight = 2400)
+        val decoded = decodeEmulatorGesture(encodeEmulatorGesture(RunningDevice.id, touch))
 
         assertEquals(RunningDevice.id, decoded?.deviceId)
-        assertEquals(swipe, decoded?.gesture)
+        assertEquals(touch, decoded?.gesture)
+    }
+
+    @Test
+    fun hoversSurviveTheWireFormat() {
+        val hover = EmulatorGesture.Hover(x = 7, y = 9, frameWidth = 1080, frameHeight = 2400)
+        val decoded = decodeEmulatorGesture(encodeEmulatorGesture(RunningDevice.id, hover))
+
+        assertEquals(hover, decoded?.gesture)
     }
 
     @Test
     fun unknownGestureTypesAreNotGestures() {
         assertNull(decodeEmulatorGesture("""{"id":"emulator-5554","type":"pinch"}"""))
+    }
+
+    // 예전 클라이언트의 tap·swipe 는 이벤트 단위 채널에 맞지 않으니 받지 않는다.
+    @Test
+    fun legacyTapAndSwipeAreNotGestures() {
+        assertNull(decodeEmulatorGesture("""{"id":"emulator-5554","type":"tap","x":1,"y":2}"""))
+        assertNull(decodeEmulatorGesture("""{"id":"emulator-5554","type":"swipe","x":1,"y":2,"toX":3,"toY":4}"""))
     }
 
     @Test
@@ -113,13 +131,13 @@ class HostAgentTest {
     }
 
     @Test
-    fun framesArePassedThroughAsBytes() = runTest {
+    fun framesArePassedThroughAsEncodedBytes() = runTest {
         val frame = byteArrayOf(0x89.toByte(), 'P'.code.toByte())
         val client = HostAgentClient(fetch = { frame }, send = { _, _ -> })
 
         val frames = hostAgentEmulatorDataSource(client).observeScreen(RunningDevice.id).take(1).toList()
 
-        assertContentEquals(frame, frames.single())
+        assertContentEquals(frame, (frames.single() as EmulatorFrame.Encoded).bytes)
     }
 
     @Test
@@ -127,11 +145,12 @@ class HostAgentTest {
         val sent = mutableListOf<Pair<String, String>>()
         val client = HostAgentClient(fetch = { null }, send = { path, body -> sent += path to body })
 
-        hostAgentEmulatorDataSource(client).sendGesture(RunningDevice.id, EmulatorGesture.Tap(x = 7, y = 9))
+        val touch = EmulatorGesture.Touch(action = TouchAction.DOWN, x = 7, y = 9, frameWidth = 1080, frameHeight = 2400)
+        hostAgentEmulatorDataSource(client).sendGesture(RunningDevice.id, touch)
 
         assertEquals(HostAgentGesturePath, sent.single().first)
         assertEquals(
-            RunningDevice.id to EmulatorGesture.Tap(x = 7, y = 9),
+            RunningDevice.id to touch,
             decodeEmulatorGesture(sent.single().second)?.let { it.deviceId to it.gesture },
         )
     }
@@ -174,6 +193,7 @@ class HostAgentTest {
         assertEquals(false, device?.canStream)
         assertEquals(false, device?.canControl)
         assertEquals(false, device?.canLaunch)
+        assertEquals(null, device?.connection)
     }
 
     @Test
@@ -275,6 +295,7 @@ class HostAgentTest {
             platform = EmulatorPlatform.IOS,
             isPhysical = true,
             isRunning = true,
+            connection = DeviceConnection.WIRELESS,
         )
     }
 }

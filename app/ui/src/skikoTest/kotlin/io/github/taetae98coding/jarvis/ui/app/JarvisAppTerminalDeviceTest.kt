@@ -17,6 +17,7 @@ import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorFrameTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewDeviceTabEmptyTestTag
@@ -141,10 +142,18 @@ class JarvisAppTerminalDeviceTest {
         onNode(hasTestTag(EmulatorFrameTestTag) and hasAnyAncestor(hasTestTag(terminalDeviceTestTag(tabId))))
             .performTouchInput { click(center) }
 
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.gestures.isNotEmpty() }
+        // 마우스 클릭은 앞서 호버가 끼기도 한다. 누름·뗌만 본다.
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            emulator.gestures.any { it.second.let { g -> g is EmulatorGesture.Touch && g.action == TouchAction.UP } }
+        }
+        assertTrue(emulator.gestures.all { it.first == RunningAndroidDevice.id })
+        val touches = emulator.gestures.map { it.second }.filterIsInstance<EmulatorGesture.Touch>()
         assertEquals(
-            listOf(RunningAndroidDevice.id to EmulatorGesture.Tap(x = TestFrameWidth / 2, y = TestFrameHeight / 2)),
-            emulator.gestures.toList(),
+            listOf(
+                EmulatorGesture.Touch(TouchAction.DOWN, TestFrameWidth / 2, TestFrameHeight / 2, TestFrameWidth, TestFrameHeight),
+                EmulatorGesture.Touch(TouchAction.UP, TestFrameWidth / 2, TestFrameHeight / 2, TestFrameWidth, TestFrameHeight),
+            ),
+            touches,
         )
     }
 
@@ -159,14 +168,17 @@ class JarvisAppTerminalDeviceTest {
         onNode(hasTestTag(EmulatorFrameTestTag) and hasAnyAncestor(hasTestTag(terminalDeviceTestTag(tabId))))
             .performTouchInput { swipe(start = centerLeft, end = centerRight) }
 
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.gestures.isNotEmpty() }
-        val (deviceId, gesture) = emulator.gestures.single()
-        val swipe = assertIs<EmulatorGesture.Swipe>(gesture)
-        assertEquals(RunningAndroidDevice.id, deviceId)
-        assertEquals(0, swipe.fromX)
-        assertEquals(TestFrameWidth - 1, swipe.toX)
-        assertEquals(TestFrameHeight / 2, swipe.fromY)
-        assertTrue(swipe.durationMillis >= 50)
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            emulator.gestures.lastOrNull()?.second.let { it is EmulatorGesture.Touch && it.action == TouchAction.UP }
+        }
+        assertTrue(emulator.gestures.all { it.first == RunningAndroidDevice.id })
+        val touches = emulator.gestures.map { it.second }.filterIsInstance<EmulatorGesture.Touch>()
+        assertEquals(TouchAction.DOWN, touches.first().action)
+        assertEquals(0, touches.first().x)
+        assertEquals(TestFrameHeight / 2, touches.first().y)
+        assertEquals(TouchAction.UP, touches.last().action)
+        assertEquals(TestFrameWidth - 1, touches.last().x)
+        assertTrue(touches.any { it.action == TouchAction.MOVE })
     }
 
     @Test

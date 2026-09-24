@@ -54,8 +54,8 @@
   <li><strong>R3.</strong> 화면을 볼 수 있는 항목만 누를 수 있다. 나머지(꺼진 가상 기기, 화면을 찍을 수 없는 실물 기기)는 비활성으로 보이고 눌러도 아무 일도 일어나지 않는다.</li>
   <li><strong>R4.</strong> 목록이 비어 있으면(기기가 없거나 물어볼 곳이 없으면) 왜 비었는지 한 줄로 설명한다. 빈 화면만 보여주지 않는다.</li>
   <li><strong>R5.</strong> 누를 수 있는 항목을 누르면 그 기기의 화면이 주기적으로 갱신되는 스트리밍 화면이 열린다. 첫 프레임이 오기 전에는 "화면을 가져오는 중…"을 보여준다.</li>
-  <li><strong>R6.</strong> 스트리밍 화면을 탭하면 그 지점이 기기 좌표로 변환되어 기기에 탭으로 전달된다.</li>
-  <li><strong>R7.</strong> 스트리밍 화면을 드래그하면 누른 지점에서 뗀 지점까지가 스와이프로 전달된다.</li>
+  <li><strong>R6.</strong> 스트리밍 화면을 탭하면 그 지점이 기기 좌표로 변환되어 기기에 탭으로 전달된다. 2026-09-24 부터는 누른 순간과 뗀 순간이 각각 이벤트로 간다(<a href="device-mirroring.html#requirements">영상 스트림 R2</a>).</li>
+  <li><strong>R7.</strong> 스트리밍 화면을 드래그하면 누른 지점에서 뗀 지점까지가 스와이프로 전달된다. 2026-09-24 부터는 끄는 동안 <code>MOVE</code> 가 실시간으로 간다(<a href="device-mirroring.html#requirements">영상 스트림 R2</a>).</li>
   <li><strong>R8.</strong> 제스처를 보낼 수 없는 기기에서는 화면만 보여주고, 제스처가 왜 안 되는지 화면에 적는다. 탭·드래그는 조용히 무시한다.</li>
   <li><strong>R9.</strong> 스트리밍 화면에서 뒤로 가면 목록으로, 목록에서 뒤로 가면 기능 그리드로 돌아간다.</li>
   <li><strong>R10.</strong> 스트리밍 화면을 벗어나면 프레임 요청이 멈춘다. 보이지 않는 기기의 화면을 계속 찍지 않는다.</li>
@@ -63,6 +63,7 @@
   <li><strong>R12.</strong> 연결된 실물 Android 기기는 에뮬레이터와 똑같이 화면을 보고 제스처를 보낼 수 있다. 목록에서 실물이라는 것이 보인다.</li>
   <li><strong>R13.</strong> 화면을 볼 수 없는 실물 기기(실물 iOS)도 목록에는 나오고, 왜 누를 수 없는지 그 줄에 적는다. 목록에서 빼지 않는다.</li>
   <li><strong>R14.</strong> 스트리밍 화면에 들어갈 때도, 보고 있는 동안에도 UI 가 멈추지 않는다. 화면을 찍는 일(외부 명령·HTTP)은 UI 스레드에서 돌지 않고, PNG 를 푸는 일도 스레드가 둘 이상인 타깃에서는 UI 스레드 밖에서 한다.</li>
+  <li><strong>R15.</strong> 연결된 실물 기기는 케이블(유선)로 붙었는지 네트워크(무선)로 붙었는지 목록의 보조 문구에 함께 나온다. Android 와 iOS 모두 그렇다. 가상 기기(AVD·시뮬레이터)에는 나오지 않는다. 알아낼 수 없으면 아무것도 붙이지 않는다.</li>
 </ol>
 
 <aside class="warn">
@@ -95,7 +96,7 @@
   </tbody>
 </table>
 
-<p>목록은 <a href="device-list-split.html">좌우 두 열</a>로 나뉘어 왼쪽에 Android, 오른쪽에 iOS 기기가 나온다. 플랫폼은 열이 말하므로 보조 문구에는 넣지 않는다. 보조 문구는 <code>·</code> 로 이어 붙인다. 가상 기기인지 실물인지, 지금 무슨 상태인지, 눌리지 않는다면 왜 그런지 순서다.</p>
+<p>목록은 <a href="device-list-split.html">좌우 두 열</a>로 나뉘어 왼쪽에 Android, 오른쪽에 iOS 기기가 나온다. 플랫폼은 열이 말하므로 보조 문구에는 넣지 않는다. 보조 문구는 <code>·</code> 로 이어 붙인다. 가상 기기인지 실물인지, 실물이면 유선인지 무선인지(R15), 지금 무슨 상태인지, 눌리지 않는다면 왜 그런지 순서다.</p>
 
 <table>
   <thead><tr><th>기기</th><th>보조 문구</th><th>누를 수 있나</th></tr></thead>
@@ -104,16 +105,17 @@
     <tr><td>꺼진 AVD</td><td><code>꺼짐</code></td><td>아니오 (<a href="emulator-launch.html">실행 버튼</a>이 붙는다)</td></tr>
     <tr><td>부팅된 시뮬레이터</td><td><code>실행 중</code></td><td>예 (제스처는 못 보낸다)</td></tr>
     <tr><td>꺼진 시뮬레이터</td><td><code>꺼짐</code></td><td>아니오 (<a href="emulator-launch.html">실행 버튼</a>이 붙는다)</td></tr>
-    <tr><td>연결된 실물 Android</td><td><code>실물 기기 · 연결됨</code></td><td>예</td></tr>
-    <tr><td>화면이 꺼진 실물 Android</td><td><code>실물 기기 · 연결됨 · 화면 꺼짐</code></td><td>예 (<a href="emulator-wake.html">화면 켜기 버튼</a>이 붙는다)</td></tr>
-    <tr><td>연결된 실물 iOS</td><td><code>실물 기기 · 연결됨 · 화면을 볼 수 없음</code></td><td>아니오</td></tr>
+    <tr><td>USB 로 연결된 실물 Android</td><td><code>실물 기기 · 유선 · 연결됨</code></td><td>예</td></tr>
+    <tr><td>무선으로 연결된 실물 Android</td><td><code>실물 기기 · 무선 · 연결됨</code></td><td>예</td></tr>
+    <tr><td>화면이 꺼진 실물 Android</td><td><code>실물 기기 · 유선 · 연결됨 · 화면 꺼짐</code></td><td>예 (<a href="emulator-wake.html">화면 켜기 버튼</a>이 붙는다)</td></tr>
+    <tr><td>연결된 실물 iOS</td><td><code>실물 기기 · 무선 · 연결됨 · 화면을 볼 수 없음</code></td><td>아니오</td></tr>
   </tbody>
 </table>
 
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>도메인 모델</dt><dd><code>domain/emulator/EmulatorDevice.kt</code> — <code>EmulatorDevice(id, name, platform, isPhysical, isRunning, canStream, canControl, canLaunch)</code>, <code>EmulatorPlatform(ANDROID, IOS)</code>, <code>EmulatorGesture.Tap</code> / <code>EmulatorGesture.Swipe</code></dd>
+  <dt>도메인 모델</dt><dd><code>domain/emulator/EmulatorDevice.kt</code> — <code>EmulatorDevice(id, name, platform, isPhysical, isRunning, canStream, canControl, canLaunch, connection)</code>, <code>EmulatorPlatform(ANDROID, IOS)</code>, <code>DeviceConnection(WIRED, WIRELESS)</code>(실물 기기만, 못 알아내면 null), <code>EmulatorGesture.Touch(action, x, y, frameWidth, frameHeight)</code> / <code>EmulatorGesture.Hover(…)</code>(<a href="device-mirroring.html#implementation">영상 스트림</a>. 예전의 <code>Tap</code>·<code>Swipe</code> 는 2026-09-24 에 지웠다), <code>EmulatorFrame.Encoded</code> / <code>EmulatorFrame.Pixels</code></dd>
   <dt>리포지토리</dt><dd><code>EmulatorRepository.observeDevices()</code>, <code>observeScreen(deviceId)</code>, <code>sendGesture(deviceId, gesture)</code>. 기존 <code>observeStatus()</code>는 그대로 둔다</dd>
   <dt>유스케이스</dt><dd><code>ObserveEmulatorDevicesUseCase</code>, <code>ObserveEmulatorScreenUseCase</code>, <code>SendEmulatorGestureUseCase</code></dd>
   <dt>UI</dt><dd><code>ui/emulator/EmulatorCard.kt</code>(클릭), <code>EmulatorListScreen.kt</code>, <code>EmulatorStreamScreen.kt</code>. 상단 막대 아래(프레임·제스처·안내 문구·화면 켜기)는 <code>EmulatorStream</code> 으로 떼어 두어 <a href="terminal-device.html">터미널의 기기 탭</a>도 같은 것을 쓴다</dd>
@@ -139,6 +141,19 @@
 
 <p>화면이 플래그를 직접 읽고, 도메인 유스케이스도 같은 플래그로 한 번 더 막는다. 목록이 5초마다 갱신되므로, 화면이 막기 전에 들어온 요청이 기기까지 가지 않게 하려면 규칙이 두 곳에 있어야 한다.</p>
 
+<h3 id="connection">연결 방식</h3>
+
+<p>실물 기기는 케이블로 붙기도, 네트워크로 붙기도 한다. 어느 쪽인지는 <code>data</code> 가 정해 <code>connection</code> 에 담아 내려보낸다. 가상 기기와, 알아낼 수 없는 경우는 <code>null</code> 이라 화면에 아무것도 붙지 않는다.</p>
+
+<table>
+  <thead><tr><th>기기</th><th>어떻게 아나</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>실물 Android</td><td>adb 시리얼 모양. <code>ip:port</code>(<code>adb connect</code>) 나 mDNS 이름(<code>…_adb-tls-connect._tcp</code>, 무선 디버깅)은 무선, 그 밖(하드웨어 시리얼)은 유선</td><td>유선/무선</td></tr>
+    <tr><td>실물 iOS</td><td><code>xcrun devicectl</code> 의 <code>connectionProperties.transportType</code>(<code>wired</code>/<code>localNetwork</code>). 도구가 없으면 <code>null</code></td><td>유선/무선/null</td></tr>
+    <tr><td>가상 기기</td><td>연결이라는 것이 없다</td><td>null</td></tr>
+  </tbody>
+</table>
+
 <h3 id="identifier">기기 식별자</h3>
 
 <p><code>id</code> 는 화면·제스처·실행 요청에 그대로 실린다. 네 종류가 한 목록에 섞이므로 <code>data</code> 가 모양만 보고 어느 도구를 부를지 가를 수 있어야 한다.</p>
@@ -157,9 +172,9 @@
 
 <h3>화면 프레임</h3>
 
-<p>프레임은 PNG 한 장이다. 도메인과 데이터는 <code>ByteArray</code>로만 다루고, <code>ImageBitmap</code>으로 푸는 것은 <code>ui</code>에서 <code>org.jetbrains.compose.resources.decodeToImageBitmap()</code>으로 한다. <code>ImageBitmap</code>은 Compose 타입이라 <code>domain</code>에 둘 수 없다.</p>
+<p>프레임은 <code>EmulatorFrame</code> 이다. iOS 시뮬레이터와 로컬 에이전트를 거치는 타깃은 <code>Encoded</code>(PNG·JPEG 한 장), JVM 의 Android 기기는 영상 스트림에서 디코딩된 <code>Pixels</code>(BGRA) 다(<a href="device-mirroring.html">기기 화면 영상 스트림·호버</a>). <code>ImageBitmap</code>으로 푸는 것은 <code>ui</code>에서 한다 — <code>Encoded</code> 는 <code>decodeToImageBitmap()</code>, <code>Pixels</code> 는 플랫폼 <code>expect</code>. <code>ImageBitmap</code>은 Compose 타입이라 <code>domain</code>에 둘 수 없다.</p>
 
-<p><code>observeScreen(deviceId)</code>는 <a href="state-observation.html">상태 조회 규칙</a>의 폴링을 쓴다. 주기는 <strong>500ms</strong>다. 화면을 한 장 찍는 데 걸리는 시간(Android <code>screencap</code> 기준 0.3~1초)이 주기보다 길어서 실제 갱신은 그보다 느리다. 구독이 끊기면 폴링이 멈춘다(R10).</p>
+<p><code>observeScreen(deviceId)</code>는 iOS 시뮬레이터(<code>SimulatorScreenPollInterval</code> 500ms)와 로컬 에이전트 클라이언트(<code>EmulatorScreenPollInterval</code> 100ms)에서 <a href="state-observation.html">상태 조회 규칙</a>의 폴링을 쓴다. JVM 의 Android 기기는 폴링이 아니라 영상 스트림이다(<a href="device-mirroring.html#implementation">스트림 공유</a>). 어느 쪽이든 구독이 끊기면 멈춘다(R10). 2026-09-24 이전에는 모두 500ms 폴링이었고 Android <code>screencap</code> 한 장이 0.3~1초라 초당 1~2장이었다.</p>
 
 <p><code>observeByPolling</code> 은 <code>read</code> 를 <strong>수집하는 쪽의 디스패처</strong>에서 부른다. 스트리밍 화면은 <code>LaunchedEffect</code> 에서 수집하므로 그 자리가 UI 스레드다. 그래서 <code>read</code> 가 블로킹이면 데이터 소스가 스스로 다른 디스패처로 옮겨야 한다(R14). 각 타깃의 클라이언트는 이미 그렇게 하고(<code>Dispatchers.IO</code>, <code>NSURLSession</code> 콜백, <code>fetch</code> 의 <code>await</code>), JVM 의 직접 촬영만 빠져 있었다(<a href="#decision-freeze">결정</a>).</p>
 
@@ -170,9 +185,7 @@
 <pre><code>deviceX = (px - offsetX) / drawnWidth  * frameWidth
 deviceY = (py - offsetY) / drawnHeight * frameHeight</code></pre>
 
-<p>제스처는 <code>detectDragGestures</code> 대신 <code>awaitEachGesture</code> + <code>awaitFirstDown</code> 으로 직접 푼다.
-<code>detectDragGestures</code> 의 <code>onDragStart</code> 는 터치 슬롭을 넘은 지점을 주기 때문에, 스와이프가 손가락을 댄 자리보다
-몇 픽셀 뒤에서 시작한다. 슬롭 판정은 그대로 두되(그래야 탭과 갈린다) 시작점은 처음 누른 위치를 쓴다.</p>
+<p>제스처는 분류하지 않고 포인터 이벤트(<code>Press</code>·<code>Move</code>·<code>Release</code>)를 그대로 <code>Touch(DOWN/MOVE/UP)</code> 으로 보낸다. 탭인지 스와이프인지는 기기가 가른다. 프레임 크기를 함께 실어 에이전트가 디스플레이 좌표로 바꾼다(<a href="device-mirroring.html#implementation">좌표</a>). 예전(2026-09-24 이전)에는 <code>awaitEachGesture</code> 로 슬롭을 넘겼는지 보고 뗀 뒤 <code>Tap</code>·<code>Swipe</code> 하나로 보냈다.</p>
 
 <p>프레임을 <code>ImageBitmap</code> 으로 푸는 일은 <code>ui</code> 의 <code>internal expect val FrameDecodeContext: CoroutineContext</code> 에서 한다.
 Android·iOS·JVM 은 <code>Dispatchers.Default</code>, Wasm 은 <code>EmptyCoroutineContext</code>(프레임이 도착한 그 자리)다. Wasm 에서
@@ -190,10 +203,10 @@ Android·iOS·JVM 은 <code>Dispatchers.Default</code>, Wasm 은 <code>EmptyCoro
   </ul>
 </aside>
 
-<p>프레임의 픽셀 크기가 곧 기기의 디스플레이 해상도다. <code>screencap</code>도 <code>simctl io screenshot</code>도 축소하지 않은 원본을 준다. 그래서 별도의 해상도 조회 없이 프레임 하나로 변환이 닫힌다. 이미지 바깥(레터박스)을 누르면 아무것도 보내지 않는다.</p>
+<p>좌표는 프레임 픽셀이다. <code>simctl io screenshot</code> 은 원본 해상도를 주고, 영상 스트림은 축소된 프레임을 주되 프레임 크기를 함께 받은 에이전트가 되돌린다. 어느 쪽이든 별도의 해상도 조회는 없다. 이미지 바깥(레터박스)을 누르면 아무것도 보내지 않는다.</p>
 
 <aside class="decision">
-  <strong>결정: 영상 스트림이 아니라 프레임 폴링</strong>
+  <strong>결정: 영상 스트림이 아니라 프레임 폴링</strong> — <em>2026-09-24 에 뒤집었다. Android 기기는 <a href="device-mirroring.html#decision-agent">영상 스트림</a>이다. 아래는 그 전의 판단이고, 시뮬레이터와 에이전트 클라이언트에는 여전히 맞다.</em>
   <ul>
     <li><strong>채택.</strong> 500ms마다 PNG 한 장. 에이전트가 JDK 내장 <code>HttpServer</code>라 요청 하나에 응답 하나가 가장 단순하고, 클라이언트 세 종류(<code>HttpURLConnection</code>, <code>NSURLSession</code>, <code>fetch</code>)가 추가 라이브러리 없이 바이트 배열을 받는다.</li>
     <li><code>scrcpy</code>류의 H.264 스트림. 초당 수십 프레임이 나오지만 클라이언트마다 디코더를 붙여야 하고 Wasm 타깃에는 쓸 수 있는 디코더가 없다. 버렸다.</li>
@@ -221,9 +234,9 @@ Android·iOS·JVM 은 <code>Dispatchers.Default</code>, Wasm 은 <code>EmptyCoro
   <thead><tr><th>메서드·경로</th><th>응답</th><th>쓰임</th></tr></thead>
   <tbody>
     <tr><td><code>GET /emulators</code></td><td><code>application/json</code> — 개수</td><td>기존. <a href="emulator-count.html">에뮬레이터 개수</a></td></tr>
-    <tr><td><code>GET /emulators/devices</code></td><td><code>application/json</code> — <code>{"devices":[{"id","name","platform","physical","running","asleep","streamable","controllable","launchable"}]}</code></td><td>목록(R2)</td></tr>
-    <tr><td><code>GET /emulators/screen?id=&lt;id&gt;</code></td><td><code>image/png</code>, 찍지 못하면 <code>503</code></td><td>프레임(R5)</td></tr>
-    <tr><td><code>POST /emulators/gesture</code></td><td><code>204</code>. 본문 <code>{"id","type":"tap"|"swipe","x","y","toX","toY","durationMillis"}</code></td><td>제스처(R6, R7)</td></tr>
+    <tr><td><code>GET /emulators/devices</code></td><td><code>application/json</code> — <code>{"devices":[{"id","name","platform","physical","running","asleep","streamable","controllable","launchable","connection"}]}</code>. <code>connection</code> 은 <code>"wired"</code>·<code>"wireless"</code> 또는 없음(R15)</td><td>목록(R2)</td></tr>
+    <tr><td><code>GET /emulators/screen?id=&lt;id&gt;</code></td><td><code>image/jpeg</code>(Android, 스트림의 최신 프레임) 또는 <code>image/png</code>(시뮬레이터), 없으면 <code>503</code></td><td>프레임(R5). <a href="device-mirroring.html#agent">영상 스트림</a></td></tr>
+    <tr><td><code>POST /emulators/gesture</code></td><td><code>204</code>. 본문 <code>{"id","type":"touch"|"hover","action","x","y","width","height"}</code></td><td>제스처(R6, R7). <a href="device-mirroring.html#agent">영상 스트림</a>. 예전의 <code>tap</code>·<code>swipe</code> 는 <code>400</code></td></tr>
   </tbody>
 </table>
 
@@ -259,7 +272,8 @@ Android·iOS·JVM 은 <code>Dispatchers.Default</code>, Wasm 은 <code>EmptyCoro
     <tr><td><code>JarvisAppTest.backReturnsToListThenGrid</code></td><td>R9</td><td><code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTest.physicalDeviceIsMarkedInTheList</code></td><td>R12</td><td><code>skikoTest</code></td></tr>
     <tr><td><code>JarvisAppTest.deviceWithoutAScreenSaysSoInTheList</code></td><td>R13</td><td><code>skikoTest</code></td></tr>
-    <tr><td><code>EmulatorParsingTest</code></td><td><code>adb devices</code>·<code>emulator -list-avds</code>·<code>simctl list</code>·<code>xctrace list devices</code>·<code>getprop</code> 출력에서 기기 목록과 능력 플래그를 뽑는 파싱</td><td><code>jvmTest</code></td></tr>
+    <tr><td><code>EmulatorParsingTest</code></td><td><code>adb devices</code>·<code>emulator -list-avds</code>·<code>simctl list</code>·<code>xctrace list devices</code>·<code>getprop</code> 출력에서 기기 목록과 능력 플래그를 뽑는 파싱, adb 시리얼 모양과 <code>devicectl</code> JSON 에서 유선·무선을 가르는 것(R15)</td><td><code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.physicalDeviceShowsHowItIsConnected</code></td><td>R15. 유선 기기는 "유선", 무선 기기는 "무선" 이 보조 문구에 나온다</td><td><code>skikoTest</code></td></tr>
     <tr><td><code>HostAgentServerTest</code></td><td>목록·프레임·제스처 엔드포인트의 상태 코드와 본문</td><td><code>jvmTest</code></td></tr>
     <tr><td><code>HostAgentTest</code></td><td>에이전트가 없을 때 목록이 비고 프레임이 <code>null</code>이 되는 것, 능력 플래그의 와이어 왕복</td><td><code>commonTest</code></td></tr>
     <tr><td>수동 확인</td><td>R10, R11과 실제 기기 왕복 <span class="badge untested">미검증</span></td><td>—</td></tr>
@@ -273,7 +287,7 @@ Android·iOS·JVM 은 <code>Dispatchers.Default</code>, Wasm 은 <code>EmptyCoro
   <li><strong>iOS 시뮬레이터에는 제스처를 보낼 수 없다.</strong> <code>simctl</code>에 입력 주입 명령이 없다(<code>simctl help</code> 기준 <code>io</code>·<code>ui</code>·<code>push</code>·<code>pbcopy</code>만 있다). 화면만 보여주고 제스처는 무시한다(R8).</li>
   <li><strong>실물 iOS 기기는 목록에만 나온다.</strong> 화면을 찍는 공개 도구가 없다. <code>xctrace</code>·<code>devicectl</code>은 기기를 나열하고 앱을 설치할 뿐 스크린샷을 주지 않고, 그게 되는 <code>libimobiledevice</code>는 따로 설치해야 하는 서드파티다(<a href="../platform/jvm.html#emulator-control">조사</a>). 줄에 "화면을 볼 수 없음"이라고 적고 누를 수 없게 둔다(R13).</li>
   <li><strong>실물 Android 기기는 <code>adb</code> 인증을 마친 것만 보인다.</strong> <code>unauthorized</code>·<code>offline</code> 상태는 화면을 찍을 수 없어서 목록에서 뺀다. 기기에서 USB 디버깅을 허용하기 전까지는 꽂아도 나타나지 않는다.</li>
-  <li><strong>프레임률이 낮다.</strong> Android <code>screencap</code> 한 장이 0.3~1초, 1080×2400에서 PNG 400KB 안팎이다. 초당 1~3장 수준이고 애니메이션은 끊겨 보인다. 실물 기기는 USB 를 타서 더 느리다.</li>
+  <li><strong>iOS 시뮬레이터의 프레임률이 낮다.</strong> <code>simctl io screenshot</code> 한 장이 0.2~0.5초라 초당 2장 안팎이다. Android 기기는 2026-09-24 부터 <a href="device-mirroring.html">영상 스트림</a>이라 이 한계가 없다(JVM). 다른 타깃은 최대 10fps(<a href="device-mirroring.html#limits">한계</a>).</li>
   <li><strong>JVM 외에는 데스크톱 앱이 같은 머신에 떠 있어야 한다.</strong> 개수 기능과 같은 전제다. 꺼져 있으면 목록이 비고 R4의 문구가 나온다.</li>
   <li><strong>에이전트에 인증이 없다.</strong> 이제 화면 픽셀과 입력까지 오간다. 루프백에만 바인딩하므로 같은 머신의 다른 프로세스는 붙을 수 있다. <a href="emulator-count.html#agent">공통 스펙</a>의 전제를 그대로 따른다.</li>
   <li>실행 중이 아닌 AVD는 <code>id</code>가 시리얼이 아니라 <code>avd:&lt;이름&gt;</code>이다. 켜지면 시리얼로 바뀌므로 목록 항목의 <code>id</code>는 실행 상태에 따라 달라진다.</li>

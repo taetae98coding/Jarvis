@@ -2,7 +2,9 @@ package io.github.taetae98coding.jarvis.ui.emulator
 
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import io.github.taetae98coding.jarvis.domain.emulator.WakeDeviceUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -85,6 +87,35 @@ class EmulatorScreenViewModelTest {
             assertEquals(listOf(SleepingAndroidDevice.id), emulator.woken.toList())
         }
     }
+
+    // 뗀 뒤에도 끌린 것처럼 보이지 않으려면 DOWN·UP 이 순서를 지키고, 쌓인 MOVE 는 마지막만 가야 한다.
+    @Test
+    fun gesturesKeepOrderAndCoalesceMoves() {
+        val emulator = FakeEmulatorRepository(devices = listOf(SleepingAndroidDevice))
+
+        viewModelTest(emulator) { viewModel ->
+            backgroundScope.launch { viewModel.device.collect() }
+            runCurrent()
+
+            viewModel.onGesture(touch(TouchAction.DOWN, 0, 0))
+            viewModel.onGesture(touch(TouchAction.MOVE, 1, 1))
+            viewModel.onGesture(touch(TouchAction.MOVE, 2, 2))
+            viewModel.onGesture(touch(TouchAction.UP, 3, 3))
+            runCurrent()
+
+            assertEquals(
+                listOf(
+                    touch(TouchAction.DOWN, 0, 0),
+                    touch(TouchAction.MOVE, 2, 2),
+                    touch(TouchAction.UP, 3, 3),
+                ),
+                emulator.gestures.toList(),
+            )
+        }
+    }
+
+    private fun touch(action: TouchAction, x: Int, y: Int) =
+        EmulatorGesture.Touch(action = action, x = x, y = y, frameWidth = 1080, frameHeight = 2400)
 
     private fun viewModelTest(
         emulator: FakeEmulatorRepository,

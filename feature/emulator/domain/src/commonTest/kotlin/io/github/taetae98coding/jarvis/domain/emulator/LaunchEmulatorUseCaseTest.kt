@@ -33,7 +33,7 @@ class LaunchEmulatorUseCaseTest {
 
         override fun observeDevices(): Flow<List<EmulatorDevice>> = emptyFlow()
 
-        override fun observeScreen(deviceId: String): Flow<ByteArray?> = emptyFlow()
+        override fun observeScreen(deviceId: String): Flow<EmulatorFrame?> = emptyFlow()
 
         override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) = Unit
 

@@ -17,11 +17,14 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.moveTo
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
+import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
@@ -317,8 +320,22 @@ class JarvisAppTest {
         onNodeWithTag(EmulatorTestTag).performClick()
 
         onNodeWithText(PhysicalAndroidDevice.name).assertIsDisplayed()
-        onNodeWithText("실물 기기 · 연결됨").assertIsDisplayed()
+        onNodeWithText("실물 기기 · 유선 · 연결됨").assertIsDisplayed()
         onNodeWithTag(emulatorDeviceTestTag(PhysicalAndroidDevice.id)).assertIsEnabled()
+    }
+
+    // 유선(USB)으로 붙었는지 무선(네트워크)으로 붙었는지 목록에 함께 나온다.
+    @Test
+    fun physicalDeviceShowsHowItIsConnected() = runComposeUiTest {
+        val emulator = FakeEmulatorRepository(devices = listOf(PhysicalAndroidDevice, SleepingAndroidDevice))
+        setContent { TestJarvisApp(emulator = emulator) }
+
+        onNodeWithTag(EmulatorTestTag).performClick()
+
+        // 하드웨어 시리얼 기기는 유선.
+        onNodeWithText("실물 기기 · 유선 · 연결됨").assertIsDisplayed()
+        // mDNS 시리얼 기기는 무선.
+        onNodeWithText("실물 기기 · 무선 · 연결됨 · 화면 꺼짐").assertIsDisplayed()
     }
 
     // 연결됐는데 목록에 없으면 "꽂았는데 왜 없지" 가 된다. 대신 왜 누를 수 없는지 그 줄에 적는다.
@@ -329,7 +346,7 @@ class JarvisAppTest {
 
         onNodeWithTag(EmulatorTestTag).performClick()
 
-        onNodeWithText("실물 기기 · 연결됨 · 화면을 볼 수 없음").assertIsDisplayed()
+        onNodeWithText("실물 기기 · 무선 · 연결됨 · 화면을 볼 수 없음").assertIsDisplayed()
         onNodeWithTag(emulatorDeviceTestTag(PhysicalIosDevice.id)).assertIsNotEnabled()
     }
 
@@ -342,7 +359,7 @@ class JarvisAppTest {
         setContent { TestJarvisApp(emulator = emulator) }
         onNodeWithTag(EmulatorTestTag).performClick()
 
-        onNodeWithText("실물 기기 · 연결됨 · 화면 꺼짐").assertIsDisplayed()
+        onNodeWithText("실물 기기 · 무선 · 연결됨 · 화면 꺼짐").assertIsDisplayed()
         onNodeWithTag(emulatorWakeTestTag(SleepingAndroidDevice.id)).performClick()
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.woken.isNotEmpty() }
@@ -421,16 +438,34 @@ class JarvisAppTest {
 
         onNodeWithTag(EmulatorFrameTestTag).performTouchInput { click(center) }
 
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.gestures.isNotEmpty() }
+        // 누른 순간과 뗀 순간이 각각 간다. 뗀 뒤 한 번에 보내지 않는다. 마우스 호버가 앞서 끼기도 하므로 누름만 본다.
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            emulator.gestures.any { it.second.let { g -> g is EmulatorGesture.Touch && g.action == TouchAction.UP } }
+        }
+        assertTrue(emulator.gestures.all { it.first == RunningAndroidDevice.id })
+        val touches = emulator.gestures.map { it.second }.filterIsInstance<EmulatorGesture.Touch>()
         assertEquals(
-            listOf(
-                RunningAndroidDevice.id to EmulatorGesture.Tap(
-                    x = TestFrameWidth / 2,
-                    y = TestFrameHeight / 2,
-                ),
-            ),
-            emulator.gestures.toList(),
+            listOf(down(TestFrameWidth / 2, TestFrameHeight / 2), up(TestFrameWidth / 2, TestFrameHeight / 2)),
+            touches,
         )
+    }
+
+    // 마우스가 누르지 않고 지나가면 호버가 기기로 간다. 기기 안 UI 가 호버 상태를 그린다.
+    @Test
+    fun mouseHoverOnStreamIsSent() = runComposeUiTest {
+        val emulator = streamingEmulator()
+        setContent { TestJarvisApp(emulator = emulator) }
+        openStream()
+
+        onNodeWithTag(EmulatorFrameTestTag).performMouseInput {
+            moveTo(centerLeft)
+            moveTo(center)
+        }
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.gestures.isNotEmpty() }
+        val hover = assertIs<EmulatorGesture.Hover>(emulator.gestures.last().second)
+        assertEquals(TestFrameWidth / 2, hover.x)
+        assertEquals(TestFrameHeight / 2, hover.y)
     }
 
     @Test
@@ -441,14 +476,14 @@ class JarvisAppTest {
 
         onNodeWithTag(EmulatorFrameTestTag).performTouchInput { swipe(start = centerLeft, end = centerRight) }
 
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { emulator.gestures.isNotEmpty() }
-        val swipe = assertIs<EmulatorGesture.Swipe>(emulator.gestures.single().second)
-        assertEquals(0, swipe.fromX)
-        assertEquals(TestFrameWidth - 1, swipe.toX)
-        assertEquals(TestFrameHeight / 2, swipe.fromY)
-        assertEquals(TestFrameHeight / 2, swipe.toY)
-        // 0ms 스와이프는 기기가 플릭으로 받아 화면이 튕긴다.
-        assertTrue(swipe.durationMillis >= 50)
+        // 누른 지점에서 DOWN, 끄는 동안 MOVE, 뗀 지점에서 UP.
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            emulator.gestures.lastOrNull()?.second.let { it is EmulatorGesture.Touch && it.action == TouchAction.UP }
+        }
+        val touches = emulator.gestures.map { it.second }.filterIsInstance<EmulatorGesture.Touch>()
+        assertEquals(down(0, TestFrameHeight / 2), touches.first())
+        assertEquals(up(TestFrameWidth - 1, TestFrameHeight / 2), touches.last())
+        assertTrue(touches.any { it.action == TouchAction.MOVE })
     }
 
     // iOS 시뮬레이터에는 입력을 주입하는 도구가 없다. 화면은 보이되 왜 안 되는지 말해야 한다.
@@ -492,6 +527,12 @@ class JarvisAppTest {
         devices = listOf(RunningAndroidDevice),
         frames = MutableStateFlow(TestFrame),
     )
+
+    private fun down(x: Int, y: Int) =
+        EmulatorGesture.Touch(TouchAction.DOWN, x, y, TestFrameWidth, TestFrameHeight)
+
+    private fun up(x: Int, y: Int) =
+        EmulatorGesture.Touch(TouchAction.UP, x, y, TestFrameWidth, TestFrameHeight)
 
     private fun ComposeUiTest.openStream() {
         onNodeWithTag(EmulatorTestTag).performClick()

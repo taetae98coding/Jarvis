@@ -21,6 +21,9 @@ enum class EmulatorPlatform {
  * [isAsleep] 은 연결은 됐는데 화면이 꺼져 있다는 뜻이다. 그 상태로도 화면은 찍히지만 검은 그림만
  * 나온다. 깨울 수 있는지는 따로 두지 않는다 — 깨우기와 제스처가 같은 명령(`input`)이라 [canControl]
  * 이 그대로 답이 된다.
+ *
+ * [connection] 은 실물 기기가 유선(USB)인지 무선(네트워크)인지다. 가상 기기와, 알아낼 수 없는 경우는
+ * null 이다(docs/common/emulator-control.html#connection).
  */
 data class EmulatorDevice(
     val id: String,
@@ -32,4 +35,5 @@ data class EmulatorDevice(
     val canStream: Boolean = false,
     val canControl: Boolean = false,
     val canLaunch: Boolean = false,
+    val connection: DeviceConnection? = null,
 )
