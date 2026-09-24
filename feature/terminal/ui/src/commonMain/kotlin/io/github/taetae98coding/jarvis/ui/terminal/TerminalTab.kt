@@ -5,6 +5,8 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -88,6 +90,34 @@ internal fun TerminalTab(
                 tint = contentColor,
             )
         }
+    }
+}
+
+/** 탭 줄 끝의 새 탭 버튼. 탭과 같은 모양·높이라 "이 줄에 하나 더" 로 읽힌다. 메뉴는 부르는 쪽이 붙인다. */
+@Composable
+internal fun TerminalNewTabButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val styleState = rememberUpdatedStyleState(interactionSource)
+
+    Box(
+        modifier = modifier
+            .hoverable(interactionSource)
+            .styleable(styleState, TerminalTabDefaults.style)
+            // 눌림은 Style 의 배경이 보여 준다. 물결까지 그리면 같은 표시가 두 번 겹친다.
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .fillMaxHeight()
+            .aspectRatio(1f, matchHeightConstraintsFirst = true),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = JarvisIcons.Add,
+            contentDescription = "새 탭",
+            modifier = Modifier.size(JarvisTheme.dimens.iconSize.small),
+            tint = TerminalTabDefaults.contentColor(selected = false),
+        )
     }
 }
 

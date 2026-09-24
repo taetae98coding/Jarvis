@@ -10,30 +10,31 @@ class UpdateTerminalWorkspaceUseCaseTest {
     private fun useCase(workspace: TerminalWorkspace) =
         UpdateTerminalWorkspaceUseCase(InMemoryTerminalWorkspaceRepository(workspace), terminal)
 
+    // 그룹 하나에 [셸, Claude a] 탭, 그 오른쪽에 셸 탭 하나짜리 그룹.
     private val withClaude = TerminalWorkspace.initial()
-        .addTab(TerminalProgram.Claude, claudeSessionId = "a")
+        .addTab(program = TerminalProgram.Claude, claudeSessionId = "a")
         .split(SplitDirection.SideBySide)
 
-    @Test
-    fun closingAClaudePaneStopsItsSession() = runTest {
-        val claudePane = withClaude.leaves.first { it.claudeSessionId == "a" }.paneId
+    private val claudeTab = withClaude.tabs.first { it.claudeSessionId == "a" }
 
-        useCase(withClaude).invoke { it.closePane(claudePane) }
+    @Test
+    fun closingAClaudeTabStopsItsSession() = runTest {
+        useCase(withClaude).invoke { it.closeTab(claudeTab.id) }
 
         assertEquals(listOf("a"), terminal.stopped)
     }
 
     @Test
-    fun closingAShellPaneStopsNothing() = runTest {
-        useCase(withClaude).invoke { it.closePane(it.focusedPaneId!!) }
+    fun closingAShellTabStopsNothing() = runTest {
+        useCase(withClaude).invoke { it.closeFocusedTab() }
 
         assertEquals(emptyList(), terminal.stopped)
     }
 
     @Test
     fun closingAPanelStopsEveryClaudeSessionInIt() = runTest {
-        val workspace = withClaude.addTab(TerminalProgram.Claude, claudeSessionId = "b").addPanel()
-            .addTab(TerminalProgram.Claude, claudeSessionId = "other")
+        val workspace = withClaude.addTab(program = TerminalProgram.Claude, claudeSessionId = "b").addPanel()
+            .addTab(program = TerminalProgram.Claude, claudeSessionId = "other")
         val panel = workspace.panels.first().id
 
         useCase(workspace).invoke { it.closePanel(panel) }
@@ -42,8 +43,10 @@ class UpdateTerminalWorkspaceUseCaseTest {
     }
 
     @Test
-    fun changesThatKeepThePaneStopNothing() = runTest {
-        useCase(withClaude).invoke { it.addPanel().selectTabAt(0) }
+    fun movingAClaudeTabToAnotherGroupStopsNothing() = runTest {
+        val target = withClaude.groups.last().id
+
+        useCase(withClaude).invoke { it.dockTab(claudeTab.id, target, DockEdge.Center).addPanel().selectTabAt(0) }
 
         assertEquals(emptyList(), terminal.stopped)
     }

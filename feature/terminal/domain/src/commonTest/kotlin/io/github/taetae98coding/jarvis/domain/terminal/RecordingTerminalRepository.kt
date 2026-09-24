@@ -8,11 +8,11 @@ internal class RecordingTerminalRepository(
     override val isSupported: Boolean = true,
     override val isClaudeSupported: Boolean = true,
 ) : TerminalRepository {
-    val opened = mutableListOf<PaneNode.Leaf>()
+    val opened = mutableListOf<TerminalTab>()
     val stopped = mutableListOf<String>()
 
-    override suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession {
-        opened += pane
+    override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession {
+        opened += tab
         return NoopSession
     }
 

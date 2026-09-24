@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class OpenTerminalSessionUseCaseTest {
-    private val claude = PaneNode.Leaf(1, TerminalProgram.Claude, claudeSessionId = "session")
+    private val claude = TerminalTab(1, TerminalProgram.Claude, claudeSessionId = "session")
 
     @Test
     fun opensTheRequestedPane() = runTest {
@@ -39,7 +39,7 @@ class OpenTerminalSessionUseCaseTest {
     fun nothingIsOpenedWhereShellsAreNotSupported() = runTest {
         val repository = RecordingTerminalRepository(isSupported = false)
 
-        assertNull(OpenTerminalSessionUseCase(repository)(TerminalSize.Default, PaneNode.Leaf(1)))
+        assertNull(OpenTerminalSessionUseCase(repository)(TerminalSize.Default, TerminalTab(1)))
         assertEquals(emptyList(), repository.opened)
     }
 }

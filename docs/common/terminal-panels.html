@@ -46,16 +46,19 @@
   <footer>2026-09-24 대화. "창을 나누자" 는 지금까지 한 층이던 탭·분할 위에 패널 층을 하나 더 두는 것으로 읽었다. "탭을 상하/좌우 분리" 는 <a href="terminal.html">터미널</a>의 분할(R5·R6)이 패널 안의 탭마다 그대로 되는 것으로 읽었다. "지침 시킨 것도 bg로" 는 Claude 에게 맡긴 작업이 창을 보고 있지 않아도, 앱이 꺼져도 멈추지 않는 것으로 읽었다.</footer>
 </blockquote>
 
+<p>뒤따른 <a href="terminal-tab-dock.html">탭 끌어 놓기</a> 지시로 상단 막대의 동작 버튼이 없어지고 새 탭(+)은 탭 줄 끝으로 갔다. 아래 그림과 R6 의 "새 탭(+) 메뉴" 는 그 자리를 가리킨다. 탭을 끌어 놓아 나누는 규칙은 그 문서에 있다. 다시 뒤따른 <a href="terminal-tab-groups.html">분할 그룹</a> 지시로 분할 트리는 탭이 아니라 패널에 붙고 나뉜 칸마다 탭 줄을 가진다. 아래 그림의 탭 줄은 그룹마다 하나씩 있다고 읽는다(그 문서의 그림).</p>
+
 <h2 id="terms">용어</h2>
 
-<p>이 지시 전까지 문서와 코드는 분할된 한 칸을 "패널" 이라 불렀다. 지시의 "패널" 과 겹치므로 분할된 한 칸은 이제 <strong>창</strong>이라 부른다. 코드 이름(<code>PaneNode</code>, <code>paneId</code>, <code>TerminalPane</code>)은 영어로 이미 구분되므로 그대로 둔다.</p>
+<p>이 지시 전까지 문서와 코드는 분할된 한 칸을 "패널" 이라 불렀다. 지시의 "패널" 과 겹치므로 분할된 한 칸은 이제 <strong>창</strong>이라 부른다. 코드 이름(<code>PaneNode</code>, <code>TerminalPane</code>)은 영어로 이미 구분되므로 그대로 둔다. 뒤따른 <a href="terminal-tab-groups.html#terms">분할 그룹</a> 지시로 나뉜 칸은 <strong>그룹</strong>이 되고 탭 하나가 창 하나가 됐다. 아래 표는 그 뒤의 뜻이다.</p>
 
 <table>
   <thead><tr><th>말</th><th>뜻</th><th>코드</th></tr></thead>
   <tbody>
     <tr><td>패널</td><td>왼쪽 목록의 한 줄. 이름을 가지고 자기 탭 목록을 가진다</td><td><code>TerminalPanel</code></td></tr>
-    <tr><td>탭</td><td>패널 안의 탭 줄 하나. 분할 트리를 가진다</td><td><code>TerminalTab</code></td></tr>
-    <tr><td>창</td><td>분할 트리의 잎 하나. 터미널(셸) 하나 또는 Claude 하나를 보여 준다</td><td><code>PaneNode.Leaf</code>, <code>TerminalPane</code></td></tr>
+    <tr><td>그룹</td><td>패널을 나눈 칸 하나. 자기 탭 줄을 가진다. 분할 트리의 잎이다</td><td><code>PaneNode.Group</code></td></tr>
+    <tr><td>탭</td><td>그룹의 탭 줄 한 칸. 터미널(셸) 하나 또는 Claude 하나다</td><td><code>TerminalTab</code></td></tr>
+    <tr><td>창</td><td>그룹에서 선택된 탭이 보여 주는 터미널 화면</td><td><code>TerminalPane</code></td></tr>
   </tbody>
 </table>
 
@@ -71,10 +74,10 @@
 
 <h3>탭과 창</h3>
 <ol start="5">
-  <li><strong>R5.</strong> 탭 추가·분할·닫기·포커스·탭 선택은 선택된 패널 안에서 <a href="terminal.html#requirements">터미널</a> R5–R12 대로 동작한다. 단축키도 선택된 패널에 작용한다. 탭은 만든 패널에 속하고 다른 패널로 옮기지 않는다.</li>
-  <li><strong>R6.</strong> 창마다 내용은 터미널(셸) 또는 Claude 다. 새 탭은 새 탭(+) 메뉴에서 고르고(<a href="terminal-claude.html#requirements">Claude 실행</a> R1), 분할로 생긴 창은 터미널이다.</li>
-  <li><strong>R7.</strong> 패널의 마지막 탭이 닫혀도 패널은 남는다. 탭 자리에 "탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다." 가 보인다. 화면은 홈으로 돌아가지 않는다.</li>
-  <li><strong>R8.</strong> 새 탭과 분할로 생긴 창은 지금 포커스된 창의 작업 디렉터리에서 시작한다. 알 수 없으면 홈 디렉터리다.</li>
+  <li><strong>R5.</strong> 탭 추가·분할·닫기·포커스·탭 선택은 선택된 패널의 그룹 안에서 <a href="terminal.html#requirements">터미널</a> R5–R12 와 <a href="terminal-tab-groups.html#requirements">분할 그룹</a> R1–R11 대로 동작한다. 단축키도 선택된 패널의 포커스된 그룹에 작용한다. 탭은 만든 패널에 속하고 다른 패널로 옮기지 않는다.</li>
+  <li><strong>R6.</strong> 탭마다 내용은 터미널(셸) 또는 Claude 다. 새 탭은 그룹의 새 탭(+) 메뉴에서 고르고(<a href="terminal-claude.html#requirements">Claude 실행</a> R1), 분할로 생긴 그룹의 탭은 터미널이다. 탭을 끌어 놓아 나누면 끌어온 탭이 새 그룹의 탭이 된다(<a href="terminal-tab-groups.html#requirements">분할 그룹 R7</a>).</li>
+  <li><strong>R7.</strong> 패널의 마지막 그룹이 사라져도 패널은 남는다. 탭 자리에 + 버튼과 "탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다." 가 보인다. 화면은 홈으로 돌아가지 않는다.</li>
+  <li><strong>R8.</strong> 새 탭과 분할로 생긴 탭은 그 그룹에서 선택돼 있던 탭의 작업 디렉터리에서 시작한다. 알 수 없으면 홈 디렉터리다.</li>
 </ol>
 
 <h3>저장과 복원</h3>
@@ -105,9 +108,9 @@
 
 <h2 id="behavior">화면·동작</h2>
 
-<pre><code>┌ ← 터미널 ───────────────────────────── [좌우] [상하] [+] [닫기] ┐
+<pre><code>┌ ← 터미널 ──────────────────────────────────────────────────┐
 │ ┌ 패널 목록 ──┐ ┌ 탭 줄 ─────────────────────────────────────┐ │
-│ │▌패널 1  ✎ ✕│ │ [셸 1 ✕] [Claude ✕]                         │ │
+│ │▌패널 1  ✎ ✕│ │ [셸 1 ✕] [Claude ✕] [+]                     │ │
 │ │ 백엔드  ✎ ✕│ ├────────────────────────────────────────────┤ │
 │ │            │ │ 창            ┃ 창                          │ │
 │ │ [+ 새 패널]│ │               ┃                             │ │
@@ -122,7 +125,7 @@
     <tr><td>이름 입력 필드</td><td>줄 자리에 한 줄짜리 입력 필드. 들어올 때 이름 전체가 선택된다</td></tr>
     <tr><td>빈 패널</td><td>탭 줄 아래 가운데에 "탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다."</td></tr>
     <tr><td>탭 이름</td><td>창이 OSC 로 정한 제목. 없으면 터미널은 "셸 N", Claude 는 "Claude N"(N 은 패널 안 탭 순번)</td></tr>
-    <tr><td>닫기(상단 막대)·⌘W</td><td>선택된 패널에서 포커스된 창을 닫는다. 빈 패널에서는 아무 일도 하지 않는다</td></tr>
+    <tr><td>⌘W</td><td>선택된 패널에서 포커스된 창을 닫는다. 빈 패널에서는 아무 일도 하지 않는다</td></tr>
     <tr><td>불러오는 동안</td><td>저장된 배치를 읽기 전에는 패널 목록과 탭 자리가 비어 있다. 읽는 데 파일 하나를 연다</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:panel:&lt;id&gt;</code>(패널 줄), <code>terminal:panel-rename:&lt;id&gt;</code>, <code>terminal:panel-close:&lt;id&gt;</code>,
@@ -134,20 +137,20 @@
 <h2 id="implementation">공통 구현</h2>
 
 <pre><code>TerminalWorkspace(panels, selectedPanelId, nextId)      ← 이 값 전체가 한 문서로 저장된다
-└─ TerminalPanel(id, name, tabs, selectedTabId)
-   └─ TerminalTab(id, root: PaneNode, focusedPaneId)
-      └─ PaneNode
-         ├─ Leaf(paneId, program = Shell | Claude, directory?, claudeSessionId?)
-         └─ Split(id, direction, first, second, ratio)</code></pre>
+└─ TerminalPanel(id, name, root: PaneNode?, focusedGroupId)
+   └─ PaneNode
+      ├─ Group(id, tabs, selectedTabId)                   ← <a href="terminal-tab-groups.html">분할 그룹</a>
+      │  └─ TerminalTab(id, program = Shell | Claude, directory?, claudeSessionId?)
+      └─ Split(id, direction, first, second, ratio)</code></pre>
 
 <dl class="meta">
   <dt>도메인 규칙</dt><dd>
-    <code>TerminalWorkspace</code> — 패널 추가·이름 바꾸기·닫기·선택(R1–R4)과 선택된 패널에 대한 탭·분할·닫기·포커스(R5–R8), <code>setDirectory(paneId, directory)</code>(R15). 패널·탭·분할·창 id 는 <code>nextId</code> 하나에서 나오고 다시 쓰지 않는다.<br>
-    <code>newClaudeSessionId()</code> — <code>Uuid.random()</code>. 창을 만드는 쪽이 한 번 부르고 잎에 넣는다(R11).
+    <code>TerminalWorkspace</code> — 패널 추가·이름 바꾸기·닫기·선택(R1–R4)과 선택된 패널에 대한 탭·분할·닫기·포커스(R5–R8, <a href="terminal-tab-groups.html#implementation">분할 그룹</a>), <code>setDirectory(tabId, directory)</code>(R15). 패널·그룹·분할·탭 id 는 <code>nextId</code> 하나에서 나오고 다시 쓰지 않는다.<br>
+    <code>newClaudeSessionId()</code> — <code>Uuid.random()</code>. 탭을 만드는 쪽이 한 번 부르고 탭에 넣는다(R11).
   </dd>
   <dt>리포지토리</dt><dd>
     <code>TerminalWorkspaceRepository</code> — <code>observeWorkspace(): Flow&lt;TerminalWorkspace&gt;</code>, <code>suspend fun updateWorkspace(transform): TerminalWorkspaceChange</code>(바뀌기 전·후 값).<br>
-    <code>TerminalRepository</code> — <code>suspend fun open(size, pane: PaneNode.Leaf): TerminalSession?</code>, <code>suspend fun stopClaude(sessionId)</code>(R12).
+    <code>TerminalRepository</code> — <code>suspend fun open(size, tab: TerminalTab): TerminalSession?</code>, <code>suspend fun stopClaude(sessionId)</code>(R12).
   </dd>
   <dt>세션</dt><dd><code>TerminalSession.directory: Flow&lt;String&gt;</code> 가 더해진다 — 셸의 작업 디렉터리. 출력이 <code>DirectoryReadDelay</code>(500ms) 동안 멎을 때마다 다시 읽고 같으면 흘리지 않는다(R15). 모르는 세션은 아무것도 흘리지 않는다</dd>
   <dt>유스케이스</dt><dd>

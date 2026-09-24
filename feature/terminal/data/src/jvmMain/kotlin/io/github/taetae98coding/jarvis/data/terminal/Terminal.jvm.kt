@@ -4,7 +4,7 @@ import com.pty4j.PtyProcess
 import com.pty4j.PtyProcessBuilder
 import com.pty4j.WinSize
 import io.github.taetae98coding.jarvis.data.PlatformContext
-import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
@@ -22,11 +22,11 @@ internal actual fun createTerminalDataSource(context: PlatformContext): Terminal
     val claude = ClaudeBackground(shell)
 
     return PtyTerminalDataSource(
-        launch = { pane ->
-            val directory = startDirectory(pane)
-            when (pane.program) {
+        launch = { tab ->
+            val directory = startDirectory(tab)
+            when (tab.program) {
                 TerminalProgram.Shell -> PtyLaunch(terminalCommand(shell), directory, tracksDirectory = true)
-                TerminalProgram.Claude -> PtyLaunch(claude.command(checkNotNull(pane.claudeSessionId), directory), directory)
+                TerminalProgram.Claude -> PtyLaunch(claude.command(checkNotNull(tab.claudeSessionId), directory), directory)
             }
         },
         claude = claude,
@@ -41,7 +41,7 @@ internal class PtyLaunch(
 )
 
 internal class PtyTerminalDataSource(
-    private val launch: suspend (PaneNode.Leaf) -> PtyLaunch,
+    private val launch: suspend (TerminalTab) -> PtyLaunch,
     private val claude: ClaudeBackground? = null,
     private val readDirectory: (Long) -> String? = ::processDirectory,
 ) : TerminalDataSource {
@@ -50,10 +50,10 @@ internal class PtyTerminalDataSource(
     // 설치 여부는 로그인 셸을 띄워 봐야 알 수 있어 미리 보지 않는다. 없으면 셸이 command not found 를 찍는다.
     override val isClaudeSupported: Boolean = true
 
-    override suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession? =
+    override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? =
         withContext(Dispatchers.IO) {
             runCatching {
-                val launch = launch(pane)
+                val launch = launch(tab)
                 val process = PtyProcessBuilder(launch.command.toTypedArray())
                     .setEnvironment(terminalEnvironment(System.getenv()))
                     .setDirectory(launch.directory)
@@ -120,8 +120,8 @@ private class PtyTerminalSession(
 private fun loginShell(): String = System.getenv("SHELL")?.takeIf { File(it).canExecute() } ?: DefaultShell
 
 /** 저장된 작업 디렉터리가 지금도 있으면 거기서, 아니면 홈에서 시작한다. */
-private fun startDirectory(pane: PaneNode.Leaf): String =
-    pane.directory?.takeIf { File(it).isDirectory } ?: System.getProperty("user.home")
+private fun startDirectory(tab: TerminalTab): String =
+    tab.directory?.takeIf { File(it).isDirectory } ?: System.getProperty("user.home")
 
 /**
  * 로그인 셸로 띄워야 `~/.zprofile` 의 PATH(Homebrew 등)가 들어온다. Finder 로 띄운 앱은 launchd 의

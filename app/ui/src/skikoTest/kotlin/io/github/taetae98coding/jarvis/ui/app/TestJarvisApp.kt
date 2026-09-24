@@ -23,7 +23,7 @@ import io.github.taetae98coding.jarvis.domain.appinfo.appInfoDomainModule
 import io.github.taetae98coding.jarvis.domain.emulator.emulatorDomainModule
 import io.github.taetae98coding.jarvis.domain.rotation.rotationDomainModule
 import io.github.taetae98coding.jarvis.domain.screen.screenDomainModule
-import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
@@ -248,8 +248,8 @@ internal class FakeTerminalRepository(
 
     val stoppedClaudeSessions = mutableListOf<String>()
 
-    override suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession =
-        FakeTerminalSession(size, pane).also { sessions += it }
+    override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession =
+        FakeTerminalSession(size, tab).also { sessions += it }
 
     override suspend fun stopClaude(sessionId: String) {
         stoppedClaudeSessions += sessionId
@@ -278,9 +278,9 @@ internal class FakeTerminalWorkspaceRepository(
 
 internal class FakeTerminalSession(
     var size: TerminalSize,
-    val pane: PaneNode.Leaf,
+    val tab: TerminalTab,
 ) : TerminalSession {
-    val program: TerminalProgram get() = pane.program
+    val program: TerminalProgram get() = tab.program
 
     private val currentDirectory = MutableStateFlow<String?>(null)
 

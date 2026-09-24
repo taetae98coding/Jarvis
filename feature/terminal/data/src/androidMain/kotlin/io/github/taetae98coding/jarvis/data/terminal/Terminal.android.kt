@@ -1,7 +1,7 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.data.PlatformContext
-import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
@@ -27,10 +27,10 @@ private class PipeTerminalDataSource(
     // Android 용 Claude Code CLI 가 없고, 있더라도 pty 없는 파이프에서는 TUI 가 그려지지 않는다.
     override val isClaudeSupported: Boolean = false
 
-    override suspend fun open(size: TerminalSize, pane: PaneNode.Leaf): TerminalSession? {
-        if (pane.program != TerminalProgram.Shell) return null
+    override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? {
+        if (tab.program != TerminalProgram.Shell) return null
 
-        return openShell(pane.directory?.let(::File)?.takeIf { it.isDirectory } ?: home)
+        return openShell(tab.directory?.let(::File)?.takeIf { it.isDirectory } ?: home)
     }
 
     override suspend fun stopClaude(sessionId: String) = Unit

@@ -40,16 +40,16 @@
   <footer>2026-09-24 대화. "plus" 는 상단 막대의 새 탭(<code>Add</code>) 버튼, "actions" 는 <code>JarvisTopBar</code> 의 오른쪽 동작 버튼 줄로 읽었다. 이 지시로 R1·R6 이 바뀌었다.</footer>
 </blockquote>
 
-<p>뒤따른 <a href="terminal-panels.html#instruction">패널 지시</a>로 Claude 는 앱 안에서 직접 뜨지 않고 Claude Code 의 백그라운드 세션으로 돌며, 창은 그 세션에 붙는다. sessionId 를 저장하고 이어 가는 규칙은 그 문서의 R11·R12 다. 이 문서의 R2·R4 와 구현을 거기에 맞춰 고쳤다.</p>
+<p>뒤따른 <a href="terminal-panels.html#instruction">패널 지시</a>로 Claude 는 앱 안에서 직접 뜨지 않고 Claude Code 의 백그라운드 세션으로 돌며, 창은 그 세션에 붙는다. sessionId 를 저장하고 이어 가는 규칙은 그 문서의 R11·R12 다. 이 문서의 R2·R4 와 구현을 거기에 맞춰 고쳤다. 그 뒤 <a href="terminal-tab-dock.html">탭 끌어 놓기</a> 지시로 상단 막대의 동작 버튼이 전부 없어지고 새 탭(+) 버튼은 탭 줄 끝으로 옮겨 갔다. R1·R6 의 "상단 막대" 는 그렇게 읽는다. 그 뒤 <a href="terminal-tab-groups.html">분할 그룹</a> 지시로 + 버튼은 그룹마다 하나가 됐고, 고른 것은 그 그룹의 탭이 된다.</p>
 
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 상단 막대의 동작 버튼 줄에는 Claude 버튼이 없다. 새 탭(+) 버튼을 누르면 그 아래로 메뉴가 뜨고 항목은 위에서부터 "터미널", "Claude (YOLO)" 둘이다. 메뉴 바깥을 누르거나 항목을 고르면 메뉴가 닫힌다.</li>
+  <li><strong>R1.</strong> 상단 막대에는 Claude 버튼이 없다(지금은 동작 버튼이 아예 없다 — <a href="terminal-tab-dock.html#requirements">탭 끌어 놓기 R1</a>). 탭 줄 끝의 새 탭(+) 버튼을 누르면 그 아래로 메뉴가 뜨고 항목은 위에서부터 "터미널", "Claude (YOLO)" 둘이다. 메뉴 바깥을 누르거나 항목을 고르면 메뉴가 닫힌다.</li>
   <li><strong>R2.</strong> "Claude (YOLO)" 를 고르면 새 탭(<a href="terminal.html#requirements">터미널 R7</a> 과 같은 자리·선택 규칙)이 열리고, 그 창에 YOLO 모드(<code>--dangerously-skip-permissions</code>)의 Claude 백그라운드 세션이 붙는다(<a href="terminal-panels.html#requirements">패널 R11</a>). 세션의 작업 디렉터리는 포커스돼 있던 창의 작업 디렉터리다(패널 R8).</li>
   <li><strong>R3.</strong> <code>claude</code> 는 사용자가 셸에서 치는 것과 같은 환경에서 찾는다 — 로그인 셸의 <code>PATH</code> 와 대화형 셸 설정(<code>~/.zshrc</code> 등)이 적용된 뒤에 실행한다.</li>
   <li><strong>R4.</strong> 창에서 Claude 가 끝나거나 <code>attach</code> 에서 빠져나오면(또는 <code>claude</code> 를 찾지 못하면) 그 창은 닫히지 않고 로그인 셸로 이어진다. 출력은 화면에 남는다. 백그라운드 세션은 <code>attach</code> 에서 빠져나와도 계속 돈다.</li>
-  <li><strong>R5.</strong> Claude 탭의 창을 분할하면 새 창은 일반 셸이다. Claude 는 버튼을 누른 창에서만 뜬다.</li>
+  <li><strong>R5.</strong> Claude 탭이 있는 그룹을 분할하면 새 그룹의 탭은 일반 셸이다. Claude 는 메뉴에서 고른 그룹에서만 뜬다(<a href="terminal-tab-groups.html#requirements">분할 그룹</a>).</li>
   <li><strong>R6.</strong> Claude 를 실행할 수 없는 타깃에서는 메뉴를 띄우지 않고 새 탭 버튼이 곧바로 셸 탭을 연다(항목 하나뿐인 메뉴는 한 번 더 누르게 할 뿐이다). 나머지 터미널 기능은 그대로다.</li>
   <li><strong>R8.</strong> 메뉴의 "터미널" 과 ⌘T 는 일반 셸 탭을 연다(<a href="terminal.html#requirements">터미널 R7</a>).</li>
   <li><strong>R7.</strong> Jarvis 자신이 Claude Code 세션 안에서 띄워졌어도(개발 중 <code>./gradlew :desktopApp:run</code> 을 Claude 가 실행한 경우) 터미널의 셸은 그 세션의 자식으로 취급되지 않는다. 부모 세션이 남긴 환경 변수를 셸에 물려주지 않는다.</li>
@@ -70,11 +70,11 @@
 <table>
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
-    <tr><td>상단 막대</td><td>터미널 <code>JarvisTopBar</code> 오른쪽: 좌우 분할 · 상하 분할 · 새 탭 · 닫기. Claude 버튼은 없다</td></tr>
+    <tr><td>상단 막대</td><td>터미널 <code>JarvisTopBar</code> 에 동작 버튼이 없다. 새 탭(+) 은 탭 줄에서 마지막 탭 오른쪽에 있다(<a href="terminal-tab-dock.html#behavior">탭 끌어 놓기</a>)</td></tr>
     <tr><td>메뉴</td><td>Material 3 <code>DropdownMenu</code>. 새 탭 버튼에 붙어 그 아래로 뜬다. 항목은 <code>DropdownMenuItem</code> 둘</td></tr>
     <tr><td>항목</td><td>"터미널" — 앞 아이콘 <code>JarvisIcons.Terminal</code><br>"Claude (YOLO)" — 앞 아이콘 <code>JarvisIcons.Claude</code>(여덟 갈래 광채, <a href="design-system.html#icons">디자인 시스템</a>)</td></tr>
     <tr><td>고른 뒤</td><td>메뉴가 닫히고 탭 줄 끝에 탭이 붙어 선택된다. 탭 이름은 셸·Claude 가 OSC 로 정한 제목, 없으면 "셸 N"(<a href="terminal.html#requirements">터미널 R13</a>)</td></tr>
-    <tr><td>테스트 태그</td><td><code>terminal:new-tab</code>(+ 버튼), <code>terminal:new-tab:shell</code>, <code>terminal:new-tab:claude</code>(메뉴 항목)</td></tr>
+    <tr><td>테스트 태그</td><td><code>terminal:new-tab:&lt;groupId&gt;</code>(그룹의 + 버튼), <code>terminal:new-tab-menu:shell</code>, <code>terminal:new-tab-menu:claude</code>(메뉴 항목, <a href="terminal-tab-groups.html#behavior">분할 그룹</a>)</td></tr>
   </tbody>
 </table>
 
@@ -88,11 +88,11 @@
   </dd>
   <dt>공급</dt><dd><code>TerminalDataSource.isClaudeSupported</code>, <code>open(size, pane)</code>, <code>stopClaude(sessionId)</code>. <code>createTerminalDataSource</code> 의 <code>expect</code> 시그니처는 그대로다</dd>
   <dt>상태</dt><dd><code>TerminalViewModel.isClaudeSupported: Boolean</code>, <code>addClaudeTab()</code>. 새 잎을 <code>program = Claude</code> 와 새 sessionId 로 만든다. 분할은 늘 <code>Shell</code> 잎을 만든다(R5)</dd>
-  <dt>UI</dt><dd><code>TerminalScreen</code> 의 상단 막대 <code>NewTabButton</code>. 메뉴가 열렸는지는 화면 안에서만 쓰는 값이라 ViewModel 이 아니라 <code>remember</code> 로 둔다. <code>isClaudeSupported</code> 가 false 면 <code>onNewClaudeTab</code> 이 null 이고 버튼이 곧바로 <code>addTab()</code> 을 부른다(R6)</dd>
+  <dt>UI</dt><dd><code>TerminalScreen</code> 탭 줄 끝의 <code>NewTabButton</code>(처음에는 상단 막대에 있었다). 메뉴가 열렸는지는 화면 안에서만 쓰는 값이라 ViewModel 이 아니라 <code>remember</code> 로 둔다. <code>isClaudeSupported</code> 가 false 면 <code>onNewClaudeTab</code> 이 null 이고 버튼이 곧바로 <code>addTab()</code> 을 부른다(R6)</dd>
 </dl>
 
 <aside class="decision">
-  <strong>결정: 프로그램은 잎(<code>PaneNode.Leaf</code>)에 둔다</strong>
+  <strong>결정: 프로그램은 탭(<code>TerminalTab</code>, 이전 <code>PaneNode.Leaf</code>)에 둔다</strong>
   처음에는 프로그램을 작업 공간에 넣지 않고 ViewModel 이 창을 만들 때 한 번 넘기고 잊었다. 탭·분할 규칙이 모르는 값이 트리에 섞이지 않고, 형제를 찾는 비교(<code>first == Leaf(paneId)</code>)도 그대로 둘 수 있었다. <a href="terminal-panels.html">패널 지시</a>로 배치를 저장해 다시 열게 되면서, 다시 열 때 무엇을 띄울지(프로그램·작업 디렉터리·sessionId)를 잎이 알아야 해서 잎으로 옮겼다. 형제 비교는 id 로 한다.
 </aside>
 

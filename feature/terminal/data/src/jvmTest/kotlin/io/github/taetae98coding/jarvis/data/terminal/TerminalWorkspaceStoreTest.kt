@@ -1,7 +1,9 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -33,7 +35,7 @@ class TerminalWorkspaceStoreTest {
         val change = repository(path).updateWorkspace { workspace ->
             val renamed = workspace.renamePanel(workspace.panels.single().id, "백엔드")
             renamed
-                .addTab(TerminalProgram.Claude, directory = "/work", claudeSessionId = "e0c0")
+                .addTab(program = TerminalProgram.Claude, directory = "/work", claudeSessionId = "e0c0")
                 .split(SplitDirection.Stacked, directory = "/work")
                 .addPanel()
         }
@@ -70,8 +72,8 @@ class TerminalWorkspaceStoreTest {
         FileSystem.SYSTEM.write(path) {
             writeUtf8(
                 """
-                {"panels": [{"id": 1, "name": "보존", "future": true, "selectedTabId": 2,
-                  "tabs": [{"id": 2, "focusedPaneId": 3, "root": {"type": "leaf", "paneId": 3, "program": "future"}}]}],
+                {"panels": [{"id": 1, "name": "보존", "future": true, "focusedGroupId": 2,
+                  "root": {"type": "group", "id": 2, "selectedTabId": 3, "tabs": [{"id": 3, "program": "future"}]}}],
                  "selectedPanelId": 1, "nextId": 4}
                 """.trimIndent(),
             )
@@ -80,7 +82,47 @@ class TerminalWorkspaceStoreTest {
         val workspace = repository(path).observeWorkspace().first()
 
         assertEquals("보존", workspace.panels.single().name)
-        assertEquals(TerminalProgram.Shell, workspace.focusedLeaf!!.program)
+        assertEquals(TerminalProgram.Shell, workspace.focusedTab!!.program)
+    }
+
+    // 그룹 이전 형식(패널마다 tabs, 탭마다 분할 트리). 변환하지 않고 처음 켠 것으로 읽는다.
+    @Test
+    fun preGroupFileIsReadAsTheInitialWorkspace() = runTest {
+        val path = newPath()
+        FileSystem.SYSTEM.createDirectories(path.parent!!)
+        FileSystem.SYSTEM.write(path) {
+            writeUtf8(
+                """
+                {"panels": [{"id": 1, "name": "옛 패널", "selectedTabId": 2,
+                  "tabs": [{"id": 2, "focusedPaneId": 3, "root": {"type": "leaf", "paneId": 3}}]}],
+                 "selectedPanelId": 1, "nextId": 4}
+                """.trimIndent(),
+            )
+        }
+
+        assertEquals(TerminalWorkspace.initial(), repository(path).observeWorkspace().first())
+    }
+
+    @Test
+    fun emptyGroupsAreDroppedAndOneSidedSplitsCollapse() = runTest {
+        val path = newPath()
+        FileSystem.SYSTEM.createDirectories(path.parent!!)
+        FileSystem.SYSTEM.write(path) {
+            writeUtf8(
+                """
+                {"panels": [{"id": 1, "name": "패널 1", "focusedGroupId": 9,
+                  "root": {"type": "split", "id": 5, "direction": "stacked",
+                           "first": {"type": "group", "id": 6, "tabs": []},
+                           "second": {"type": "group", "id": 7, "tabs": [{"id": 8}]}}}],
+                 "selectedPanelId": 1, "nextId": 10}
+                """.trimIndent(),
+            )
+        }
+
+        val workspace = repository(path).observeWorkspace().first()
+
+        assertEquals(PaneNode.Group(7, listOf(TerminalTab(8)), 8), workspace.selectedPanel!!.root)
+        assertEquals(7, workspace.focusedGroup!!.id)
     }
 
     // 쓰기에 쓴 DataStore 는 테스트가 끝날 때까지 살아 있다. 같은 파일을 여는 두 번째 DataStore 가 되지 않도록
