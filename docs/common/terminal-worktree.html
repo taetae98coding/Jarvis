@@ -12,7 +12,7 @@
 
 <header>
   <h1>패널에서 git 워크트리 추가</h1>
-  <p class="lead">폴더가 git 저장소 안에 있는 패널은 목록 줄에 + 가 붙고, 누르면 브랜치 이름과 기준 브랜치를 받아 <code>git worktree add</code> 로 워크트리를 만든 뒤 그 폴더를 가진 패널을 원래 패널 아래에 들여써서 붙인다. 워크트리 패널 줄에는 기준 브랜치와 지금 체크아웃한 브랜치가 함께 보인다. 워크트리 패널도 다른 패널처럼 탭·좌우·상하 분할을 가진다.</p>
+  <p class="lead">폴더가 git 저장소 안에 있는 패널은 목록 줄에 + 가 붙고, 누르면 브랜치 이름과 기준 브랜치를 받아 <code>git worktree add</code> 로 워크트리를 만든 뒤 그 폴더를 가진 빈 패널을 원래 패널 아래에 들여써서 붙인다. 워크트리 패널 줄에는 기준 브랜치와 지금 체크아웃한 브랜치가 함께 보인다. 워크트리 패널도 다른 패널처럼 새 탭(+)·좌우·상하 분할을 가진다.</p>
 </header>
 
 <nav class="toc">
@@ -37,6 +37,11 @@
 </blockquote>
 
 <blockquote class="instruction">
+  <p>panel empty 상태도 허용하도록 해줘.<br>그래서 panel 만들 때 취소/확인만 노출해서 emtpy로 시작할 수 있도록 해줘.<br>- 워크트리도 동일하게 적용</p>
+  <footer>2026-09-25 대화. <a href="terminal-panel-create.html#instruction">새 패널 제목·폴더</a>와 같은 지시다. "워크트리도 동일하게" 로 "새 워크트리" 창도 "취소"·"확인" 만 두고, 만든 워크트리 패널은 탭 없이 시작한다. git 명령·부모 관계·목록 모양은 그대로다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
   <p>워크트리 만들면 현재 branch 이름과 base branch 같이 표시해줘.<br>
   그리고 워크트리 만들 때 base branch 설정할 수 있도록 해줘.</p>
   <ul><li>+눌렀을 때 워크트리가 기본 base branch야.</li></ul>
@@ -58,13 +63,13 @@
 
 <ol>
   <li><strong>R1.</strong> git 을 지원하는 패널의 목록 줄에는 이름 바꾸기(✎) 앞에 + ("워크트리 추가") 버튼이 있다. 지원하지 않는 패널에는 없다. 화면이 열려 있는 동안 폴더가 git 저장소가 되거나 아니게 되면(예: 셸에서 <code>git init</code>) 일정 간격 안에 버튼이 따라 나타나거나 사라진다.</li>
-  <li><strong>R2.</strong> + 를 누르면 "새 워크트리" 창이 뜬다. 창에는 브랜치 입력란, 기준 브랜치 입력란, 폴더 입력란, "취소"·"터미널" 버튼이 있고 Claude 를 실행할 수 있는 타깃(<a href="terminal-claude.html#platforms">Claude 실행</a>)에서는 "Claude (YOLO)" 버튼도 있다. 창이 뜨면 브랜치 입력란이 포커스를 받는다.</li>
+  <li><strong>R2.</strong> + 를 누르면 "새 워크트리" 창이 뜬다. 창에는 브랜치 입력란, 기준 브랜치 입력란, 폴더 입력란, "취소"·"확인" 버튼만 있다. 창이 뜨면 브랜치 입력란이 포커스를 받는다.</li>
   <li><strong>R2b.</strong> 기준 브랜치의 기본값은 + 를 누른 패널의 현재 브랜치다 — main 패널에서 누르면 main 패널의 브랜치, 워크트리 패널에서 누르면 그 워크트리의 브랜치. 그 패널의 HEAD 가 떨어져 있어 현재 브랜치가 없으면 비어 있다. 사용자가 고칠 수 있고, 앞뒤 공백을 떼고 비어 있으면 기본값을 쓴다. 기본값도 비어 있으면 + 를 누른 패널 폴더의 지금 HEAD 가 시작점이다.</li>
-  <li><strong>R3.</strong> 브랜치는 비울 수 없다. 앞뒤 공백을 떼고 비어 있으면 "터미널"·"Claude (YOLO)" 가 비활성이고 Enter 도 아무 일도 하지 않는다.</li>
+  <li><strong>R3.</strong> 브랜치는 비울 수 없다. 앞뒤 공백을 떼고 비어 있으면 "확인" 이 비활성이고 Enter 도 아무 일도 하지 않는다.</li>
   <li><strong>R4.</strong> 폴더의 기본값은 main 워크트리 옆의 <code>&lt;main 워크트리 폴더 이름&gt;-worktrees/&lt;브랜치&gt;</code> 다. 브랜치를 치는 동안 기본값이 따라 바뀌고, 폴더 입력란을 한 번 직접 고치면 더 따라가지 않는다. 앞뒤 공백을 떼고 비어 있으면 기본값을 쓴다. <code>~</code>·<code>~/</code> 는 홈 기준이다(<a href="terminal-panel-create.html#requirements">새 패널 R3</a>).</li>
-  <li><strong>R5.</strong> "터미널" 또는 "Claude (YOLO)" 를 누르면 main 패널의 폴더가 속한 저장소에 <code>git worktree add</code> 로 워크트리를 만든다. 브랜치가 저장소에 없으면 기준 브랜치(없으면 지금 HEAD)에서 그 이름의 새 브랜치를 만들어 체크아웃하고(<code>-b &lt;브랜치&gt; &lt;폴더&gt; [&lt;기준&gt;]</code>), 있으면 기준 브랜치와 무관하게 그 브랜치를 체크아웃한다. 기준 브랜치가 저장소에 없는 이름이면 git 이 거부하고 그 문구가 창에 보인다(R6). 브랜치·기준 브랜치·폴더 입력란에서 Enter 는 "터미널" 과 같다.</li>
+  <li><strong>R5.</strong> "확인" 을 누르면 main 패널의 폴더가 속한 저장소에 <code>git worktree add</code> 로 워크트리를 만든다. 브랜치가 저장소에 없으면 기준 브랜치(없으면 지금 HEAD)에서 그 이름의 새 브랜치를 만들어 체크아웃하고(<code>-b &lt;브랜치&gt; &lt;폴더&gt; [&lt;기준&gt;]</code>), 있으면 기준 브랜치와 무관하게 그 브랜치를 체크아웃한다. 기준 브랜치가 저장소에 없는 이름이면 git 이 거부하고 그 문구가 창에 보인다(R6). 브랜치·기준 브랜치·폴더 입력란에서 Enter 는 "확인" 과 같다.</li>
   <li><strong>R6.</strong> 만드는 동안 창은 남고 버튼과 입력란은 비활성이다. git 이 실패하면(이미 다른 워크트리가 체크아웃한 브랜치, 이미 있는 폴더, 권한 없음 등) 창은 남고 git 의 오류 문구가 창 안에 보이며 고쳐서 다시 누를 수 있다. 성공하면 창이 닫힌다.</li>
-  <li><strong>R7.</strong> 성공하면 그 워크트리 폴더를 폴더로, 브랜치 이름을 제목으로 하는 패널이 생겨 선택되고, 첫 탭(셸 또는 Claude, 새 sessionId)이 그 폴더에서 시작한다. 패널은 만든 브랜치와 창에 넣은 기준 브랜치(비었으면 없음)를 기억한다. 워크트리 패널은 다른 패널과 같은 것이다 — 오른쪽에 탭 줄·분할 창이 뜨고 새 탭, 좌우·상하 분할, 끌어 놓기, 이름 바꾸기, 닫기가 그대로 된다(<a href="terminal-panels.html">패널</a>·<a href="terminal-tab-groups.html">그룹</a>·<a href="terminal-tab-dock.html">끌어 놓기</a>).</li>
+  <li><strong>R7.</strong> 성공하면 그 워크트리 폴더를 폴더로, 브랜치 이름을 제목으로 하는 빈 패널(그룹·탭 없음)이 생겨 선택된다. 패널은 만든 브랜치와 창에 넣은 기준 브랜치(비었으면 없음)를 기억한다. 창은 탭을 열지 않는다 — 오른쪽에 빈 패널 안내와 새 탭(+)이 뜨고, 거기서 여는 첫 탭이 그 폴더에서 시작한다(<a href="terminal-panel-create.html#requirements">새 패널 R4·R8</a>). 워크트리 패널은 다른 패널과 같은 것이다 — 탭을 열면 탭 줄·분할 창이 뜨고 새 탭, 좌우·상하 분할, 끌어 놓기, 이름 바꾸기, 닫기가 그대로 된다(<a href="terminal-panels.html">패널</a>·<a href="terminal-tab-groups.html">그룹</a>·<a href="terminal-tab-dock.html">끌어 놓기</a>).</li>
   <li><strong>R8.</strong> 워크트리 패널은 목록에서 main 패널 바로 아래에, main 패널의 다른 워크트리 패널들 뒤에 들여써서 놓이고 이름 앞에 브랜치 아이콘이 붙는다. 한 단계만 있다 — 워크트리 패널에도 + 가 있고(폴더가 git 저장소이므로) 누르면 같은 main 패널 아래에 형제로 생긴다.</li>
   <li><strong>R8b.</strong> 워크트리 패널 줄에는 이름 아래, 폴더 위에 브랜치 줄 <code>&lt;기준 브랜치&gt; → &lt;현재 브랜치&gt;</code> 가 있다. 현재 브랜치는 그 폴더의 워크트리에서 관측한 값이고, 관측할 수 없으면(폴더가 지워짐, HEAD 가 떨어짐, git 이 없는 타깃) 만들 때의 브랜치다. 기준 브랜치를 기억하지 않는 패널(비워서 만들었거나 이전 버전이 저장한 파일)은 <code>→</code> 없이 현재 브랜치만 보인다. 현재 브랜치를 관측도 기억도 못 하면 브랜치 줄이 없다. 이름을 바꿔도 브랜치 줄은 그대로다.</li>
   <li><strong>R9.</strong> 부모 관계와 브랜치·기준 브랜치는 패널과 함께 저장되어 앱을 다시 켜도 그대로다(<a href="terminal-panels.html#requirements">패널 R9</a>). 저장 파일의 부모가 없어졌으면 최상위 패널로 읽는다.</li>
@@ -110,7 +115,7 @@
 │ [~/projects/Jarvis-worktrees/feature/login     ] │ ← 브랜치를 따라가는 기본값, 고치면 멈춤
 │ ⚠ fatal: 'feature/login' is already checked out │ ← 실패했을 때만
 │                                                  │
-│                  [취소] [Claude (YOLO)] [터미널] │ ← 만드는 동안 비활성
+│                                    [취소] [확인] │ ← 브랜치가 비었거나 만드는 동안 비활성
 └──────────────────────────────────────────────────┘</code></pre>
 
 <table>
@@ -124,12 +129,12 @@
     <tr><td>기준 브랜치 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "기준 브랜치". 초깃값은 + 를 누른 패널의 현재 브랜치(없으면 빈 칸, placeholder "HEAD"). 브랜치 입력란 아래, 폴더 입력란 위(R2b)</td></tr>
     <tr><td>폴더 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "폴더". 초깃값·따라가기는 R4</td></tr>
     <tr><td>오류</td><td>입력란 아래 <code>bodySmall</code>, <code>error</code> 색. git 의 stderr 마지막 줄들(앞뒤 공백 뗀 전체)</td></tr>
-    <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "Claude (YOLO)"(<code>TextButton</code>, Claude 가능 타깃만), "터미널"(<code>Button</code>). 브랜치가 비었거나 만드는 동안 두 만들기 버튼은 <code>enabled = false</code>. 만드는 동안 "취소" 도 잠기고 버튼 줄 왼쪽에 <code>iconSize.small</code> 크기의 <code>CircularProgressIndicator</code> 가 돈다</td></tr>
+    <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 브랜치가 비었거나 만드는 동안 "확인" 은 <code>enabled = false</code>. 만드는 동안 "취소" 도 잠기고 버튼 줄 왼쪽에 <code>iconSize.small</code> 크기의 <code>CircularProgressIndicator</code> 가 돈다</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:new-worktree:&lt;panelId&gt;</code>(줄의 +), <code>terminal:worktree-panel:&lt;panelId&gt;</code>(워크트리 패널 줄의 브랜치 아이콘),
       <code>terminal:panel-branch:&lt;panelId&gt;</code>(브랜치 줄),
       <code>terminal:new-worktree-dialog</code>, <code>terminal:new-worktree-branch</code>, <code>terminal:new-worktree-base</code>, <code>terminal:new-worktree-directory</code>,
-      <code>terminal:new-worktree-error</code>, <code>terminal:new-worktree-shell</code>, <code>terminal:new-worktree-claude</code>, <code>terminal:new-worktree-cancel</code>
+      <code>terminal:new-worktree-error</code>, <code>terminal:new-worktree-confirm</code>, <code>terminal:new-worktree-cancel</code>
     </td></tr>
   </tbody>
 </table>
@@ -154,7 +159,7 @@ interface GitWorktreeRepository {
     <code>TerminalPanel.parentId</code> — null 이면 최상위, 아니면 워크트리 패널이고 그 값은 최상위 패널의 id 다(한 단계, R8).<br>
     <code>TerminalPanel.branch</code>·<code>baseBranch</code> — 워크트리 패널이 만들 때 기억한 브랜치와 기준 브랜치(R7). 최상위 패널과 이전 버전이 저장한 워크트리 패널은 둘 다 null. 이름을 바꿔도 바뀌지 않는다.<br>
     <code>TerminalWorkspace.children(panelId): List&lt;TerminalPanel&gt;</code> — 목록 순서대로의 워크트리 패널. <code>TerminalWorkspace.topLevelPanels</code> — <code>parentId == null</code> 인 패널.<br>
-    <code>TerminalWorkspace.addWorktreePanel(parentId, name, directory, program = Shell, claudeSessionId = null, branch = null, baseBranch = null)</code> — R7·R8. 부모가 워크트리 패널이면 그 부모의 부모를 부모로 삼는다. 부모와 그 워크트리 패널들 바로 뒤에 넣고 선택한다. 모르는 <code>parentId</code> 면 그대로다. 이름·폴더 공백 떼기는 <code>addPanel</code> 과 같고, 이름이 비면 <code>nextPanelName</code>, 폴더가 비면 폴더 없음이다. <code>branch</code>·<code>baseBranch</code> 도 앞뒤 공백을 떼고 비면 null 이다.<br>
+    <code>TerminalWorkspace.addWorktreePanel(parentId, name, directory, branch = null, baseBranch = null)</code> — R7·R8. 부모가 워크트리 패널이면 그 부모의 부모를 부모로 삼는다. 부모와 그 워크트리 패널들 바로 뒤에 넣고 선택한다. 모르는 <code>parentId</code> 면 그대로다. 빈 패널인 것과 이름·폴더 공백 떼기는 <code>addPanel</code> 과 같고, 이름이 비면 <code>nextPanelName</code>, 폴더가 비면 폴더 없음이다. <code>branch</code>·<code>baseBranch</code> 도 앞뒤 공백을 떼고 비면 null 이다.<br>
     <code>TerminalWorkspace.closePanel(panelId)</code> — R10. 그 패널과 <code>children(panelId)</code> 를 함께 뺀다. 남는 패널이 없으면 그대로다. 선택된 패널이 빠지면 그 자리에 오는 패널(없으면 앞 패널)이 선택된다.
   </dd>
   <dt>git</dt><dd>
@@ -164,12 +169,12 @@ interface GitWorktreeRepository {
   </dd>
   <dt>유스케이스</dt><dd>
     <code>ObserveGitWorktreeUseCase(directory): Flow&lt;GitWorktree?&gt;</code>.<br>
-    <code>AddWorktreePanelUseCase(parentId, branch, baseBranch, path, program): Result&lt;TerminalWorkspaceChange&gt;</code> — main 패널의 폴더를 저장소로 <code>addWorktree</code> 를 부르고, 성공하면 <code>UpdateTerminalWorkspaceUseCase</code> 로 <code>addWorktreePanel(parentId, name = branch, directory = 만든 워크트리의 path, program, sessionId, branch, baseBranch)</code> 를 적용한다. <code>baseBranch</code> 는 앞뒤 공백을 떼고 비면 null 로 넘긴다. Claude 면 여기서 <code>newClaudeSessionId()</code> 를 만든다. 부모 패널이 없거나 폴더가 없으면 실패다.
+    <code>AddWorktreePanelUseCase(parentId, branch, baseBranch, path): Result&lt;TerminalWorkspaceChange&gt;</code> — main 패널의 폴더를 저장소로 <code>addWorktree</code> 를 부르고, 성공하면 <code>UpdateTerminalWorkspaceUseCase</code> 로 <code>addWorktreePanel(parentId, name = branch, directory = 만든 워크트리의 path, branch, baseBranch)</code> 를 적용한다. <code>baseBranch</code> 는 앞뒤 공백을 떼고 비면 null 로 넘긴다. 부모 패널이 없거나 폴더가 없으면 실패다.
   </dd>
   <dt>저장</dt><dd><code>TerminalPanelDto.parentId</code>·<code>branch</code>·<code>baseBranch</code>. 없는 키는 null 로 읽어 이전 파일이 그대로 읽힌다. 읽을 때 부모가 목록에 없으면 null 로 고친다(R9)</dd>
   <dt>상태</dt><dd>
     <code>TerminalViewModel.worktrees: StateFlow&lt;Map&lt;Long, GitWorktree&gt;&gt;</code> — 폴더가 있는 패널마다 <code>observeWorktree</code> 를 <code>combine</code> 한 것. 패널 id·폴더 짝이 바뀔 때만 다시 묶고(<code>distinctUntilChanged</code> + <code>flatMapLatest</code>), <code>stateIn(viewModelScope, WhileSubscribed(), emptyMap())</code>. + 는 이 맵에 있는 패널에만 보이고(R1), 워크트리 패널의 현재 브랜치와 창의 기준 브랜치 기본값도 이 맵의 <code>branch</code> 다(R2b·R8b).<br>
-    <code>suspend fun TerminalViewModel.addWorktreePanel(parentId, branch, baseBranch, path, program): Result&lt;Unit&gt;</code> — <code>viewModelScope.async { … }.await()</code>. 창이 사라져 호출이 취소돼도 git 명령과 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게. 창이 떠 있는지, 입력 중인 글자, 만드는 중인지, 오류 문구는 화면 안의 <code>remember</code> 다.
+    <code>suspend fun TerminalViewModel.addWorktreePanel(parentId, branch, baseBranch, path): Result&lt;Unit&gt;</code> — <code>viewModelScope.async { … }.await()</code>. 창이 사라져 호출이 취소돼도 git 명령과 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게. 창이 떠 있는지, 입력 중인 글자, 만드는 중인지, 오류 문구는 화면 안의 <code>remember</code> 다.
   </dd>
   <dt>UI</dt><dd><code>feature/terminal/ui/.../NewWorktreeDialog.kt</code>(<code>NewWorktreeDialog</code> — 기준 브랜치 입력란은 창을 열 때의 <code>GitWorktree.branch</code> 로 시작한다), <code>TerminalPanelList.kt</code>(최상위 패널 → 그 워크트리 패널 순으로 그리고, 줄에 + 와 들여쓰기·아이콘·브랜치 줄을 둔다. 브랜치 줄의 현재 브랜치는 <code>worktrees[panel.id]?.branch ?: panel.branch</code>). <code>core/designsystem</code> 에 <code>JarvisIcons.GitBranch</code> 가 더해진다</dd>
   <dt>공급</dt><dd>
@@ -224,12 +229,12 @@ interface GitWorktreeRepository {
 <table>
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
-    <tr><td><code>TerminalWorkspaceTest</code></td><td>R7, R8, R10. 워크트리 패널이 부모 뒤(형제들 뒤)에 들어가 선택되고 첫 탭이 그 폴더에서 시작함, 브랜치·기준 브랜치를 기억하고 빈 것은 null, 워크트리 패널에서 만든 것은 같은 부모의 형제, 모르는 부모는 무시, 부모를 닫으면 자식도 닫힘, 자식만 닫으면 부모는 남음, 마지막 가족은 닫히지 않음</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R7, R8, R10. 워크트리 패널이 부모 뒤(형제들 뒤)에 탭 없이 들어가 선택되고 거기서 연 첫 탭이 그 폴더에서 시작함, 브랜치·기준 브랜치를 기억하고 빈 것은 null, 워크트리 패널에서 만든 것은 같은 부모의 형제, 모르는 부모는 무시, 부모를 닫으면 자식도 닫힘, 자식만 닫으면 부모는 남음, 마지막 가족은 닫히지 않음</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
     <tr><td><code>GitWorktreeTest</code></td><td><code>defaultWorktreePath</code> 가 main 워크트리 옆 <code>-worktrees/&lt;브랜치&gt;</code></td><td>같음</td></tr>
-    <tr><td><code>AddWorktreePanelUseCaseTest</code></td><td>R5–R7. 부모 폴더를 저장소로 <code>addWorktree</code> 를 기준 브랜치와 함께 부르고(빈 기준은 null), 성공하면 만든 path 를 폴더로 브랜치 이름의 패널이 브랜치·기준 브랜치를 기억하며 붙고 Claude 면 sessionId 가 있음, 실패하면 작업 공간이 그대로</td><td>같음</td></tr>
+    <tr><td><code>AddWorktreePanelUseCaseTest</code></td><td>R5–R7. 부모 폴더를 저장소로 <code>addWorktree</code> 를 기준 브랜치와 함께 부르고(빈 기준은 null), 성공하면 만든 path 를 폴더로 브랜치 이름의 빈 패널이 브랜치·기준 브랜치를 기억하며 붙고, 실패하면 작업 공간이 그대로</td><td>같음</td></tr>
     <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R9. <code>parentId</code>·<code>branch</code>·<code>baseBranch</code> 가 파일에 쓰이고 다시 읽힘, 부모가 없는 <code>parentId</code> 는 null 로 읽힘, 키가 없는 이전 파일은 null</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
     <tr><td><code>GitDataSourceTest</code></td><td>R1, R5, R8b. 임시 저장소에서 <code>observeWorktree</code> 가 path·mainPath·현재 브랜치를 주고(detached 는 null, 커밋 없는 저장소도 브랜치를 줌) 저장소가 아닌 폴더는 null, <code>addWorktree</code> 가 새 브랜치를 HEAD 또는 기준 브랜치에서 만들고 기존 브랜치는 그대로 체크아웃하고, 없는 기준 브랜치와 git 의 거부는 stderr 가 오류 문구</td><td>같음</td></tr>
-    <tr><td><code>JarvisAppTerminalWorktreeTest</code></td><td>R1–R3, R6–R8b, R10. 가짜 저장소가 워크트리를 주는 패널에만 + 가 보임, 창의 기준 브랜치가 + 를 누른 패널의 현재 브랜치로 시작하고 기본 폴더가 브랜치를 따라감, 빈 브랜치는 버튼 비활성, 실패 문구가 창에 남음, 성공하면 부모 아래 들여쓴 줄이 <code>기준 → 현재</code> 브랜치 줄과 함께 생기고 선택돼 오른쪽에 그 탭이 뜸, 자식에서 + 는 형제이고 기준 브랜치 기본값이 그 자식의 브랜치, 관측한 브랜치가 바뀌면 브랜치 줄이 따라감, 부모 닫기가 자식을 닫음</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalWorktreeTest</code></td><td>R1–R3, R6–R8b, R10. 가짜 저장소가 워크트리를 주는 패널에만 + 가 보임, 창에는 취소·확인뿐이고 기준 브랜치가 + 를 누른 패널의 현재 브랜치로 시작하며 기본 폴더가 브랜치를 따라감, 빈 브랜치는 확인 비활성, 실패 문구가 창에 남음, 성공하면 부모 아래 들여쓴 줄이 <code>기준 → 현재</code> 브랜치 줄과 함께 생기고 선택돼 오른쪽에 빈 패널 안내가 뜨며 + 로 연 셸이 워크트리 폴더에서 시작, 자식에서 + 는 형제이고 기준 브랜치 기본값이 그 자식의 브랜치, 관측한 브랜치가 바뀌면 브랜치 줄이 따라감, 부모 닫기가 자식을 닫음</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 

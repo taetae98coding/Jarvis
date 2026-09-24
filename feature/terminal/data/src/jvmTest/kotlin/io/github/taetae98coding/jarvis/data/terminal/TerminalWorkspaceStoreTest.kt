@@ -52,7 +52,7 @@ class TerminalWorkspaceStoreTest {
     fun panelDirectoryIsReadBackByANewStore() = runTest {
         val path = newPath()
         val change = repository(path).updateWorkspace {
-            it.addPanel(name = "API", directory = "/work/api", program = TerminalProgram.Claude, claudeSessionId = "e0c0")
+            it.addPanel(name = "API", directory = "/work/api")
         }
 
         val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()

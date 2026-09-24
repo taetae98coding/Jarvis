@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
-import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import kotlinx.coroutines.launch
 
 const val TerminalNewWorktreeDialogTestTag = "terminal:new-worktree-dialog"
@@ -41,21 +40,20 @@ const val TerminalNewWorktreeBranchTestTag = "terminal:new-worktree-branch"
 const val TerminalNewWorktreeBaseTestTag = "terminal:new-worktree-base"
 const val TerminalNewWorktreeDirectoryTestTag = "terminal:new-worktree-directory"
 const val TerminalNewWorktreeErrorTestTag = "terminal:new-worktree-error"
-const val TerminalNewWorktreeShellTestTag = "terminal:new-worktree-shell"
-const val TerminalNewWorktreeClaudeTestTag = "terminal:new-worktree-claude"
+const val TerminalNewWorktreeConfirmTestTag = "terminal:new-worktree-confirm"
 const val TerminalNewWorktreeCancelTestTag = "terminal:new-worktree-cancel"
 
 /**
- * 새 워크트리의 브랜치·기준 브랜치·폴더와 첫 탭 종류를 받는다. 기준 브랜치는 + 를 누른 패널의 워크트리 [worktree]
- * 가 지금 체크아웃한 브랜치로 시작하고, 비우면 그 값으로 돌아간다(둘 다 없으면 null — git 의 HEAD).
+ * 새 워크트리의 브랜치·기준 브랜치·폴더를 받는다. 탭 종류는 묻지 않는다 — 만든 패널은 비어 있고 첫 탭은 빈 패널의 + 메뉴에서 연다.
+ * 기준 브랜치는 + 를 누른 패널의 워크트리 [worktree] 가 지금 체크아웃한 브랜치로 시작하고, 비우면 그 값으로 돌아간다
+ * (둘 다 없으면 null — git 의 HEAD).
  * [onCreate] 가 git 을 돌리는 동안 창은 남고 입력이 잠기며, 실패하면 그 문구를 보이고 다시 누를 수 있다.
  * 성공하면 [onDismiss] 로 닫는다. 입력 중인 글자는 창이 닫히면 버린다.
  */
 @Composable
 internal fun NewWorktreeDialog(
     worktree: GitWorktree,
-    canOpenClaude: Boolean,
-    onCreate: suspend (branch: String, baseBranch: String?, directory: String, program: TerminalProgram) -> Result<Unit>,
+    onCreate: suspend (branch: String, baseBranch: String?, directory: String) -> Result<Unit>,
     onDismiss: () -> Unit,
 ) {
     var branch by remember { mutableStateOf("") }
@@ -74,12 +72,12 @@ internal fun NewWorktreeDialog(
     val canCreate = trimmedBranch.isNotEmpty() && !creating
     val effectiveBase = baseBranch.trim().ifEmpty { worktree.branch.orEmpty() }.ifEmpty { null }
 
-    fun create(program: TerminalProgram) {
+    fun create() {
         if (!canCreate) return
         creating = true
         error = null
         scope.launch {
-            onCreate(trimmedBranch, effectiveBase, shownDirectory.trim().ifEmpty { defaultDirectory }, program)
+            onCreate(trimmedBranch, effectiveBase, shownDirectory.trim().ifEmpty { defaultDirectory })
                 .onSuccess { onDismiss() }
                 .onFailure {
                     error = it.message?.takeIf(String::isNotBlank) ?: "워크트리를 만들지 못했습니다"
@@ -89,13 +87,13 @@ internal fun NewWorktreeDialog(
     }
 
     // 데스크톱의 하드웨어 Enter 는 한 줄 입력란의 IME 동작으로 오지 않을 때가 있어 키로도 받는다.
-    val enterCreatesShell = Modifier.onPreviewKeyEvent { event ->
+    val enterCreates = Modifier.onPreviewKeyEvent { event ->
         val enter = event.key == Key.Enter || event.key == Key.NumPadEnter
-        if (event.type == KeyEventType.KeyDown && enter) create(TerminalProgram.Shell)
+        if (event.type == KeyEventType.KeyDown && enter) create()
         enter
     }
     val keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
-    val keyboardActions = KeyboardActions(onDone = { create(TerminalProgram.Shell) })
+    val keyboardActions = KeyboardActions(onDone = { create() })
 
     LaunchedEffect(Unit) { branchFocus.requestFocus() }
 
@@ -115,7 +113,7 @@ internal fun NewWorktreeDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(branchFocus)
-                        .then(enterCreatesShell)
+                        .then(enterCreates)
                         .testTag(TerminalNewWorktreeBranchTestTag),
                 )
 
@@ -130,7 +128,7 @@ internal fun NewWorktreeDialog(
                     keyboardActions = keyboardActions,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(enterCreatesShell)
+                        .then(enterCreates)
                         .testTag(TerminalNewWorktreeBaseTestTag),
                 )
 
@@ -148,7 +146,7 @@ internal fun NewWorktreeDialog(
                     keyboardActions = keyboardActions,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(enterCreatesShell)
+                        .then(enterCreates)
                         .testTag(TerminalNewWorktreeDirectoryTestTag),
                 )
 
@@ -170,21 +168,12 @@ internal fun NewWorktreeDialog(
                 if (creating) {
                     CircularProgressIndicator(modifier = Modifier.size(JarvisTheme.dimens.iconSize.small))
                 }
-                if (canOpenClaude) {
-                    TextButton(
-                        onClick = { create(TerminalProgram.Claude) },
-                        enabled = canCreate,
-                        modifier = Modifier.testTag(TerminalNewWorktreeClaudeTestTag),
-                    ) {
-                        Text("Claude (YOLO)")
-                    }
-                }
                 Button(
-                    onClick = { create(TerminalProgram.Shell) },
+                    onClick = ::create,
                     enabled = canCreate,
-                    modifier = Modifier.testTag(TerminalNewWorktreeShellTestTag),
+                    modifier = Modifier.testTag(TerminalNewWorktreeConfirmTestTag),
                 ) {
-                    Text("터미널")
+                    Text("확인")
                 }
             }
         },

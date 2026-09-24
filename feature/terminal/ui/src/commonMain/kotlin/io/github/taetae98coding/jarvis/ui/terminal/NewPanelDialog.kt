@@ -30,27 +30,24 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
-import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import kotlinx.coroutines.launch
 
 const val TerminalNewPanelDialogTestTag = "terminal:new-panel-dialog"
 const val TerminalNewPanelNameTestTag = "terminal:new-panel-name"
 const val TerminalNewPanelDirectoryTestTag = "terminal:new-panel-directory"
 const val TerminalNewPanelBrowseTestTag = "terminal:new-panel-browse"
-const val TerminalNewPanelShellTestTag = "terminal:new-panel-shell"
-const val TerminalNewPanelClaudeTestTag = "terminal:new-panel-claude"
+const val TerminalNewPanelConfirmTestTag = "terminal:new-panel-confirm"
 const val TerminalNewPanelCancelTestTag = "terminal:new-panel-cancel"
 
 /**
- * 새 패널의 제목·폴더와 첫 탭 종류를 받는다. 빈 값의 기본값은 도메인이 정하고, 여기서는 친 그대로 넘긴다.
- * 입력 중인 글자는 창이 닫히면 버린다.
+ * 새 패널의 제목·폴더를 받는다. 탭 종류는 묻지 않는다 — 패널은 비어 있고 첫 탭은 빈 패널의 + 메뉴에서 연다.
+ * 빈 값의 기본값은 도메인이 정하고, 여기서는 친 그대로 넘긴다. 입력 중인 글자는 창이 닫히면 버린다.
  */
 @Composable
 internal fun NewPanelDialog(
     defaultName: String,
-    onCreate: (name: String, directory: String, program: TerminalProgram) -> Unit,
+    onCreate: (name: String, directory: String) -> Unit,
     onDismiss: () -> Unit,
-    canOpenClaude: Boolean,
     picker: DirectoryPicker? = directoryPicker,
 ) {
     var name by remember { mutableStateOf("") }
@@ -58,16 +55,16 @@ internal fun NewPanelDialog(
     val scope = rememberCoroutineScope()
     val nameFocus = remember { FocusRequester() }
 
-    fun create(program: TerminalProgram) = onCreate(name, directory, program)
+    fun create() = onCreate(name, directory)
 
     // 데스크톱의 하드웨어 Enter 는 한 줄 입력란의 IME 동작으로 오지 않을 때가 있어 키로도 받는다.
-    val enterCreatesShell = Modifier.onPreviewKeyEvent { event ->
+    val enterCreates = Modifier.onPreviewKeyEvent { event ->
         val enter = event.key == Key.Enter || event.key == Key.NumPadEnter
-        if (event.type == KeyEventType.KeyDown && enter) create(TerminalProgram.Shell)
+        if (event.type == KeyEventType.KeyDown && enter) create()
         enter
     }
     val keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
-    val keyboardActions = KeyboardActions(onDone = { create(TerminalProgram.Shell) })
+    val keyboardActions = KeyboardActions(onDone = { create() })
 
     LaunchedEffect(Unit) { nameFocus.requestFocus() }
 
@@ -87,7 +84,7 @@ internal fun NewPanelDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(nameFocus)
-                        .then(enterCreatesShell)
+                        .then(enterCreates)
                         .testTag(TerminalNewPanelNameTestTag),
                 )
 
@@ -105,7 +102,7 @@ internal fun NewPanelDialog(
                         keyboardActions = keyboardActions,
                         modifier = Modifier
                             .weight(1f)
-                            .then(enterCreatesShell)
+                            .then(enterCreates)
                             .testTag(TerminalNewPanelDirectoryTestTag),
                     )
 
@@ -123,21 +120,8 @@ internal fun NewPanelDialog(
             }
         },
         confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs)) {
-                if (canOpenClaude) {
-                    TextButton(
-                        onClick = { create(TerminalProgram.Claude) },
-                        modifier = Modifier.testTag(TerminalNewPanelClaudeTestTag),
-                    ) {
-                        Text("Claude (YOLO)")
-                    }
-                }
-                Button(
-                    onClick = { create(TerminalProgram.Shell) },
-                    modifier = Modifier.testTag(TerminalNewPanelShellTestTag),
-                ) {
-                    Text("터미널")
-                }
+            Button(onClick = ::create, modifier = Modifier.testTag(TerminalNewPanelConfirmTestTag)) {
+                Text("확인")
             }
         },
         dismissButton = {

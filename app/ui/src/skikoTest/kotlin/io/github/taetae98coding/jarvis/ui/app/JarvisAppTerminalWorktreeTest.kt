@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -18,14 +19,15 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalEmptyPanelTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeBaseTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeBranchTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeCancelTestTag
-import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeClaudeTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeConfirmTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeDialogTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeDirectoryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeErrorTestTag
-import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeShellTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalNewWorktreeTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelBranchTestTag
@@ -34,7 +36,6 @@ import io.github.taetae98coding.jarvis.ui.terminal.terminalWorktreePanelTestTag
 import kotlinx.coroutines.flow.update
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -69,23 +70,30 @@ class JarvisAppTerminalWorktreeTest {
     }
 
     /** 저장소 폴더의 패널에서 + 를 눌러 [branch] 의 워크트리를 만든다. 기준 브랜치([baseBranch] 가 null 이면)와 폴더는 기본값이다. */
-    private fun ComposeUiTest.addWorktree(
-        parentId: Long,
-        branch: String,
-        buttonTag: String = TerminalNewWorktreeShellTestTag,
-        baseBranch: String? = null,
-    ) {
+    private fun ComposeUiTest.addWorktree(parentId: Long, branch: String, baseBranch: String? = null) {
         awaitTag(terminalNewWorktreeTestTag(parentId))
         onNodeWithTag(terminalNewWorktreeTestTag(parentId)).performClick()
         onNodeWithTag(TerminalNewWorktreeBranchTestTag).performTextReplacement(branch)
         baseBranch?.let { onNodeWithTag(TerminalNewWorktreeBaseTestTag).performTextReplacement(it) }
-        onNodeWithTag(buttonTag).performClick()
+        onNodeWithTag(TerminalNewWorktreeConfirmTestTag).performClick()
     }
 
-    // "패널 1"(폴더 없음), "Jarvis"(저장소), "API"(저장소가 아닌 폴더). Jarvis 가 선택돼 있다.
+    /** [addWorktree] 가 끝나 창이 닫히고 빈 워크트리 패널이 선택될 때까지. */
+    private fun ComposeUiTest.awaitWorktreePanel(panels: Int) {
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { count(TerminalNewWorktreeDialogTestTag) == 0 && panelCount() == panels }
+        awaitTag(TerminalEmptyPanelTestTag)
+    }
+
+    private fun ComposeUiTest.openShellTab() {
+        onNode(newTabButton).performClick()
+        onNodeWithTag(TerminalNewShellTabTestTag).performClick()
+    }
+
+    // "패널 1"(폴더 없음), "Jarvis"(저장소, 셸 탭 하나), "API"(저장소가 아닌 폴더). Jarvis 가 선택돼 있다.
     private val initial = TerminalWorkspace.initial()
         .addPanel(name = "API", directory = "/work/api")
         .addPanel(name = "Jarvis", directory = "/work/jarvis")
+        .addTab()
 
     private val jarvis = initial.panels.last()
     private val api = initial.panels[1]
@@ -132,14 +140,14 @@ class JarvisAppTerminalWorktreeTest {
         onNodeWithTag(terminalNewWorktreeTestTag(jarvis.id)).performClick()
 
         assertEquals(1, count(TerminalNewWorktreeDialogTestTag))
-        onNodeWithTag(TerminalNewWorktreeShellTestTag).assertIsNotEnabled()
-        onNodeWithTag(TerminalNewWorktreeClaudeTestTag).assertIsNotEnabled()
+        onNodeWithTag(TerminalNewWorktreeConfirmTestTag).assertIsNotEnabled()
+        assertEquals(0, onAllNodesWithText("Claude (YOLO)").fetchSemanticsNodes().size)
         // 기준 브랜치는 + 를 누른 패널의 현재 브랜치로 시작한다.
         assertEquals("main", fieldText(TerminalNewWorktreeBaseTestTag))
 
         onNodeWithTag(TerminalNewWorktreeBranchTestTag).performTextReplacement("feature/login")
         assertEquals("/work/jarvis-worktrees/feature/login", fieldText(TerminalNewWorktreeDirectoryTestTag))
-        onNodeWithTag(TerminalNewWorktreeShellTestTag).assertIsEnabled()
+        onNodeWithTag(TerminalNewWorktreeConfirmTestTag).assertIsEnabled()
 
         onNodeWithTag(TerminalNewWorktreeDirectoryTestTag).performTextReplacement("/tmp/login")
         onNodeWithTag(TerminalNewWorktreeBranchTestTag).performTextReplacement("fix")
@@ -151,7 +159,7 @@ class JarvisAppTerminalWorktreeTest {
     }
 
     @Test
-    fun creatingAWorktreeAddsAnIndentedPanelUnderTheParentAndShowsItsTabs() = runComposeUiTest {
+    fun creatingAWorktreeAddsAnEmptyIndentedPanelUnderTheParentWhoseFirstShellOpensInIt() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         val workspace = FakeTerminalWorkspaceRepository(initial)
         val git = git()
@@ -161,8 +169,7 @@ class JarvisAppTerminalWorktreeTest {
 
         addWorktree(jarvis.id, " feature/login ")
 
-        awaitSessions(terminal, 2)
-        assertEquals(0, count(TerminalNewWorktreeDialogTestTag))
+        awaitWorktreePanel(panels = 4)
         val added = git.added.single()
         assertEquals("/work/jarvis", added.repositoryDirectory)
         assertEquals("feature/login", added.branch)
@@ -176,17 +183,22 @@ class JarvisAppTerminalWorktreeTest {
         assertEquals("feature/login", child.branch)
         assertEquals("main", child.baseBranch)
         assertEquals("/work/jarvis-worktrees/feature/login", child.directory)
+        assertEquals(emptyList(), child.tabs)
         assertEquals(listOf(plain.id, api.id, jarvis.id, child.id), current.panels.map { it.id })
-        assertEquals(TerminalProgram.Shell, terminal.sessions[1].program)
-        assertEquals("/work/jarvis-worktrees/feature/login", terminal.sessions[1].tab.directory)
+        assertEquals(1, terminal.sessions.size)
 
-        assertEquals(4, panelCount())
         onNodeWithTag(terminalWorktreePanelTestTag(child.id)).assertIsDisplayed()
         onNodeWithText("feature/login").assertIsDisplayed()
         onNodeWithTag(terminalPanelBranchTestTag(child.id), useUnmergedTree = true).assertTextEquals("main → feature/login")
         assertEquals(0, onAllNodesWithTag(terminalPanelBranchTestTag(jarvis.id), useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(0, tabCount())
+
+        openShellTab()
+
+        awaitSessions(terminal, 2)
         assertEquals(1, tabCount())
-        assertNotNull(terminal.sessions[1])
+        assertEquals(TerminalProgram.Shell, terminal.sessions[1].program)
+        assertEquals("/work/jarvis-worktrees/feature/login", terminal.sessions[1].tab.directory)
     }
 
     @Test
@@ -200,7 +212,7 @@ class JarvisAppTerminalWorktreeTest {
 
         addWorktree(jarvis.id, "hotfix", baseBranch = " release ")
 
-        awaitSessions(terminal, 2)
+        awaitWorktreePanel(panels = 4)
         assertEquals("release", git.added.single().baseBranch)
         val child = workspace.workspace.value.selectedPanel!!
         assertEquals("release", child.baseBranch)
@@ -212,22 +224,6 @@ class JarvisAppTerminalWorktreeTest {
         waitUntil(timeoutMillis = FrameTimeoutMillis) {
             onNodeWithTag(terminalPanelBranchTestTag(child.id), useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].joinToString() == "release → hotfix-2"
         }
-    }
-
-    @Test
-    fun claudeButtonOpensClaudeInTheWorktree() = runComposeUiTest {
-        val terminal = FakeTerminalRepository()
-        val workspace = FakeTerminalWorkspaceRepository(initial)
-        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, gitWorktree = git()) }
-        openTerminal()
-        awaitSessions(terminal, 1)
-
-        addWorktree(jarvis.id, "fix", buttonTag = TerminalNewWorktreeClaudeTestTag)
-
-        awaitSessions(terminal, 2)
-        assertEquals(TerminalProgram.Claude, terminal.sessions[1].program)
-        assertNotNull(terminal.sessions[1].tab.claudeSessionId)
-        assertEquals("/work/jarvis-worktrees/fix", terminal.sessions[1].tab.directory)
     }
 
     @Test
@@ -245,14 +241,13 @@ class JarvisAppTerminalWorktreeTest {
         onNodeWithText("fatal: 'fix' is already checked out at '/elsewhere'").assertIsDisplayed()
         assertEquals(1, count(TerminalNewWorktreeDialogTestTag))
         assertEquals(initial, workspace.workspace.value)
-        onNodeWithTag(TerminalNewWorktreeShellTestTag).assertIsEnabled()
+        onNodeWithTag(TerminalNewWorktreeConfirmTestTag).assertIsEnabled()
 
         // 고쳐서 다시 누르면 된다.
         git.failure = null
-        onNodeWithTag(TerminalNewWorktreeShellTestTag).performClick()
+        onNodeWithTag(TerminalNewWorktreeConfirmTestTag).performClick()
 
-        awaitSessions(terminal, 2)
-        assertEquals(0, count(TerminalNewWorktreeDialogTestTag))
+        awaitWorktreePanel(panels = 4)
         assertEquals(jarvis.id, workspace.workspace.value.selectedPanel!!.parentId)
     }
 
@@ -264,7 +259,7 @@ class JarvisAppTerminalWorktreeTest {
         openTerminal()
         awaitSessions(terminal, 1)
         addWorktree(jarvis.id, "a")
-        awaitSessions(terminal, 2)
+        awaitWorktreePanel(panels = 4)
         val first = workspace.workspace.value.selectedPanel!!
 
         // 워크트리 패널에서 누르면 기준 브랜치의 기본값은 그 워크트리의 브랜치다.
@@ -272,9 +267,9 @@ class JarvisAppTerminalWorktreeTest {
         onNodeWithTag(terminalNewWorktreeTestTag(first.id)).performClick()
         assertEquals("a", fieldText(TerminalNewWorktreeBaseTestTag))
         onNodeWithTag(TerminalNewWorktreeBranchTestTag).performTextReplacement("b")
-        onNodeWithTag(TerminalNewWorktreeShellTestTag).performClick()
+        onNodeWithTag(TerminalNewWorktreeConfirmTestTag).performClick()
 
-        awaitSessions(terminal, 3)
+        awaitWorktreePanel(panels = 5)
         val current = workspace.workspace.value
         assertEquals(listOf("a", "b"), current.children(jarvis.id).map { it.name })
         assertEquals(jarvis.id, current.selectedPanel!!.parentId)
@@ -291,6 +286,8 @@ class JarvisAppTerminalWorktreeTest {
         openTerminal()
         awaitSessions(terminal, 1)
         addWorktree(jarvis.id, "a")
+        awaitWorktreePanel(panels = 4)
+        openShellTab()
         awaitSessions(terminal, 2)
         val child = workspace.workspace.value.selectedPanel!!
 
@@ -312,6 +309,8 @@ class JarvisAppTerminalWorktreeTest {
         openTerminal()
         awaitSessions(terminal, 1)
         addWorktree(jarvis.id, "a")
+        awaitWorktreePanel(panels = 4)
+        openShellTab()
         awaitSessions(terminal, 2)
         val child = workspace.workspace.value.selectedPanel!!
 
