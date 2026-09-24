@@ -75,7 +75,7 @@
   <strong>스코프에서 뺀 것</strong>
   <ul>
     <li>탭 줄(탭 이름 옆)의 상태 표시. 지시가 패널("worktree 옆") 줄이다.</li>
-    <li>Claude 가 묻는 내용(<code>needs</code>)·요약(<code>detail</code>) 글자, 알림·소리. 지시가 네 가지 표시다.</li>
+    <li>Claude 가 묻는 내용(<code>needs</code>)·요약(<code>detail</code>) 글자, 알림·소리. 지시가 네 가지 표시다. 뒤따른 지시로 턴이 끝날 때의 알림은 <a href="claude-notification.html">Claude 턴 알림</a>이 맡고, 요약은 그 알림 본문에만 쓴다.</li>
     <li>"확인함" 으로 손으로 바꾸기(보지 않고 읽음 처리). 보면 바뀐다(R3).</li>
     <li>앱 안에서 직접 띄운 Claude(<code>kind: interactive</code>, 백그라운드 세션을 만들지 못했을 때의 대체 실행 — <a href="terminal-claude.html">Claude 실행</a>)의 상태. Claude Code 가 그 세션의 차례·백그라운드 작업을 기록하지 않는다. 그 탭은 상태를 알 수 없다.</li>
   </ul>
@@ -102,7 +102,7 @@
 
 <dl class="meta">
   <dt>도메인</dt><dd>
-    <code>sealed interface ClaudeActivity { Working; Monitoring; Finished(at: Long) }</code> — 백그라운드 세션이 지금 하는 일. <code>at</code> 은 그 끝난 상태를 Claude Code 가 마지막으로 기록한 시각(epoch ms)이고 "새 결과인지" 를 가리는 열쇠다.<br>
+    <code>sealed interface ClaudeActivity { Working; Monitoring; Finished(at: Long, needsInput, summary) }</code> — 백그라운드 세션이 지금 하는 일. <code>at</code> 은 그 끝난 상태를 Claude Code 가 마지막으로 기록한 시각(epoch ms)이고 "새 결과인지" 를 가리는 열쇠다. <code>needsInput</code>·<code>summary</code> 는 <a href="claude-notification.html">Claude 턴 알림</a>만 쓴다.<br>
     <code>enum class ClaudeStatus { AwaitingReply, Working, Monitoring, Checked }</code> — 표시 하나가 보이는 넷.<br>
     <code>ClaudeActivity.status(checkedAt: Long?)</code> — <code>Finished(at)</code> 는 <code>checkedAt ≥ at</code> 이면 <code>Checked</code>, 아니면 <code>AwaitingReply</code>.<br>
     <code>TerminalTab.claudeCheckedAt: Long?</code> — 사용자가 본 마지막 끝난 상태의 <code>at</code>(R6).<br>

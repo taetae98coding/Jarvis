@@ -105,6 +105,13 @@ internal fun TerminalScreen(
     val scope = currentKoinScope()
     val devices = remember(scope) { scope.getOrNull<DeviceScreens>() }
 
+    // 상태 표시의 "본다" 와 같은 뜻이다. 보고 있는 Claude 탭은 턴이 끝나도 알리지 않는다(docs/common/claude-notification.html R4).
+    val watched = workspace?.takeIf { windowFocused }?.visibleTabs?.mapNotNullTo(mutableSetOf()) { it.claudeSessionId }.orEmpty()
+    DisposableEffect(viewModel, watched) {
+        viewModel.watchClaude(watched)
+        onDispose { viewModel.watchClaude(emptySet()) }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()

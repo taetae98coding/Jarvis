@@ -60,6 +60,7 @@ internal class TerminalViewModel(
     private val addWorktree: AddWorktreePanelUseCase,
     private val closeWorktree: CloseWorktreePanelUseCase,
     observeClaudeActivities: ObserveClaudeActivitiesUseCase,
+    private val claudeAttention: ClaudeAttention,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -121,6 +122,9 @@ internal class TerminalViewModel(
     }
 
     fun pane(tabId: Long): TerminalPaneState? = host.pane(tabId)
+
+    /** 사용자가 지금 보고 있는 Claude 탭. 이 탭들은 턴이 끝나도 알리지 않는다. */
+    fun watchClaude(sessionIds: Set<String>) = claudeAttention.watch(sessionIds)
 
     /** 셸 창은 셸이 정한 제목, 브라우저 탭은 페이지 제목. */
     fun title(tab: TerminalTab): StateFlow<String?>? =

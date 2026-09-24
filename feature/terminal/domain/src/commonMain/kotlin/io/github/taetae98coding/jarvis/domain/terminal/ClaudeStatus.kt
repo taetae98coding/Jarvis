@@ -11,8 +11,15 @@ sealed interface ClaudeActivity {
     /**
      * 차례를 끝내고 사용자를 기다린다(답을 마침, 질문함, 세션이 멈춤). [at] 은 Claude Code 가 이 상태를
      * 마지막으로 기록한 시각(epoch ms)으로, 사용자가 본 결과인지 가리는 열쇠다.
+     *
+     * [needsInput] 은 답을 마친 것이 아니라 사용자의 답·선택을 기다리는 것이고, [summary] 는 Claude 가 세션에 남긴
+     * 한 줄 요약이다. 둘 다 알림 글자에만 쓴다(docs/common/claude-notification.html).
      */
-    data class Finished(val at: Long) : ClaudeActivity
+    data class Finished(
+        val at: Long,
+        val needsInput: Boolean = false,
+        val summary: String? = null,
+    ) : ClaudeActivity
 }
 
 /** 패널 줄의 Claude 탭 하나에 보이는 상태. */
