@@ -7,6 +7,9 @@ interface TerminalRepository {
     /** [TerminalProgram.Claude] 를 띄울 수 있는지. 실행 중에 바뀌지 않는다. */
     val isClaudeSupported: Boolean
 
+    /** [TerminalProgram.Browser] 탭을 열 수 있는지. 실행 중에 바뀌지 않는다. */
+    val isBrowserSupported: Boolean
+
     /**
      * [tab] 이 가리키는 것을 띄운다. 셸은 [TerminalTab.directory] 에서 시작하고, Claude 는
      * [TerminalTab.claudeSessionId] 의 백그라운드 세션에 붙는다(없으면 만든다).

@@ -36,6 +36,15 @@ class OpenTerminalSessionUseCaseTest {
     }
 
     @Test
+    fun browserTabsDoNotOpenASession() = runTest {
+        val repository = RecordingTerminalRepository()
+        val browser = TerminalTab(1, TerminalProgram.Browser, url = TerminalTab.DefaultBrowserUrl)
+
+        assertNull(OpenTerminalSessionUseCase(repository)(TerminalSize.Default, browser))
+        assertEquals(emptyList(), repository.opened)
+    }
+
+    @Test
     fun nothingIsOpenedWhereShellsAreNotSupported() = runTest {
         val repository = RecordingTerminalRepository(isSupported = false)
 

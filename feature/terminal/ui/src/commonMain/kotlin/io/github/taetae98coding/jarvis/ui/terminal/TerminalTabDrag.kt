@@ -73,6 +73,16 @@ internal class TerminalTabDragState {
     val dragging: Boolean
         get() = tabId != null
 
+    /** 새 탭 메뉴가 떠 있는지. 끄는 탭처럼 그룹 위로 그려져서 여기 둔다. */
+    var menuOpen: Boolean by mutableStateOf(false)
+
+    /**
+     * 브라우저 탭의 웹 페이지는 Compose 가 위에 그릴 수 없는 네이티브 뷰다. 그룹 위에 그릴 것(메뉴, 끄는 탭과
+     * 놓을 자리 미리 보기)이 있는 동안 페이지를 치운다(docs/platform/jvm.html#terminal-browser).
+     */
+    val coversPages: Boolean
+        get() = dragging || menuOpen
+
     fun registerGroup(groupId: Long, tabIds: List<Long>, coordinates: LayoutCoordinates) {
         groups[groupId] = RegisteredGroup(tabIds, coordinates)
     }

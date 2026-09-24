@@ -243,6 +243,8 @@ internal class FakeDeviceRotationRepository(
 internal class FakeTerminalRepository(
     override val isSupported: Boolean = true,
     override val isClaudeSupported: Boolean = true,
+    // 켜면 브라우저 탭이 네이티브 웹뷰를 띄우려 한다. 테스트 화면에는 붙지 않으니 메뉴를 보는 테스트만 켠다.
+    override val isBrowserSupported: Boolean = false,
 ) : TerminalRepository {
     val sessions = mutableListOf<FakeTerminalSession>()
 

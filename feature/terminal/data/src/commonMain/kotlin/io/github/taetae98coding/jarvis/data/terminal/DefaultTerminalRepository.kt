@@ -12,6 +12,8 @@ internal class DefaultTerminalRepository(
 
     override val isClaudeSupported: Boolean get() = dataSource.isClaudeSupported
 
+    override val isBrowserSupported: Boolean get() = dataSource.isBrowserSupported
+
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? = dataSource.open(size, tab)
 
     override suspend fun stopClaude(sessionId: String) = dataSource.stopClaude(sessionId)

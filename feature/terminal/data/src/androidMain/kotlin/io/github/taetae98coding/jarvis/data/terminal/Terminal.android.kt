@@ -27,6 +27,8 @@ private class PipeTerminalDataSource(
     // Android 용 Claude Code CLI 가 없고, 있더라도 pty 없는 파이프에서는 TUI 가 그려지지 않는다.
     override val isClaudeSupported: Boolean = false
 
+    override val isBrowserSupported: Boolean = true
+
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? {
         if (tab.program != TerminalProgram.Shell) return null
 

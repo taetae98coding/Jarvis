@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +61,7 @@ import kotlinx.coroutines.flow.StateFlow
 const val TerminalScreenTestTag = "terminal:screen"
 const val TerminalNewShellTabTestTag = "terminal:new-tab-menu:shell"
 const val TerminalNewClaudeTabTestTag = "terminal:new-tab-menu:claude"
+const val TerminalNewBrowserTabTestTag = "terminal:new-tab-menu:browser"
 const val TerminalEmptyPanelTestTag = "terminal:empty-panel"
 
 /** 그룹의 새 탭 버튼. null 은 그룹이 없는 빈 패널의 버튼이다. */
@@ -141,6 +143,7 @@ private fun EmptyPanel(viewModel: TerminalViewModel, modifier: Modifier = Modifi
                 groupId = null,
                 onNewTab = { viewModel.addTab() },
                 onNewClaudeTab = { viewModel.addClaudeTab() }.takeIf { viewModel.isClaudeSupported },
+                onNewBrowserTab = { viewModel.addBrowserTab() }.takeIf { viewModel.isBrowserSupported },
             )
         }
 
@@ -228,17 +231,31 @@ private fun TerminalGroup(
             TerminalTabRow(
                 group = group,
                 drag = drag,
-                titleOf = { tabId -> viewModel.pane(tabId)?.title },
+                titleOf = viewModel::title,
                 onSelect = viewModel::selectTab,
                 onClose = viewModel::closeTab,
                 onDock = { tabId, target -> viewModel.dockTab(tabId, target.groupId, target.edge) },
                 onNewTab = { viewModel.addTab(group.id) },
                 onNewClaudeTab = { viewModel.addClaudeTab(group.id) }.takeIf { viewModel.isClaudeSupported },
+                onNewBrowserTab = { viewModel.addBrowserTab(group.id) }.takeIf { viewModel.isBrowserSupported },
+                onMenuExpandedChange = { drag.menuOpen = it },
             )
 
             val tab = group.selectedTab
             val pane = viewModel.pane(tab.id)
-            if (pane != null) {
+            if (tab.program == TerminalProgram.Browser) {
+                key(tab.id) {
+                    TerminalBrowser(
+                        tab = tab,
+                        isSupported = viewModel.isBrowserSupported,
+                        pageHidden = drag.coversPages,
+                        onUrl = { viewModel.setUrl(tab.id, it) },
+                        onTitle = { viewModel.setBrowserTitle(tab.id, it) },
+                        onFocus = { viewModel.focusGroup(group.id) },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+            } else if (pane != null) {
                 key(tab.id) {
                     TerminalPane(
                         state = pane,
@@ -262,12 +279,14 @@ private fun TerminalGroup(
 private fun TerminalTabRow(
     group: PaneNode.Group,
     drag: TerminalTabDragState,
-    titleOf: (Long) -> StateFlow<String?>?,
+    titleOf: (TerminalTab) -> StateFlow<String?>?,
     onSelect: (Long) -> Unit,
     onClose: (Long) -> Unit,
     onDock: (Long, TerminalDropTarget) -> Unit,
     onNewTab: () -> Unit,
     onNewClaudeTab: (() -> Unit)?,
+    onNewBrowserTab: (() -> Unit)?,
+    onMenuExpandedChange: (Boolean) -> Unit,
 ) {
     Row(
         // 새 탭 버튼이 탭 높이를 따라가도록 줄 높이를 탭에 맞춘다.
@@ -275,7 +294,7 @@ private fun TerminalTabRow(
         horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs),
     ) {
         group.tabs.forEachIndexed { index, tab ->
-            val title = tabTitle(titleOf(tab.id), index, tab)
+            val title = tabTitle(titleOf(tab), index, tab)
 
             TerminalTab(
                 title = title,
@@ -289,7 +308,13 @@ private fun TerminalTabRow(
             )
         }
 
-        NewTabButton(groupId = group.id, onNewTab = onNewTab, onNewClaudeTab = onNewClaudeTab)
+        NewTabButton(
+            groupId = group.id,
+            onNewTab = onNewTab,
+            onNewClaudeTab = onNewClaudeTab,
+            onNewBrowserTab = onNewBrowserTab,
+            onExpandedChange = onMenuExpandedChange,
+        )
     }
 }
 
@@ -299,35 +324,60 @@ private fun NewTabButton(
     groupId: Long?,
     onNewTab: () -> Unit,
     onNewClaudeTab: (() -> Unit)?,
+    onNewBrowserTab: (() -> Unit)?,
+    onExpandedChange: (Boolean) -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val hasMenu = onNewClaudeTab != null || onNewBrowserTab != null
+
+    fun setExpanded(value: Boolean) {
+        expanded = value
+        onExpandedChange(value)
+    }
+
+    // 메뉴가 뜬 채로 버튼이 사라져도(그룹이 닫히는 등) 닫힌 것으로 알린다.
+    val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
+    DisposableEffect(Unit) { onDispose { if (expanded) currentOnExpandedChange(false) } }
 
     Box {
         TerminalNewTabButton(
-            onClick = { if (onNewClaudeTab == null) onNewTab() else expanded = true },
+            onClick = { if (hasMenu) setExpanded(true) else onNewTab() },
             modifier = Modifier.testTag(terminalNewTabTestTag(groupId)),
         )
 
-        if (onNewClaudeTab != null) {
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        if (hasMenu) {
+            DropdownMenu(expanded = expanded, onDismissRequest = { setExpanded(false) }) {
                 DropdownMenuItem(
                     text = { Text("터미널") },
                     leadingIcon = { Icon(imageVector = JarvisIcons.Terminal, contentDescription = null) },
                     onClick = {
-                        expanded = false
+                        setExpanded(false)
                         onNewTab()
                     },
                     modifier = Modifier.testTag(TerminalNewShellTabTestTag),
                 )
-                DropdownMenuItem(
-                    text = { Text("Claude (YOLO)") },
-                    leadingIcon = { Icon(imageVector = JarvisIcons.Claude, contentDescription = null) },
-                    onClick = {
-                        expanded = false
-                        onNewClaudeTab()
-                    },
-                    modifier = Modifier.testTag(TerminalNewClaudeTabTestTag),
-                )
+                if (onNewClaudeTab != null) {
+                    DropdownMenuItem(
+                        text = { Text("Claude (YOLO)") },
+                        leadingIcon = { Icon(imageVector = JarvisIcons.Claude, contentDescription = null) },
+                        onClick = {
+                            setExpanded(false)
+                            onNewClaudeTab()
+                        },
+                        modifier = Modifier.testTag(TerminalNewClaudeTabTestTag),
+                    )
+                }
+                if (onNewBrowserTab != null) {
+                    DropdownMenuItem(
+                        text = { Text("웹 브라우저") },
+                        leadingIcon = { Icon(imageVector = JarvisIcons.Globe, contentDescription = null) },
+                        onClick = {
+                            setExpanded(false)
+                            onNewBrowserTab()
+                        },
+                        modifier = Modifier.testTag(TerminalNewBrowserTabTestTag),
+                    )
+                }
             }
         }
     }
@@ -339,6 +389,7 @@ private fun tabTitle(source: StateFlow<String?>?, index: Int, tab: TerminalTab):
     val fallback = when (tab.program) {
         TerminalProgram.Shell -> "셸"
         TerminalProgram.Claude -> "Claude"
+        TerminalProgram.Browser -> "웹"
     }
 
     return title?.takeIf { it.isNotBlank() } ?: "$fallback ${index + 1}"

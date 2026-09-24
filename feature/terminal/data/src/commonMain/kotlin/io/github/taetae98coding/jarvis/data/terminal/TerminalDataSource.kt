@@ -10,6 +10,8 @@ internal interface TerminalDataSource {
 
     val isClaudeSupported: Boolean
 
+    val isBrowserSupported: Boolean
+
     suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession?
 
     suspend fun stopClaude(sessionId: String)
@@ -19,6 +21,9 @@ internal object UnsupportedTerminalDataSource : TerminalDataSource {
     override val isSupported: Boolean = false
 
     override val isClaudeSupported: Boolean = false
+
+    // 터미널 화면에 들어갈 수 없는 타깃이다. 브라우저 탭을 열 자리가 없다.
+    override val isBrowserSupported: Boolean = false
 
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? = null
 

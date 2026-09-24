@@ -36,6 +36,7 @@ class TerminalWorkspaceStoreTest {
             val renamed = workspace.renamePanel(workspace.panels.single().id, "백엔드")
             renamed
                 .addTab(program = TerminalProgram.Claude, directory = "/work", claudeSessionId = "e0c0")
+                .addTab(program = TerminalProgram.Browser, url = "https://example.com")
                 .split(SplitDirection.Stacked, directory = "/work")
                 .addPanel()
         }

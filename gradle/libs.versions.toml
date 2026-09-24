@@ -33,6 +33,7 @@ kotlinx-serialization = "1.11.0"
 androidx-datastore = "1.2.1"
 
 pty4j = "0.13.13"
+composeWebView = "1.0.0-beta-02"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -65,6 +66,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 androidx-datastore-core-okio = { module = "androidx.datastore:datastore-core-okio", version.ref = "androidx-datastore" }
 
 pty4j = { module = "org.jetbrains.pty4j:pty4j", version.ref = "pty4j" }
+compose-webview = { module = "io.github.kdroidfilter:composewebview", version.ref = "composeWebView" }
 
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }

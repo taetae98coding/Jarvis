@@ -27,6 +27,7 @@ internal actual fun createTerminalDataSource(context: PlatformContext): Terminal
             when (tab.program) {
                 TerminalProgram.Shell -> PtyLaunch(terminalCommand(shell), directory, tracksDirectory = true)
                 TerminalProgram.Claude -> PtyLaunch(claude.command(checkNotNull(tab.claudeSessionId), directory), directory)
+                TerminalProgram.Browser -> error("브라우저 탭은 세션을 열지 않는다")
             }
         },
         claude = claude,
@@ -49,6 +50,9 @@ internal class PtyTerminalDataSource(
 
     // 설치 여부는 로그인 셸을 띄워 봐야 알 수 있어 미리 보지 않는다. 없으면 셸이 command not found 를 찍는다.
     override val isClaudeSupported: Boolean = true
+
+    // 데스크탑은 macOS 만 지원한다. 다른 OS 에서는 웹뷰 네이티브를 불러 보지도 않고 메뉴 항목을 뺀다.
+    override val isBrowserSupported: Boolean = System.getProperty("os.name").orEmpty().startsWith("Mac")
 
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? =
         withContext(Dispatchers.IO) {
