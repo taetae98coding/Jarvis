@@ -23,6 +23,7 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
  * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만, [url] 은 [TerminalProgram.Browser] 탭에만,
  * [deviceId]·[deviceName] 은 [TerminalProgram.Device] 탭에만 있다. [deviceName] 은 고를 때의 이름이다.
+ * [claudeCheckedAt] 은 사용자가 본 마지막 끝난 결과의 [ClaudeActivity.Finished.at] 이다(docs/common/terminal-claude-status.html).
  */
 data class TerminalTab(
     val id: Long,
@@ -32,6 +33,7 @@ data class TerminalTab(
     val url: String? = null,
     val deviceId: String? = null,
     val deviceName: String? = null,
+    val claudeCheckedAt: Long? = null,
 ) {
     companion object {
         const val DefaultBrowserUrl = "https://www.google.com"
@@ -378,6 +380,20 @@ data class TerminalWorkspace(
     fun setDirectory(tabId: Long, directory: String): TerminalWorkspace = replaceTab(tabId) { it.copy(directory = directory) }
 
     fun setUrl(tabId: Long, url: String): TerminalWorkspace = replaceTab(tabId) { it.copy(url = url) }
+
+    /**
+     * 지금 보이는 Claude 탭 중 끝난 결과가 있는 탭의 확인 기록을 그 결과로 올린다. 올릴 것이 없으면 자신이다.
+     * 보이는지는 [visibleTabs] 이고, 앱 창이 포커스를 가졌는지는 부르는 쪽이 가린다.
+     */
+    fun checkVisibleClaudeTabs(activities: Map<String, ClaudeActivity>): TerminalWorkspace =
+        visibleTabs.fold(this) { workspace, tab ->
+            val finished = tab.claudeSessionId?.let(activities::get) as? ClaudeActivity.Finished
+            if (finished == null || (tab.claudeCheckedAt ?: Long.MIN_VALUE) >= finished.at) {
+                workspace
+            } else {
+                workspace.replaceTab(tab.id) { it.copy(claudeCheckedAt = finished.at) }
+            }
+        }
 
     /**
      * 형제가 부모 자리를 채운다. 사라진 그룹이 포커스를 갖고 있었으면 형제 쪽에서 닫힌 자리와 맞닿은

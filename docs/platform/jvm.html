@@ -55,6 +55,7 @@
     <li><a href="#terminal-tab-groups">분할 그룹마다 탭 줄</a></li>
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
     <li><a href="#terminal-worktree">패널에서 git 워크트리 추가</a></li>
+    <li><a href="#terminal-claude-status">패널 줄의 Claude 상태 표시</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
@@ -1063,6 +1064,45 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>검증</h3>
 <p>모델·유스케이스는 <code>TerminalWorkspaceTest</code>·<code>GitWorktreeTest</code>·<code>AddWorktreePanelUseCaseTest</code>(<code>jvmTest</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 실제 <code>git</code> 은 임시 저장소를 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다 — 현재 브랜치·detached·unborn, 기준 브랜치에서 갈라지는지도 여기서 본다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 실제 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → 저장소 폴더의 패널 → + → 브랜치·기준 브랜치 → "확인" → 빈 워크트리 패널의 + 로 터미널을 열어 손으로 확인한다.</p>
 </section>
+
+<section class="feature" id="terminal-claude-status">
+<h2>패널 줄의 Claude 상태 표시 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-claude-status.html">패널 줄의 Claude 상태 표시</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>&lt;설정 디렉터리&gt;/jobs/&lt;짧은 id&gt;/state.json</code></td><td>채택. Claude Code 2.1.282 의 백그라운드 서비스가 세션마다 쓰는 기록이다(설정 디렉터리는 <code>CLAUDE_CONFIG_DIR</code>, 없으면 <code>~/.claude</code>). 쓰는 필드: <code>name</code>(<code>jarvis-&lt;창 sessionId&gt;</code>, <a href="#terminal-panels">패널</a>), <code>sessionId</code>, <code>state</code>(<code>working</code>·<code>blocked</code>·<code>done</code>·<code>stopped</code>·<code>failed</code>), <code>tempo</code>(<code>active</code>·<code>idle</code>·<code>blocked</code> — 서비스가 이 셋만 받는다), <code>inFlight</code>(<code>tasks</code>·<code>queued</code>·<code>kinds</code>·<code>drainableMonitors</code>·<code>wake</code>), <code>createdAt</code>·<code>updatedAt</code>(ISO-8601). 2026-09-25 에 실제 세션들의 파일과 CLI 번들의 판정 코드(<code>tempo==="active"</code> 면 active, <code>inFlight</code> 가 남으면 inflight)를 보고 확인했다. 파일 몇 개를 읽는 것이라 프로세스를 띄우지 않는다</td></tr>
+    <tr><td>넷으로 가르는 규칙</td><td><code>state</code> 가 <code>stopped</code>·<code>failed</code> 면 끝남. 아니면 <code>tempo</code> 가 <code>active</code> 면 작업 중, <code>blocked</code>(입력이 필요함)면 끝남. 그 밖(<code>idle</code>)은 <code>inFlight</code> 에 <code>tasks</code>·<code>queued</code> 가 0보다 크거나 <code>wake</code> 가 있거나 <code>kinds</code> 에 <code>session_cron</code> 이 있으면 모니터링 중, 아니면 끝남. <code>tempo</code> 가 없는 기록은 <code>state == "working"</code> 이면 작업 중이다. 끝남의 <code>at</code> 은 <code>updatedAt</code></td></tr>
+    <tr><td>같은 이름의 기록 여럿</td><td>서비스가 세션을 다시 띄우면 기록이 새로 생길 수 있다. <code>claude attach</code> 로 붙는 규칙(<a href="#terminal-panels">패널</a>의 <code>alive()</code>)과 같이 <code>failed</code> 가 아닌 것 중 <code>createdAt</code> 이 가장 늦은 것, 모두 <code>failed</code> 면 가장 늦은 것을 쓴다. 이름이 없는 옛 기록은 <code>sessionId</code> 가 창 sessionId 와 같으면 그 창의 것이다</td></tr>
+    <tr><td><code>claude agents --json --all</code></td><td>버렸다(상태 조회용으로는). <code>state</code> 는 주지만 <code>tempo</code>·<code>inFlight</code>·<code>updatedAt</code> 이 없어 모니터링과 "새 결과" 를 가릴 수 없다. 게다가 로그인·대화형 셸로 <code>claude</code> 를 띄우는 데 호출마다 0.3초 이상 걸려 1초 폴링에 맞지 않는다. 창을 열 때 세션을 찾는 데는 그대로 쓴다</td></tr>
+    <tr><td><code>java.nio.file.WatchService</code> 로 <code>jobs</code> 디렉터리 감시</td><td>버렸다. macOS 의 JDK 구현은 <code>sun.nio.fs.PollingWatchService</code> 다(JDK 21·25 에서 확인, FSEvents 구현이 없다). 기본 감도가 10초라 오히려 늦고, 하위 디렉터리마다 따로 걸어야 한다</td></tr>
+    <tr><td>FSEvents 를 JNA 로 직접</td><td>버렸다. <code>CFRunLoop</code> 스레드를 앱이 돌려야 하고 파일 몇 개를 1초마다 읽는 비용(아래)보다 복잡도가 크다</td></tr>
+    <tr><td>Claude 훅(<code>Stop</code>, <code>UserPromptSubmit</code>, <code>Notification</code>)</td><td>버렸다. 사용자의 <code>settings.json</code> 을 앱이 고쳐야 하고, 앱이 꺼진 동안의 변화를 놓치며, 백그라운드 작업(모니터링)은 훅으로 알 수 없다</td></tr>
+    <tr><td>폴링 간격</td><td><code>ClaudeActivityPollInterval = 1초</code>. 터미널 화면이 떠 있고 Claude 탭이 하나 이상일 때만 돈다. 매번 <code>jobs</code> 의 하위 디렉터리를 나열하고 <code>state.json</code> 의 수정 시각·크기를 본 뒤 바뀐 파일만 다시 파싱한다. 기록이 수십 개여도 stat 수십 번이다</td></tr>
+    <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. 같은 경로에 기록이 있으면 그대로 읽고, 없으면 빈 맵(표시 없음)이다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../data/terminal/ClaudeActivity.jvm.kt</code>(<code>JobStateClaudeActivityDataSource</code>, <code>parseClaudeJobState</code>, <code>createClaudeActivityDataSource</code>), 공통 코드(<code>ClaudeStatus.kt</code>, <code>ClaudeActivityRepository.kt</code>, <code>TerminalPanelList.kt</code>, <code>TerminalViewModel.kt</code>)</dd>
+  <dt>동작</dt><dd><code>observeActivities(ids)</code> 는 <code>ids</code> 가 비면 빈 맵 하나로 끝나고, 아니면 <code>observeByPolling(ClaudeActivityPollInterval)</code> 로 수집하는 동안만 <code>Dispatchers.IO</code> 에서 읽는다. 읽은 기록 중 이름이 <code>jarvis-&lt;id&gt;</code> 이거나 <code>sessionId</code> 가 <code>id</code> 인 것을 위 규칙으로 하나 고르고 넷으로 가른다</dd>
+  <dt>실패</dt><dd><code>jobs</code> 디렉터리가 없거나, 파일이 없거나, JSON 이 깨졌거나(쓰는 도중에 읽은 경우 포함) 필드가 모르는 값이면 그 기록만 건너뛴다. 그 창은 상태를 알 수 없어 표시에 기여하지 않고, 다음 폴링에 다시 읽는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>공통 스펙의 <a href="../common/terminal-claude-status.html#limits">한계</a>가 그대로 든다.</li>
+  <li><code>state.json</code> 은 Claude Code 의 내부 기록이라 공개된 형식이 아니다. 2.1.282 기준이고, 경로나 필드가 바뀌면 모든 창이 "상태를 알 수 없음" 이 되어 표시가 사라진다(앱이 멈추거나 틀린 표시를 하지는 않는다).</li>
+  <li>백그라운드 세션을 만들지 못해 앱 안에서 직접 띄운 Claude(<a href="#terminal-panels">패널</a>의 대체 실행)는 기록이 없어 표시가 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>규칙은 <code>ClaudeStatusTest</code>(<code>:feature:terminal:domain</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 기록 읽기는 임시 디렉터리에 실제 형식의 <code>state.json</code> 을 쓰는 <code>ClaudeActivityDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>), 화면은 <code>JarvisAppTerminalClaudeStatusTest</code>(skiko)가 확인한다. 실제 Claude 는 <code>./gradlew :desktopApp:run</code> → 워크트리 패널에 Claude 탭 → 일을 시키고(작업 중) 다른 패널로 옮겨 끝나기를 기다린 뒤(응답 대기) 돌아와(확인함) 손으로 확인한다. 모니터링 중은 Claude 에게 <code>Monitor</code> 나 <code>ScheduleWakeup</code> 을 쓰는 일을 시켜 본다.</p>
+</section>
+
 
 
 <section class="feature" id="terminal-browser">

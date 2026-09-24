@@ -46,6 +46,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -89,6 +90,10 @@ internal fun TerminalScreen(
 ) {
     val workspace by viewModel.workspace.collectAsStateWithLifecycle()
     val worktrees by viewModel.worktrees.collectAsStateWithLifecycle()
+    val claudeStatuses by viewModel.claudeStatuses.collectAsStateWithLifecycle()
+    // 창이 뒤에 있는 동안 보이는 탭은 본 것이 아니다(docs/common/terminal-claude-status.html#requirements R3).
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(windowFocused) { viewModel.setWindowFocused(windowFocused) }
     val drag = remember { TerminalTabDragState() }
     // 기기 기능이 빠진 조립에서는 없다. 그때는 메뉴에 기기 구획이 없다. getKoin() 은 처음 본 Koin 을 붙잡아 두어
     // Koin 을 다시 세우면(테스트) 닫힌 것을 돌려주므로, 닫히면 다시 찾는 currentKoinScope() 로 받는다.
@@ -120,6 +125,7 @@ internal fun TerminalScreen(
                     selectedPanelId = current.selectedPanelId,
                     nextPanelName = current.nextPanelName,
                     worktrees = worktrees,
+                    claudeStatuses = claudeStatuses,
                     onSelect = viewModel::selectPanel,
                     onRename = viewModel::renamePanel,
                     onClose = viewModel::closePanel,

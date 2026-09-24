@@ -154,6 +154,7 @@
     <tr><td rowspan="2">에뮬레이터 개수·목록</td><td>JVM</td><td>폴링</td><td><code>PollInterval</code> 5초. <code>simctl</code>·<code>xctrace</code> 에 변경 알림이 없다</td></tr>
     <tr><td>Android·iOS·Web</td><td>폴링</td><td><code>HostAgentPollInterval</code> 5초. HTTP 는 에이전트가 먼저 말할 수 없다</td></tr>
     <tr><td>에뮬레이터 화면</td><td>전부</td><td>폴링</td><td><code>EmulatorScreenPollInterval</code> 500ms. 화면을 찍는 명령이 한 장씩만 준다</td></tr>
+    <tr><td>Claude 백그라운드 세션 활동</td><td>JVM</td><td>폴링</td><td><code>ClaudeActivityPollInterval</code> 1초. Claude Code 의 <code>state.json</code> 을 다시 읽는다. macOS <code>WatchService</code> 가 폴링이다. 나머지는 지원하지 않아 빈 맵 하나(<a href="terminal-claude-status.html">Claude 상태 표시</a>)</td></tr>
     <tr><td>페어링 대기 기기</td><td>전부</td><td>폴링</td><td><code>PairingServicePollInterval</code> 1초. <code>adb mdns services</code> 는 한 번 답하고 끝난다</td></tr>
   </tbody>
 </table>

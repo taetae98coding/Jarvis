@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>패널 줄의 Claude 상태 표시 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>패널 줄의 Claude 상태 표시</span></nav>
+
+<header>
+  <h1>패널 줄의 Claude 상태 표시</h1>
+  <p class="lead">Claude 탭이 있는 패널(main 워크트리 패널과 그 아래 워크트리 패널 모두)은 목록 줄의 이름 옆에 그 패널의 Claude 가 지금 "작업 중" 인지, 차례를 끝내고 "응답 대기" 중인지, 끝난 것을 사용자가 "확인함" 인지, 걸어 둔 백그라운드 작업으로 "모니터링 중" 인지를 네 가지 표시 중 하나로 보인다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>main worktree, 및 하위 worktree 옆에 status도 추가해서 해당 worktree에 하위 claude가 작업을 진행중인지 작업을 마쳐서 응답을 기다리는지 작업 마친 것을 사용자가 확인했는지 claude가 모니터링 진행중인지 4가지 상태 indicator로 표시해줘.</p>
+  <footer>2026-09-25 대화. "main worktree, 및 하위 worktree" 는 <a href="terminal-worktree.html">워크트리</a>의 최상위 패널 줄과 그 아래 들여쓴 워크트리 패널 줄로, "하위 claude" 는 그 패널의 Claude 탭이 붙어 있는 백그라운드 세션(<a href="terminal-panels.html#requirements">패널 R11</a>)으로 읽었다. "모니터링" 은 Claude 가 차례를 끝낸 뒤에도 스스로 걸어 둔 백그라운드 작업(Monitor, 백그라운드 명령, 예약된 깨우기)이 돌고 있는 상태로 읽었다.</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<dl class="meta">
+  <dt>차례</dt><dd>사용자 입력 하나를 받아 Claude 가 도구를 부르고 답을 쓰는 한 바퀴. 답을 다 쓰고 입력을 기다리면 차례가 끝난 것이다.</dd>
+  <dt>백그라운드 작업</dt><dd>Claude 가 차례 안에서 걸어 두고 차례가 끝난 뒤에도 도는 것: Monitor, <code>run_in_background</code> 명령, 서브에이전트, <code>ScheduleWakeup</code>·<code>/loop</code> 의 예약된 깨우기, 세션 cron. 끝나거나 때가 되면 Claude 를 다시 깨운다.</dd>
+  <dt>본다</dt><dd>앱 창이 포커스를 가진 동안 그 탭이 터미널 화면에 보인다 — 선택된 패널에서, 그 탭이 속한 그룹의 선택된 탭이다.</dd>
+</dl>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 패널 목록의 줄마다, 그 패널에 Claude 탭이 하나 이상 있고 그중 하나라도 상태를 알 수 있으면 이름 칸 오른쪽(+ ✎ ✕ 아이콘 앞)에 상태 표시 하나가 있다. Claude 탭이 없거나 어느 탭의 상태도 알 수 없으면 표시가 없다. main 워크트리 패널은 자기 탭만 센다 — 아래 워크트리 패널의 Claude 는 그 줄에 따로 보인다. 워크트리가 아닌 패널도 같은 규칙을 따른다.</li>
+  <li><strong>R2.</strong> Claude 탭 하나의 상태는 다음 넷 중 하나다.
+    <ul>
+      <li><strong>작업 중</strong> — Claude 가 차례를 진행하고 있다.</li>
+      <li><strong>모니터링 중</strong> — 차례는 끝났지만 백그라운드 작업이 남아 있어 Claude 가 스스로 다시 깨어날 수 있다. 사용자에게 묻고 멈춘 차례(입력이 필요함)는 백그라운드 작업이 있어도 모니터링이 아니다.</li>
+      <li><strong>응답 대기</strong> — 차례가 끝났고(답을 마침, 질문함, 세션이 멈춤) 모니터링 중이 아니며, 끝난 뒤 사용자가 그 탭을 아직 보지 않았다.</li>
+      <li><strong>확인함</strong> — 응답 대기와 같은 끝난 상태를 사용자가 끝난 뒤에 봤다.</li>
+    </ul>
+    백그라운드 세션을 찾지 못한 탭(아직 한 번도 열리지 않음, 세션이 지워짐)은 상태를 알 수 없다.</li>
+  <li><strong>R3.</strong> 끝난 상태의 Claude 탭을 한 번이라도 보면 확인함이 된다. 보고 있는 동안 차례가 끝나도 곧바로 확인함이다. Claude 가 다시 일하고(사용자의 답 또는 백그라운드 작업이 깨움) 다시 끝나면 새 결과이므로 다시 응답 대기다. 앱 창이 포커스를 잃은 동안에는 보이는 탭도 보지 않은 것으로 친다.</li>
+  <li><strong>R4.</strong> 한 패널에 Claude 탭이 여럿이면 응답 대기 → 작업 중 → 모니터링 중 → 확인함 순으로 가장 앞선 상태 하나를 보인다. 사용자가 할 일이 있는 탭이 하나라도 있으면 그것이 먼저 보인다.</li>
+  <li><strong>R5.</strong> 상태는 Claude 쪽에서 바뀐 뒤 <code>ClaudeActivityPollInterval</code>(1초) 안에 줄에 반영된다. 터미널 화면이 떠 있는 동안에만 조회한다(<a href="state-observation.html">상태 조회</a>).</li>
+  <li><strong>R6.</strong> 확인한 기록은 탭과 함께 저장되어(<a href="terminal-panels.html#requirements">패널 R9</a>) 앱을 다시 켜도 확인함은 확인함이다. 탭을 닫으면 기록도 사라진다.</li>
+  <li><strong>R7.</strong> Claude 를 띄울 수 없는 타깃(<a href="terminal-claude.html#requirements">Claude R6</a>)에서는 어떤 줄에도 표시가 없다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>탭 줄(탭 이름 옆)의 상태 표시. 지시가 패널("worktree 옆") 줄이다.</li>
+    <li>Claude 가 묻는 내용(<code>needs</code>)·요약(<code>detail</code>) 글자, 알림·소리. 지시가 네 가지 표시다.</li>
+    <li>"확인함" 으로 손으로 바꾸기(보지 않고 읽음 처리). 보면 바뀐다(R3).</li>
+    <li>앱 안에서 직접 띄운 Claude(<code>kind: interactive</code>, 백그라운드 세션을 만들지 못했을 때의 대체 실행 — <a href="terminal-claude.html">Claude 실행</a>)의 상태. Claude Code 가 그 세션의 차례·백그라운드 작업을 기록하지 않는다. 그 탭은 상태를 알 수 없다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>자리</td><td>패널 줄의 이름·브랜치·폴더 칸 오른쪽, + ✎ ✕ 아이콘 앞. 이름을 바꾸는 동안에는 입력 필드 오른쪽에 그대로 있다. 크기는 아이콘 small(18dp) 칸, 아이콘 버튼과 같은 안쪽 여백(spacing.s)</td></tr>
+    <tr><td>작업 중</td><td>작은 원형 진행 표시(<code>CircularProgressIndicator</code>, 14dp, 선 2dp)가 돈다. 색은 줄의 글자색(<code>contentColor</code>). 설명 "Claude 작업 중"</td></tr>
+    <tr><td>응답 대기</td><td>채운 원(8dp), <code>JarvisTheme.colors.warning</code>. 설명 "Claude 응답 대기"</td></tr>
+    <tr><td>확인함</td><td><code>JarvisIcons.Check</code>, <code>JarvisTheme.colors.success</code>. 설명 "Claude 확인함"</td></tr>
+    <tr><td>모니터링 중</td><td><code>JarvisIcons.Eye</code>, 줄의 글자색. 설명 "Claude 모니터링 중"</td></tr>
+    <tr><td>설명</td><td>위 설명은 <code>contentDescription</code> 이다. 마우스를 올리면 같은 글자가 툴팁(<code>PlainTooltip</code>)으로 뜬다</td></tr>
+    <tr><td>누르기</td><td>표시를 누르면 이름 칸을 누른 것과 같이 그 패널이 선택된다. 줄의 hover·눌림 배경도 같이 보인다</td></tr>
+    <tr><td>테스트 태그</td><td><code>terminal:panel-claude-status:&lt;panelId&gt;</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인</dt><dd>
+    <code>sealed interface ClaudeActivity { Working; Monitoring; Finished(at: Long) }</code> — 백그라운드 세션이 지금 하는 일. <code>at</code> 은 그 끝난 상태를 Claude Code 가 마지막으로 기록한 시각(epoch ms)이고 "새 결과인지" 를 가리는 열쇠다.<br>
+    <code>enum class ClaudeStatus { AwaitingReply, Working, Monitoring, Checked }</code> — 줄에 보이는 넷. 선언 순서가 R4 의 우선순위다.<br>
+    <code>ClaudeActivity.status(checkedAt: Long?)</code> — <code>Finished(at)</code> 는 <code>checkedAt ≥ at</code> 이면 <code>Checked</code>, 아니면 <code>AwaitingReply</code>.<br>
+    <code>TerminalTab.claudeCheckedAt: Long?</code> — 사용자가 본 마지막 끝난 상태의 <code>at</code>(R6).<br>
+    <code>TerminalPanel.claudeStatus(activities)</code> — R1·R4. <code>TerminalWorkspace.checkVisibleClaudeTabs(activities)</code> — 보이는 Claude 탭 중 끝난 것의 <code>claudeCheckedAt</code> 을 그 <code>at</code> 으로 올린다. 바꿀 것이 없으면 같은 인스턴스다(R3).<br>
+    <code>ClaudeActivityRepository.observeActivities(sessionIds: Set&lt;String&gt;): Flow&lt;Map&lt;String, ClaudeActivity&gt;&gt;</code> — 창 sessionId(<code>TerminalTab.claudeSessionId</code>)마다의 활동. 모르는 세션은 맵에 없다. cold. <code>ObserveClaudeActivitiesUseCase</code>.
+  </dd>
+  <dt>공급</dt><dd><code>internal expect fun createClaudeActivityDataSource(): ClaudeActivityDataSource</code> (<code>:feature:terminal:data</code>). 지원하지 않는 타깃은 <code>UnsupportedClaudeActivityDataSource</code>(늘 빈 맵)</dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.claudeStatuses: StateFlow&lt;Map&lt;Long, ClaudeStatus&gt;&gt;</code>(패널 id → 표시), <code>setWindowFocused(Boolean)</code>. 작업 공간의 Claude sessionId 집합이 바뀔 때만 조회를 다시 묶는다. 창이 포커스를 가지면 <code>checkVisibleClaudeTabs</code> 를 적용한 작업 공간으로 표시를 계산하고, 그것이 원래와 다르면 저장한다 — 저장이 돌아오기 전 한 프레임도 응답 대기로 깜빡이지 않는다. <code>WhileSubscribed</code> 라 터미널 화면을 떠나면 조회도 확인 기록도 멈춘다(R5)</dd>
+  <dt>UI</dt><dd><code>TerminalPanelItem(claudeStatus = …)</code> 의 <code>ClaudeStatusIndicator</code>. 창 포커스는 <code>TerminalScreen</code> 이 <code>LocalWindowInfo.current.isWindowFocused</code> 를 넘긴다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 상태는 Claude Code 가 세션마다 쓰는 기록에서 읽고, "확인함" 만 앱이 기록한다</strong>
+  작업 중·끝남·백그라운드 작업은 Claude Code 의 백그라운드 서비스가 이미 세션마다 기록한다(플랫폼 스펙). 앱이 터미널 출력을 읽어 짐작하는 방법은 보이지 않는 창은 열지 않으므로(<a href="terminal-panels.html#implementation">패널</a>) 쓸 수 없고, Claude 훅(<code>Stop</code>·<code>UserPromptSubmit</code>)으로 앱에 알리는 방법은 사용자 설정 파일을 고쳐야 하고 앱이 꺼진 동안의 변화를 놓친다. 둘 다 버렸다.
+  "사용자가 확인했는지" 는 Claude Code 어디에도 기록이 없다(2.1.282 의 세션 기록·<code>claude agents --json</code> 에 읽음 표시가 없다). 사용자가 결과를 보는 곳이 이 앱의 창이므로 앱이 본 시각을 기록한다. 시각 대신 Claude 가 기록한 끝난 시각(<code>at</code>)을 저장해서, 시계가 어긋나도 "이 결과를 봤다" 가 정확하다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 확인 기록은 탭에 둔다</strong>
+  탭은 이미 다시 열 때 필요한 것(프로그램·작업 디렉터리·sessionId)을 들고 저장된다. 따로 파일을 두면 탭이 닫힐 때 지우는 규칙이 하나 더 는다. 탭에 두면 탭과 함께 저장되고 함께 사라진다(R6). 쓰기는 끝난 결과를 처음 볼 때 한 번이라 저장이 잦아지지 않는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 사용자에게 묻는 차례는 백그라운드 작업이 있어도 응답 대기다</strong>
+  Claude Code 는 차례를 끝낸 문장을 읽어 "입력이 필요함(blocked)" 인지 가린다. 그때는 사용자가 답해야 일이 나아가므로, 모니터가 돌고 있어도 R4 의 가장 앞선 상태(응답 대기)로 보인다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>Claude 탭 자체가 불가다(<a href="terminal-claude.html#platforms">Claude 실행</a>). 표시가 없다</td><td><a href="../platform/android.html#terminal-claude-status">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-claude-status">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>Claude Code 의 <code>~/.claude/jobs/&lt;id&gt;/state.json</code> 을 1초마다 다시 읽는다(macOS <code>WatchService</code> 가 폴링이다)</td><td><a href="../platform/jvm.html#terminal-claude-status">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-claude-status">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>ClaudeStatusTest</code></td><td>R2·R3·R4. 활동과 확인 기록으로 상태 고르기, 패널의 여러 탭 중 우선순위, 보이는 끝난 탭만 확인 기록이 올라가고 다시 끝나면 응답 대기</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R6. <code>claudeCheckedAt</code> 이 새 DataStore 로 다시 읽힘</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>ClaudeActivityDataSourceTest</code></td><td>R2(JVM). 임시 디렉터리의 <code>state.json</code> 들에서 세션 이름으로 찾기, <code>tempo</code>·<code>inFlight</code>·<code>state</code> 로 넷 가르기, 같은 이름의 여러 기록 중 고르기, 깨진 파일 건너뛰기</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalClaudeStatusTest</code></td><td>R1–R4, R7. 가짜 저장소로 워크트리 부모·자식 줄에 따로 뜨는 표시, 선택하지 않은 패널의 끝난 Claude 는 응답 대기 → 표시를 눌러 선택하면 확인함·저장, 보는 동안 끝나면 곧바로 확인함, 떠난 뒤 새 결과는 다시 응답 대기, 창 포커스가 없으면 그대로 응답 대기, 작업 중·모니터링 중, Claude 탭이 없는 줄과 Claude 를 못 띄우는 타깃에는 표시 없음</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 실제 Claude Code 가 쓰는 <code>state.json</code> 이 차례·모니터에 따라 바뀌는 모습, 진행 표시의 모양. <code>./gradlew :desktopApp:run</code> 으로 Claude 탭에 일을 시키고 다른 패널로 옮겨 가 손으로 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>상태의 뜻은 Claude Code 가 차례를 끝낸 문장을 읽어 가른 결과를 따른다. 답이 물음표로 끝나면 질문(입력이 필요함)으로 보는 식이라, Claude 가 끝냈다고 보는 것과 사용자가 보기에 끝난 것이 다를 수 있다.</li>
+  <li>Claude Code 가 끝난 세션의 기록을 결과와 무관하게 다시 쓰면(<code>at</code> 이 바뀌면) 새 결과로 보고 다시 응답 대기가 된다.</li>
+  <li>창이 앞에 있기만 하면 본 것으로 친다. 사용자가 실제로 화면을 읽었는지는 알 수 없다.</li>
+  <li>기록 형식은 Claude Code 2.1.282 에서 확인한 것이다. 버전이 바뀌어 형식이 달라지면 상태를 알 수 없게 되어 표시가 사라진다(플랫폼 스펙).</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

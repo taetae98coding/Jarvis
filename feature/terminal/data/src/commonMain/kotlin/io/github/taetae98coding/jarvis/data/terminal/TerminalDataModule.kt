@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivityRepository
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspaceRepository
@@ -9,4 +10,5 @@ val terminalDataModule = module {
     single<TerminalRepository> { DefaultTerminalRepository(createTerminalDataSource(get())) }
     single<TerminalWorkspaceRepository> { DefaultTerminalWorkspaceRepository(createTerminalWorkspaceStore(get())) }
     single<GitWorktreeRepository> { DefaultGitWorktreeRepository(createGitDataSource()) }
+    single<ClaudeActivityRepository> { DefaultClaudeActivityRepository(createClaudeActivityDataSource()) }
 }
