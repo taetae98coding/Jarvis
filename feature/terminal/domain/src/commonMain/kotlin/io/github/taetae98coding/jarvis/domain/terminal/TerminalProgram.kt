@@ -9,4 +9,7 @@ enum class TerminalProgram {
 
     /** 셸이 아니라 웹 페이지다. 세션을 열지 않고 화면이 시스템 웹뷰로 [TerminalTab.url] 을 띄운다. */
     Browser,
+
+    /** 셸이 아니라 기기 화면이다. 세션을 열지 않고 화면이 [TerminalTab.deviceId] 기기를 찍어 보인다. */
+    Device,
 }

@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.ui.emulator
 
+import io.github.taetae98coding.jarvis.ui.device.DeviceScreens
 import io.github.taetae98coding.jarvis.ui.navigation.LocalNavigator
 import io.github.taetae98coding.jarvis.ui.navigation.navKeySerializers
 import kotlinx.serialization.modules.subclass
@@ -22,6 +23,8 @@ val emulatorUiModule = module {
     viewModelOf(::EmulatorStatusViewModel)
     viewModelOf(::EmulatorDevicesViewModel)
     viewModelOf(::WifiPairingViewModel)
+    viewModelOf(::DeviceChoicesViewModel)
+    single<DeviceScreens> { EmulatorDeviceScreens }
 
     // 라우트가 나르는 deviceId 를 파라미터로 받는다.
     viewModel { parameters -> EmulatorScreenViewModel(parameters.get(), get(), get(), get(), get()) }

@@ -37,6 +37,7 @@ class TerminalWorkspaceStoreTest {
             renamed
                 .addTab(program = TerminalProgram.Claude, directory = "/work", claudeSessionId = "e0c0")
                 .addTab(program = TerminalProgram.Browser, url = "https://example.com")
+                .addTab(program = TerminalProgram.Device, deviceId = "adb-R54T (2)._adb-tls-connect._tcp", deviceName = "SM-X906N")
                 .split(SplitDirection.Stacked, directory = "/work")
                 .addPanel()
         }

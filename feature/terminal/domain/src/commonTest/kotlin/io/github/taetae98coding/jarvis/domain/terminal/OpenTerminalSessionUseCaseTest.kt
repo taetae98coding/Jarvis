@@ -45,6 +45,15 @@ class OpenTerminalSessionUseCaseTest {
     }
 
     @Test
+    fun deviceTabsDoNotOpenASession() = runTest {
+        val repository = RecordingTerminalRepository()
+        val device = TerminalTab(1, TerminalProgram.Device, deviceId = "emulator-5554", deviceName = "Pixel 9")
+
+        assertNull(OpenTerminalSessionUseCase(repository)(TerminalSize.Default, device))
+        assertEquals(emptyList(), repository.opened)
+    }
+
+    @Test
     fun nothingIsOpenedWhereShellsAreNotSupported() = runTest {
         val repository = RecordingTerminalRepository(isSupported = false)
 

@@ -38,7 +38,7 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 새 탭(+) 메뉴의 항목은 위에서부터 "터미널", "Claude (YOLO)", "웹 브라우저" 다. 이 타깃에서 띄울 수 없는 항목은 빠진다. 남은 항목이 "터미널" 하나뿐일 때만 메뉴 없이 곧바로 셸 탭을 연다(<a href="terminal-claude.html#requirements">Claude R6</a>).</li>
+  <li><strong>R1.</strong> 새 탭(+) 메뉴의 항목은 위에서부터 "터미널", "Claude (YOLO)", "웹 브라우저" 다(그 아래에 <a href="terminal-device.html">기기</a> 구획이 붙을 수 있다). 이 타깃에서 띄울 수 없는 항목은 빠진다. 남은 항목이 "터미널" 하나뿐일 때만 메뉴 없이 곧바로 셸 탭을 연다(<a href="terminal-claude.html#requirements">Claude R6</a>).</li>
   <li><strong>R2.</strong> "웹 브라우저" 를 고르면 그 그룹의 탭 줄 끝에 브라우저 탭이 붙어 선택되고 그 그룹이 포커스를 받는다(셸 탭과 같은 자리·선택 규칙). 첫 페이지는 <code>https://www.google.com</code> 이다.</li>
   <li><strong>R3.</strong> 브라우저 탭의 창은 위에 주소 줄, 아래에 웹 페이지다. 주소 줄은 뒤로, 앞으로, 새로 고침 버튼과 주소 입력칸이다. 뒤로·앞으로는 갈 곳이 없으면 잠긴다. 입력칸은 페이지가 바뀔 때마다 지금 주소를 보여 주고, Enter 를 누르면 입력한 곳으로 간다.</li>
   <li><strong>R4.</strong> 입력은 이렇게 주소가 된다. 앞뒤 공백을 뗀다. <code>://</code> 가 있으면 그대로다. 공백이 없고 <code>localhost</code> 로 시작하면 <code>http://</code> 를, 공백이 없고 <code>.</code> 이 있으면 <code>https://</code> 를 앞에 붙인다. 나머지는 Google 검색(<code>https://www.google.com/search?q=</code> 뒤에 UTF-8 퍼센트 인코딩)이다. 빈 입력은 아무 일도 하지 않는다.</li>

@@ -104,7 +104,7 @@
   <tbody>
     <tr><td><code>:core:data</code></td><td><code>…data</code>, <code>…data.state</code></td><td><code>PlatformContext</code>(expect class), <code>observeByPolling</code>/<code>observeOnSignals</code>/<code>observeSystemState</code></td><td>없음</td></tr>
     <tr><td><code>:core:designsystem</code></td><td><code>…designsystem.theme</code>, <code>…designsystem.icon</code>, <code>…designsystem.component</code></td><td><code>JarvisTheme</code> 과 토큰, <code>JarvisIcons</code>, <code>JarvisCard</code> 등 공용 컴포넌트와 <code>*Defaults</code>(<a href="design-system.html">디자인 시스템</a>)</td><td>Compose, Material 3</td></tr>
-    <tr><td><code>:core:ui</code></td><td><code>…ui.component</code>, <code>…ui.navigation</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>·<code>LocalNavigator</code>, <code>NavKeySerializers</code></td><td>Compose, navigation3-runtime, <code>:core:designsystem</code></td></tr>
+    <tr><td><code>:core:ui</code></td><td><code>…ui.component</code>, <code>…ui.navigation</code>, <code>…ui.device</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>·<code>LocalNavigator</code>, <code>NavKeySerializers</code>, <code>DeviceScreens</code>·<code>DeviceChoice</code></td><td>Compose, navigation3-runtime, <code>:core:designsystem</code></td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:domain</code></td><td><code>…domain.&lt;기능&gt;</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, <code>&lt;기능&gt;DomainModule</code></td><td>없음</td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:data</code></td><td><code>…data.&lt;기능&gt;</code></td><td>리포지토리 구현, <code>expect</code>/<code>actual</code>, DTO, <code>&lt;기능&gt;DataModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:data</code></td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:ui</code></td><td><code>…ui.&lt;기능&gt;</code></td><td>카드·화면, ViewModel, 라우트, <code>&lt;기능&gt;UiModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
@@ -150,6 +150,7 @@
 ├── ui
 │   ├── component  ToggleFeatureCard                  ← :core:ui
 │   ├── navigation Navigator, LocalNavigator, NavKeySerializers   ← :core:ui
+│   ├── device     DeviceScreens, DeviceChoice        ← :core:ui
 │   ├── appinfo    AppInfoCard, AppInfoViewModel
 │   ├── emulator   EmulatorCard, 목록·화면, ViewModel 셋, EmulatorRoute, EmulatorFrameState
 │   ├── screen     ScreenAwakeCard, SystemScreenAwakeCard, Modifier.appScreenAwake, ViewModel 둘
@@ -210,6 +211,7 @@ val emulatorUiModule = module {
     <tr><td><code>JarvisTheme</code>, <code>JarvisIcons</code>, <code>Jarvis*</code> 컴포넌트</td><td><code>:core:designsystem</code></td><td>모든 화면이 같은 토큰과 컴포넌트를 쓴다. 라우트·ViewModel 을 모르게 두려고 <code>:core:ui</code> 와 나눴다(<a href="design-system.html#implementation">결정</a>)</td></tr>
     <tr><td><code>ToggleFeatureCard</code></td><td><code>:core:ui</code></td><td><code>screen</code> 의 카드 둘이 함께 쓴다</td></tr>
     <tr><td><code>Navigator</code>, <code>LocalNavigator</code></td><td><code>:core:ui</code></td><td>기능이 서로를 모른 채 이동하려면 이동 수단만 공용이어야 한다</td></tr>
+    <tr><td><code>DeviceScreens</code>, <code>DeviceChoice</code></td><td><code>:core:ui</code></td><td>터미널이 기기 화면을 탭에 그린다. 구현은 <code>emulator</code> 가 Koin 에 등록하고 <code>terminal</code> 은 인터페이스만 본다(<a href="terminal-device.html#implementation">결정</a>). 경계를 넘는 값은 식별자·이름·종류 문자열뿐이다</td></tr>
     <tr><td><code>SettingsStore</code></td><td><code>:feature:screen:data</code></td><td><strong>core 가 아니다.</strong> 지금 설정을 저장하는 기능이 <code>screen</code> 하나뿐이다(R4). 두 번째 기능이 쓰게 되면 <code>:core:data</code> 로 올린다</td></tr>
   </tbody>
 </table>
@@ -271,7 +273,7 @@ val emulatorUiModule = module {
     <tr><td><code>:core:widget</code> (android)</td><td><code>WidgetRefresh</code>, <code>WidgetRefreshJobService</code>·<code>WriteSettingsPermissionActivity</code>(매니페스트)</td><td>없음</td></tr>
     <tr><td><code>:core:data</code></td><td><code>PlatformContext</code>, 조회 규칙 3종</td><td>없음</td></tr>
     <tr><td><code>:core:designsystem</code></td><td><code>JarvisTheme</code>·토큰 타입, <code>JarvisIcons</code>, <code>Jarvis*</code> 컴포넌트와 <code>*Defaults</code></td><td>라이트·다크 색 정의값, 아이콘 경로 문자열</td></tr>
-    <tr><td><code>:core:ui</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>, <code>LocalNavigator</code>, <code>NavKeySerializers</code></td><td>없음</td></tr>
+    <tr><td><code>:core:ui</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>, <code>LocalNavigator</code>, <code>NavKeySerializers</code>, <code>DeviceScreens</code>, <code>DeviceChoice</code></td><td>없음</td></tr>
     <tr><td><code>:app:ui</code></td><td><code>JarvisApp()</code>, <code>appUiModule</code></td><td>Home 라우트·화면, <code>FeatureGrid</code></td></tr>
     <tr><td><code>:shared</code></td><td><code>App()</code>, <code>startJarvisKoin()</code>, <code>MainViewController()</code>, <code>startEmulatorHostAgent()</code></td><td><code>platformModule()</code>, <code>jarvisModules()</code></td></tr>
   </tbody>

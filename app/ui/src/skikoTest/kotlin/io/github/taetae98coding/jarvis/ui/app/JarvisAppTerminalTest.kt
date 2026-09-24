@@ -403,12 +403,13 @@ class JarvisAppTerminalTest {
         assertEquals(TerminalProgram.Shell, terminal.sessions[2].program)
     }
 
+    // 기기 구획이 있으면 Claude·브라우저가 없어도 메뉴가 뜬다(docs/common/terminal-device.html R14).
     @Test
-    fun newTabOpensAShellDirectlyWhereClaudeIsNotSupported() = runComposeUiTest {
+    fun devicesKeepTheMenuWhereClaudeIsNotSupported() = runComposeUiTest {
         val terminal = FakeTerminalRepository(isClaudeSupported = false)
         openTerminal(terminal)
 
-        onNode(newTabButton).performClick()
+        openNewTab(TerminalNewShellTabTestTag)
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
         assertEquals(TerminalProgram.Shell, terminal.sessions[1].program)

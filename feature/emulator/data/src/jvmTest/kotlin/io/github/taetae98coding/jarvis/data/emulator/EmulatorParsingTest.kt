@@ -10,6 +10,25 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class EmulatorParsingTest {
+    private val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01)
+
+    @Test
+    fun screencapWarningBeforeThePngIsDropped() {
+        val warning = "[Warning] Multiple displays were found, but no display id was specified!\n".encodeToByteArray()
+
+        assertTrue(png.contentEquals(pngPayload(warning + png)))
+    }
+
+    @Test
+    fun plainPngIsKeptAsIs() {
+        assertTrue(png.contentEquals(pngPayload(png)))
+    }
+
+    @Test
+    fun outputWithoutAPngIsNoFrame() {
+        assertNull(pngPayload("error: device offline".encodeToByteArray()))
+    }
+
     @Test
     fun countsOneAvdPerNonBlankLine() {
         val output = """

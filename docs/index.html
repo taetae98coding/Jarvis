@@ -73,6 +73,7 @@
 │   ├── terminal-tab-dock.html       탭 끌어 놓기 분할 (탭 줄의 +, 끌어 놓은 변으로 좌우·상하)
 │   ├── terminal-tab-groups.html     분할 그룹마다 탭 줄 (그룹 = 분할 트리의 잎, 탭 = 창)
 │   ├── terminal-browser.html        터미널에서 웹 브라우저 (새 탭 메뉴, 시스템 웹뷰)
+│   ├── terminal-device.html         터미널에서 기기 화면 (새 탭 메뉴, 탭·스와이프)
 │   ├── terminal-panel-create.html   새 패널 제목·폴더 (그 폴더에서 터미널·Claude)
 │   └── design-system.html           디자인 시스템 (JarvisTheme, Defaults·Style, 아이콘)
 ├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
@@ -291,6 +292,15 @@
       <td class="center"><a href="platform/ios.html#terminal-browser"><span class="badge no">불가</span></a></td>
       <td class="center"><a href="platform/jvm.html#terminal-browser"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/web.html#terminal-browser"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/terminal-device.html">터미널에서 기기 화면</a></td>
+      <td class="center"><a href="platform/android.html#terminal-device"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-device"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-device"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-device"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/terminal-panel-create.html">새 패널 제목·폴더</a></td>
       <td class="center"><a href="platform/android.html#terminal-panel-create"><span class="badge workaround">우회</span></a></td>
       <td class="center"><a href="platform/ios.html#terminal-panel-create"><span class="badge no">불가</span></a></td>
@@ -349,6 +359,7 @@
   <li><a href="common/terminal-tab-dock.html">탭 끌어 놓기 분할</a><p>상단 막대의 동작 버튼을 없애고, 새 탭은 탭 줄 끝의 + 로, 좌우·상하 분할은 탭을 창의 변에 끌어 놓아 정한다</p></li>
   <li><a href="common/terminal-tab-groups.html">분할 그룹마다 탭 줄</a><p>패널을 나눈 칸(그룹)마다 자기 탭 줄을 두고, 탭은 그 그룹의 + 로 붙이고 ✕ 로 닫는다. 탭 하나가 창 하나다</p></li>
   <li><a href="common/terminal-browser.html">터미널에서 웹 브라우저</a><p>새 탭(+) 메뉴에서 골라 그 그룹에 웹 페이지 탭을 연다. 시스템 웹뷰를 쓰고 마지막 주소를 저장한다. JVM(macOS)·Android</p></li>
+  <li><a href="common/terminal-device.html">터미널에서 기기 화면</a><p>새 탭(+) 메뉴에 화면을 볼 수 있는 에뮬레이터·실물 기기가 나오고, 고르면 그 그룹에 기기 화면 탭을 열어 탭·스와이프를 보낸다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-panel-create.html">새 패널 제목·폴더</a><p>"새 패널" 이 제목(비우면 "패널 N")과 폴더를 받는 창을 띄우고, 그 폴더에서 터미널이나 Claude 를 연 패널을 만든다</p></li>
 </ul>
 

@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.style.rememberUpdatedStyleState
 import androidx.compose.foundation.style.styleable
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,16 +58,22 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
+import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
+import io.github.taetae98coding.jarvis.ui.device.DeviceScreens
 import kotlinx.coroutines.flow.StateFlow
+import org.koin.compose.currentKoinScope
 
 const val TerminalScreenTestTag = "terminal:screen"
 const val TerminalNewShellTabTestTag = "terminal:new-tab-menu:shell"
 const val TerminalNewClaudeTabTestTag = "terminal:new-tab-menu:claude"
 const val TerminalNewBrowserTabTestTag = "terminal:new-tab-menu:browser"
+const val TerminalNewDeviceTabEmptyTestTag = "terminal:new-tab-menu:devices-empty"
 const val TerminalEmptyPanelTestTag = "terminal:empty-panel"
 
 /** 그룹의 새 탭 버튼. null 은 그룹이 없는 빈 패널의 버튼이다. */
 fun terminalNewTabTestTag(groupId: Long?): String = "terminal:new-tab:${groupId ?: "none"}"
+
+fun terminalNewDeviceTabTestTag(deviceId: String): String = "terminal:new-tab-menu:device:$deviceId"
 
 fun terminalGroupTestTag(id: Long): String = "terminal:group:$id"
 
@@ -81,6 +89,10 @@ internal fun TerminalScreen(
 ) {
     val workspace by viewModel.workspace.collectAsStateWithLifecycle()
     val drag = remember { TerminalTabDragState() }
+    // 기기 기능이 빠진 조립에서는 없다. 그때는 메뉴에 기기 구획이 없다. getKoin() 은 처음 본 Koin 을 붙잡아 두어
+    // Koin 을 다시 세우면(테스트) 닫힌 것을 돌려주므로, 닫히면 다시 찾는 currentKoinScope() 로 받는다.
+    val scope = currentKoinScope()
+    val devices = remember(scope) { scope.getOrNull<DeviceScreens>() }
 
     Box(
         modifier = modifier
@@ -116,7 +128,7 @@ internal fun TerminalScreen(
                 val panel = current.selectedPanel
                 val root = panel?.root
                 if (panel == null || root == null) {
-                    EmptyPanel(viewModel = viewModel, modifier = Modifier.weight(1f).fillMaxHeight())
+                    EmptyPanel(viewModel = viewModel, devices = devices, modifier = Modifier.weight(1f).fillMaxHeight())
                     return@Row
                 }
 
@@ -126,6 +138,7 @@ internal fun TerminalScreen(
                         panel = panel,
                         viewModel = viewModel,
                         drag = drag,
+                        devices = devices,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                 }
@@ -138,7 +151,7 @@ internal fun TerminalScreen(
 
 /** 그룹이 없는 패널. + 하나가 그룹을 만들어 탭을 넣는다. */
 @Composable
-private fun EmptyPanel(viewModel: TerminalViewModel, modifier: Modifier = Modifier) {
+private fun EmptyPanel(viewModel: TerminalViewModel, devices: DeviceScreens?, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s)) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             NewTabButton(
@@ -146,6 +159,8 @@ private fun EmptyPanel(viewModel: TerminalViewModel, modifier: Modifier = Modifi
                 onNewTab = { viewModel.addTab() },
                 onNewClaudeTab = { viewModel.addClaudeTab() }.takeIf { viewModel.isClaudeSupported },
                 onNewBrowserTab = { viewModel.addBrowserTab() }.takeIf { viewModel.isBrowserSupported },
+                devices = devices,
+                onNewDeviceTab = { viewModel.addDeviceTab(null, it.id, it.name) },
             )
         }
 
@@ -187,6 +202,7 @@ private fun PaneTree(
     panel: TerminalPanel,
     viewModel: TerminalViewModel,
     drag: TerminalTabDragState,
+    devices: DeviceScreens?,
     modifier: Modifier = Modifier,
 ) {
     when (node) {
@@ -197,11 +213,12 @@ private fun PaneTree(
                 showFocusBorder = panel.root is PaneNode.Split,
                 viewModel = viewModel,
                 drag = drag,
+                devices = devices,
                 modifier = modifier,
             )
         }
 
-        is PaneNode.Split -> SplitPane(node, panel, viewModel, drag, modifier)
+        is PaneNode.Split -> SplitPane(node, panel, viewModel, drag, devices, modifier)
     }
 }
 
@@ -213,6 +230,7 @@ private fun TerminalGroup(
     showFocusBorder: Boolean,
     viewModel: TerminalViewModel,
     drag: TerminalTabDragState,
+    devices: DeviceScreens?,
     modifier: Modifier = Modifier,
 ) {
     val tabIds = group.tabs.map { it.id }
@@ -240,12 +258,23 @@ private fun TerminalGroup(
                 onNewTab = { viewModel.addTab(group.id) },
                 onNewClaudeTab = { viewModel.addClaudeTab(group.id) }.takeIf { viewModel.isClaudeSupported },
                 onNewBrowserTab = { viewModel.addBrowserTab(group.id) }.takeIf { viewModel.isBrowserSupported },
+                devices = devices,
+                onNewDeviceTab = { viewModel.addDeviceTab(group.id, it.id, it.name) },
                 onMenuExpandedChange = { drag.menuOpen = it },
             )
 
             val tab = group.selectedTab
             val pane = viewModel.pane(tab.id)
-            if (tab.program == TerminalProgram.Browser) {
+            if (tab.program == TerminalProgram.Device) {
+                key(tab.id) {
+                    TerminalDevice(
+                        tab = tab,
+                        devices = devices,
+                        onFocus = { viewModel.focusGroup(group.id) },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+            } else if (tab.program == TerminalProgram.Browser) {
                 key(tab.id) {
                     TerminalBrowser(
                         tab = tab,
@@ -288,6 +317,8 @@ private fun TerminalTabRow(
     onNewTab: () -> Unit,
     onNewClaudeTab: (() -> Unit)?,
     onNewBrowserTab: (() -> Unit)?,
+    devices: DeviceScreens?,
+    onNewDeviceTab: (DeviceChoice) -> Unit,
     onMenuExpandedChange: (Boolean) -> Unit,
 ) {
     Row(
@@ -315,6 +346,8 @@ private fun TerminalTabRow(
             onNewTab = onNewTab,
             onNewClaudeTab = onNewClaudeTab,
             onNewBrowserTab = onNewBrowserTab,
+            devices = devices,
+            onNewDeviceTab = onNewDeviceTab,
             onExpandedChange = onMenuExpandedChange,
         )
     }
@@ -327,10 +360,13 @@ private fun NewTabButton(
     onNewTab: () -> Unit,
     onNewClaudeTab: (() -> Unit)?,
     onNewBrowserTab: (() -> Unit)?,
+    devices: DeviceScreens?,
+    onNewDeviceTab: (DeviceChoice) -> Unit,
     onExpandedChange: (Boolean) -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val hasMenu = onNewClaudeTab != null || onNewBrowserTab != null
+    // 기기 구획은 기기가 없어도 뜬다. 없다는 것도 메뉴가 알려 준다.
+    val hasMenu = onNewClaudeTab != null || onNewBrowserTab != null || devices != null
 
     fun setExpanded(value: Boolean) {
         expanded = value
@@ -380,18 +416,70 @@ private fun NewTabButton(
                         modifier = Modifier.testTag(TerminalNewBrowserTabTestTag),
                     )
                 }
+                if (devices != null) {
+                    DeviceMenuSection(
+                        devices = devices,
+                        onSelect = { choice ->
+                            setExpanded(false)
+                            onNewDeviceTab(choice)
+                        },
+                    )
+                }
             }
         }
     }
 }
 
+// 메뉴 내용은 메뉴가 떠 있을 때만 컴포즈되므로 기기 목록도 그동안만 센다.
+@Composable
+private fun DeviceMenuSection(devices: DeviceScreens, onSelect: (DeviceChoice) -> Unit) {
+    HorizontalDivider()
+    Text(
+        text = "기기",
+        style = JarvisTheme.typography.labelMedium,
+        color = JarvisTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = JarvisTheme.dimens.spacing.m, vertical = JarvisTheme.dimens.spacing.s),
+    )
+
+    val choices = devices.choices()
+    if (choices.isNullOrEmpty()) {
+        DropdownMenuItem(
+            text = { Text(if (choices == null) "기기를 찾는 중…" else "화면을 볼 수 있는 기기가 없습니다") },
+            onClick = {},
+            enabled = false,
+            modifier = Modifier.testTag(TerminalNewDeviceTabEmptyTestTag),
+        )
+        return
+    }
+
+    choices.forEach { choice ->
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(text = choice.name)
+                    Text(
+                        text = choice.kind,
+                        style = JarvisTheme.typography.bodySmall,
+                        color = JarvisTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            leadingIcon = { Icon(imageVector = JarvisIcons.Smartphone, contentDescription = null) },
+            onClick = { onSelect(choice) },
+            modifier = Modifier.testTag(terminalNewDeviceTabTestTag(choice.id)),
+        )
+    }
+}
+
 @Composable
 private fun tabTitle(source: StateFlow<String?>?, index: Int, tab: TerminalTab): String {
-    val title = source?.collectAsStateWithLifecycle()?.value
+    // 기기 이름은 고를 때 탭에 저장해 둔다. 가려진 탭의 이름을 알려고 목록을 계속 세지 않는다.
+    val title = if (tab.program == TerminalProgram.Device) tab.deviceName else source?.collectAsStateWithLifecycle()?.value
     val fallback = when (tab.program) {
         TerminalProgram.Shell -> "셸"
         TerminalProgram.Claude -> "Claude"
         TerminalProgram.Browser -> "웹"
+        TerminalProgram.Device -> "기기"
     }
 
     return title?.takeIf { it.isNotBlank() } ?: "$fallback ${index + 1}"
@@ -403,6 +491,7 @@ private fun SplitPane(
     panel: TerminalPanel,
     viewModel: TerminalViewModel,
     drag: TerminalTabDragState,
+    devices: DeviceScreens?,
     modifier: Modifier = Modifier,
 ) {
     var size by remember { mutableStateOf(IntSize.Zero) }
@@ -442,15 +531,15 @@ private fun SplitPane(
 
     if (sideBySide) {
         Row(modifier = modifier.onSizeChanged { size = it }) {
-            PaneTree(node.first, panel, viewModel, drag, Modifier.weight(ratio).fillMaxHeight())
+            PaneTree(node.first, panel, viewModel, drag, devices, Modifier.weight(ratio).fillMaxHeight())
             divider()
-            PaneTree(node.second, panel, viewModel, drag, Modifier.weight(1f - ratio).fillMaxHeight())
+            PaneTree(node.second, panel, viewModel, drag, devices, Modifier.weight(1f - ratio).fillMaxHeight())
         }
     } else {
         Column(modifier = modifier.onSizeChanged { size = it }) {
-            PaneTree(node.first, panel, viewModel, drag, Modifier.weight(ratio).fillMaxWidth())
+            PaneTree(node.first, panel, viewModel, drag, devices, Modifier.weight(ratio).fillMaxWidth())
             divider()
-            PaneTree(node.second, panel, viewModel, drag, Modifier.weight(1f - ratio).fillMaxWidth())
+            PaneTree(node.second, panel, viewModel, drag, devices, Modifier.weight(1f - ratio).fillMaxWidth())
         }
     }
 }
