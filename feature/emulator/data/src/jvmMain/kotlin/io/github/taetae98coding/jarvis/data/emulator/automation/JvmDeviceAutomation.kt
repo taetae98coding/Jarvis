@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -33,6 +34,7 @@ internal class JvmDeviceAutomation(
     private val dataSource: EmulatorDataSource,
     private val android: AndroidAutomation?,
     private val ios: IosAutomation?,
+    private val virtualDevices: VirtualDevices = VirtualDevices(),
 ) : DeviceAutomation {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val watch = Mutex()
@@ -72,9 +74,29 @@ internal class JvmDeviceAutomation(
             EmulatorPlatform.IOS -> ios != null
         }
 
-    override suspend fun boot(deviceId: String) {
+    override suspend fun boot(deviceId: String): String {
         dataSource.launch(deviceId)
+
+        return when {
+            deviceId.startsWith(StoppedAvdPrefix) -> {
+                val name = deviceId.removePrefix(StoppedAvdPrefix)
+                // 켜진 AVD 는 시리얼로 바뀌어 목록에 나온다. 이름은 에뮬레이터 콘솔이 알려 준다(Emulator.jvm.kt).
+                val serial = dataSource.observeDevices()
+                    .mapNotNull { devices ->
+                        devices.firstOrNull { it.platform == EmulatorPlatform.ANDROID && !it.isPhysical && it.isRunning && it.name == name }
+                    }
+                    .first()
+                    .id
+                virtualDevices.awaitAndroidBoot(serial)
+                serial
+            }
+
+            SimulatorUdid.matches(deviceId) -> deviceId.also { virtualDevices.awaitSimulatorBoot(it) }
+            else -> deviceId
+        }
     }
+
+    override suspend fun create(platform: AutomationPlatform): AutomationDevice = virtualDevices.create(platform)
 
     override suspend fun screenshot(deviceId: String): AutomationImage =
         route(deviceId,
@@ -124,7 +146,7 @@ internal class JvmDeviceAutomation(
         ios: suspend IosAutomation.(udid: String, physical: Boolean) -> T,
     ): T =
         when {
-            deviceId.startsWith(StoppedAvdPrefix) -> throw AutomationException("꺼진 에뮬레이터입니다: $deviceId. device_boot 로 켜세요.")
+            deviceId.startsWith(StoppedAvdPrefix) -> throw AutomationException("꺼진 에뮬레이터입니다: $deviceId. device_acquire 로 켜세요.")
             deviceId.startsWith(PhysicalIosPrefix) -> requireIos().ios(deviceId.removePrefix(PhysicalIosPrefix), true)
             SimulatorUdid.matches(deviceId) -> requireIos().ios(deviceId, false)
             isAdbSerial(deviceId) -> (this.android ?: throw AutomationException("Android SDK(adb)를 찾지 못했습니다.")).android(deviceId)

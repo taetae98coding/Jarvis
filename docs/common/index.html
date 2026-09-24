@@ -64,6 +64,7 @@
   <li><a href="device-mirroring.html">기기 화면 영상 스트림·호버</a><p>Android 기기 화면을 기기 안 에이전트의 H.264 영상으로 받고, 누름·끌기·마우스 호버를 그 자리에서 기기에 넣는다. Android Studio 의 Running Devices 와 같은 구조</p></li>
   <li><a href="terminal-panel-create.html">새 패널 제목·폴더</a><p>"새 패널" 이 제목(비우면 "패널 N")과 폴더를 받는 창을 띄우고, "확인" 이 그 폴더에서 연 Claude 탭 하나로 패널을 만든다. 다른 탭은 + 로 그 폴더에서 연다</p></li>
   <li><a href="mcp-server.html">Claude 에게 브라우저·기기 조작 맡기기</a><p>데스크톱 앱이 MCP 서버가 되어 Jarvis 의 Claude 탭이 앱 안 브라우저 탭과 Android·iOS 기기를 보고 누르고 입력한다. 쓴 브라우저·기기는 그 Claude 의 패널에 선택하지 않은 탭으로 붙는다. JVM(macOS)</p></li>
+  <li><a href="device-lease.html">Claude 기기 할당</a><p>MCP 서버가 Android·iOS 기기를 패널(워크트리)마다 하나씩 할당해서 다른 워크트리의 Claude 가 같은 기기를 조작하지 못하게 하고, 빌려 줄 기기가 없으면 에뮬레이터·시뮬레이터를 새로 만들어 준다. JVM(macOS)</p></li>
   <li><a href="terminal-worktree.html">패널에서 git 워크트리 추가·지우기</a><p>git 저장소 폴더의 패널에 + 가 붙고, 브랜치와 기준 브랜치를 받아 <code>git worktree add</code> 로 만든 워크트리를 그 패널 아래 들여쓴 패널로 열어 그 폴더에서 Claude 탭을 띄우고, 줄에 <code>기준 → 현재</code> 브랜치를 보인다. 워크트리 패널의 ✕ 는 워크트리·브랜치와 폴더를 지울지 묻는다. JVM(macOS)</p></li>
   <li><a href="terminal-claude-status.html">패널 줄의 Claude 상태 표시</a><p>패널 줄마다 그 패널 Claude 탭의 상태를 작업 중·응답 대기·확인함·모니터링 중 네 표시 중 하나로 보인다. 응답 대기는 끝난 결과를 사용자가 아직 보지 않은 것이다. JVM(macOS)</p></li>
   <li><a href="terminal-panel-item-layout.html">패널 줄의 버튼을 아래 줄로</a><p>왼쪽 패널 목록 줄의 +·✎·✕ 를 이름 아래 따로 된 줄로 내려 이름이 목록 폭을 다 쓰게 한다</p></li>

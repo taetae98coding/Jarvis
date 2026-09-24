@@ -90,12 +90,20 @@ internal val BrowserTools: List<McpTool> = listOf(
 internal val DeviceTools: List<McpTool> = listOf(
     McpTool(
         name = "device_list",
-        description = "개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와 연결된 실물 기기 목록. 줄마다 식별자, 이름, 플랫폼, 실물 여부, 실행 중, 조작 가능 여부.",
+        description = "개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와 연결된 실물 기기 목록. 줄마다 식별자, 이름, 플랫폼, 실물 여부, 실행 중, 조작 가능 여부, 할당(mine=이 워크트리, in-use:<이름>=다른 워크트리, free). in-use 기기는 조작할 수 없다.",
     ),
     McpTool(
-        name = "device_boot",
-        description = "꺼진 Android 에뮬레이터·iOS 시뮬레이터를 켠다. 켜진 뒤의 식별자는 device_list 로 다시 본다.",
-        parameters = listOf(deviceIdParameter),
+        name = "device_acquire",
+        description = "기기 하나를 이 워크트리에 할당한다. 할당된 기기는 다른 워크트리의 Claude 가 조작하지 못한다. platform 만 주면 이미 할당된 기기, 빈 실물 기기, 빈 켜진 에뮬레이터, 빈 꺼진 에뮬레이터 차례로 고르고, 없으면 에뮬레이터·시뮬레이터를 새로 만든다. 꺼진 기기는 켜서 부팅이 끝날 때까지 기다린다(몇 분 걸릴 수 있다). 켜진 기기의 deviceId 를 돌려준다. 다른 기기 도구도 빈 기기를 쓰면 저절로 할당한다.",
+        parameters = listOf(
+            McpToolParameter("platform", STRING, "android 또는 ios. deviceId 를 주면 빼도 된다.", required = false),
+            McpToolParameter("deviceId", STRING, "받을 기기의 device_list 식별자. 빼면 platform 으로 고른다.", required = false),
+        ),
+    ),
+    McpTool(
+        name = "device_release",
+        description = "이 워크트리에 할당된 기기를 돌려준다. 기기 작업이 끝나면 부른다. 기기를 끄지는 않는다.",
+        parameters = listOf(McpToolParameter("deviceId", STRING, "돌려줄 기기. 빼면 이 워크트리의 기기를 전부 돌려준다.", required = false)),
     ),
     McpTool(
         name = "device_screenshot",

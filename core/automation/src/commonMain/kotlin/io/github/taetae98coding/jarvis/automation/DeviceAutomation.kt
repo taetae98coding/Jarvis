@@ -7,7 +7,11 @@ package io.github.taetae98coding.jarvis.automation
 interface DeviceAutomation {
     suspend fun devices(): List<AutomationDevice>
 
-    suspend fun boot(deviceId: String)
+    /** 꺼져 있으면 켜고 조작할 수 있을 때까지 기다린 뒤 켜진 기기의 식별자를 준다. 꺼진 AVD 는 켜지면 시리얼로 바뀐다. */
+    suspend fun boot(deviceId: String): String
+
+    /** 새 에뮬레이터·시뮬레이터를 만들어 꺼진 채로 준다(docs/common/device-lease.html R8). [devices] 에는 다음 번 셀 때 나온다. */
+    suspend fun create(platform: AutomationPlatform): AutomationDevice
 
     suspend fun screenshot(deviceId: String): AutomationImage
 
