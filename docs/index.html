@@ -75,6 +75,7 @@
 │   ├── terminal-tab-groups.html     분할 그룹마다 탭 줄 (그룹 = 분할 트리의 잎, 탭 = 창)
 │   ├── terminal-browser.html        터미널에서 웹 브라우저 (새 탭 메뉴, 시스템 웹뷰)
 │   ├── terminal-device.html         터미널에서 기기 화면 (새 탭 메뉴, 탭·스와이프)
+│   ├── terminal-tab-label.html      탭 종류 표시와 이름 바꾸기 (터미널·Claude·브라우저·Android·iOS 아이콘, 더블클릭 이름)
 │   ├── device-mirroring.html        기기 화면 영상 스트림·호버 (scrcpy-server + FFmpeg, 마우스 호버)
 │   ├── terminal-panel-create.html   새 패널 제목·폴더 (확인이 빈 패널을 만든다)
 │   ├── terminal-worktree.html       패널에서 git 워크트리 추가 (패널의 +, 기준 브랜치, git worktree add, 들여쓴 빈 하위 패널)
@@ -312,6 +313,13 @@
       <td class="center"><a href="platform/web.html#terminal-device"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/terminal-tab-label.html">탭 종류 표시와 이름 바꾸기</a></td>
+      <td class="center"><a href="platform/android.html#terminal-tab-label"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-tab-label"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-tab-label"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-tab-label"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/device-mirroring.html">기기 화면 영상 스트림·호버</a></td>
       <td class="center"><a href="platform/android.html#device-mirroring"><span class="badge workaround">우회</span></a></td>
       <td class="center"><a href="platform/ios.html#device-mirroring"><span class="badge workaround">우회</span></a></td>
@@ -393,6 +401,7 @@
   <li><a href="common/terminal-tab-groups.html">분할 그룹마다 탭 줄</a><p>패널을 나눈 칸(그룹)마다 자기 탭 줄을 두고, 탭은 그 그룹의 + 로 붙이고 ✕ 로 닫는다. 탭 하나가 창 하나다</p></li>
   <li><a href="common/terminal-browser.html">터미널에서 웹 브라우저</a><p>새 탭(+) 메뉴에서 골라 그 그룹에 웹 페이지 탭을 연다. 시스템 웹뷰를 쓰고 마지막 주소를 저장한다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-device.html">터미널에서 기기 화면</a><p>새 탭(+) 메뉴에 화면을 볼 수 있는 에뮬레이터·실물 기기가 나오고, 고르면 그 그룹에 기기 화면 탭을 열어 탭·스와이프를 보낸다. JVM(macOS)·Android</p></li>
+  <li><a href="common/terminal-tab-label.html">탭 종류 표시와 이름 바꾸기</a><p>탭 제목 앞의 아이콘·색으로 터미널·Claude·브라우저·Android·iOS 탭을 가르고, 탭 제목을 두 번 눌러 이름을 바꾼다. 이름은 저장된다</p></li>
   <li><a href="common/chrome-cookie-import.html">Chrome 쿠키 가져오기</a><p>브라우저 탭 주소 줄의 버튼으로 이 PC 의 Chrome 프로필을 골라 모든 사이트 쿠키를 웹뷰로 옮긴다. 영구 저장소라 앱을 껐다 켜도 로그인이 이어진다. JVM(macOS)</p></li>
   <li><a href="common/device-mirroring.html">기기 화면 영상 스트림·호버</a><p>Android 기기 화면을 기기 안 에이전트의 H.264 영상으로 받고, 누름·끌기·마우스 호버를 그 자리에서 기기에 넣는다. JVM 은 직접, 나머지는 호스트가 푼 프레임을 JPEG 로</p></li>
   <li><a href="common/terminal-panel-create.html">새 패널 제목·폴더</a><p>"새 패널" 이 제목(비우면 "패널 N")과 폴더를 받는 창을 띄우고, "확인" 이 그 제목·폴더의 빈 패널을 만든다. 탭은 빈 패널의 + 로 그 폴더에서 연다</p></li>

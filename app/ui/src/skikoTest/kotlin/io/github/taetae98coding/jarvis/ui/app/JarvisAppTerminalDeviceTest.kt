@@ -2,6 +2,7 @@ package io.github.taetae98coding.jarvis.ui.app
 
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
@@ -20,6 +21,7 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.TouchAction
+import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorFrameTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewDeviceTabEmptyTestTag
@@ -27,6 +29,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalDeviceTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalNewDeviceTabTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalTabKindTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalTabTestTag
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
@@ -92,6 +95,23 @@ class JarvisAppTerminalDeviceTest {
         val shell = onNodeWithTag(TerminalNewShellTabTestTag).fetchSemanticsNode().boundsInRoot.top
         val device = onNodeWithTag(terminalNewDeviceTabTestTag(RunningAndroidDevice.id)).fetchSemanticsNode().boundsInRoot.top
         assertTrue(shell < device)
+    }
+
+    // docs/common/terminal-tab-label.html R1·R3
+    @Test
+    fun deviceTabsShowAndroidOrIosAndKeepThePlatform() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository()
+        openTerminal(streaming(RunningAndroidDevice, RunningSimulator), workspace = workspace)
+
+        val android = openDeviceTab(workspace, RunningAndroidDevice.id)
+        val ios = openDeviceTab(workspace, RunningSimulator.id)
+
+        onNodeWithTag(terminalTabKindTestTag(android)).assertContentDescriptionEquals("Android")
+        onNodeWithTag(terminalTabKindTestTag(ios)).assertContentDescriptionEquals("iOS")
+        assertEquals(
+            listOf(DevicePlatform.Android, DevicePlatform.IOS),
+            workspace.workspace.value.tabs.filter { it.program == TerminalProgram.Device }.map { it.devicePlatform },
+        )
     }
 
     @Test

@@ -57,6 +57,7 @@
     <li><a href="#terminal-worktree">패널에서 git 워크트리 추가</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
+    <li><a href="#terminal-tab-label">탭 종류 표시와 이름 바꾸기</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
@@ -1131,6 +1132,38 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p>메뉴·탭 열기·제스처 좌표는 <code>JarvisAppTerminalDeviceTest</code>(skiko, 이 타깃에서 돈다), 저장은 <code>TerminalWorkspaceStoreTest</code> 가 확인한다. 실제 기기 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → + → 기기로 손으로 확인한다. 2026-09-24 에 macOS(arm64)에서 무선 adb 실물 기기 둘(SM-F966N, SM-X906N)과 부팅된 시뮬레이터가 종류와 함께 메뉴에 나오고, 고르면 기기 이름의 탭에 화면이 흐르고, 앱을 다시 켜도 탭이 되살아나고, 화면 켜기 카드가 기기를 깨우고, 프레임 위 클릭이 기기 좌표의 <code>input tap</code> 으로 가는 것을 확인했다. 이때 SM-F966N 의 <code>screencap</code> 경고 문구(<a href="#emulator-control">기기 화면</a>)를 찾아 고쳤다. 마우스 끌기 → 스와이프는 자동화 도구의 합성 끌기가 Compose 에 끌기로 닿지 않아 <span class="badge untested">미검증</span>이다(좌표·지속 시간은 skiko 테스트가 확인한다).</p>
+</section>
+
+<section class="feature" id="terminal-tab-label">
+<h2>탭 종류 표시와 이름 바꾸기 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-tab-label.html">탭 종류 표시와 이름 바꾸기</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>더블클릭: <code>Modifier.clickable</code> + 간격 재기</td><td>채택. Compose Desktop 의 <code>clickable</code> 은 AWT <code>MouseEvent</code> 를 Compose 포인터 이벤트로 옮긴 것을 받는다. 누름마다 곧바로 탭을 고르고, 앞 누름과의 간격이 <code>LocalViewConfiguration.current.doubleTapTimeoutMillis</code> 안이면 입력칸을 연다</td></tr>
+    <tr><td><code>combinedClickable(onDoubleClick)</code></td><td>버렸다. 더블클릭인지 가리려고 <code>onClick</code> 을 더블탭 시간만큼 미뤄 탭 고르기가 늦어진다(<a href="../common/terminal-tab-label.html#implementation">공통 결정</a>)</td></tr>
+    <tr><td>AWT <code>MouseEvent.getClickCount()</code></td><td>버렸다. <code>onPointerEvent</code> 로 원본 AWT 이벤트를 꺼내야 하고 JVM 전용 코드가 생긴다. 운영체제의 더블클릭 간격을 따르는 장점은 있지만 공통 코드 하나로 Android 와 같이 가는 쪽을 골랐다</td></tr>
+    <tr><td>입력칸 <code>BasicTextField(TextFieldState)</code></td><td>채택. 패널 이름 입력칸과 같다. Enter·Esc 는 <code>onPreviewKeyEvent</code>, 포커스 잃음은 <code>onFocusChanged</code></td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드. <code>jvmMain</code> 에는 없다. 저장 경로는 <a href="#terminal-panels">패널과 세션 유지</a>와 같다</dd>
+  <dt>동작</dt><dd>공통 스펙 R1–R10 그대로. 저장 파일의 탭에 <code>name</code>·<code>devicePlatform</code> 키가 더해진다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>더블클릭 간격은 운영체제 설정이 아니라 Compose 의 <code>doubleTapTimeoutMillis</code>(300ms)다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-tab-label.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>TerminalWorkspaceStoreTest</code> 가 이름·기기 플랫폼을 파일에 쓰고 다시 읽는다. 화면은 <code>JarvisAppTerminalTest</code>·<code>JarvisAppTerminalDeviceTest</code>(skiko 테스트), 규칙은 <code>TerminalWorkspaceTest</code> 가 확인한다. 색은 <code>./gradlew :desktopApp:run</code> 에서 라이트·다크로 눈으로 본다.</p>
 </section>
 
 <section class="feature" id="chrome-cookie-import">

@@ -21,6 +21,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import io.github.taetae98coding.jarvis.domain.terminal.UpdateTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
+import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -129,8 +130,16 @@ internal class TerminalViewModel(
 
     fun setUrl(tabId: Long, url: String) = update { it.setUrl(tabId, url) }
 
-    fun addDeviceTab(groupId: Long?, deviceId: String, deviceName: String) =
-        update { it.addTab(groupId, TerminalProgram.Device, deviceId = deviceId, deviceName = deviceName) }
+    fun addDeviceTab(groupId: Long?, choice: DeviceChoice) =
+        update {
+            it.addTab(
+                groupId = groupId,
+                program = TerminalProgram.Device,
+                deviceId = choice.id,
+                deviceName = choice.name,
+                devicePlatform = choice.devicePlatform,
+            )
+        }
 
     /** 드롭다운을 열 때 지금 Chrome 프로필 목록을 읽는다(명령이 지금 값을 읽음). */
     suspend fun chromeProfiles(): List<ChromeProfile> = observeChromeProfiles().first()
@@ -141,6 +150,8 @@ internal class TerminalViewModel(
     fun closeFocusedTab() = update { it.closeFocusedTab() }
 
     fun closeTab(tabId: Long) = update { it.closeTab(tabId) }
+
+    fun renameTab(tabId: Long, name: String) = update { it.renameTab(tabId, name) }
 
     fun selectTab(tabId: Long) = update { it.selectTab(tabId) }
 

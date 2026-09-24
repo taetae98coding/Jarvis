@@ -5,13 +5,22 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 
-/** 새 탭 메뉴에 나오는 기기 한 대. [kind] 는 그대로 보여 줄 종류 문구다("Android 에뮬레이터" 등). */
+/**
+ * 새 탭 메뉴에 나오는 기기 한 대. [kind] 는 그대로 보여 줄 종류 문구다("Android 에뮬레이터" 등). [platform] 은 터미널이
+ * 탭의 종류 아이콘을 고르려고 탭에 적어 둔다.
+ */
 @Immutable
 data class DeviceChoice(
     val id: String,
     val name: String,
     val kind: String,
+    val platform: DeviceChoicePlatform,
 )
+
+enum class DeviceChoicePlatform {
+    Android,
+    IOS,
+}
 
 /**
  * 터미널이 기기 화면을 탭에 그리는 이음새. 구현은 emulator 기능이 Koin 에 등록하고, 터미널은 이 인터페이스만
