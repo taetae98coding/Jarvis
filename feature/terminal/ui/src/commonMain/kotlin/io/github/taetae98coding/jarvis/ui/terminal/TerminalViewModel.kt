@@ -4,9 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
-import io.github.taetae98coding.jarvis.domain.terminal.AddWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
-import io.github.taetae98coding.jarvis.domain.terminal.CloseWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
@@ -28,7 +26,6 @@ import io.github.taetae98coding.jarvis.domain.terminal.claudeStatuses
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
 import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -57,8 +54,7 @@ internal class TerminalViewModel(
     private val observeChromeProfiles: ObserveChromeProfilesUseCase,
     private val importChromeCookies: ImportChromeCookiesUseCase,
     private val observeGitWorktree: ObserveGitWorktreeUseCase,
-    private val addWorktree: AddWorktreePanelUseCase,
-    private val closeWorktree: CloseWorktreePanelUseCase,
+    private val worktreeTasks: WorktreeTaskHost,
     observeClaudeActivities: ObserveClaudeActivitiesUseCase,
     private val claudeAttention: ClaudeAttention,
 ) : ViewModel() {
@@ -141,12 +137,15 @@ internal class TerminalViewModel(
         update { it.addPanel(name, directory, sessionId) }
     }
 
-    /**
-     * [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 패널을 Claude 탭 하나로 붙인다. 창이 닫혀 이 호출이 취소돼도 git 명령과
-     * 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게.
-     */
-    suspend fun addWorktreePanel(parentId: Long, branch: String, baseBranch: String?, directory: String): Result<Unit> =
-        viewModelScope.async { addWorktree(parentId, branch, baseBranch, directory, firstClaudeSessionId()).map { } }.await()
+    val pendingWorktrees: StateFlow<List<PendingWorktree>> = worktreeTasks.pending
+
+    val removingWorktreePanels: StateFlow<Set<Long>> = worktreeTasks.removing
+
+    val worktreeFailures: StateFlow<List<WorktreeFailure>> = worktreeTasks.failures
+
+    /** [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 패널을 Claude 탭 하나로 붙이는 일을 뒤에서 시작한다. */
+    fun addWorktreePanel(parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String) =
+        worktreeTasks.add(parentId, parent, branch, baseBranch, directory, firstClaudeSessionId())
 
     // 새 패널의 첫 Claude 탭. Claude 를 띄울 수 없는 타깃이면 null 이고 패널은 빈 채로 시작한다.
     private fun firstClaudeSessionId(): String? = if (isClaudeSupported) newClaudeSessionId() else null
@@ -155,14 +154,11 @@ internal class TerminalViewModel(
 
     fun closePanel(panelId: Long) = update { it.closePanel(panelId) }
 
-    /**
-     * [removeWorktree] 면 워크트리 패널의 워크트리·브랜치(와 [deleteDirectory] 면 폴더)를 지우고 패널을 닫는다. 창이 닫혀
-     * 취소돼도 끝까지 간다 — 지워진 워크트리를 가리키는 패널이 남지 않게.
-     */
-    suspend fun closeWorktreePanel(panelId: Long, removeWorktree: Boolean, deleteDirectory: Boolean): Result<Unit> =
-        viewModelScope.async {
-            closeWorktree(panelId, removeWorktree, deleteDirectory).map { change -> host.release(change.removedTabs.map { it.id }) }
-        }.await()
+    /** [removeWorktree] 면 워크트리 패널의 워크트리·브랜치(와 [deleteDirectory] 면 폴더)를 지우고 패널을 닫는 일을 뒤에서 시작한다. */
+    fun closeWorktreePanel(panelId: Long, worktree: GitWorktree, removeWorktree: Boolean, deleteDirectory: Boolean) =
+        worktreeTasks.remove(panelId, worktree, removeWorktree, deleteDirectory)
+
+    fun dismissWorktreeFailure(id: Long) = worktreeTasks.dismissFailure(id)
 
     fun selectPanel(panelId: Long) = update { it.selectPanel(panelId) }
 
