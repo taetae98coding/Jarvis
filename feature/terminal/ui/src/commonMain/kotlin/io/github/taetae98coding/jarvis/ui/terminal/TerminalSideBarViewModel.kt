@@ -18,12 +18,16 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** 폴더 하나뿐인 폴더를 이어 펼치는 최대 단계 (docs/common/terminal-side-bar.html R8a). */
+internal const val FileTreeChainMaxDepth = 32
 
 internal sealed interface FileTreeState {
     data object Loading : FileTreeState
@@ -107,7 +111,27 @@ internal class TerminalSideBarViewModel(
         directory.value = value
     }
 
-    fun toggle(path: String) = expanded.update { if (path in it) it - path else it + path }
+    fun toggle(path: String) {
+        if (path in expanded.value) {
+            expanded.update { it - path }
+            return
+        }
+
+        expanded.update { it + path }
+        viewModelScope.launch { expanded.update { it + singleFolderChain(path) } }
+    }
+
+    // 폴더 심볼릭 링크를 따라가므로 `a/link → a` 처럼 끝없이 이어질 수 있어서 단계 상한을 둔다.
+    private suspend fun singleFolderChain(path: String): List<String> {
+        val chain = mutableListOf<String>()
+        var current = path
+        repeat(FileTreeChainMaxDepth) {
+            val only = observeDirectory(current).first()?.singleOrNull()?.takeIf { it.isDirectory } ?: return chain
+            chain += only.path
+            current = only.path
+        }
+        return chain
+    }
 
     fun stage(root: String, changes: List<GitChange>) = runGit { stageGitChanges(root, changes) }
 
