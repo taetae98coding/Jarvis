@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>터미널 오른쪽 사이드 바 (파일·Git) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>터미널 오른쪽 사이드 바</span></nav>
+
+<header>
+  <h1>터미널 오른쪽 사이드 바 (파일·Git)</h1>
+  <p class="lead">터미널 화면 오른쪽 끝에 접었다 펼 수 있는 사이드 바가 있다. "파일" 구획은 선택된 패널 폴더의 파일 트리를 보이고, 파일을 누르면 그 내용을 읽기 전용 파일 탭으로 연다. "Git" 구획은 위에 스테이지된 변경과 스테이지되지 않은 변경을 보이며 항목마다 stage·unstage 하고, 아래에 커밋 그래프(선 그림·ref·메시지)를 보인다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>터미널에서 오른쪽 사이드 바 만들자.<br>
+  - 오른쪽 사이드 바는 접었다가 펼치기 기능을 제공해야해.</p>
+  <p>해당 사이드바에서는 일단 2가지 기능을 제공해.</p>
+  <p>1. 파일 목록보기.<br>
+  - 파일 목록을 볼 수 있고 클릭 시 새 탭으로 열어서 내용을 확인할 수 있어야해.</p>
+  <p>2. git 작업하기.<br>
+  - git 패널 상단에서는 stage, unstage 항목들이 노출되어야해.<br>
+  - git 패널에서는 하단에 커밋 상태랑 메시지 같은 그래프를 볼 수 있어야해.</p>
+  <footer>2026-09-25 대화.</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<dl class="meta">
+  <dt>사이드 바</dt><dd>터미널 화면에서 탭 영역 오른쪽에 붙은 세로 영역. 오른쪽 끝의 <strong>레일</strong>(아이콘 버튼 세로 줄)과 그 왼쪽의 <strong>내용</strong>으로 되어 있다. 접으면 내용만 사라지고 레일은 남는다</dd>
+  <dt>구획</dt><dd>내용에 보이는 것. "파일" 과 "Git" 둘 중 하나다. 지시의 "git 패널" 은 Git 구획이다(왼쪽 목록의 "패널" 과 다르다)</dd>
+  <dt>기준 폴더</dt><dd>사이드 바가 보이는 폴더. 선택된 패널의 폴더(<a href="terminal-panel-create.html">새 패널 제목·폴더</a>의 <code>directory</code>), 없으면 포커스된 탭의 작업 디렉터리다</dd>
+  <dt>파일 탭</dt><dd>파일 하나의 내용을 읽기 전용으로 보이는 탭(<code>TerminalProgram.File</code>). 셸을 열지 않는다</dd>
+  <dt>스테이지된 변경</dt><dd><code>git status</code> 의 index 쪽(porcelain 의 X 글자) 변경. 다음 커밋에 들어간다</dd>
+  <dt>변경</dt><dd>작업 트리 쪽(porcelain 의 Y 글자) 변경과 추적하지 않는 파일. 아직 index 에 없다</dd>
+  <dt>커밋 그래프</dt><dd><code>git log --graph</code> 가 그리는 선 그림과 커밋 줄. 지시의 "커밋 상태랑 메시지 같은 그래프" 다</dd>
+</dl>
+
+<h2 id="requirements">요구사항</h2>
+
+<h3>사이드 바</h3>
+<ol>
+  <li><strong>R1.</strong> 터미널 화면에서 탭 영역 오른쪽 끝에 사이드 바가 있다. 레일은 위에서부터 접기·펼치기 버튼, "파일" 아이콘, "Git" 아이콘을 가진다.</li>
+  <li><strong>R2.</strong> 펼친 상태에서 접기 버튼을 누르면 내용이 사라지고 레일만 남으며, 탭 영역이 그만큼 넓어진다. 접힌 상태에서 펼치기 버튼을 누르면 마지막으로 보던 구획으로 다시 펼쳐진다. 접고 펼쳐도 탭과 셸은 그대로다.</li>
+  <li><strong>R3.</strong> 레일의 구획 아이콘을 누르면 그 구획으로 펼쳐진다. 이미 그 구획이 펼쳐져 있으면 접힌다. 펼쳐진 구획의 아이콘은 선택된 모양이다.</li>
+  <li><strong>R4.</strong> 터미널 화면을 처음 열면 사이드 바는 "파일" 구획으로 펼쳐져 있다. 접힘·구획은 화면에 있는 동안 유지되고 저장하지 않는다.</li>
+  <li><strong>R5.</strong> 기준 폴더는 선택된 패널의 폴더이고, 패널에 폴더가 없으면 포커스된 탭의 작업 디렉터리다. 패널을 바꾸면 따라 바뀐다. 둘 다 없으면 두 구획 모두 "폴더가 없는 패널입니다" 를 보인다.</li>
+  <li><strong>R6.</strong> 접혀 있는 동안, 또는 보이지 않는 구획은 디스크·git 을 읽지 않는다.</li>
+</ol>
+
+<h3>파일</h3>
+<ol start="7">
+  <li><strong>R7.</strong> "파일" 구획은 맨 위에 기준 폴더 경로를, 그 아래에 기준 폴더 바로 아래 항목을 폴더 먼저, 그 안에서 이름(대소문자 무시) 순으로 보인다. <code>.git</code> 은 보이지 않고, 다른 점(.)으로 시작하는 항목은 보인다. 기준 폴더가 없거나 읽을 수 없으면 "폴더를 읽을 수 없습니다" 다.</li>
+  <li><strong>R8.</strong> 폴더 줄을 누르면 그 폴더가 펼쳐져 아래 항목이 한 단계 들여써 같은 순서로 보이고, 다시 누르면 접힌다. 펼친 폴더는 기준 폴더를 바꿨다 돌아와도 펼쳐져 있다(화면에 있는 동안).</li>
+  <li><strong>R9.</strong> 파일 줄을 누르면 선택된 패널의 포커스된 그룹 탭 줄 끝에 그 파일의 파일 탭이 새로 열리고 선택된다. 패널에 그룹이 없으면 그룹을 만든다. 그 패널에 같은 파일의 파일 탭이 이미 있으면 새로 열지 않고 그 탭을 고른다.</li>
+  <li><strong>R10.</strong> 파일 탭의 종류 아이콘은 "파일" 이고 자동 제목은 파일 이름이다. 이름 바꾸기·닫기·끌어 놓기·분할은 다른 탭과 같다.</li>
+  <li><strong>R11.</strong> 파일 탭은 파일 내용을 UTF-8 로 읽어 고정폭 글자로, 줄 번호와 함께, 줄바꿈 없이 가로·세로 스크롤로 보인다. 글자를 골라 복사할 수 있고 고칠 수는 없다. 파일이 <code>FileViewerMaxBytes</code>(512 KiB)보다 크면 그만큼만 보이고 위에 "앞 512 KiB 만 보입니다" 가 붙는다. 앞 8 KiB 안에 NUL 바이트가 있으면 내용 대신 "텍스트가 아닌 파일이라 보일 수 없습니다", 파일이 없거나 읽을 수 없으면 "파일을 읽을 수 없습니다" 다.</li>
+  <li><strong>R12.</strong> 파일 탭은 경로와 함께 저장돼 앱을 다시 켜면 같은 파일로 되살아난다. 셸을 띄우지 않는다.</li>
+  <li><strong>R13.</strong> 목록과 파일 탭 내용은 디스크가 바뀌면(셸에서 파일을 만들고 지우고 고치면) 플랫폼 스펙의 간격 안에 따라간다.</li>
+</ol>
+
+<h3>Git</h3>
+<ol start="14">
+  <li><strong>R14.</strong> "Git" 구획은 기준 폴더가 git 작업 트리 안에 있으면 위 절반에 현재 브랜치(detached 면 "HEAD (detached)")와 "스테이지된 변경 (n)"·"변경 (n)" 두 목록을, 아래 절반에 "커밋 그래프" 를 보인다. 위·아래는 각각 따로 스크롤된다. 작업 트리 밖이거나 git 을 쓸 수 없는 플랫폼이면 "git 저장소가 아닙니다" 만 보인다.</li>
+  <li><strong>R15.</strong> 변경 항목 줄은 상태 글자, 파일 이름, 저장소 최상위 기준 상위 폴더를 보인다. 상태 글자는 M 수정, A 추가, D 삭제, R 이름 바꿈, C 복사, T 종류 바뀜, U 충돌, ? 추적 안 함이다. 한 파일이 index 와 작업 트리 양쪽에서 바뀌었으면(<code>MM</code>) 두 목록에 모두 나온다. 충돌 파일은 "변경" 에만 나온다. 목록은 경로 순이다. 목록이 비어 있으면 머리만 보인다.</li>
+  <li><strong>R16.</strong> "변경" 항목의 + ("stage")를 누르면 그 파일을 stage 하고, "스테이지된 변경" 항목의 − ("unstage")를 누르면 unstage 한다. 이름 바꿈의 unstage 는 옛 경로까지 함께 되돌린다. 목록 머리의 "모두 stage"·"모두 unstage" 는 그 목록 전체다. 명령이 끝나면 폴링 간격을 기다리지 않고 두 목록과 그래프를 다시 읽는다. 실패하면 git 의 오류 문구가 구획 위에 남고, 다음 명령이 성공하면 사라진다.</li>
+  <li><strong>R17.</strong> 변경 항목 줄을 버튼 밖에서 누르면 R9 처럼 그 파일(저장소 최상위 + 경로)의 파일 탭을 연다.</li>
+  <li><strong>R18.</strong> 커밋 그래프는 로컬 브랜치·원격 브랜치·태그·HEAD 에서 닿는 커밋을 최근 <code>GitGraphMaxCommits</code>(200)개까지 날짜순으로 보인다. 줄마다 왼쪽에 <code>git log --graph</code> 의 선 그림이 칸마다 색을 달리해 고정폭으로 있다. 커밋마다 두 줄이다 — 첫 줄에 그 커밋을 가리키는 ref(HEAD·브랜치·태그)와 메시지 제목, 둘째 줄에 짧은 해시·작성자·날짜(<code>yyyy-MM-dd HH:mm</code>). 둘째 줄의 이음선도 git 이 그려 그래프가 끊기지 않는다. 가로로 넘치면 줄 전체가 가로 스크롤된다. HEAD 가 가리키는 커밋의 제목은 굵다. 커밋이 없는 저장소는 "커밋이 없습니다" 다.</li>
+  <li><strong>R19.</strong> 두 목록과 그래프는 셸에서 git 을 쓰거나 파일을 고치면 플랫폼 스펙의 간격 안에 따라간다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  지시에 없는 것: 커밋 만들기, diff 보기, 줄 단위(hunk) stage, 브랜치 전환, 파일 편집·만들기·지우기·이름 바꾸기, 사이드 바 폭 조절, 접힘·구획·펼친 폴더 저장. 지시가 "일단 2가지" 라고 해서 나중 기능으로 둔다. 커밋은 셸이나 Claude 탭에서 하면 그래프가 따라온다(R19).
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌ 패널 목록 ┐┌ 탭 영역 ───────────────────────┐┌ 내용 (280dp) ─────────┐┌레일┐
+│           ││ [셸 1] [README.md ✕] [+]        ││ ~/work/jarvis          ││ ▶  │  ← 접기
+│           ││                                  ││ ▸ app                  ││ 📁 │  ← 파일 (선택됨)
+│           ││   1  # Jarvis                    ││ ▾ docs                 ││ ⑂  │  ← Git
+│           ││   2                              ││     index.html         ││    │
+│           ││   3  ...                         ││ README.md              ││    │
+└───────────┘└──────────────────────────────────┘└────────────────────────┘└────┘
+
+Git 구획
+┌──────────────────────────────┐
+│ ⑂ main                        │
+│ 스테이지된 변경 (1)  모두 unstage │
+│  M  Foo.kt  app/src      −    │
+│ 변경 (2)            모두 stage │
+│  M  Bar.kt  app/src      +    │
+│  ?  new.txt              +    │
+├──────────────────────────────┤
+│ 커밋 그래프                     │
+│ * [HEAD -> main] 사이드 바      │
+│ |\  a1b2 · dev · 2026-09-25 10:00│
+│ | * [origin/x] 고침            │
+│ |/  c3d4 · dev · 2026-09-24 18:30│
+│ * 처음                         │
+│   e5f6 · dev · 2026-09-20 09:12 │
+└──────────────────────────────┘</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>레일</td><td>세로 <code>JarvisIconButton</code> 셋. 접기·펼치기(펼침: <code>ChevronRight</code> "사이드 바 접기" / 접힘: <code>ChevronLeft</code> "사이드 바 펼치기"), <code>Folder</code> "파일", <code>GitBranch</code> "Git". 펼쳐진 구획 아이콘은 <code>primary</code> 색, 나머지는 <code>onSurfaceVariant</code></td></tr>
+    <tr><td>내용 폭</td><td><code>TerminalSideBarDefaults.width</code> 280dp 고정</td></tr>
+    <tr><td>파일 줄</td><td>들여쓰기(단계마다 <code>spacing.l</code>), 폴더면 <code>ChevronRight</code>(펼치면 <code>ChevronDown</code>) + <code>Folder</code>, 파일이면 빈칸 + <code>File</code>, 이름 한 줄 말줄임</td></tr>
+    <tr><td>파일 탭</td><td>종류 아이콘 <code>File</code>, 설명 "파일". 내용은 <code>codeTextStyle</code>, 줄 번호는 <code>onSurfaceVariant</code></td></tr>
+    <tr><td>변경 줄</td><td>상태 글자(고정폭, 색: A·? success, D·U error, 나머지 warning), 이름, 상위 폴더(<code>onSurfaceVariant</code>), 오른쪽 <code>Add</code> "stage" 또는 <code>Remove</code> "unstage"</td></tr>
+    <tr><td>그래프 줄</td><td>선 그림(<code>codeTextStyle</code>, 글자 칸 두 개마다 다른 색 6가지를 돈다), ref 는 <code>labelSmall</code> 배경 칩(HEAD 는 <code>primaryContainer</code>, 나머지 <code>secondaryContainer</code>), 제목은 <code>bodySmall</code>, 둘째 줄의 짧은 해시·작성자·날짜는 <code>labelSmall</code> <code>onSurfaceVariant</code></td></tr>
+    <tr><td>문구</td><td>"폴더가 없는 패널입니다", "폴더를 읽을 수 없습니다", "git 저장소가 아닙니다", "HEAD (detached)", "스테이지된 변경 (n)", "변경 (n)", "모두 stage", "모두 unstage", "커밋 그래프", "커밋이 없습니다", "앞 512 KiB 만 보입니다", "텍스트가 아닌 파일이라 보일 수 없습니다", "파일을 읽을 수 없습니다"</td></tr>
+    <tr><td>테스트 태그</td><td>
+      <code>terminal:side-bar</code>, <code>terminal:side-bar:toggle</code>, <code>terminal:side-bar:content</code>,
+      <code>terminal:side-bar:section:files</code>, <code>terminal:side-bar:section:git</code>, <code>terminal:side-bar:no-folder</code>,
+      <code>terminal:files:root</code>, <code>terminal:files:unreadable</code>, <code>terminal:files:entry:&lt;경로&gt;</code>,
+      <code>terminal:git:not-repository</code>, <code>terminal:git:branch</code>, <code>terminal:git:error</code>,
+      <code>terminal:git:staged:&lt;경로&gt;</code>, <code>terminal:git:unstaged:&lt;경로&gt;</code>, <code>terminal:git:stage:&lt;경로&gt;</code>, <code>terminal:git:unstage:&lt;경로&gt;</code>,
+      <code>terminal:git:stage-all</code>, <code>terminal:git:unstage-all</code>, <code>terminal:git:graph</code>, <code>terminal:git:commit:&lt;해시&gt;</code>, <code>terminal:git:no-commits</code>,
+      <code>terminal:file-viewer:&lt;탭 id&gt;</code>, <code>terminal:file-viewer:notice</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd>
+    <code>FileEntry</code>(name, path, isDirectory)·<code>FileContent</code>(Text / Binary / Unreadable)·<code>FileRepository</code>(<code>observeDirectory</code>, <code>observeFile</code>),
+    <code>GitChange</code>·<code>GitChangeKind</code>·<code>GitStatus</code>(root, branch, staged, unstaged)·<code>GitGraphLine</code>·<code>GitCommit</code>·<code>GitChangesRepository</code>(<code>observeStatus</code>, <code>observeGraph</code>, <code>stage</code>, <code>unstage</code>),
+    유스케이스 <code>ObserveDirectoryUseCase</code>·<code>ObserveFileUseCase</code>·<code>ObserveGitStatusUseCase</code>·<code>ObserveGitGraphUseCase</code>·<code>StageGitChangesUseCase</code>·<code>UnstageGitChangesUseCase</code>.
+    <code>TerminalProgram.File</code>, <code>TerminalTab.filePath</code>, <code>TerminalTabKind.File</code>, <code>TerminalWorkspace.openFile(path)</code>(R9), <code>TerminalWorkspace.sideBarDirectory</code>(R5)</dd>
+  <dt>data</dt><dd>
+    <code>FileDataSource</code> 와 공통 구현 <code>OkioFileDataSource(fileSystem, home, changes)</code> — okio <code>FileSystem</code> 으로 목록·메타데이터·앞부분 읽기를 하고, 다시 읽을 신호 <code>changes(path)</code> 는 플랫폼이 준다.
+    파일 탭 내용은 신호마다 <code>(크기, 수정 시각)</code> 만 다시 읽고 달라졌을 때만 내용을 읽는다.
+    git 은 기존 <code>GitDataSource</code> 에 <code>observeStatus</code>·<code>observeGraph</code>·<code>stage</code>·<code>unstage</code> 를 더하고, porcelain·그래프 해석(<code>parseGitStatus</code>, <code>parseGitGraph</code>)은 공통 함수다.
+    stage·unstage 가 끝나면 데이터 소스 안의 신호로 같은 저장소의 관측을 곧바로 다시 읽는다(R16)</dd>
+  <dt>공급</dt><dd><code>internal expect fun createFileDataSource(context: PlatformContext): FileDataSource</code>, 기존 <code>createGitDataSource()</code></dd>
+  <dt>UI</dt><dd>
+    <code>TerminalSideBar.kt</code>(레일·내용·구획 전환), <code>TerminalFileTree.kt</code>, <code>TerminalGitPanel.kt</code>, <code>TerminalFileViewer.kt</code>.
+    상태는 <code>TerminalSideBarViewModel</code>: 화면이 <code>setDirectory</code> 로 기준 폴더를 넘기고, 펼친 폴더 집합을 들고, 트리·git 상태·그래프를 <code>stateIn(viewModelScope, WhileSubscribed(replayExpirationMillis = 0), …)</code> 으로 내놓는다.
+    파일 탭 내용은 <code>TerminalViewModel.fileContent(path)</code> 가 경로마다 같은 방식으로 내놓는다. 접힘·구획은 <code>rememberSaveable</code></dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 그래프는 <code>git log --graph</code> 의 글자 그림을 그대로 쓴다.</strong>
+  부모 목록(<code>%P</code>)으로 레인을 직접 배치해 선으로 그리는 방법을 버렸다. 병합·교차 배치 알고리즘을 새로 짜야 하고 git 과 모양이 달라진다. git 의 그림은 셸에서 보던 것과 같고, 칸마다 색을 입히면 레인이 구분된다. 형식은 <code>%x1f</code> 로 구분한 필드 뒤에 <code>%n%x1e</code> 를 붙여 커밋마다 둘째 줄을 만든다. git 은 여러 줄 형식의 이음선을 스스로 그리므로, 둘째 줄에 작성자·날짜를 놓아도 선이 끊기지 않는다. 둘 다 없는 줄은 선만 있는 줄이다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 기준 폴더는 패널 폴더가 먼저다.</strong>
+  포커스된 탭의 작업 디렉터리를 먼저 쓰면 셸에서 <code>cd</code> 할 때마다 트리가 통째로 바뀌고 펼친 폴더가 흩어진다. 패널 폴더는 사용자가 정한 작업 대상이다. 폴더 없이 만든 패널만 탭의 디렉터리로 채운다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 같은 파일은 패널 안에서 탭 하나.</strong>
+  누를 때마다 새 탭이면 같은 파일 탭이 쌓인다. 다른 패널에 있는 같은 파일 탭은 고르지 않는다 — 탭은 만든 패널에 속하고 패널을 건너뛰면 사용자가 보던 패널이 바뀐다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 펼친 폴더·접힘은 저장하지 않는다.</strong>
+  지시에 없고, 저장하면 작업 공간 파일 형식이 화면 상태로 늘어난다. 화면에 있는 동안만 유지한다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge partial">조건부</span> <span class="badge untested">미검증</span></td><td>파일은 구현: okio <code>FileSystem.SYSTEM</code> + <code>FileObserver</code>(inotify) 콜백. 앱이 읽을 수 있는 폴더만 보인다. Git 은 기기에 <code>git</code> 이 없어 "git 저장소가 아닙니다"</td><td><a href="../platform/android.html#terminal-side-bar">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다. 빈 목록·"git 저장소가 아닙니다" 로 컴파일만 된다</td><td><a href="../platform/ios.html#terminal-side-bar">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. okio <code>FileSystem.SYSTEM</code> + 폴링, <code>git status --porcelain=v1 -z</code>·<code>git log --graph</code>·<code>git add</code>·<code>git restore --staged</code></td><td><a href="../platform/jvm.html#terminal-side-bar">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-side-bar">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TerminalWorkspaceTest</code></td><td>R5, R9. <code>openFile</code> 이 포커스된 그룹 끝에 파일 탭을 열어 고르고, 빈 패널이면 그룹을 만들고, 같은 패널의 같은 경로는 다시 고르기만 하고, 다른 패널의 같은 경로는 새로 연다. <code>sideBarDirectory</code> 가 패널 폴더 → 포커스된 탭 디렉터리 순</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalWorkspaceStoreTest</code></td><td>R12. 파일 탭이 경로와 함께 쓰이고 다시 읽힘, 경로가 없는 파일 탭은 셸로 읽힘</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>OkioFileDataSourceTest</code></td><td>R7, R11, R13. 임시 폴더에서 폴더 먼저·이름순, <code>.git</code> 숨김, 없는 폴더 null, <code>~</code> 펴기, 텍스트·512 KiB 자르기·NUL 바이너리·없는 파일, 신호가 오면 바뀐 목록·내용을 다시 줌, 크기·시각이 같으면 내용을 다시 읽지 않음</td><td>같음</td></tr>
+    <tr><td><code>GitStatusParserTest</code></td><td>R15, R18. porcelain v1 <code>-z</code> 의 수정·추가·삭제·이름 바꿈(옛 경로)·추적 안 함·충돌·<code>MM</code> 분류와 경로순, 브랜치 머리(<code>## main...origin/main</code>, detached, <code>No commits yet</code>), 그래프의 커밋 줄·선 줄·ref·HEAD 해석</td><td>같음</td></tr>
+    <tr><td><code>GitDataSourceTest</code></td><td>R14–R16, R18. 임시 저장소에서 상태·그래프를 읽고, stage·unstage(이름 바꿈, 커밋 없는 저장소 포함)가 index 를 바꾸고 관측이 폴링 간격 전에 따라감, 저장소가 아닌 폴더는 null·빈 그래프, 실패는 stderr 문구</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalSideBarTest</code></td><td>R1–R5, R7–R11, R14–R18. 접기·펼치기·구획 아이콘 전환과 탭 영역이 그대로임, 폴더 없는 패널 문구, 트리 순서와 폴더 펼치기, 파일을 누르면 파일 탭이 열려 내용·줄 번호가 보이고 다시 누르면 같은 탭, 바이너리·자름 문구, 두 목록과 stage·unstage·모두 버튼이 저장소를 부름, 실패 문구, 변경 줄을 누르면 파일 탭, 그래프 줄, 저장소가 아닌 폴더 문구</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 실제 디스크·git 과 화면의 왕복(R13, R19 의 간격). <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>파일 탭은 앞 512 KiB 만 보이고 UTF-8 이 아닌 인코딩은 글자가 깨진다(잘못된 바이트는 U+FFFD).</li>
+  <li>그래프는 최근 200개 커밋까지다. 그보다 오래된 커밋은 셸에서 본다.</li>
+  <li>stage·unstage 는 파일 단위다. 줄 단위는 셸에서 <code>git add -p</code> 한다.</li>
+  <li>기준 폴더가 저장소의 하위 폴더여도 Git 구획은 저장소 전체의 변경을 보인다(git 의 porcelain 경로는 최상위 기준이다).</li>
+  <li>큰 저장소는 폴링마다 <code>git status</code> 가 느릴 수 있다. Git 구획이 보이는 동안만 돈다(R6).</li>
+  <li>Android 는 git 을 쓸 수 없고, 앱 샌드박스 밖 폴더는 읽을 수 없다(<a href="../platform/android.html#terminal-side-bar">Android</a>).</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

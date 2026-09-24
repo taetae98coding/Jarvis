@@ -22,7 +22,7 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  *
  * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
  * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만, [url] 은 [TerminalProgram.Browser] 탭에만,
- * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만 있다. [deviceName]·[devicePlatform] 은
+ * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만, [filePath] 는 [TerminalProgram.File] 탭에만 있다. [deviceName]·[devicePlatform] 은
  * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다.
  *
  * [claudeCheckedAt] 은 사용자가 본 마지막 끝난 결과의 [ClaudeActivity.Finished.at] 이다(docs/common/terminal-claude-status.html).
@@ -40,12 +40,14 @@ data class TerminalTab(
     val devicePlatform: DevicePlatform? = null,
     val name: String? = null,
     val claudeCheckedAt: Long? = null,
+    val filePath: String? = null,
 ) {
     val kind: TerminalTabKind
         get() = when (program) {
             TerminalProgram.Shell -> TerminalTabKind.Terminal
             TerminalProgram.Claude -> TerminalTabKind.Claude
             TerminalProgram.Browser -> TerminalTabKind.Browser
+            TerminalProgram.File -> TerminalTabKind.File
             TerminalProgram.Device -> when (devicePlatform) {
                 DevicePlatform.Android -> TerminalTabKind.Android
                 DevicePlatform.IOS -> TerminalTabKind.IOS
@@ -268,12 +270,13 @@ data class TerminalWorkspace(
         deviceId: String? = null,
         deviceName: String? = null,
         devicePlatform: DevicePlatform? = null,
+        filePath: String? = null,
     ): TerminalWorkspace {
         val panel = (if (groupId == null) selectedPanel else findPanel { panel -> panel.groups.any { it.id == groupId } })
             ?: return this
         val group = if (groupId == null) panel.focusedGroup else panel.groups.first { it.id == groupId }
         val tabId = nextId
-        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform)
+        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform, filePath = filePath)
 
         if (group == null) {
             val newGroupId = nextId + 1
@@ -286,6 +289,20 @@ data class TerminalWorkspace(
             .focusGroup(group.id)
             .copy(nextId = nextId + 1)
     }
+
+    /**
+     * 선택된 패널에 [path] 의 파일 탭이 있으면 그 탭을 고르고, 없으면 포커스된 그룹(없으면 새 그룹)에 파일 탭을 열어 고른다.
+     * 다른 패널의 같은 파일 탭은 보지 않는다(docs/common/terminal-side-bar.html#implementation).
+     */
+    fun openFile(path: String): TerminalWorkspace {
+        val opened = selectedPanel?.tabs?.firstOrNull { it.program == TerminalProgram.File && it.filePath == path }
+
+        return if (opened != null) selectTab(opened.id) else addTab(program = TerminalProgram.File, filePath = path)
+    }
+
+    /** 사이드 바가 보이는 폴더. 선택된 패널의 폴더, 없으면 포커스된 탭의 작업 디렉터리다. */
+    val sideBarDirectory: String?
+        get() = selectedPanel?.directory ?: focusedTab?.directory
 
     /**
      * [groupId] 그룹의 탭 줄 끝에 탭을 붙이되 고르지 않는다. 선택된 패널, 포커스된 그룹, 그룹마다 선택된 탭이

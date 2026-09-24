@@ -1,8 +1,11 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import java.nio.file.Files
@@ -11,6 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.hours
 
 /** 임시 폴더에 진짜 저장소를 만들어 `git` 과 왕복한다. `git` 이 없는 머신에서는 확인할 것이 없어 곧바로 끝낸다. */
 class GitDataSourceTest {
@@ -226,6 +230,129 @@ class GitDataSourceTest {
         assertIs<GitWorktreeException>(source.removeWorktree(newDirectory().path, deleteDirectory = true).exceptionOrNull())
         assertTrue(File(repository, ".git").isDirectory)
         assertTrue(branchExists(repository, "main"))
+    }
+
+    private fun commit(directory: File, message: String) =
+        git(directory, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", message)
+
+    @Test
+    fun statusSplitsStagedAndUnstagedChangesOfTheWholeRepository() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        File(repository, "a.txt").writeText("a")
+        git(repository, "add", "a.txt")
+        commit(repository, "a")
+        File(repository, "a.txt").writeText("changed")
+        File(repository, "b.txt").writeText("b")
+        git(repository, "add", "b.txt")
+        val nested = File(repository, "src/new").apply { mkdirs() }
+        File(nested, "c.txt").writeText("c")
+
+        val status = source.observeStatus(nested.path).first()!!
+
+        assertEquals(repository.path, status.root)
+        assertEquals("main", status.branch)
+        assertEquals(listOf(GitChange("b.txt", GitChangeKind.Added)), status.staged)
+        assertEquals(listOf(GitChange("a.txt", GitChangeKind.Modified), GitChange("src/new/c.txt", GitChangeKind.Untracked)), status.unstaged)
+    }
+
+    @Test
+    fun stageAndUnstageChangeTheIndexAndTheObservationFollowsWithoutWaitingForPolling() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        File(repository, "a.txt").writeText("a")
+        val slow = ProcessGitDataSource(home = System.getProperty("user.home"), changesPollInterval = 1.hours)
+        val values = slow.observeStatus(repository.path).produceIn(backgroundScope)
+        assertEquals(listOf("a.txt"), values.receive()!!.unstaged.map { it.path })
+
+        assertTrue(slow.stage(repository.path, listOf(GitChange("a.txt", GitChangeKind.Untracked))).isSuccess)
+        assertEquals(listOf(GitChange("a.txt", GitChangeKind.Added)), values.receive()!!.staged)
+
+        assertTrue(slow.unstage(repository.path, listOf(GitChange("a.txt", GitChangeKind.Added))).isSuccess)
+        val unstaged = values.receive()!!
+        assertEquals(emptyList(), unstaged.staged)
+        assertEquals(listOf(GitChange("a.txt", GitChangeKind.Untracked)), unstaged.unstaged)
+    }
+
+    @Test
+    fun unstagingARenameRestoresBothPaths() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        File(repository, "a.txt").writeText("a")
+        git(repository, "add", "a.txt")
+        commit(repository, "a")
+        git(repository, "mv", "a.txt", "b.txt")
+        val rename = source.observeStatus(repository.path).first()!!.staged.single()
+        assertEquals(GitChange("b.txt", GitChangeKind.Renamed, originalPath = "a.txt"), rename)
+
+        assertTrue(source.unstage(repository.path, listOf(rename)).isSuccess)
+
+        val status = source.observeStatus(repository.path).first()!!
+        assertEquals(emptyList(), status.staged)
+        assertEquals(listOf(GitChange("a.txt", GitChangeKind.Deleted), GitChange("b.txt", GitChangeKind.Untracked)), status.unstaged)
+    }
+
+    // restore --staged 는 HEAD 가 없으면 실패한다. 커밋 전의 첫 stage 도 되돌릴 수 있어야 한다.
+    @Test
+    fun unstagingWorksBeforeTheFirstCommit() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newDirectory().also { git(it, "init", "-q", "-b", "main") }
+        File(repository, "a.txt").writeText("a")
+        git(repository, "add", "a.txt")
+
+        assertTrue(source.unstage(repository.path, listOf(GitChange("a.txt", GitChangeKind.Added))).isSuccess)
+
+        val status = source.observeStatus(repository.path).first()!!
+        assertEquals("main", status.branch)
+        assertEquals(emptyList(), status.staged)
+        assertEquals(listOf(GitChange("a.txt", GitChangeKind.Untracked)), status.unstaged)
+    }
+
+    @Test
+    fun stageFailureIsGitsMessage() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+
+        val failure = source.stage(repository.path, listOf(GitChange("missing.txt", GitChangeKind.Modified))).exceptionOrNull()
+
+        assertIs<GitWorktreeException>(failure)
+        assertTrue(failure.message!!.contains("missing.txt"), failure.message)
+    }
+
+    @Test
+    fun graphShowsBranchesMergesAndTheHeadCommit() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        git(repository, "switch", "-q", "-c", "side")
+        commit(repository, "side work")
+        git(repository, "switch", "-q", "main")
+        commit(repository, "main work")
+        git(repository, "-c", "user.name=test", "-c", "user.email=test@example.com", "merge", "-q", "--no-ff", "side", "-m", "merge side")
+
+        val lines = source.observeGraph(repository.path).first()
+        val titles = lines.filter { it.commit != null && !it.isDetail }
+
+        // 같은 초에 만든 두 가지 커밋은 날짜순이 정해지지 않는다. 처음과 끝, 모인 것만 본다.
+        assertEquals(setOf("merge side", "main work", "side work", "init"), titles.map { it.commit!!.subject }.toSet())
+        assertEquals("merge side", titles.first().commit!!.subject)
+        assertEquals("init", titles.last().commit!!.subject)
+        assertEquals(listOf("HEAD -> main"), titles.first().commit!!.refs)
+        assertTrue(titles.first().commit!!.isHead)
+        assertTrue(titles.first().graph.startsWith("*"))
+        assertEquals(titles.size, lines.count { it.isDetail })
+        assertTrue(lines.any { it.graph.contains("\\") })
+        assertEquals(listOf("side"), titles.single { it.commit!!.subject == "side work" }.commit!!.refs)
+    }
+
+    @Test
+    fun foldersOutsideARepositoryHaveNoStatusAndNoGraph() = runTest {
+        if (!gitAvailable) return@runTest
+        val outside = newDirectory()
+        val unborn = newDirectory().also { git(it, "init", "-q", "-b", "main") }
+
+        assertNull(source.observeStatus(outside.path).first())
+        assertEquals(emptyList(), source.observeGraph(outside.path).first())
+        assertEquals(emptyList(), source.observeGraph(unborn.path).first())
     }
 
     @Test

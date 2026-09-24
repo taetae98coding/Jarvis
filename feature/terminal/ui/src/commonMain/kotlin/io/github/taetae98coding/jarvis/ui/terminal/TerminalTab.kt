@@ -210,6 +210,7 @@ internal object TerminalTabDefaults {
             TerminalTabKind.Android -> JarvisIcons.Android
             TerminalTabKind.IOS -> JarvisIcons.Apple
             TerminalTabKind.Device -> JarvisIcons.Smartphone
+            TerminalTabKind.File -> JarvisIcons.File
         }
 
     fun kindLabel(kind: TerminalTabKind): String =
@@ -220,12 +221,13 @@ internal object TerminalTabDefaults {
             TerminalTabKind.Android -> "Android"
             TerminalTabKind.IOS -> "iOS"
             TerminalTabKind.Device -> "기기"
+            TerminalTabKind.File -> "파일"
         }
 
     // null 이면 탭 글자색을 따른다. 고정 색인 이유는 docs/common/terminal-tab-label.html#implementation.
     fun kindColor(kind: TerminalTabKind): Color? =
         when (kind) {
-            TerminalTabKind.Terminal, TerminalTabKind.Device -> null
+            TerminalTabKind.Terminal, TerminalTabKind.Device, TerminalTabKind.File -> null
             TerminalTabKind.Claude -> Color(0xFFD97757)
             TerminalTabKind.Browser -> Color(0xFF3B8EEA)
             TerminalTabKind.Android -> Color(0xFF34A853)

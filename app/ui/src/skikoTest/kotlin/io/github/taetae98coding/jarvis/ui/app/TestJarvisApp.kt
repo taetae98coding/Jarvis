@@ -39,6 +39,13 @@ import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivity
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivityRepository
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeNotification
+import io.github.taetae98coding.jarvis.domain.terminal.FileContent
+import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
+import io.github.taetae98coding.jarvis.domain.terminal.FileRepository
+import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitChangesRepository
+import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeRepository
@@ -99,6 +106,8 @@ internal fun TestJarvisApp(
     terminalWorkspace: TerminalWorkspaceRepository = FakeTerminalWorkspaceRepository(),
     gitWorktree: GitWorktreeRepository = FakeGitWorktreeRepository(),
     claudeActivity: ClaudeActivityRepository = FakeClaudeActivityRepository(),
+    files: FileRepository = FakeFileRepository(),
+    gitChanges: GitChangesRepository = FakeGitChangesRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -120,6 +129,8 @@ internal fun TestJarvisApp(
             single<TerminalWorkspaceRepository> { terminalWorkspace }
             single<GitWorktreeRepository> { gitWorktree }
             single<ClaudeActivityRepository> { claudeActivity }
+            single<FileRepository> { files }
+            single<GitChangesRepository> { gitChanges }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -410,6 +421,52 @@ internal class FakeGitWorktreeRepository(
 
         worktrees.update { it - directory }
         return Result.success(Unit)
+    }
+}
+
+/** 폴더·파일마다 정해 둔 값을 답한다. 기본값은 어느 폴더도 읽을 수 없는 것이다. 값을 바꾸면 디스크가 바뀐 것처럼 따라간다. */
+internal class FakeFileRepository(
+    directories: Map<String, List<FileEntry>> = emptyMap(),
+    files: Map<String, FileContent> = emptyMap(),
+) : FileRepository {
+    val directories = MutableStateFlow(directories)
+
+    val files = MutableStateFlow(files)
+
+    override fun observeDirectory(directory: String): Flow<List<FileEntry>?> = directories.map { it[directory] }
+
+    override fun observeFile(path: String): Flow<FileContent> = files.map { it[path] ?: FileContent.Unreadable }
+}
+
+/**
+ * 폴더마다 정해 둔 git 상태와 그래프를 답한다. 기본값은 어느 폴더도 저장소가 아닌 것이다. stage·unstage 는 요청을 기록하고
+ * [failure] 가 있으면 그것으로 실패한다. 상태는 바꾸지 않는다 — 결과는 테스트가 [statuses] 로 정한다.
+ */
+internal class FakeGitChangesRepository(
+    statuses: Map<String, GitStatus> = emptyMap(),
+    graphs: Map<String, List<GitGraphLine>> = emptyMap(),
+    var failure: String? = null,
+) : GitChangesRepository {
+    val statuses = MutableStateFlow(statuses)
+
+    val graphs = MutableStateFlow(graphs)
+
+    val staged = mutableListOf<Pair<String, List<GitChange>>>()
+
+    val unstaged = mutableListOf<Pair<String, List<GitChange>>>()
+
+    override fun observeStatus(directory: String): Flow<GitStatus?> = statuses.map { it[directory] }
+
+    override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = graphs.map { it[directory].orEmpty() }
+
+    override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> {
+        staged += root to changes
+        return failure?.let { Result.failure(GitWorktreeException(it)) } ?: Result.success(Unit)
+    }
+
+    override suspend fun unstage(root: String, changes: List<GitChange>): Result<Unit> {
+        unstaged += root to changes
+        return failure?.let { Result.failure(GitWorktreeException(it)) } ?: Result.success(Unit)
     }
 }
 

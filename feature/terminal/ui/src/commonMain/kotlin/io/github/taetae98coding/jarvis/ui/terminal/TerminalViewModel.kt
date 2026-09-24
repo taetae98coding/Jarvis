@@ -6,6 +6,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
+import io.github.taetae98coding.jarvis.domain.terminal.FileContent
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsBrowserSupportedUseCase
@@ -13,6 +14,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.IsChromeImportSupportedUs
 import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveChromeProfilesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveClaudeActivitiesUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveFileUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitWorktreeUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
@@ -57,6 +59,7 @@ internal class TerminalViewModel(
     private val worktreeTasks: WorktreeTaskHost,
     observeClaudeActivities: ObserveClaudeActivitiesUseCase,
     private val claudeAttention: ClaudeAttention,
+    private val observeFile: ObserveFileUseCase,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -67,6 +70,9 @@ internal class TerminalViewModel(
     // 페이지 제목은 저장하지 않는다. 엔진이 탭마다 제목을 알면(JVM) 그것을, 모르면(Android 의 웹뷰는 떠 있을 때만)
     // 마지막으로 본 제목을 보인다.
     private val browserTitles = mutableMapOf<Long, MutableStateFlow<String?>>()
+
+    // 경로마다 하나. 같은 파일을 두 패널에서 열어도 디스크는 한 번만 따라간다.
+    private val fileContents = mutableMapOf<String, StateFlow<FileContent?>>()
 
     // 이 ViewModel 이 본 적 있는 탭. 사라진 것만 닫는다 — Claude 가 막 붙인 탭의 페이지를, 그 탭이 아직 없는
     // 옛 배치로 닫지 않게 한다(docs/common/mcp-server.html R5).
@@ -134,6 +140,14 @@ internal class TerminalViewModel(
     fun setBrowserTitle(tabId: Long, title: String?) {
         viewedBrowserTitle(tabId).value = title
     }
+
+    /** 파일 탭의 내용. null 은 아직 읽지 못한 것이다. 탭이 보이는 동안만 디스크를 따라간다. */
+    fun fileContent(path: String): StateFlow<FileContent?> =
+        fileContents.getOrPut(path) {
+            observeFile(path).stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), null)
+        }
+
+    fun openFile(path: String) = update { it.openFile(path) }
 
     private fun viewedBrowserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
@@ -237,6 +251,7 @@ internal class TerminalViewModel(
         val tabIds = workspace.tabIds.toSet()
         host.retain(tabIds)
         browserTitles.keys.retainAll(tabIds)
+        fileContents.keys.retainAll(workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath })
         closeBrowserPages(knownTabIds - tabIds)
         knownTabIds = tabIds
 

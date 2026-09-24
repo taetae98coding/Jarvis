@@ -1,0 +1,101 @@
+package io.github.taetae98coding.jarvis.data.terminal
+
+import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
+import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class GitStatusParserTest {
+    private fun status(vararg fields: String) = parseGitStatus("/repo", fields.joinToString("\u0000", postfix = "\u0000"))
+
+    @Test
+    fun indexAndWorkTreeChangesAreSplitAndSortedByPath() {
+        val status = status("## main...origin/main [ahead 1]", "M  z.kt", "MM b.kt", " M a.kt", "A  new.kt", " D gone.kt", "?? tmp/x.txt")
+
+        assertEquals("main", status.branch)
+        assertEquals(
+            listOf(GitChange("b.kt", GitChangeKind.Modified), GitChange("new.kt", GitChangeKind.Added), GitChange("z.kt", GitChangeKind.Modified)),
+            status.staged,
+        )
+        assertEquals(
+            listOf(
+                GitChange("a.kt", GitChangeKind.Modified),
+                GitChange("b.kt", GitChangeKind.Modified),
+                GitChange("gone.kt", GitChangeKind.Deleted),
+                GitChange("tmp/x.txt", GitChangeKind.Untracked),
+            ),
+            status.unstaged,
+        )
+    }
+
+    @Test
+    fun renamesCarryTheOriginalPath() {
+        val status = status("## main", "RM b.txt", "a.txt", "?? c.txt")
+
+        assertEquals(listOf(GitChange("b.txt", GitChangeKind.Renamed, originalPath = "a.txt")), status.staged)
+        assertEquals(listOf(GitChange("b.txt", GitChangeKind.Modified), GitChange("c.txt", GitChangeKind.Untracked)), status.unstaged)
+    }
+
+    @Test
+    fun conflictsAreOnlyWorkTreeChanges() {
+        val status = status("## main", "UU both.kt", "AA added.kt", "DU gone.kt")
+
+        assertEquals(emptyList(), status.staged)
+        assertEquals(listOf("added.kt", "both.kt", "gone.kt"), status.unstaged.map { it.path })
+        assertTrue(status.unstaged.all { it.kind == GitChangeKind.Conflicted })
+    }
+
+    @Test
+    fun pathsWithSpacesAreKeptAsIs() {
+        assertEquals("my file.txt", status("## main", "?? my file.txt").unstaged.single().path)
+    }
+
+    @Test
+    fun branchHeaderCoversUnbornAndDetachedHeads() {
+        assertEquals("main", status("## No commits yet on main").branch)
+        assertEquals("main", status("## Initial commit on main").branch)
+        assertNull(status("## HEAD (no branch)").branch)
+        assertEquals("work", status("## work").branch)
+    }
+
+    @Test
+    fun graphLinesAreCommitsDetailsOrEdges() {
+        val output = listOf(
+            "* \u001fh1\u001fa1\u001fHEAD -> main, origin/main, tag: v1\u001fdev\u001f2026-09-25 10:00\u001f사이드 바 | 추가",
+            "|\\  \u001e",
+            "| * \u001fh2\u001fb2\u001f\u001fdev\u001f2026-09-24 09:00\u001f고침",
+            "|/  \u001e",
+            "* \u001fh3\u001fc3\u001f\u001fdev\u001f2026-09-20 08:00\u001f처음",
+            "  \u001e",
+        ).joinToString("\n")
+
+        val lines = parseGitGraph(output)
+        val head = GitCommit("h1", "a1", listOf("HEAD -> main", "origin/main", "tag: v1"), "dev", "2026-09-25 10:00", "사이드 바 | 추가")
+
+        assertEquals(6, lines.size)
+        assertEquals(GitGraphLine("*", head), lines[0])
+        assertEquals(GitGraphLine("|\\", head, isDetail = true), lines[1])
+        assertEquals("| *", lines[2].graph)
+        assertEquals(emptyList(), lines[2].commit!!.refs)
+        assertTrue(head.isHead)
+        assertFalse(lines[2].commit!!.isHead)
+        assertEquals(GitGraphLine("", lines[4].commit, isDetail = true), lines[5])
+    }
+
+    @Test
+    fun aDetachedHeadIsStillTheHeadCommit() {
+        val line = parseGitGraph("* \u001fh\u001fa\u001fHEAD, main\u001fdev\u001fd\u001fs").single()
+
+        assertTrue(line.commit!!.isHead)
+    }
+
+    @Test
+    fun edgeOnlyLinesHaveNoCommit() {
+        assertEquals(listOf(GitGraphLine("|\\")), parseGitGraph("|\\  \n"))
+    }
+}

@@ -54,6 +54,15 @@ class OpenTerminalSessionUseCaseTest {
     }
 
     @Test
+    fun fileTabsDoNotOpenASession() = runTest {
+        val repository = RecordingTerminalRepository()
+        val file = TerminalTab(1, TerminalProgram.File, filePath = "/work/a.txt")
+
+        assertNull(OpenTerminalSessionUseCase(repository)(TerminalSize.Default, file))
+        assertEquals(emptyList(), repository.opened)
+    }
+
+    @Test
     fun nothingIsOpenedWhereShellsAreNotSupported() = runTest {
         val repository = RecordingTerminalRepository(isSupported = false)
 

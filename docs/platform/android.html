@@ -65,6 +65,7 @@
     <li><a href="#terminal-tab-label">탭 종류 표시와 이름 바꾸기</a></li>
     <li><a href="#terminal-panel-item-layout">패널 줄의 버튼을 아래 줄로</a></li>
     <li><a href="#terminal-panel-text-marquee">패널 줄 글자 흐르게</a></li>
+    <li><a href="#terminal-side-bar">터미널 오른쪽 사이드 바 (파일·Git)</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
@@ -1242,6 +1243,38 @@ class JarvisApplication : Application() {
 
 <h3>검증</h3>
 <p>공통 코드라 skiko 테스트(<code>JarvisAppTerminalPanelTest.longPanelTextsAreNotEllipsized</code>)와 같은 경로다. 기기에서는 자동 테스트가 없다. 터미널 화면의 패널 목록에 긴 이름의 패널을 만들어 손으로 본다.</p>
+</section>
+
+<section class="feature" id="terminal-side-bar">
+<h2>터미널 오른쪽 사이드 바 (파일·Git) <span class="badge partial">조건부</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/terminal-side-bar.html">터미널 오른쪽 사이드 바 (파일·Git)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>okio <code>FileSystem.SYSTEM</code></td><td>채택. JVM 과 같은 <code>OkioFileDataSource</code> 다. 내부는 <code>java.io.File</code> 이라 앱이 읽을 수 있는 경로(앱 <code>filesDir</code> 아래, 셸 탭의 홈)만 보인다. 공유 저장소(<code>/sdcard</code>)는 <code>READ_EXTERNAL_STORAGE</code> 가 API 33 부터 미디어 권한으로 쪼개져 텍스트 파일 목록을 받을 수 없고, 목록이 null 이라 "폴더를 읽을 수 없습니다" 다</td></tr>
+    <tr><td><code>android.os.FileObserver(File, mask)</code></td><td>채택. inotify 콜백이다(API 29+, minSdk 33). 재귀가 아니라 펼친 폴더마다 하나씩 붙이는 이 화면과 맞다. 폴더는 <code>CREATE|DELETE|MOVED_FROM|MOVED_TO|DELETE_SELF|MOVE_SELF|ATTRIB</code>, 파일은 <code>MODIFY|CLOSE_WRITE|ATTRIB|DELETE_SELF|MOVE_SELF</code>. 파일이 지워지면 그 inotify 감시도 사라져 다시 만든 파일을 모르므로, 파일 탭은 부모 폴더의 감시를 함께 붙인다. <code>callbackFlow</code> 에서 <code>startWatching</code>, <code>awaitClose</code> 에서 <code>stopWatching</code></td></tr>
+    <tr><td>폴링</td><td>버렸다. 콜백이 있다</td></tr>
+    <tr><td><code>git</code></td><td>불가. <a href="#terminal-worktree">워크트리</a>와 같다 — 기기에 <code>git</code> 실행 파일이 없고 JGit 을 실어도 셸에서 쓸 수 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/androidMain/.../File.android.kt</code>. Git 은 기존 <code>UnsupportedGitDataSource</code></dd>
+  <dt>동작</dt><dd>홈은 셸 탭과 같은 <code>filesDir</code>(<code>~</code> 를 여기로 편다). 신호는 <code>FileObserver</code>. Git 구획은 상태가 늘 null 이라 "git 저장소가 아닙니다", 그래프는 빈 목록, stage·unstage 는 실패다(버튼이 보이지 않아 불리지 않는다)</dd>
+  <dt>실패</dt><dd>읽을 수 없는 폴더는 null, 파일은 "파일을 읽을 수 없습니다"</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>앱 샌드박스 밖의 폴더는 보이지 않는다.</li>
+  <li>Git 구획은 쓸 수 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 코드는 JVM 테스트가 확인한다. <code>FileObserver</code> 신호는 기기 테스트가 없어 미검증이다. 손으로는 셸 탭에서 <code>touch</code> 한 파일이 "파일" 구획에 나타나는지 본다.</p>
 </section>
 
 <section class="feature" id="claude-notification">

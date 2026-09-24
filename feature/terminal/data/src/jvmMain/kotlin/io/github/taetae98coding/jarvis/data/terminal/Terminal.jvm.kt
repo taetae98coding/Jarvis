@@ -29,7 +29,7 @@ internal actual fun createTerminalDataSource(context: PlatformContext): Terminal
             when (tab.program) {
                 TerminalProgram.Shell -> PtyLaunch(terminalCommand(shell), directory, tracksDirectory = true)
                 TerminalProgram.Claude -> PtyLaunch(claude.command(checkNotNull(tab.claudeSessionId), directory), directory)
-                TerminalProgram.Browser, TerminalProgram.Device -> error("브라우저·기기 탭은 세션을 열지 않는다")
+                TerminalProgram.Browser, TerminalProgram.Device, TerminalProgram.File -> error("브라우저·기기·파일 탭은 세션을 열지 않는다")
             }
         },
         claude = claude,

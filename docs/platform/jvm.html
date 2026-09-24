@@ -61,6 +61,7 @@
     <li><a href="#terminal-tab-label">탭 종류 표시와 이름 바꾸기</a></li>
     <li><a href="#terminal-panel-item-layout">패널 줄의 버튼을 아래 줄로</a></li>
     <li><a href="#terminal-panel-text-marquee">패널 줄 글자 흐르게</a></li>
+    <li><a href="#terminal-side-bar">터미널 오른쪽 사이드 바 (파일·Git)</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
@@ -1290,6 +1291,46 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>JarvisAppTerminalPanelTest.longPanelTextsAreNotEllipsized</code>(skiko 테스트). 흐르는 모양과 속도는 <code>./gradlew :desktopApp:run</code> 에서 눈으로 본다.</p>
+</section>
+
+<section class="feature" id="terminal-side-bar">
+<h2>터미널 오른쪽 사이드 바 (파일·Git) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-side-bar.html">터미널 오른쪽 사이드 바 (파일·Git)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>okio <code>FileSystem.SYSTEM</code> (<code>list</code>, <code>metadataOrNull</code>, <code>source</code>)</td><td>채택. 이미 작업 공간 저장에 쓰는 의존성이라 늘지 않는다. 내부는 <code>java.io.File.list</code>·<code>java.nio.file.Files.readAttributes</code>·<code>FileInputStream</code> 이다. 목록·메타데이터·앞부분 읽기가 공통 코드(<code>OkioFileDataSource</code>)라 Android 와 같이 쓴다</td></tr>
+    <tr><td><code>java.nio.file.WatchService</code></td><td>버렸다. macOS 의 JDK 에는 네이티브 구현이 없어 <code>FileSystems.getDefault().newWatchService()</code> 가 <code>sun.nio.fs.PollingWatchService</code> 다(Temurin 25.0.4 로 확인). 결국 폴링이고 기본 간격이 10초라 더 늦다. 간격을 줄이는 <code>com.sun.nio.file.SensitivityWatchEventModifier</code> 는 공개 API 가 아니라 쓰지 않는다</td></tr>
+    <tr><td>FSEvents (<code>FSEventStreamCreate</code>) 를 JNA 로</td><td>버렸다. macOS 의 진짜 콜백이지만 CoreServices 바인딩·런루프 스레드를 직접 관리해야 한다. 펼친 폴더 몇 개를 2초마다 <code>readdir</code> 하는 비용이 그보다 작다</td></tr>
+    <tr><td><code>fswatch</code> CLI</td><td>버렸다. macOS 기본 설치에 없다</td></tr>
+    <tr><td><code>git status --porcelain=v1 -z -b --untracked-files=all</code></td><td>채택. 경로가 NUL 로 끝나 공백·따옴표·한글 경로를 이스케이프 없이 읽는다(<code>core.quotePath</code> 무관). 이름 바꿈은 새 경로 뒤에 옛 경로가 한 필드 더 온다. 첫 필드 <code>## main...origin/main</code>·<code>## HEAD (no branch)</code>·<code>## No commits yet on main</code> 에서 브랜치를 읽는다(git 2.54 로 확인). 경로는 늘 저장소 최상위 기준이라 <code>git rev-parse --show-toplevel</code> 로 최상위를 함께 읽는다</td></tr>
+    <tr><td><code>git status --porcelain=v2</code></td><td>버렸다. 필드가 많아 해석할 것만 늘고, 필요한 X·Y·경로·옛 경로는 v1 에 다 있다</td></tr>
+    <tr><td><code>git log --graph --date-order --branches --remotes --tags HEAD -n 200 --date=format:%Y-%m-%d %H:%M --format=%x1f%H%x1f%h%x1f%D%x1f%an%x1f%ad%x1f%s%n%x1e</code></td><td>채택. <code>--all</code> 은 stash·<code>refs/notes</code> 까지 그려 버렸다. 파이프로 읽으면 색이 꺼진다(<code>color.ui=auto</code>). 커밋이 없는 저장소는 <code>HEAD</code> 를 풀 수 없어 128 로 끝나므로 빈 그래프로 읽는다</td></tr>
+    <tr><td>stage: <code>git -C &lt;최상위&gt; add -A -- &lt;경로…&gt;</code></td><td>채택. <code>-A</code> 로 지운 파일도 index 에서 지운다. 충돌 파일은 해결한 것으로 표시된다</td></tr>
+    <tr><td>unstage: <code>git restore --staged -- &lt;경로…&gt;</code>, 커밋이 없으면 <code>git rm --cached -r -q -- &lt;경로…&gt;</code></td><td>채택. <code>restore --staged</code> 는 커밋이 없는 저장소에서 <code>fatal: could not resolve 'HEAD'</code> 로 128 이다(확인). 그때는 index 에서 빼는 것이 곧 unstage 라 <code>rm --cached</code> 다. 커밋이 있는지는 <code>git rev-parse --verify --quiet HEAD</code> 의 종료 코드다. <code>git reset -- &lt;경로&gt;</code> 도 되지만 같은 이유로 커밋 없는 저장소에서 갈라야 해서 이득이 없다</td></tr>
+    <tr><td>JGit</td><td>버렸다. <a href="#terminal-worktree">워크트리</a>와 같은 이유(의존성, 사용자 git 설정과 어긋남)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../File.jvm.kt</code>, <code>Git.jvm.kt</code>, 공통 <code>OkioFileDataSource.kt</code>, <code>GitStatusParser.kt</code></dd>
+  <dt>동작</dt><dd>
+    파일: <code>OkioFileDataSource(FileSystem.SYSTEM, user.home)</code>, 다시 읽을 신호는 <code>FilePollInterval</code>(2초) 틱이다. 파일 탭 내용은 틱마다 크기·수정 시각만 읽고 달라졌을 때만 앞 512 KiB 를 읽는다.
+    Git: <code>ProcessGitDataSource</code> 의 <code>observeStatus</code>·<code>observeGraph</code> 는 <code>GitChangesPollInterval</code>(3초) 틱과, 같은 데이터 소스에서 stage·unstage 가 끝날 때 내는 신호를 합쳐 다시 읽는다. <code>.git</code> 을 위로 찾지 못하면 프로세스 없이 null·빈 그래프다</dd>
+  <dt>실패</dt><dd>stage·unstage 는 종료 코드가 0 이 아니면 stderr 를 문구로 <code>GitWorktreeException</code>. 읽기 실패(git 없음, 시간 초과)는 null·빈 그래프다. 명령마다 <code>GitCommandTimeout</code>(30초)</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>디스크 변경은 최대 2초, git 변경은 최대 3초 늦게 보인다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-side-bar.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>OkioFileDataSourceTest</code>·<code>GitStatusParserTest</code>·<code>GitDataSourceTest</code>(임시 저장소에서 진짜 <code>git</code>), <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalSideBarTest</code>. 실제 화면은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
 </section>
 
 <section class="feature" id="chrome-cookie-import">

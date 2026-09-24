@@ -13,6 +13,7 @@ enum class TerminalTabKind {
     Browser,
     Android,
     IOS,
+    File,
 
     /** 플랫폼을 모르는 기기 탭. */
     Device,

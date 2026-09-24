@@ -1,11 +1,18 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.data.state.observeByPolling
+import io.github.taetae98coding.jarvis.data.state.observeOnSignals
+import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
+import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -19,6 +26,11 @@ internal actual fun createGitDataSource(): GitDataSource = ProcessGitDataSource(
 
 /** 저장소가 되고 안 되는 일은 드물다. + 하나가 이만큼 늦게 뜬다(docs/platform/jvm.html#terminal-worktree). */
 internal val GitWorktreePollInterval: Duration = 10.seconds
+
+/** 사이드 바의 Git 구획이 보이는 동안 셸에서 한 git 작업을 따라가는 간격(docs/platform/jvm.html#terminal-side-bar). */
+internal val GitChangesPollInterval: Duration = 3.seconds
+
+internal const val GitGraphMaxCommits = 200
 
 internal val GitCommandTimeout: Duration = 30.seconds
 
@@ -35,7 +47,11 @@ internal class GitResult(
 internal class ProcessGitDataSource(
     private val home: String = System.getProperty("user.home"),
     private val run: suspend (command: List<String>) -> GitResult = ::runGit,
+    private val changesPollInterval: Duration = GitChangesPollInterval,
 ) : GitDataSource {
+    // stage·unstage 가 끝나면 폴링 간격을 기다리지 않고 상태·그래프를 다시 읽는다.
+    private val indexChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
     override fun observeWorktree(directory: String): Flow<GitWorktree?> =
         observeByPolling(interval = GitWorktreePollInterval) { readWorktree(directory) }.flowOn(Dispatchers.IO)
 
@@ -84,6 +100,70 @@ internal class ProcessGitDataSource(
 
             Result.success(Unit)
         }
+
+    override fun observeStatus(directory: String): Flow<GitStatus?> =
+        observeOnSignals(changeSignals()) { readStatus(directory) }.flowOn(Dispatchers.IO)
+
+    override fun observeGraph(directory: String): Flow<List<GitGraphLine>> =
+        observeOnSignals(changeSignals()) { readGraph(directory) }.flowOn(Dispatchers.IO)
+
+    override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            val paths = changes.map { it.path }.distinct()
+            // -A 는 지운 파일도 index 에서 지운다.
+            val result = run(git(File(root), "add", "-A", "--", *paths.toTypedArray()))
+            indexChanges.tryEmit(Unit)
+            result.failure()?.let { Result.failure(it) } ?: Result.success(Unit)
+        }
+
+    override suspend fun unstage(root: String, changes: List<GitChange>): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            val repository = File(root)
+            val paths = changes.flatMap { listOfNotNull(it.path, it.originalPath) }.distinct().toTypedArray()
+            // restore --staged 는 커밋이 없는 저장소에서 HEAD 를 풀지 못해 실패한다. 그때는 index 에서 빼는 것이 곧 unstage 다.
+            val hasHead = run(git(repository, "rev-parse", "--verify", "--quiet", "HEAD")).exitCode == 0
+            val result = if (hasHead) {
+                run(git(repository, "restore", "--staged", "--", *paths))
+            } else {
+                run(git(repository, "rm", "--cached", "-r", "-q", "--", *paths))
+            }
+            indexChanges.tryEmit(Unit)
+            result.failure()?.let { Result.failure(it) } ?: Result.success(Unit)
+        }
+
+    private fun changeSignals(): Flow<Unit> = merge(pollingTicks(changesPollInterval), indexChanges)
+
+    private suspend fun readStatus(directory: String): GitStatus? {
+        val root = readRoot(directory) ?: return null
+        // 뒤에서 도는 조회가 index.lock 을 잡아 사용자의 git 명령과 부딪히지 않게 --no-optional-locks 를 준다.
+        val result = run(listOf("git", "--no-optional-locks", "-C", root, "status", "--porcelain=v1", "-z", "-b", "--untracked-files=all"))
+        if (result.exitCode != 0) return null
+
+        return parseGitStatus(root, result.output)
+    }
+
+    // 커밋이 없는 저장소는 HEAD 를 풀지 못해 git log 가 128 로 끝난다. 그것도 빈 그래프다.
+    private suspend fun readGraph(directory: String): List<GitGraphLine> {
+        val root = readRoot(directory) ?: return emptyList()
+        val result = run(
+            git(
+                File(root),
+                "log", "--graph", "--date-order", "--color=never", "--branches", "--remotes", "--tags", "HEAD",
+                "-n", GitGraphMaxCommits.toString(), "--date=format:%Y-%m-%d %H:%M", "--format=$GitGraphFormat",
+            ),
+        )
+        if (result.exitCode != 0) return emptyList()
+
+        return parseGitGraph(result.output)
+    }
+
+    private suspend fun readRoot(directory: String): String? {
+        val folder = File(expandHome(directory, home))
+        if (!folder.isDirectory || !hasGitAncestor(folder)) return null
+
+        val result = run(git(folder, "rev-parse", "--show-toplevel"))
+        return result.output.trim().takeIf { result.exitCode == 0 && it.isNotEmpty() }
+    }
 
     // .git 을 위로 찾는 것은 파일 stat 몇 번이라 저장소가 아닌 폴더(대부분의 패널)는 프로세스 없이 끝난다.
     private suspend fun readWorktree(directory: String): GitWorktree? {

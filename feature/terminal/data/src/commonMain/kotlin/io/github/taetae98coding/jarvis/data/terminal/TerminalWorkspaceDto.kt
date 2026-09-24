@@ -51,6 +51,7 @@ internal data class TerminalTabDto(
     val devicePlatform: String? = null,
     val name: String? = null,
     val claudeCheckedAt: Long? = null,
+    val filePath: String? = null,
 )
 
 @Serializable
@@ -78,6 +79,7 @@ private const val ShellProgram = "shell"
 private const val ClaudeProgram = "claude"
 private const val BrowserProgram = "browser"
 private const val DeviceProgram = "device"
+private const val FileProgram = "file"
 private const val AndroidPlatform = "android"
 private const val IosPlatform = "ios"
 private const val SideBySideDirection = "sideBySide"
@@ -136,6 +138,7 @@ private fun PaneNode.toDto(): PaneNodeDto =
                         TerminalProgram.Claude -> ClaudeProgram
                         TerminalProgram.Browser -> BrowserProgram
                         TerminalProgram.Device -> DeviceProgram
+                        TerminalProgram.File -> FileProgram
                     },
                     directory = tab.directory,
                     claudeSessionId = tab.claudeSessionId,
@@ -149,6 +152,7 @@ private fun PaneNode.toDto(): PaneNodeDto =
                     },
                     name = tab.name,
                     claudeCheckedAt = tab.claudeCheckedAt,
+                    filePath = tab.filePath,
                 )
             },
             selectedTabId = selectedTabId,
@@ -207,6 +211,7 @@ private fun TerminalTabDto.toDomain(): TerminalTab =
                 else -> null
             },
         )
+        program == FileProgram && filePath != null -> TerminalTab(id, TerminalProgram.File, filePath = filePath)
 
         else -> TerminalTab(id, directory = directory)
     }.copy(name = name?.trim()?.ifEmpty { null })
