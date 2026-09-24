@@ -49,6 +49,11 @@
   <footer>2026-09-25 대화. R8a.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>폴더 오픈할 때 하위에 폴더만 있으면 한번에 열리잖아. 표시할 때 계층도 1개로 표시하면 어때?? android studio나 intellij에서 그렇게 하고있어.</p>
+  <footer>2026-09-25 대화. R8b.</footer>
+</blockquote>
+
 <h2 id="terms">용어</h2>
 
 <dl class="meta">
@@ -78,6 +83,7 @@
   <li><strong>R7.</strong> "파일" 구획은 맨 위에 기준 폴더 경로를, 그 아래에 기준 폴더 바로 아래 항목을 폴더 먼저, 그 안에서 이름(대소문자 무시) 순으로 보인다. <code>.git</code> 은 보이지 않고, 다른 점(.)으로 시작하는 항목은 보인다. 기준 폴더가 없거나 읽을 수 없으면 "폴더를 읽을 수 없습니다" 다.</li>
   <li><strong>R8.</strong> 폴더 줄을 누르면 그 폴더가 펼쳐져 아래 항목이 한 단계 들여써 같은 순서로 보이고, 다시 누르면 접힌다. 펼친 폴더는 기준 폴더를 바꿨다 돌아와도 펼쳐져 있다(화면에 있는 동안).</li>
   <li><strong>R8a.</strong> 접힌 폴더를 펼칠 때, 그 폴더의 항목이 폴더 하나뿐이면(파일이 없고 폴더가 하나) 그 폴더도 함께 펼친다. 이것을 항목이 폴더 하나가 아닌 폴더(비었거나, 파일이 있거나, 둘 이상이거나, 읽을 수 없는 폴더)에 닿을 때까지 이어간다. <code>a → b → c → d</code> 에서 <code>a</code> 를 누르면 <code>d</code> 의 항목까지 보인다. 이어 펼치기는 <code>FileTreeChainMaxDepth</code>(32) 단계에서 멈춘다. 접을 때는 누른 폴더만 접히고, 안쪽 폴더는 펼친 채로 남아 다시 펼치면 그대로 보인다.</li>
+  <li><strong>R8b.</strong> 펼친 폴더의 항목이 폴더 하나뿐이면 그 폴더를 따로 한 단계 들여쓴 줄로 보이지 않고, 바깥 폴더 줄에 <code>/</code> 로 이어 한 줄로 보인다(Android Studio·IntelliJ 의 "Compact Middle Packages"). <code>a → b → c → d</code> 를 펼치면 <code>a/b/c/d</code> 한 줄 아래에 <code>d</code> 의 항목이 한 단계 들여써 보인다. 합친 줄의 끝 폴더는 접혀 있어도 된다 — 바깥 폴더들이 펼쳐져 있으면 합쳐지고, 끝 폴더의 펼침이 그 줄의 화살표다. 합치기는 R8a 와 같이 <code>FileTreeChainMaxDepth</code>(32) 개 폴더에서 멈추고, 넘는 폴더는 다음 단계 줄로 보인다. 합친 줄을 누르면: 펼쳐져 있으면 첫 폴더(<code>a</code>)가 접혀 그 줄이 <code>a</code> 하나로 돌아간다. 접혀 있으면(끝 폴더가 접힘) 끝 폴더를 R8a 대로 펼친다. 줄의 테스트 태그와 목록 키는 첫 폴더의 경로다. 접힌 폴더는 안을 읽지 않으므로 합치지 않는다.</li>
   <li><strong>R9.</strong> 파일 줄을 누르면 선택된 패널의 포커스된 그룹 탭 줄 끝에 그 파일의 파일 탭이 새로 열리고 선택된다. 패널에 그룹이 없으면 그룹을 만든다. 그 패널에 같은 파일의 파일 탭이 이미 있으면 새로 열지 않고 그 탭을 고른다.</li>
   <li><strong>R10.</strong> 파일 탭의 종류 아이콘은 "파일" 이고 자동 제목은 파일 이름이다. 이름 바꾸기·닫기·끌어 놓기·분할은 다른 탭과 같다.</li>
   <li><strong>R11.</strong> 파일 탭은 파일 내용을 UTF-8 로 읽어 고정폭 글자로, 줄 번호와 함께, 줄바꿈 없이 가로·세로 스크롤로 보인다. 글자를 골라 복사할 수 있고 고칠 수는 없다. 파일이 <code>FileViewerMaxBytes</code>(512 KiB)보다 크면 그만큼만 보이고 위에 "앞 512 KiB 만 보입니다" 가 붙는다. 앞 8 KiB 안에 NUL 바이트가 있으면 내용 대신 "텍스트가 아닌 파일이라 보일 수 없습니다", 파일이 없거나 읽을 수 없으면 "파일을 읽을 수 없습니다" 다.</li>
@@ -133,7 +139,7 @@ Git 구획
   <tbody>
     <tr><td>레일</td><td>세로 <code>JarvisIconButton</code> 셋. 접기·펼치기(펼침: <code>ChevronRight</code> "사이드 바 접기" / 접힘: <code>ChevronLeft</code> "사이드 바 펼치기"), <code>Folder</code> "파일", <code>GitBranch</code> "Git". 펼쳐진 구획 아이콘은 <code>primary</code> 색, 나머지는 <code>onSurfaceVariant</code></td></tr>
     <tr><td>내용 폭</td><td><code>TerminalSideBarDefaults.width</code> 280dp 고정</td></tr>
-    <tr><td>파일 줄</td><td>들여쓰기(단계마다 <code>spacing.l</code>), 폴더면 <code>ChevronRight</code>(펼치면 <code>ChevronDown</code>) + <code>Folder</code>, 파일이면 빈칸 + <code>File</code>, 이름 한 줄 말줄임</td></tr>
+    <tr><td>파일 줄</td><td>들여쓰기(단계마다 <code>spacing.l</code>), 폴더면 <code>ChevronRight</code>(펼치면 <code>ChevronDown</code>) + <code>Folder</code>, 파일이면 빈칸 + <code>File</code>, 이름 한 줄 말줄임. 합친 폴더 줄(R8b)은 이름을 <code>a/b/c</code> 로 잇는다</td></tr>
     <tr><td>파일 탭</td><td>종류 아이콘 <code>File</code>, 설명 "파일". 내용은 <code>codeTextStyle</code>, 줄 번호는 <code>onSurfaceVariant</code></td></tr>
     <tr><td>변경 줄</td><td>상태 글자(고정폭, 색: A·? success, D·U error, 나머지 warning), 이름, 상위 폴더(<code>onSurfaceVariant</code>), 오른쪽 <code>Add</code> "stage" 또는 <code>Remove</code> "unstage"</td></tr>
     <tr><td>그래프 줄</td><td>선 그림(<code>codeTextStyle</code>, 글자 칸 두 개마다 다른 색 6가지를 돈다), ref 는 <code>labelSmall</code> 배경 칩(HEAD 는 <code>primaryContainer</code>, 나머지 <code>secondaryContainer</code>), 제목은 <code>bodySmall</code>, 둘째 줄의 짧은 해시·작성자·날짜는 <code>labelSmall</code> <code>onSurfaceVariant</code></td></tr>
@@ -190,6 +196,14 @@ Git 구획
 </aside>
 
 <aside class="decision">
+  <strong>결정: 합치기(R8b)는 펼친 폴더 집합에서 그릴 때 계산하고, 펼친 폴더만 합친다.</strong>
+  <code>TerminalSideBarViewModel</code> 이 펼친 폴더를 관측하며 줄을 만들 때, 항목이 폴더 하나뿐이면 그 폴더를 같은 <code>FileTreeRow.chain</code> 에 붙이고 그 폴더로 넘어간다. 줄은 <code>chain</code>(첫 폴더 … 끝 폴더)을 들고, 누를 경로는 <code>toggleTarget</code>(펼쳤으면 첫 폴더, 아니면 끝 폴더)이다.
+  IntelliJ 처럼 접힌 폴더도 합치는 방법을 버렸다. 그러려면 보이는 모든 접힌 폴더의 안을 관측해야 하고, 폴더가 많은 기준 폴더에서 그만큼 감시·폴링이 는다. R8a 로 누르면 어차피 끝까지 펼쳐지므로, 펼친 뒤 합쳐 보이면 같은 모양이 된다.
+  합친 줄을 누르면 첫 폴더를 접는 쪽을 골랐다. 끝 폴더를 접으면 <code>a/b/c/d</code> 가 접힌 채 남아 <code>a</code> 하나로 돌아갈 방법이 없다. 안쪽 폴더는 펼친 채 남으므로(R8a) 다시 누르면 같은 합친 줄이 된다.
+  디스크가 바뀌어 폴더 하나뿐이 아니게 되면 줄이 저절로 풀려 나뉜다. 이것은 트리가 디스크를 따라가는 것(R13)의 일부다.
+</aside>
+
+<aside class="decision">
   <strong>결정: 펼친 폴더·접힘은 저장하지 않는다.</strong>
   지시에 없고, 저장하면 작업 공간 파일 형식이 화면 상태로 늘어난다. 화면에 있는 동안만 유지한다.
 </aside>
@@ -216,7 +230,7 @@ Git 구획
     <tr><td><code>OkioFileDataSourceTest</code></td><td>R7, R11, R13. 임시 폴더에서 폴더 먼저·이름순, <code>.git</code> 숨김, 없는 폴더 null, <code>~</code> 펴기, 텍스트·512 KiB 자르기·NUL 바이너리·없는 파일, 신호가 오면 바뀐 목록·내용을 다시 줌, 크기·시각이 같으면 내용을 다시 읽지 않음</td><td>같음</td></tr>
     <tr><td><code>GitStatusParserTest</code></td><td>R15, R18. porcelain v1 <code>-z</code> 의 수정·추가·삭제·이름 바꿈(옛 경로)·추적 안 함·충돌·<code>MM</code> 분류와 경로순, 브랜치 머리(<code>## main...origin/main</code>, detached, <code>No commits yet</code>), 그래프의 커밋 줄·선 줄·ref·HEAD 해석</td><td>같음</td></tr>
     <tr><td><code>GitDataSourceTest</code></td><td>R14–R16, R18. 임시 저장소에서 상태·그래프를 읽고, stage·unstage(이름 바꿈, 커밋 없는 저장소 포함)가 index 를 바꾸고 관측이 폴링 간격 전에 따라감, 저장소가 아닌 폴더는 null·빈 그래프, 실패는 stderr 문구</td><td>같음</td></tr>
-    <tr><td><code>JarvisAppTerminalSideBarTest</code></td><td>R1–R5, R7–R11, R8a, R14–R18. 접기·펼치기·구획 아이콘 전환과 탭 영역이 그대로임, 폴더 없는 패널 문구, 트리 순서와 폴더 펼치기, 폴더 하나뿐인 폴더 이어 펼치기(R8a), 파일을 누르면 파일 탭이 열려 내용·줄 번호가 보이고 다시 누르면 같은 탭, 바이너리·자름 문구, 두 목록과 stage·unstage·모두 버튼이 저장소를 부름, 실패 문구, 변경 줄을 누르면 파일 탭, 그래프 줄, 저장소가 아닌 폴더 문구</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalSideBarTest</code></td><td>R1–R5, R7–R11, R8a, R8b, R14–R18. 접기·펼치기·구획 아이콘 전환과 탭 영역이 그대로임, 폴더 없는 패널 문구, 트리 순서와 폴더 펼치기, 폴더 하나뿐인 폴더 이어 펼치기(R8a), 이어진 폴더를 한 줄 <code>a/b/c/d</code> 로 보이고 누르면 <code>a</code> 로 접히며 끝 폴더만 접혀 있으면 끝 폴더를 펼침(R8b), 파일을 누르면 파일 탭이 열려 내용·줄 번호가 보이고 다시 누르면 같은 탭, 바이너리·자름 문구, 두 목록과 stage·unstage·모두 버튼이 저장소를 부름, 실패 문구, 변경 줄을 누르면 파일 탭, 그래프 줄, 저장소가 아닌 폴더 문구</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
   </tbody>
 </table>
 

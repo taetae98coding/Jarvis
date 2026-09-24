@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 폴더 하나뿐인 폴더를 이어 펼치는 최대 단계 (docs/common/terminal-side-bar.html R8a). */
+/** 폴더 하나뿐인 폴더를 이어 펼치고 한 줄로 합치는 최대 단계 (docs/common/terminal-side-bar.html R8a, R8b). */
 internal const val FileTreeChainMaxDepth = 32
 
 internal sealed interface FileTreeState {
@@ -39,12 +39,24 @@ internal sealed interface FileTreeState {
     data class Loaded(val root: String, val rows: List<FileTreeRow>) : FileTreeState
 }
 
-/** 트리를 펼친 순서대로 편 한 줄. [depth] 는 기준 폴더 바로 아래가 0 이다. */
+/**
+ * 트리를 펼친 순서대로 편 한 줄. [depth] 는 기준 폴더 바로 아래가 0 이다. [chain] 은 폴더 하나뿐인 폴더를 합친
+ * 첫 항목 … 끝 항목이고(R8b), 합치지 않았으면 하나다. [expanded] 는 끝 항목이 펼쳐졌는지다.
+ */
 internal data class FileTreeRow(
-    val entry: FileEntry,
+    val chain: List<FileEntry>,
     val depth: Int,
     val expanded: Boolean,
-)
+) {
+    val first: FileEntry get() = chain.first()
+
+    val last: FileEntry get() = chain.last()
+
+    val name: String get() = chain.joinToString("/") { it.name }
+
+    // 펼친 합친 줄은 첫 폴더를 접어 한 폴더로 돌아가고, 접힌 줄은 끝 폴더를 펼친다.
+    val toggleTarget: String get() = if (expanded) first.path else last.path
+}
 
 internal sealed interface GitPanelState {
     data object Loading : GitPanelState
@@ -147,17 +159,21 @@ internal class TerminalSideBarViewModel(
     private fun rows(entries: List<FileEntry>, depth: Int, open: Set<String>): Flow<List<FileTreeRow>> {
         if (entries.isEmpty()) return flowOf(emptyList())
 
-        val branches = entries.map { entry ->
-            val row = FileTreeRow(entry, depth, expanded = entry.isDirectory && entry.path in open)
-            if (!row.expanded) {
-                flowOf(listOf(row))
+        return combine(entries.map { branch(listOf(it), depth, open) }) { parts -> parts.flatMap { it } }
+    }
+
+    // 접힌 폴더는 안을 읽지 않으므로 합치지 않는다(R8b).
+    private fun branch(chain: List<FileEntry>, depth: Int, open: Set<String>): Flow<List<FileTreeRow>> {
+        val last = chain.last()
+        if (!last.isDirectory || last.path !in open) return flowOf(listOf(FileTreeRow(chain, depth, expanded = false)))
+
+        return observeDirectory(last.path).flatMapLatest { children ->
+            val only = children?.singleOrNull()?.takeIf { it.isDirectory }
+            if (only != null && chain.size < FileTreeChainMaxDepth) {
+                branch(chain + only, depth, open)
             } else {
-                observeDirectory(entry.path)
-                    .flatMapLatest { children -> rows(children.orEmpty(), depth + 1, open) }
-                    .map { listOf(row) + it }
+                rows(children.orEmpty(), depth + 1, open).map { listOf(FileTreeRow(chain, depth, expanded = true)) + it }
             }
         }
-
-        return combine(branches) { parts -> parts.flatMap { it } }
     }
 }
