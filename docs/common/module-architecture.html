@@ -94,17 +94,20 @@
   :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation  :feature:terminal
         │  ui → domain ← data (기능마다 셋)
         └──────────────┴──────────────┴──────────────┴──────────────┘
-                 :core:ui        :core:data           ← 두 기능 이상이 쓰는 것만</code></pre>
+                 :core:ui        :core:data           ← 두 기능 이상이 쓰는 것만
+                    │
+              :core:designsystem                        ← JarvisTheme, JarvisIcons, Jarvis* 컴포넌트</code></pre>
 
 <table>
   <thead><tr><th>모듈</th><th>패키지</th><th>내용</th><th>의존</th></tr></thead>
   <tbody>
     <tr><td><code>:core:data</code></td><td><code>…data</code>, <code>…data.state</code></td><td><code>PlatformContext</code>(expect class), <code>observeByPolling</code>/<code>observeOnSignals</code>/<code>observeSystemState</code></td><td>없음</td></tr>
-    <tr><td><code>:core:ui</code></td><td><code>…ui.component</code>, <code>…ui.navigation</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>·<code>LocalNavigator</code>, <code>NavKeySerializers</code></td><td>Compose, navigation3-runtime</td></tr>
+    <tr><td><code>:core:designsystem</code></td><td><code>…designsystem.theme</code>, <code>…designsystem.icon</code>, <code>…designsystem.component</code></td><td><code>JarvisTheme</code> 과 토큰, <code>JarvisIcons</code>, <code>JarvisCard</code> 등 공용 컴포넌트와 <code>*Defaults</code>(<a href="design-system.html">디자인 시스템</a>)</td><td>Compose, Material 3</td></tr>
+    <tr><td><code>:core:ui</code></td><td><code>…ui.component</code>, <code>…ui.navigation</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>·<code>LocalNavigator</code>, <code>NavKeySerializers</code></td><td>Compose, navigation3-runtime, <code>:core:designsystem</code></td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:domain</code></td><td><code>…domain.&lt;기능&gt;</code></td><td>모델, 리포지토리 인터페이스, 유스케이스, <code>&lt;기능&gt;DomainModule</code></td><td>없음</td></tr>
     <tr><td><code>:feature:&lt;기능&gt;:data</code></td><td><code>…data.&lt;기능&gt;</code></td><td>리포지토리 구현, <code>expect</code>/<code>actual</code>, DTO, <code>&lt;기능&gt;DataModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:data</code></td></tr>
-    <tr><td><code>:feature:&lt;기능&gt;:ui</code></td><td><code>…ui.&lt;기능&gt;</code></td><td>카드·화면, ViewModel, 라우트, <code>&lt;기능&gt;UiModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:ui</code></td></tr>
-    <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>다섯 기능의 <code>ui</code>, <code>:core:ui</code></td></tr>
+    <tr><td><code>:feature:&lt;기능&gt;:ui</code></td><td><code>…ui.&lt;기능&gt;</code></td><td>카드·화면, ViewModel, 라우트, <code>&lt;기능&gt;UiModule</code></td><td>같은 기능 <code>domain</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
+    <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>다섯 기능의 <code>ui</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
     <tr><td><code>:shared</code></td><td><code>…shared</code></td><td><code>startJarvisKoin()</code>, <code>platformModule</code>, <code>App()</code>, <code>MainViewController()</code></td><td><code>:app:ui</code>, 다섯 기능의 <code>data</code>·<code>domain</code></td></tr>
   </tbody>
 </table>
@@ -137,6 +140,10 @@
 │   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), SettingsStore(expect)
 │   ├── rotation   DeviceRotationDataSource(expect), DeviceRotationGate(ios)
 │   └── terminal   TerminalDataSource(expect), 리포지토리
+├── designsystem
+│   ├── theme      JarvisTheme, 색·글꼴·모양·치수 토큰   ← :core:designsystem
+│   ├── icon       JarvisIcons                        ← :core:designsystem
+│   └── component  JarvisCard, JarvisCardHeader, JarvisLabeledValue, JarvisIconButton, JarvisTopBar   ← :core:designsystem
 ├── ui
 │   ├── component  ToggleFeatureCard                  ← :core:ui
 │   ├── navigation Navigator, LocalNavigator, NavKeySerializers   ← :core:ui
@@ -193,7 +200,8 @@ val emulatorUiModule = module {
   <tbody>
     <tr><td><code>PlatformContext</code></td><td><code>:core:data</code></td><td><code>screen</code>·<code>rotation</code>·<code>emulator</code> 의 data 가 모두 받는다. <code>expect</code>/<code>actual</code> 은 한 모듈 안에서만 짝이 맞으므로 이 경계는 협상이 안 된다</td></tr>
     <tr><td><code>observeSystemState</code> 3종</td><td><code>:core:data</code></td><td>세 기능의 데이터 소스가 같은 <a href="state-observation.html">조회 규칙</a>을 쓴다</td></tr>
-    <tr><td><code>ToggleFeatureCard</code></td><td><code>:core:ui</code></td><td><code>screen</code> 의 카드 둘과 <code>rotation</code> 이 함께 쓴다</td></tr>
+    <tr><td><code>JarvisTheme</code>, <code>JarvisIcons</code>, <code>Jarvis*</code> 컴포넌트</td><td><code>:core:designsystem</code></td><td>모든 화면이 같은 토큰과 컴포넌트를 쓴다. 라우트·ViewModel 을 모르게 두려고 <code>:core:ui</code> 와 나눴다(<a href="design-system.html#implementation">결정</a>)</td></tr>
+    <tr><td><code>ToggleFeatureCard</code></td><td><code>:core:ui</code></td><td><code>screen</code> 의 카드 둘이 함께 쓴다</td></tr>
     <tr><td><code>Navigator</code>, <code>LocalNavigator</code></td><td><code>:core:ui</code></td><td>기능이 서로를 모른 채 이동하려면 이동 수단만 공용이어야 한다</td></tr>
     <tr><td><code>SettingsStore</code></td><td><code>:feature:screen:data</code></td><td><strong>core 가 아니다.</strong> 지금 설정을 저장하는 기능이 <code>screen</code> 하나뿐이다(R4). 두 번째 기능이 쓰게 되면 <code>:core:data</code> 로 올린다</td></tr>
   </tbody>
@@ -207,7 +215,7 @@ val emulatorUiModule = module {
   <thead><tr><th>플러그인</th><th>하는 일</th><th>쓰는 곳</th></tr></thead>
   <tbody>
     <tr><td><code>jarvis.kmp.library</code></td><td>KMP + AGP KMP 라이브러리, <code>jvmToolchain(21)</code>, 타깃 다섯, 경로에서 만든 namespace, <code>kotlinx-coroutines-core</code>·<code>koin-core</code></td><td>모든 공용 모듈(<code>compose</code> 플러그인이 이것을 적용한다)</td></tr>
-    <tr><td><code>jarvis.kmp.compose</code></td><td>위에 더해 Compose 플러그인, Compose·Koin·Navigation3 의존성, skiko 소스셋 묶음, <code>binaries.executable()</code></td><td><code>ui</code>·<code>:core:ui</code>·<code>:app:ui</code></td></tr>
+    <tr><td><code>jarvis.kmp.compose</code></td><td>위에 더해 Compose 플러그인, Compose·Koin·Navigation3 의존성, skiko 소스셋 묶음, <code>binaries.executable()</code>, Style API opt-in(<code>ExperimentalFoundationStyleApi</code>)</td><td><code>ui</code>·<code>:core:ui</code>·<code>:core:designsystem</code>·<code>:app:ui</code></td></tr>
     <tr><td><code>jarvis.kmp.test</code></td><td><code>withHostTest</code> 와 테스트 의존성. 테스트가 있는 모듈만 적용한다</td><td>테스트가 있는 모듈</td></tr>
   </tbody>
 </table>
@@ -252,6 +260,7 @@ val emulatorUiModule = module {
     <tr><td><code>data</code></td><td>Koin 모듈, <code>emulator</code> 만 추가로 <code>startEmulatorHostAgent()</code></td><td>리포지토리 구현, 데이터 소스, DTO, <code>expect</code> 선언</td></tr>
     <tr><td><code>ui</code></td><td>카드·화면 진입 컴포저블, Koin 모듈</td><td>ViewModel, 라우트, 테스트 태그</td></tr>
     <tr><td><code>:core:data</code></td><td><code>PlatformContext</code>, 조회 규칙 3종</td><td>없음</td></tr>
+    <tr><td><code>:core:designsystem</code></td><td><code>JarvisTheme</code>·토큰 타입, <code>JarvisIcons</code>, <code>Jarvis*</code> 컴포넌트와 <code>*Defaults</code></td><td>라이트·다크 색 정의값, 아이콘 경로 문자열</td></tr>
     <tr><td><code>:core:ui</code></td><td><code>ToggleFeatureCard</code>, <code>Navigator</code>, <code>LocalNavigator</code>, <code>NavKeySerializers</code></td><td>없음</td></tr>
     <tr><td><code>:app:ui</code></td><td><code>JarvisApp()</code>, <code>appUiModule</code></td><td>Home 라우트·화면, <code>FeatureGrid</code></td></tr>
     <tr><td><code>:shared</code></td><td><code>App()</code>, <code>startJarvisKoin()</code>, <code>MainViewController()</code>, <code>startEmulatorHostAgent()</code></td><td><code>platformModule()</code>, <code>jarvisModules()</code></td></tr>

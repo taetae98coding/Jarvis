@@ -1,11 +1,11 @@
 package io.github.taetae98coding.jarvis.ui.terminal
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,14 +14,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.style.rememberUpdatedStyleState
+import androidx.compose.foundation.style.styleable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,9 +26,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -43,9 +37,11 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisIconButton
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
+import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
+import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
@@ -81,7 +77,7 @@ internal fun TerminalScreen(
             .testTag(TerminalScreenTestTag)
             // 루트에서 먼저 가로채야 포커스된 패널의 입력 필드보다 앞선다.
             .onPreviewKeyEvent { event -> onShortcut(event, viewModel) },
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
     ) {
         TerminalTopBar(
             onBack = onBack,
@@ -133,7 +129,6 @@ private fun onShortcut(event: KeyEvent, viewModel: TerminalViewModel): Boolean {
 
 private val TabNumberKeys = listOf(Key.One, Key.Two, Key.Three, Key.Four, Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine)
 
-// Material3 의 TopAppBar 는 실험 API 라 버전을 올릴 때마다 시그니처가 흔들린다. 버튼만 필요해서 직접 놓는다.
 @Composable
 private fun TerminalTopBar(
     onBack: () -> Unit,
@@ -142,35 +137,31 @@ private fun TerminalTopBar(
     onNewTab: () -> Unit,
     onClose: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextButton(onClick = onBack) { Text(text = "← 뒤로") }
-
-        Text(
-            text = "터미널",
-            style = MaterialTheme.typography.titleLarge,
+    JarvisTopBar(title = "터미널", onBack = onBack) {
+        JarvisIconButton(
+            icon = JarvisIcons.SplitSideBySide,
+            contentDescription = "좌우 분할",
+            onClick = onSplitSideBySide,
+            modifier = Modifier.testTag(TerminalSplitSideTestTag),
         )
-
-        // 좁은 화면에서는 버튼 넷이 한 줄에 들어가지 않는다. 줄을 늘리는 대신 옆으로 민다.
-        Row(
-            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            TextButton(onClick = onSplitSideBySide, modifier = Modifier.testTag(TerminalSplitSideTestTag)) {
-                Text(text = "좌우 분할")
-            }
-            TextButton(onClick = onSplitStacked, modifier = Modifier.testTag(TerminalSplitStackedTestTag)) {
-                Text(text = "상하 분할")
-            }
-            TextButton(onClick = onNewTab, modifier = Modifier.testTag(TerminalNewTabTestTag)) {
-                Text(text = "새 탭")
-            }
-            TextButton(onClick = onClose, modifier = Modifier.testTag(TerminalCloseTestTag)) {
-                Text(text = "닫기")
-            }
-        }
+        JarvisIconButton(
+            icon = JarvisIcons.SplitStacked,
+            contentDescription = "상하 분할",
+            onClick = onSplitStacked,
+            modifier = Modifier.testTag(TerminalSplitStackedTestTag),
+        )
+        JarvisIconButton(
+            icon = JarvisIcons.Add,
+            contentDescription = "새 탭",
+            onClick = onNewTab,
+            modifier = Modifier.testTag(TerminalNewTabTestTag),
+        )
+        JarvisIconButton(
+            icon = JarvisIcons.Close,
+            contentDescription = "닫기",
+            onClick = onClose,
+            modifier = Modifier.testTag(TerminalCloseTestTag),
+        )
     }
 }
 
@@ -183,10 +174,10 @@ private fun TerminalTabRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs),
     ) {
         workspace.tabs.forEachIndexed { index, tab ->
-            TerminalTabChip(
+            TerminalTab(
                 title = tabTitle(titleOf(tab.focusedPaneId), index),
                 selected = tab.id == workspace.selectedTabId,
                 onSelect = { onSelect(tab.id) },
@@ -203,45 +194,6 @@ private fun tabTitle(source: StateFlow<String?>?, index: Int): String {
     val title = source?.collectAsState()?.value
 
     return title?.takeIf { it.isNotBlank() } ?: "셸 ${index + 1}"
-}
-
-@Composable
-private fun TerminalTabChip(
-    title: String,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    onClose: () -> Unit,
-    modifier: Modifier = Modifier,
-    closeModifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-        modifier = modifier,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onSelect)
-                    .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
-                    .width(120.dp),
-            )
-
-            Text(
-                text = "×",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = closeModifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onClose)
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-            )
-        }
-    }
 }
 
 @Composable
@@ -285,14 +237,19 @@ private fun SplitPane(
         val dragState = rememberDraggableState { delta ->
             if (length > 0) viewModel.resizeSplit(node.id, delta / length)
         }
+        val thickness = JarvisTheme.dimens.stroke.thick
+        val interactionSource = remember { MutableInteractionSource() }
+        val styleState = rememberUpdatedStyleState(interactionSource)
 
         Box(
             modifier = Modifier
-                .then(if (sideBySide) Modifier.width(DividerThickness).fillMaxHeight() else Modifier.height(DividerThickness).fillMaxWidth())
-                .background(MaterialTheme.colorScheme.outlineVariant)
+                .then(if (sideBySide) Modifier.width(thickness).fillMaxHeight() else Modifier.height(thickness).fillMaxWidth())
+                .hoverable(interactionSource)
+                .styleable(styleState, TerminalPaneDefaults.dividerStyle)
                 .draggable(
                     state = dragState,
                     orientation = if (sideBySide) Orientation.Horizontal else Orientation.Vertical,
+                    interactionSource = interactionSource,
                 ),
         )
     }
@@ -312,4 +269,3 @@ private fun SplitPane(
     }
 }
 
-private val DividerThickness = 4.dp

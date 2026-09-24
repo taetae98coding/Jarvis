@@ -35,6 +35,11 @@ kotlin {
     }
 
     sourceSets {
+        // Style API 는 foundation 1.12 에서 실험 API 다. 이유는 docs/common/design-system.html 에 있다.
+        all {
+            languageSettings.optIn("androidx.compose.foundation.style.ExperimentalFoundationStyleApi")
+        }
+
         commonMain.dependencies {
             // 기능 모듈과 앱 셸이 모두 같은 Compose·주입·내비게이션 표면을 쓴다.
             api(library("compose-runtime"))

@@ -13,6 +13,7 @@ kotlin {
             api(projects.feature.screen.ui)
             api(projects.feature.rotation.ui)
             api(projects.feature.terminal.ui)
+            implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }
 

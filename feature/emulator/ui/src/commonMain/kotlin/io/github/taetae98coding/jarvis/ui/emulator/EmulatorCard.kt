@@ -1,19 +1,17 @@
 package io.github.taetae98coding.jarvis.ui.emulator
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisCardHeader
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisLabeledValue
+import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
+import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.ui.navigation.LocalNavigator
@@ -40,28 +38,22 @@ internal fun EmulatorCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 클릭을 Card 에 넘기면 물결이 카드 안쪽 Surface 에서 그려져 카드 모양대로 잘린다. 바깥에
-    // Modifier.clickable 을 붙이면 사각형이 된다.
-    Card(onClick = onClick, modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = "에뮬레이터",
-                style = MaterialTheme.typography.titleMedium,
-            )
+    JarvisCard(onClick = onClick, modifier = modifier) {
+        JarvisCardHeader(
+            title = "에뮬레이터",
+            icon = JarvisIcons.Smartphone,
+            trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
+        )
 
-            Text(
-                text = "개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와 연결된 실물 기기. 눌러서 " +
-                    "목록을 보고, 화면을 조작하거나 꺼진 에뮬레이터를 켤 수 있다.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Text(
+            text = "개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터와 연결된 실물 기기. 눌러서 " +
+                "목록을 보고, 화면을 조작하거나 꺼진 에뮬레이터를 켤 수 있다.",
+            style = JarvisTheme.typography.bodySmall,
+            color = JarvisTheme.colorScheme.onSurfaceVariant,
+        )
 
-            SummaryRow(label = "Android", value = status.describe(EmulatorStatus::android))
-            SummaryRow(label = "iOS", value = status.describe(EmulatorStatus::ios))
-        }
+        JarvisLabeledValue(label = "Android", value = status.describe(EmulatorStatus::android))
+        JarvisLabeledValue(label = "iOS", value = status.describe(EmulatorStatus::ios))
     }
 }
 
@@ -73,25 +65,4 @@ private fun EmulatorStatus?.describe(select: (EmulatorStatus) -> EmulatorSummary
     val summary = select(this) ?: return "셀 수 없음"
 
     return "실행 중 ${summary.running}개 / 전체 ${summary.total}개"
-}
-
-@Composable
-private fun SummaryRow(
-    label: String,
-    value: String,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
 }

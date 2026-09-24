@@ -39,9 +39,9 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 기기 목록에서 꺼져 있는 가상 기기 줄에 "실행" 버튼이 붙는다. 이미 실행 중인 기기와 실물 기기에는 붙지 않는다.</li>
+  <li><strong>R1.</strong> 기기 목록에서 꺼져 있는 가상 기기 줄에 실행 아이콘 버튼(<code>JarvisIcons.Play</code>, contentDescription "실행")이 붙는다. 이미 실행 중인 기기와 실물 기기에는 붙지 않는다.</li>
   <li><strong>R2.</strong> 버튼을 누르면 그 기기가 켜진다. Android 는 그 AVD 가, iOS 는 그 시뮬레이터가 뜬다.</li>
-  <li><strong>R3.</strong> 누른 뒤 그 기기가 실행 중이 되거나 목록에서 사라질 때까지 버튼은 "켜는 중…" 으로 잠긴다. 같은 기기에 실행 요청이 두 번 나가지 않는다.</li>
+  <li><strong>R3.</strong> 누른 뒤 그 기기가 실행 중이 되거나 목록에서 사라질 때까지 버튼은 잠기고, 아이콘 자리에 원형 진행 표시가 돌며 contentDescription 이 "켜는 중…" 이 된다. 같은 기기에 실행 요청이 두 번 나가지 않는다.</li>
   <li><strong>R4.</strong> 2분 안에 켜지지 않으면 잠금을 풀어 다시 누를 수 있게 한다.</li>
   <li><strong>R5.</strong> 켜진 기기는 다음 목록 갱신(최대 5초) 때 실행 중으로 바뀌고, 그때부터 <a href="emulator-control.html">화면을 볼 수 있다</a>.</li>
   <li><strong>R6.</strong> 켤 수 없는 기기에 실행 요청이 들어와도 기기까지 가지 않는다. 화면이 막는 것과 별개로 도메인에서 한 번 더 막는다.</li>
@@ -64,8 +64,8 @@
   <thead><tr><th>항목</th><th>값</th></tr></thead>
   <tbody>
     <tr><td>위치</td><td>기기 목록의 각 줄 오른쪽 끝</td></tr>
-    <tr><td>버튼</td><td><code>실행</code> — 꺼져 있는 가상 기기에만</td></tr>
-    <tr><td>누른 뒤</td><td><code>켜는 중…</code> 으로 바뀌고 비활성이 된다</td></tr>
+    <tr><td>버튼</td><td><code>Play</code> 아이콘 버튼, contentDescription <code>실행</code> — 꺼져 있는 가상 기기에만</td></tr>
+    <tr><td>누른 뒤</td><td>아이콘이 작은 원형 진행 표시로 바뀌고 비활성이 된다. contentDescription 은 <code>켜는 중…</code></td></tr>
     <tr><td>끝나는 조건</td><td>그 기기가 실행 중이 되거나 목록에서 사라짐. 또는 2분 경과</td></tr>
     <tr><td>줄 자체</td><td>꺼져 있는 동안은 계속 비활성이다. 버튼만 누를 수 있다</td></tr>
     <tr><td>테스트 태그</td><td><code>emulator:launch:&lt;id&gt;</code></td></tr>
@@ -139,7 +139,7 @@ launchingDevices = launchRequests 중에서
   <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
   <tbody>
     <tr><td><code>JarvisAppTest.stoppedDeviceCanBeLaunched</code></td><td>R1, R2. 꺼진 기기에만 버튼이 있고 누르면 요청이 나간다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
-    <tr><td><code>JarvisAppLaunchLockTest.launchingDeviceLocksTheButton</code></td><td>R3. 누른 뒤 버튼이 "켜는 중…" 으로 잠긴다. 잠금 값이 <code>viewModelScope</code> 를 지나 화면에 오는데 Wasm 에서는 <code>waitUntil</code> 의 폴링이 그 이벤트 루프를 잡고 있어서, 이 검증만 <code>jvmTest</code> 에 둔다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppLaunchLockTest.launchingDeviceLocksTheButton</code></td><td>R3. 누른 뒤 버튼의 contentDescription 이 "켜는 중…" 이 되고 잠긴다. 잠금 값이 <code>viewModelScope</code> 를 지나 화면에 오는데 Wasm 에서는 <code>waitUntil</code> 의 폴링이 그 이벤트 루프를 잡고 있어서, 이 검증만 <code>jvmTest</code> 에 둔다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
     <tr><td><code>EmulatorDevicesViewModelTest.launchLockClearsWhenTheDeviceStarts</code></td><td>R3. 기기가 목록에 뜨면 잠금이 풀린다. 화면을 그리지 않고 상태만 본다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
     <tr><td><code>EmulatorDevicesViewModelTest.launchIsNotSentTwiceForTheSameDevice</code></td><td>R3. 같은 기기에 요청이 두 번 나가지 않는다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
     <tr><td><code>LaunchEmulatorUseCaseTest</code></td><td>R6. 켤 수 없는 기기의 요청이 리포지토리까지 가지 않는다</td><td><code>:feature:emulator:domain</code> <code>commonTest</code></td></tr>
@@ -154,7 +154,7 @@ launchingDevices = launchRequests 중에서
 <h2 id="limits">한계</h2>
 
 <ul>
-  <li><strong>실패를 알 수 없다.</strong> AVD 이미지가 깨졌거나 디스크가 없어서 뜨지 않으면 화면에는 2분 동안 "켜는 중…" 만 보이고, 그 뒤 버튼이 다시 살아난다. 이유는 에뮬레이터의 표준 출력에만 있고 그걸 화면까지 가져오는 경로는 만들지 않았다.</li>
+  <li><strong>실패를 알 수 없다.</strong> AVD 이미지가 깨졌거나 디스크가 없어서 뜨지 않으면 화면에는 2분 동안 진행 표시만 돌고, 그 뒤 버튼이 다시 살아난다. 이유는 에뮬레이터의 표준 출력에만 있고 그걸 화면까지 가져오는 경로는 만들지 않았다.</li>
   <li><strong>켜지기까지 수십 초 걸린다.</strong> 콜드 부트면 1분을 넘기기도 한다. R4 의 2분은 그보다 넉넉하게 잡은 값이다.</li>
   <li><strong>JVM 외에는 데스크톱 앱이 같은 머신에 떠 있어야 한다.</strong> 꺼져 있으면 목록 자체가 비어서 누를 버튼도 없다.</li>
   <li>실물 기기는 켤 수 없다. 버튼이 붙지 않는다.</li>

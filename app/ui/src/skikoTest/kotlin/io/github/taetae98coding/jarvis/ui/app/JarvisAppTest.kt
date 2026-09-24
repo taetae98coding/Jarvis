@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -399,10 +400,10 @@ class JarvisAppTest {
         onNodeWithTag(EmulatorTestTag).performClick()
         onNodeWithTag(emulatorDeviceTestTag(RunningAndroidDevice.id)).performClick()
 
-        onNodeWithText("← 뒤로").performClick()
+        onNodeWithContentDescription("뒤로").performClick()
         onNodeWithTag(EmulatorListTestTag).assertIsDisplayed()
 
-        onNodeWithText("← 뒤로").performClick()
+        onNodeWithContentDescription("뒤로").performClick()
         onNodeWithTag(EmulatorTestTag).assertIsDisplayed()
     }
 

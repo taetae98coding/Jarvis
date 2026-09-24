@@ -1,16 +1,17 @@
 package io.github.taetae98coding.jarvis.ui.appinfo
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.style.Style
+import androidx.compose.foundation.style.contentPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextStyle
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisLabeledValue
+import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
+import io.github.taetae98coding.jarvis.designsystem.theme.jarvisDimens
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -26,39 +27,30 @@ internal fun AppInfoCard(
     appInfo: AppInfo,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = "Jarvis",
-                style = MaterialTheme.typography.headlineSmall,
-            )
+    JarvisCard(
+        modifier = modifier,
+        style = AppInfoCardDefaults.style,
+        verticalArrangement = AppInfoCardDefaults.contentArrangement,
+    ) {
+        Text(
+            text = "Jarvis",
+            style = AppInfoCardDefaults.titleStyle,
+        )
 
-            InfoRow(label = "앱 버전", value = appInfo.version)
-            InfoRow(label = "플랫폼", value = appInfo.platform)
-        }
+        JarvisLabeledValue(label = "앱 버전", value = appInfo.version)
+        JarvisLabeledValue(label = "플랫폼", value = appInfo.platform)
     }
 }
 
-@Composable
-private fun InfoRow(
-    label: String,
-    value: String,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-        )
+/** 홈 맨 위의 머리 카드라 기능 카드보다 여백과 제목이 한 단계 크다. */
+internal object AppInfoCardDefaults {
+    val style: Style = Style {
+        contentPadding(jarvisDimens.spacing.xl)
     }
+
+    val contentArrangement: Arrangement.Vertical
+        @Composable @ReadOnlyComposable get() = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m)
+
+    val titleStyle: TextStyle
+        @Composable @ReadOnlyComposable get() = JarvisTheme.typography.headlineSmall
 }

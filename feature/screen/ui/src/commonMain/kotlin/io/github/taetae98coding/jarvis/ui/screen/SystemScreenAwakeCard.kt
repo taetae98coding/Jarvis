@@ -6,6 +6,7 @@ import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.testTag
+import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.ui.component.ToggleFeatureCard
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Duration
@@ -43,6 +44,7 @@ internal fun SystemScreenAwakeCard(
         // 권한이 없을 때 설정 화면을 여는 것은 SetKeepSystemScreenAwakeUseCase 가 판단한다.
         onCheckedChange = onCheckedChange,
         modifier = modifier,
+        icon = JarvisIcons.Monitor,
         enabled = status.supported,
     )
 }

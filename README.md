@@ -36,6 +36,8 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
      │      기능마다 ui → domain ← data
      └───────────────┴───────────────┴───────────────┘
               core:ui        core:data              ← 두 기능 이상이 쓰는 것만
+                 │
+           core:designsystem                         ← JarvisTheme, JarvisIcons, Jarvis* 컴포넌트
 ```
 
 | 모듈 | 패키지 | 내용 |
@@ -44,6 +46,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | `feature:<기능>:data` | `.jarvis.data.<기능>` | 리포지토리 구현과 `<기능>DataModule`. 플랫폼 API(`expect`/`actual`), 저장소, 직렬화, 프로세스·HTTP |
 | `feature:<기능>:ui` | `.jarvis.ui.<기능>` | 카드·화면, ViewModel, 라우트, `<기능>UiModule`. 같은 기능의 `domain`만 본다 |
 | `core:data` | `.jarvis.data`, `.jarvis.data.state` | `PlatformContext`(expect class), 상태 조회 규칙 3종 |
+| `core:designsystem` | `.jarvis.designsystem.theme`, `.icon`, `.component` | M3 위의 `JarvisTheme`(색·글꼴·모양·치수), `JarvisIcons`(ImageVector), `JarvisCard` 등 공용 컴포넌트와 `*Defaults`. 규칙은 [디자인 시스템 스펙](docs/common/design-system.html) |
 | `core:ui` | `.jarvis.ui.component`, `.jarvis.ui.navigation` | `ToggleFeatureCard`, `Navigator`·`LocalNavigator`, `NavKeySerializers` |
 | `app:ui` | `.jarvis.ui.app` | `JarvisApp()`, Home 라우트와 화면, `FeatureGrid`, 백스택, `appUiModule` |
 | `shared` | `.jarvis.shared` | Koin 시작(`startJarvisKoin()`)과 진입점. `App()`, iOS `MainViewController()` |

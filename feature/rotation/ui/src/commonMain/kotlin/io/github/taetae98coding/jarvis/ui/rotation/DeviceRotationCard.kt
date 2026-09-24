@@ -1,23 +1,27 @@
 package io.github.taetae98coding.jarvis.ui.rotation
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisCardHeader
+import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
+import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
 import org.koin.compose.viewmodel.koinViewModel
@@ -52,20 +56,12 @@ internal fun DeviceRotationCard(
     onLockedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "화면 회전",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
+    JarvisCard(modifier = modifier) {
+        JarvisCardHeader(
+            title = "화면 회전",
+            icon = JarvisIcons.RotateRight,
+            enabled = status.supported,
+            trailing = {
                 // 카드 전체를 toggleable 로 만들지 않는다. 각도 버튼도 눌러야 해서 카드가 통째로
                 // 스위치 역할을 하면 버튼의 클릭이 시맨틱에 묻힌다.
                 Switch(
@@ -74,39 +70,64 @@ internal fun DeviceRotationCard(
                     modifier = Modifier.testTag(DeviceRotationLockTestTag),
                     enabled = status.supported,
                 )
-            }
+            },
+        )
 
-            Text(
-                text = status.describe(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Text(
+            text = status.describe(),
+            style = JarvisTheme.typography.bodySmall,
+            color = JarvisTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // 카드 최소 너비가 220dp 라 칩 네 개가 한 줄에 들어가지 않는다.
+        AngleRow(RotationAngle.Degrees0, RotationAngle.Degrees90, status, onAngleClick)
+        AngleRow(RotationAngle.Degrees180, RotationAngle.Degrees270, status, onAngleClick)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
+        ) {
+            RotateButton(
+                icon = JarvisIcons.RotateLeft,
+                label = "-90°",
+                onClick = { onRotate(-1) },
+                enabled = status.supported,
+                modifier = Modifier.weight(1f).testTag(DeviceRotationBackwardTestTag),
             )
 
-            // 카드 최소 너비가 220dp 라 칩 네 개가 한 줄에 들어가지 않는다.
-            AngleRow(RotationAngle.Degrees0, RotationAngle.Degrees90, status, onAngleClick)
-            AngleRow(RotationAngle.Degrees180, RotationAngle.Degrees270, status, onAngleClick)
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(
-                    onClick = { onRotate(-1) },
-                    modifier = Modifier.weight(1f).testTag(DeviceRotationBackwardTestTag),
-                    enabled = status.supported,
-                ) {
-                    Text(text = "-90°")
-                }
-
-                OutlinedButton(
-                    onClick = { onRotate(1) },
-                    modifier = Modifier.weight(1f).testTag(DeviceRotationForwardTestTag),
-                    enabled = status.supported,
-                ) {
-                    Text(text = "+90°")
-                }
-            }
+            RotateButton(
+                icon = JarvisIcons.RotateRight,
+                label = "+90°",
+                onClick = { onRotate(1) },
+                enabled = status.supported,
+                modifier = Modifier.weight(1f).testTag(DeviceRotationForwardTestTag),
+            )
         }
+    }
+}
+
+@Composable
+private fun RotateButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+    ) {
+        // 글자가 같은 것을 말하므로 아이콘은 읽지 않는다.
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(JarvisTheme.dimens.iconSize.small),
+        )
+        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+        Text(text = label)
     }
 }
 
@@ -119,7 +140,7 @@ private fun AngleRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
     ) {
         listOf(first, second).forEach { angle ->
             FilterChip(

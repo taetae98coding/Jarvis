@@ -8,6 +8,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(projects.feature.emulator.domain)
+            implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }
 

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,7 +26,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisTopBar
+import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import org.jetbrains.compose.resources.decodeToImageBitmap
 import kotlin.time.TimeSource
@@ -72,16 +72,16 @@ internal fun EmulatorStreamScreen(
 
     Column(
         modifier = modifier.fillMaxSize().testTag(EmulatorScreenTestTag),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m),
     ) {
         // 목록이 첫 답을 하기 전에는 이름을 모른다. 그 사이에는 제목 없이 뒤로만 보여준다.
-        EmulatorTopBar(title = device?.name.orEmpty(), onBack = onBack)
+        JarvisTopBar(title = device?.name.orEmpty(), onBack = onBack)
 
         if (device?.canControl == false) {
             Text(
                 text = "이 기기에는 제스처를 보낼 수 없습니다. 화면만 볼 수 있습니다.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = JarvisTheme.typography.bodySmall,
+                color = JarvisTheme.colorScheme.onSurfaceVariant,
             )
         }
 

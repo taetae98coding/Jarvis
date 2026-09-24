@@ -50,7 +50,7 @@
   <li><strong>R3.</strong> 백스택은 <code>rememberNavBackStack</code>으로 저장·복원된다. 복원 경로가 있는 플랫폼에서는 앱을 다시 띄웠을 때 마지막 화면으로 돌아온다.</li>
   <li><strong>R4.</strong> 각 라우트의 <code>@Composable</code> 본문은 그 기능의 Koin 모듈에 <code>navigation&lt;T&gt;</code>로 선언하고, <code>NavDisplay</code>는 <code>koinEntryProvider()</code>가 모아 준 <code>entryProvider</code>만 받는다. 화면을 하나 더할 때 앱 셸은 고치지 않는다.</li>
   <li><strong>R5.</strong> 엔트리마다 <code>ViewModelStore</code>와 <code>SaveableStateHolder</code>가 따로 붙는다. 엔트리가 백스택에서 빠지면 둘 다 비워진다.</li>
-  <li><strong>R6.</strong> "← 뒤로"는 백스택을 한 칸 줄인다. 홈에서는 뒤로 갈 곳이 없다.</li>
+  <li><strong>R6.</strong> 뒤로 아이콘 버튼(contentDescription "뒤로")은 백스택을 한 칸 줄인다. 홈에서는 뒤로 갈 곳이 없다.</li>
   <li><strong>R7.</strong> 이동 후에도 앱 수명 효과(<a href="keep-screen-awake.html">화면 꺼짐 방지</a>)는 끊기지 않는다. <code>NavDisplay</code>는 그 효과보다 안쪽에 있다.</li>
   <li><strong>R8.</strong> 사용자에게 보이는 화면 구성과 전환 결과는 바뀌지 않는다. 카드를 누르면 목록, 기기를 누르면 화면, 뒤로 두 번 누르면 그리드다.</li>
 </ol>
@@ -72,8 +72,8 @@
   <tbody>
     <tr><td>라우트</td><td><code>Home</code> / <code>EmulatorDevices</code> / <code>EmulatorScreen(deviceId)</code></td></tr>
     <tr><td>들어가는 길</td><td>에뮬레이터 카드 클릭 → <code>EmulatorDevices</code>. 목록의 기기 클릭(<code>canStream</code>일 때만) → <code>EmulatorScreen</code></td></tr>
-    <tr><td>나오는 길</td><td>"← 뒤로" 버튼, 그리고 플랫폼이 제공하는 시스템 뒤로(<a href="#platforms">판정</a>)</td></tr>
-    <tr><td>컨트롤</td><td><code>EmulatorTopBar</code>의 <code>TextButton</code> "← 뒤로"</td></tr>
+    <tr><td>나오는 길</td><td>뒤로 아이콘 버튼, 그리고 플랫폼이 제공하는 시스템 뒤로(<a href="#platforms">판정</a>)</td></tr>
+    <tr><td>컨트롤</td><td><code>JarvisTopBar</code>의 <code>JarvisIconButton</code>(<code>JarvisIcons.Back</code>, contentDescription "뒤로")</td></tr>
     <tr><td>테스트 태그</td><td>화면마다 기존 태그 그대로. <code>emulator:list</code>, <code>emulator:screen</code></td></tr>
   </tbody>
 </table>
@@ -189,9 +189,9 @@ navigation&lt;EmulatorRoute.Screen&gt; { route -&gt;
   <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
   <tbody>
     <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>시스템 뒤로 제스처가 <code>NavDisplay</code>의 <code>onBack</code>까지 온다. 백스택은 <code>SavedStateRegistry</code>에 저장된다</td><td><a href="../platform/android.html#navigation">android.html</a></td></tr>
-    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>앱 안의 "← 뒤로"는 동작한다. 화면 가장자리 스와이프는 SwiftUI 가 만든 컨트롤러에 백스택이 없어서 오지 않는다</td><td><a href="../platform/ios.html#navigation">ios.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>앱 안의 뒤로 아이콘 버튼는 동작한다. 화면 가장자리 스와이프는 SwiftUI 가 만든 컨트롤러에 백스택이 없어서 오지 않는다</td><td><a href="../platform/ios.html#navigation">ios.html</a></td></tr>
     <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>OS 에 "뒤로" 개념이 없어 앱 안의 버튼이 유일한 경로다. 그것으로 요구사항이 충족된다</td><td><a href="../platform/jvm.html#navigation">jvm.html</a></td></tr>
-    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>앱 안의 "← 뒤로"는 동작한다. 브라우저 뒤로 버튼은 앱 백스택과 연결되지 않아 페이지를 벗어난다</td><td><a href="../platform/web.html#navigation">web.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>앱 안의 뒤로 아이콘 버튼는 동작한다. 브라우저 뒤로 버튼은 앱 백스택과 연결되지 않아 페이지를 벗어난다</td><td><a href="../platform/web.html#navigation">web.html</a></td></tr>
   </tbody>
 </table>
 

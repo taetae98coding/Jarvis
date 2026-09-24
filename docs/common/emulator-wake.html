@@ -40,7 +40,7 @@
 
 <ol>
   <li><strong>R1.</strong> 연결되어 있지만 화면이 꺼진 기기는 목록 보조 문구에 "화면 꺼짐"이 나온다.</li>
-  <li><strong>R2.</strong> 그 줄에 "화면 켜기" 버튼이 붙고, 누르면 기기 화면이 켜진다.</li>
+  <li><strong>R2.</strong> 그 줄에 화면 켜기 아이콘 버튼(<code>JarvisIcons.Sun</code>, contentDescription "화면 켜기")이 붙고, 누르면 기기 화면이 켜진다.</li>
   <li><strong>R3.</strong> 켜지면 다음 목록 갱신(최대 5초) 때 문구와 버튼이 사라진다.</li>
   <li><strong>R4.</strong> 화면을 깨울 수 없는 기기에는 버튼이 붙지 않는다. 입력을 주입할 수 있는 기기만 깨울 수 있다.</li>
   <li><strong>R5.</strong> 깨울 수 없는 기기에 요청이 들어와도 기기까지 가지 않는다. 화면이 막는 것과 별개로 도메인에서 한 번 더 막는다.</li>
@@ -64,7 +64,7 @@
   <tbody>
     <tr><td>위치</td><td>기기 목록의 각 줄 오른쪽 끝. <a href="emulator-launch.html">실행 버튼</a>과 같은 자리다</td></tr>
     <tr><td>보조 문구</td><td><code>Android · 실물 기기 · 연결됨 · 화면 꺼짐</code></td></tr>
-    <tr><td>버튼</td><td><code>화면 켜기</code> — 화면이 꺼져 있고 입력을 받을 수 있는 기기에만</td></tr>
+    <tr><td>버튼</td><td><code>Sun</code> 아이콘 버튼, contentDescription <code>화면 켜기</code> — 화면이 꺼져 있고 입력을 받을 수 있는 기기에만</td></tr>
     <tr><td>누른 뒤</td><td>따로 잠그지 않는다. 다음 갱신 때 문구와 버튼이 사라진다</td></tr>
     <tr><td>테스트 태그</td><td><code>emulator:wake:&lt;id&gt;</code></td></tr>
   </tbody>

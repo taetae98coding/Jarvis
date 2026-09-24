@@ -5,7 +5,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorCard
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationCard
 import io.github.taetae98coding.jarvis.ui.screen.ScreenAwakeCard
@@ -22,12 +22,14 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalCard
 internal fun FeatureGrid(modifier: Modifier = Modifier) {
     // 카드 높이가 내용에 따라 제각각이라 staggered 를 쓴다. 행 단위로 묶는 LazyVerticalGrid 에서는
     // 한 줄의 카드가 모두 가장 긴 카드의 높이로 늘어나 짧은 카드 아래에 빈 공간이 남는다.
+    val dimens = JarvisTheme.dimens
+
     LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Adaptive(minSize = 220.dp),
+        columns = StaggeredGridCells.Adaptive(minSize = dimens.layout.gridMinCellWidth),
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(dimens.spacing.m),
         // 열마다 항목 수가 달라 세로는 Arrangement 대신 항목 간격으로 준다.
-        verticalItemSpacing = 12.dp,
+        verticalItemSpacing = dimens.spacing.m,
     ) {
         item { ScreenAwakeCard() }
 

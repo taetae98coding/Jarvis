@@ -11,6 +11,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -150,7 +151,7 @@ class JarvisAppTerminalTest {
         onNodeWithTag(TerminalNewTabTestTag).performClick()
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 2 }
 
-        onNodeWithText("← 뒤로").performClick()
+        onNodeWithContentDescription("뒤로").performClick()
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.all { it.closed } }
     }

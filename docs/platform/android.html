@@ -49,6 +49,7 @@
     <li><a href="#emulator-launch">꺼진 에뮬레이터 실행</a></li>
     <li><a href="#emulator-wake">꺼진 화면 깨우기</a></li>
     <li><a href="#terminal">터미널</a></li>
+    <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -470,14 +471,14 @@
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
     <tr><td>Compose 의 <code>Indication</code></td><td>채택. Material 3 의 물결은 안드로이드 뷰의 <code>RippleDrawable</code> 이 아니라 Compose 가 <code>IndicationNodeFactory</code> 로 직접 그린다. 그리는 자리가 modifier 체인 안이라, 앞에 <code>Modifier.clip</code> 이 있으면 그 모양으로 잘린다</td></tr>
-    <tr><td><code>Modifier.clip(CardDefaults.shape)</code></td><td>채택. <code>graphicsLayer</code> 의 클립으로 내려가고, Android 에서는 <code>RenderNode.setClipToOutline</code> 에 해당하는 경로라 추가 레이어 비용이 사실상 없다</td></tr>
+    <tr><td><code>Modifier.clip(JarvisCardDefaults.shape)</code></td><td>채택. <code>graphicsLayer</code> 의 클립으로 내려가고, Android 에서는 <code>RenderNode.setClipToOutline</code> 에 해당하는 경로라 추가 레이어 비용이 사실상 없다</td></tr>
     <tr><td>테마의 <code>android:selectableItemBackground</code></td><td>해당 없음. 뷰 시스템 속성이라 Compose 카드에 닿지 않는다</td></tr>
   </tbody>
 </table>
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd><code>core/ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>feature/emulator/ui/src/commonMain/.../ui/emulator/EmulatorCard.kt</code></dd>
+  <dt>파일</dt><dd><code>core/ui/src/commonMain/.../ui/component/ToggleFeatureCard.kt</code>, <code>core/designsystem/src/commonMain/.../designsystem/component/JarvisCard.kt</code></dd>
   <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
@@ -647,6 +648,39 @@
 
 <h3>검증</h3>
 <p>줄 편집 규칙은 <code>LineDisciplineTest</code> 가 <code>:feature:terminal:domain</code> 의 Android 호스트 테스트로도 돈다. 실제 <code>sh</code> 프로세스 왕복은 자동 테스트가 없다 — 이 프로젝트의 Android 테스트는 호스트 JVM 에서만 돌아서 <code>/system/bin/sh</code> 가 없다(<a href="#test">테스트</a>). 기기에 설치해 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="design-system">
+<h2>디자인 시스템 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/design-system.html">디자인 시스템</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>isSystemInDarkTheme()</code></td><td>채택. Android 구현은 <code>LocalConfiguration.current.uiMode and UI_MODE_NIGHT_MASK == UI_MODE_NIGHT_YES</code> 다. 매니페스트의 <code>configChanges</code> 에 <code>uiMode</code> 가 있어 시스템 설정을 바꿔도 액티비티가 다시 만들어지지 않고, <code>LocalConfiguration</code> 이 바뀌어 재구성만 된다</td></tr>
+    <tr><td><code>dynamicLightColorScheme</code>/<code>dynamicDarkColorScheme</code> (API 31+)</td><td>버렸다. 배경화면에 따라 색이 달라져 네 타깃의 모양이 갈린다(<a href="../common/design-system.html#requirements">스코프</a>)</td></tr>
+    <tr><td><code>enableEdgeToEdge()</code> 의 시스템 막대 색</td><td>이미 <code>MainActivity</code> 가 부른다. 기본 <code>SystemBarStyle.auto</code> 가 같은 <code>uiMode</code> 를 보고 상태 표시줄 아이콘을 밝게/어둡게 바꾸므로 앱 테마와 어긋나지 않는다</td></tr>
+    <tr><td>벡터·Style 렌더링</td><td>Compose Android 가 <code>VectorPainter</code> 를 <code>android.graphics.Path</code> 로 바꿔 <code>RenderNode</code> 캔버스에 그린다. Style 의 배경·테두리·모양도 같은 캔버스의 <code>drawRect</code>/<code>drawOutline</code> 이다. 플랫폼 코드는 없다</td></tr>
+    <tr><td>Style API(<code>androidx.compose.foundation.style</code>)</td><td>채택. Compose Multiplatform foundation 1.12.1 의 commonMain 에 있어 이 타깃에도 같은 코드가 퍼블리시된다. 실험 API 라 컨벤션 플러그인이 opt-in 을 켠다</td></tr>
+    <tr><td><code>addPathNodes</code> + <code>ImageVector.Builder</code></td><td>채택. <code>ui-graphics</code> commonMain 이라 플랫폼 차이가 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>core/designsystem/src/commonMain/.../designsystem/</code> — 이 플랫폼 전용 파일은 없다</dd>
+  <dt>동작</dt><dd>시스템이 다크 모드면 다크 색 두 벌을 공급하고, 설정이 바뀌면 다시 그린다</dd>
+  <dt>실패</dt><dd>해당 없음. 다크 모드를 읽지 못하는 경로는 라이트로 떨어진다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>매니페스트의 창 테마가 <code>Theme.Material.Light.NoActionBar</code> 라 다크 모드에서 첫 프레임 전에 창 배경이 잠깐 밝게 보인다. <code>Theme.DeviceDefault.DayNight</code> 는 API 29 부터라 minSdk 24 에서는 <code>values-night</code> 리소스를 따로 두어야 한다. 이번 범위에서는 넣지 않았다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>테마·Style·아이콘 테스트는 <code>:core:designsystem</code> 의 <code>skikoTest</code> 라 Android 에서는 돌지 않는다(<a href="#test">UI 테스트</a>). 같은 공통 코드가 skiko 타깃에서 검증된다. 다크 모드 전환은 <span class="badge untested">미검증</span>이라 빠른 설정의 어두운 테마를 켜고 끄며 눈으로 본다.</p>
 </section>
 
 <section class="feature" id="build">

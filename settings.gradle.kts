@@ -37,6 +37,7 @@ plugins {
 }
 
 include(":core:data")
+include(":core:designsystem")
 include(":core:ui")
 
 include(":feature:appinfo:domain")

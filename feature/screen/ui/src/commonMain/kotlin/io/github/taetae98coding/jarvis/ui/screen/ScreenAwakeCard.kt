@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.testTag
+import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.ui.component.ToggleFeatureCard
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -34,5 +35,6 @@ internal fun ScreenAwakeCard(
         checked = checked,
         onCheckedChange = onCheckedChange,
         modifier = modifier,
+        icon = JarvisIcons.Eye,
     )
 }

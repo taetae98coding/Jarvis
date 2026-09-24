@@ -2,7 +2,7 @@ package io.github.taetae98coding.jarvis.ui.app
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -33,7 +33,7 @@ class JarvisAppLaunchLockTest {
         // 상태가 화면에 반영되는 것까지 기다린다. 리포지토리에 요청이 닿은 시점과 다시 그려지는
         // 시점이 달라서, 기록만 보고 단언하면 어쩌다 한 번 앞질러 읽는다.
         waitUntil(timeoutMillis = FrameTimeoutMillis) {
-            onAllNodesWithText("켜는 중…").fetchSemanticsNodes().isNotEmpty()
+            onAllNodesWithContentDescription("켜는 중…").fetchSemanticsNodes().isNotEmpty()
         }
         assertEquals(listOf(StoppedAndroidDevice.id), emulator.launched.toList())
         onNodeWithTag(emulatorLaunchTestTag(StoppedAndroidDevice.id)).assertIsNotEnabled()

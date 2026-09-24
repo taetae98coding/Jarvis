@@ -1,8 +1,6 @@
 package io.github.taetae98coding.jarvis.ui.terminal
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberScrollableState
@@ -11,13 +9,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.style.Style
+import androidx.compose.foundation.style.animate
+import androidx.compose.foundation.style.border
+import androidx.compose.foundation.style.hovered
+import androidx.compose.foundation.style.rememberUpdatedStyleState
+import androidx.compose.foundation.style.selected
+import androidx.compose.foundation.style.styleable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -51,16 +57,19 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
+import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
+import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColors
+import io.github.taetae98coding.jarvis.designsystem.theme.jarvisDimens
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalEmulator
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalKey
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalKeyModifiers
@@ -70,12 +79,6 @@ import io.github.taetae98coding.jarvis.domain.terminal.encodeControlCharacter
 import io.github.taetae98coding.jarvis.domain.terminal.encodeTerminalKey
 
 fun terminalPaneTestTag(id: Long): String = "terminal:pane:$id"
-
-private val PaneTextStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontSize = 13.sp,
-    color = TerminalForeground,
-)
 
 @Composable
 internal fun TerminalPane(
@@ -88,10 +91,14 @@ internal fun TerminalPane(
     val revision by state.revision.collectAsState()
     val scrollOffset by state.scrollOffset.collectAsState()
 
+    val colors = TerminalPaneDefaults.colors()
+    val textStyle = TerminalPaneDefaults.textStyle(colors)
+
     // 한 프레임에 줄마다 여러 조각을 잰다. 기본 캐시(8개)로는 매 프레임 거의 전부 다시 잰다.
     val textMeasurer = rememberTextMeasurer(cacheSize = 512)
     val density = LocalDensity.current
-    val cell = remember(textMeasurer, density) { textMeasurer.measure("W", PaneTextStyle).size }
+    val cell = remember(textMeasurer, density, textStyle) { textMeasurer.measure("W", textStyle).size }
+    val styleState = rememberUpdatedStyleState(null) { it.isSelected = showFocusBorder && focused }
 
     val focusRequester = remember { FocusRequester() }
     val currentOnFocus by rememberUpdatedState(onFocus)
@@ -115,8 +122,7 @@ internal fun TerminalPane(
 
     Box(
         modifier = modifier
-            .background(TerminalBackground)
-            .then(if (showFocusBorder && focused) Modifier.border(1.dp, MaterialTheme.colorScheme.primary) else Modifier)
+            .styleable(styleState, TerminalPaneDefaults.style)
             .onSizeChanged { size ->
                 state.resize(
                     columns = (size.width / cell.width).coerceAtLeast(1),
@@ -142,7 +148,7 @@ internal fun TerminalPane(
             // 에뮬레이터는 Compose 상태가 아니다. 이 값을 읽어 두어야 출력이 올 때 다시 그린다.
             revision
 
-            drawTerminal(state.emulator, scrollOffset, textMeasurer, cell, focused)
+            drawTerminal(state.emulator, scrollOffset, TerminalCanvas(textMeasurer, textStyle, colors, cell), focused)
         }
 
         // IME 조합(한글)은 텍스트 필드만 받는다. 커서 자리에 겹쳐 두어 조합 중인 글자가 그 자리에 보이게
@@ -154,11 +160,11 @@ internal fun TerminalPane(
                     revision
                     IntOffset(state.emulator.cursorColumn * cell.width, state.emulator.cursorRow * cell.height)
                 }
-                .widthIn(min = 1.dp)
+                .widthIn(min = TerminalPaneDefaults.inputMinWidth)
                 .focusRequester(focusRequester)
                 .onFocusChanged { if (it.isFocused) onFocus() }
                 .onPreviewKeyEvent { event -> onKey(event, composing = field.composition != null, state) },
-            textStyle = PaneTextStyle.copy(background = TerminalBackground),
+            textStyle = textStyle.copy(background = colors.background),
             cursorBrush = SolidColor(Color.Transparent),
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.None,
@@ -263,21 +269,31 @@ private val ControlKeys: Map<Key, Char> = buildMap {
     put(Key.Slash, '/')
 }
 
-private fun DrawScope.drawTerminal(
-    emulator: TerminalEmulator,
-    scrollOffset: Int,
-    textMeasurer: TextMeasurer,
+@Immutable
+private class TerminalCanvas(
+    val textMeasurer: TextMeasurer,
+    val textStyle: TextStyle,
+    val colors: TerminalPaneColors,
     cell: IntSize,
-    focused: Boolean,
 ) {
     val cellWidth = cell.width.toFloat()
     val cellHeight = cell.height.toFloat()
+}
+
+private fun DrawScope.drawTerminal(
+    emulator: TerminalEmulator,
+    scrollOffset: Int,
+    canvas: TerminalCanvas,
+    focused: Boolean,
+) {
+    val cellWidth = canvas.cellWidth
+    val cellHeight = canvas.cellHeight
 
     for (row in 0 until emulator.rows) {
         val index = row - scrollOffset
         if (index < -emulator.scrollbackSize) continue
 
-        drawLine(emulator.line(index), emulator.columns, row * cellHeight, textMeasurer, cellWidth, cellHeight)
+        drawLine(emulator.line(index), emulator.columns, row * cellHeight, canvas)
     }
 
     if (scrollOffset != 0 || !emulator.cursorVisible) return
@@ -287,10 +303,12 @@ private fun DrawScope.drawTerminal(
     val width = if (line.isWide(column)) cellWidth * 2 else cellWidth
     val topLeft = Offset(column * cellWidth, emulator.cursorRow * cellHeight)
 
+    val cursor = canvas.colors.foreground.copy(alpha = TerminalPaneDefaults.DimAlpha)
+
     if (focused) {
-        drawRect(TerminalForeground.copy(alpha = 0.6f), topLeft, Size(width, cellHeight))
+        drawRect(cursor, topLeft, Size(width, cellHeight))
     } else {
-        drawRect(TerminalForeground.copy(alpha = 0.6f), topLeft, Size(width, cellHeight), style = Stroke(width = 1f))
+        drawRect(cursor, topLeft, Size(width, cellHeight), style = Stroke(width = 1f))
     }
 }
 
@@ -302,9 +320,7 @@ private fun DrawScope.drawLine(
     line: TerminalLine,
     columns: Int,
     y: Float,
-    textMeasurer: TextMeasurer,
-    cellWidth: Float,
-    cellHeight: Float,
+    canvas: TerminalCanvas,
 ) {
     val end = minOf(columns, line.columns)
     var column = 0
@@ -324,10 +340,10 @@ private fun DrawScope.drawLine(
                 text.append(line.textAt(column).ifEmpty { " " })
                 column++
             }
-            drawCells(text.toString(), start, column - start, style, y, textMeasurer, cellWidth, cellHeight)
+            drawCells(text.toString(), start, column - start, style, y, canvas)
         } else {
             val width = if (line.isWide(column)) 2 else 1
-            drawCells(line.textAt(column), start, width, style, y, textMeasurer, cellWidth, cellHeight)
+            drawCells(line.textAt(column), start, width, style, y, canvas)
             column += width
         }
     }
@@ -339,27 +355,27 @@ private fun DrawScope.drawCells(
     cells: Int,
     style: TerminalStyle,
     y: Float,
-    textMeasurer: TextMeasurer,
-    cellWidth: Float,
-    cellHeight: Float,
+    canvas: TerminalCanvas,
 ) {
-    var foreground = style.foreground.resolve(TerminalForeground)
-    var background = style.background.resolve(TerminalBackground)
+    val cellWidth = canvas.cellWidth
+    val defaults = canvas.colors
+    var foreground = style.foreground.resolve(defaults.foreground)
+    var background = style.background.resolve(defaults.background)
     if (style.inverse) foreground = background.also { background = foreground }
     if (style.hidden) foreground = background
-    if (style.dim) foreground = foreground.copy(alpha = 0.6f)
+    if (style.dim) foreground = foreground.copy(alpha = TerminalPaneDefaults.DimAlpha)
 
     val topLeft = Offset(column * cellWidth, y)
 
-    if (background != TerminalBackground) {
-        drawRect(background, topLeft, Size(cells * cellWidth, cellHeight))
+    if (background != defaults.background) {
+        drawRect(background, topLeft, Size(cells * cellWidth, canvas.cellHeight))
     }
 
     if (text.isBlank()) return
 
-    val layout: TextLayoutResult = textMeasurer.measure(
+    val layout: TextLayoutResult = canvas.textMeasurer.measure(
         text = text,
-        style = PaneTextStyle.copy(
+        style = canvas.textStyle.copy(
             color = foreground,
             fontWeight = if (style.bold) FontWeight.Bold else FontWeight.Normal,
             fontStyle = if (style.italic) FontStyle.Italic else FontStyle.Normal,
@@ -382,4 +398,41 @@ private fun DrawScope.drawCells(
     val slack = if (cells == 2) (cells * cellWidth - layout.size.width).coerceAtLeast(0f) / 2 else 0f
 
     drawText(layout, topLeft = topLeft + Offset(slack, 0f))
+}
+
+@Immutable
+internal class TerminalPaneColors(
+    val background: Color,
+    val foreground: Color,
+)
+
+internal object TerminalPaneDefaults {
+    /** 흐린 글자(SGR 2)와 커서에 쓰는 글자색 투명도. */
+    const val DimAlpha = 0.6f
+
+    val inputMinWidth: Dp = 1.dp
+
+    @Composable
+    @ReadOnlyComposable
+    fun colors(
+        background: Color = JarvisTheme.colors.terminalBackground,
+        foreground: Color = JarvisTheme.colors.terminalForeground,
+    ): TerminalPaneColors = TerminalPaneColors(background = background, foreground = foreground)
+
+    @Composable
+    @ReadOnlyComposable
+    fun textStyle(colors: TerminalPaneColors): TextStyle = JarvisTheme.codeTextStyle.copy(color = colors.foreground)
+
+    // 포커스 테두리는 레이아웃 크기에 들어가지 않는다. 테두리가 생길 때 칸 수가 바뀌어 셸이 다시 그리는
+    // 일이 없다.
+    val style: Style = Style {
+        background(jarvisColors.terminalBackground)
+        selected { border(jarvisDimens.stroke.thin, jarvisColorScheme.primary) }
+    }
+
+    /** 분할 경계선. 끌 수 있다는 것을 마우스를 올렸을 때 강조색으로 알린다. */
+    val dividerStyle: Style = Style {
+        background(jarvisColorScheme.outlineVariant)
+        hovered { animate { background(jarvisColorScheme.primary) } }
+    }
 }

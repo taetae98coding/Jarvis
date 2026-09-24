@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>디자인 시스템 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>디자인 시스템</span></nav>
+
+<header>
+  <h1>디자인 시스템</h1>
+  <p class="lead">Material 3 위에 <code>JarvisTheme</code> 하나를 세우고, 모든 화면이 그 토큰(색·글꼴·모양·치수)과 <code>*Defaults</code>·<code>Style</code> 로 정의된 컴포넌트, 직접 그린 <code>ImageVector</code> 아이콘으로 그려진다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a>
+      <ol>
+        <li><a href="#tokens">토큰</a></li>
+        <li><a href="#components">컴포넌트와 Defaults</a></li>
+        <li><a href="#icons">아이콘</a></li>
+        <li><a href="#screens">화면별 변화</a></li>
+      </ol>
+    </li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>우리앱의 디자인 가이드를 정의해줘.</p>
+  <p>1. M3를 베이스로 사용하고 공통 JarvisTheme 만들어줘.<br>
+  - dimen<br>
+  - color<br>
+  - typhography<br>
+  - 기타 너가 필요한 것들.</p>
+  <p>2. 공통 JarvisTheme를 모든 컴포넌트가 존중하지만 경우에 따라 컴포넌트 별 Theme값을 가질 수 있어.<br>
+  - Compose에 새롭게 소개된 style 기능 적극 사용.<br>
+  - ***Defaults 패턴으로 소유해서 사용.</p>
+  <p>3. ImageVector를 만들어서 IconButton, Icon 등 적극 사용하도록 리팩토링해줘.</p>
+  <footer>2026-09-24 대화.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 앱의 루트는 <code>MaterialTheme</code> 대신 <code>JarvisTheme</code> 로 감싼다. <code>JarvisTheme</code> 은 안에서 <code>MaterialTheme(colorScheme, typography, shapes)</code> 를 부르므로, Material 3 컴포넌트(<code>Switch</code>, <code>FilterChip</code>, <code>OutlinedButton</code> …)는 인자를 따로 받지 않아도 Jarvis 값으로 그려진다.</li>
+  <li><strong>R2.</strong> <code>JarvisTheme</code> 은 여섯 가지 토큰을 공급한다: <code>colorScheme</code>(M3 색 역할), <code>colors</code>(M3 에 없는 역할: success·warning·terminal), <code>typography</code>(M3 글꼴 단계), <code>codeTextStyle</code>(고정폭), <code>shapes</code>(M3 모서리 단계), <code>dimens</code>(간격·아이콘 크기·선 굵기·레이아웃). 값은 <a href="#tokens">토큰 표</a>와 같다.</li>
+  <li><strong>R3.</strong> 색은 라이트·다크 두 벌이고, 기본값은 시스템 설정(<code>isSystemInDarkTheme()</code>)을 따른다. 시스템 설정이 바뀌면 앱을 다시 켜지 않아도 따라간다.</li>
+  <li><strong>R4.</strong> 기능 코드(<code>feature/*/ui</code>, <code>app/ui</code>, <code>core/ui</code>)는 dp·sp 숫자와 <code>Color(…)</code> 리터럴을 직접 쓰지 않고 <code>JarvisTheme</code> 토큰이나 컴포넌트의 <code>*Defaults</code> 를 거친다. 예외는 <a href="#decision-literals">결정</a>에 적은 세 가지뿐이다.</li>
+  <li><strong>R5.</strong> 기본값을 가진 컴포넌트는 모두 같은 이름의 <code>&lt;컴포넌트&gt;Defaults</code> object 를 가진다. 기본값은 <code>JarvisTheme</code> 토큰에서 오고, 호출하는 쪽은 인자로 Defaults 와 다른 값을 넘겨 그 컴포넌트만의 값을 가진다. 기능 하나에서만 쓰는 컴포넌트는 그 기능 모듈이 자기 Defaults 를 소유한다.</li>
+  <li><strong>R6.</strong> 컨테이너의 여백·배경·모양·테두리·크기와 상태(선택·hover·눌림)에 따른 변화는 Compose Foundation 1.12 의 Style API(<code>Style { … }</code>, <code>Modifier.styleable</code>)로 정의한다. 그런 컴포넌트는 <code>style: Style = Style</code> 인자를 받고, 넘긴 Style 은 Defaults 의 Style 위에 <em>속성 단위로</em> 덮어쓴다. 넘기지 않은 속성은 기본값이 남는다.</li>
+  <li><strong>R7.</strong> 아이콘은 <code>JarvisIcons</code> 가 가진 <code>ImageVector</code> 로 그린다. 글자로 흉내 낸 아이콘(<code>← 뒤로</code>, <code>×</code>)과 글자뿐인 도구 버튼(<code>좌우 분할</code> 등)은 <code>IconButton</code> + <code>Icon</code> 으로 바꾼다. 아이콘만 있는 버튼은 원래 라벨을 <code>contentDescription</code> 으로 가진다.</li>
+  <li><strong>R8.</strong> 이 작업은 기능의 동작을 바꾸지 않는다. 테스트 태그, 설명 문구, 클릭·토글 결과는 그대로다. 바뀌는 것은 버튼 라벨이 글자에서 <code>contentDescription</code> 으로 옮겨 가는 것뿐이다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>Android 12+ 동적 색(배경화면에서 뽑는 색). 네 타깃의 모양을 같게 두려고 쓰지 않는다.</li>
+    <li>글꼴 파일 번들. 플랫폼 기본 글꼴을 그대로 쓴다(<a href="#decision-font">결정</a>).</li>
+    <li>앱 안에서 라이트/다크를 고르는 설정 화면. <code>JarvisTheme(darkTheme = …)</code> 인자로 받을 자리만 둔다.</li>
+    <li>터미널 글자 영역의 색. 셸 프로그램은 어두운 배경을 가정하므로 라이트 테마에서도 터미널 패널은 어둡다(<a href="terminal.html">터미널</a>).</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<h3 id="tokens">토큰</h3>
+
+<p>모든 토큰은 <code>JarvisTheme.&lt;이름&gt;</code>(컴포저블 안) 또는 <code>Style { }</code> 안의 확장 프로퍼티 <code>jarvis&lt;이름&gt;</code>(예: <code>jarvisDimens</code>)으로 읽는다. 뒤의 것은 Style 블록이 컴포지션 밖에서 <code>CompositionLocal</code> 을 읽는 경로(<code>CompositionLocalAccessorScope</code>)다.</p>
+
+<table>
+  <thead><tr><th>토큰</th><th>타입</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td><code>colorScheme</code></td><td>M3 <code>ColorScheme</code></td><td>기준색 파랑(primary 라이트 <code>#2E5DAA</code> / 다크 <code>#ADC6FF</code>), tertiary 청록(<code>#006A6A</code> / <code>#80D5D4</code>). surfaceContainer 다섯 단계까지 모든 역할을 직접 적는다. 전체 값은 <code>JarvisColorScheme.kt</code></td></tr>
+    <tr><td><code>colors</code></td><td><code>JarvisColors</code></td><td><code>success</code>·<code>onSuccess</code>·<code>successContainer</code>·<code>onSuccessContainer</code>(초록), <code>warning</code>·<code>onWarning</code>·<code>warningContainer</code>·<code>onWarningContainer</code>(호박), <code>terminalBackground</code> <code>#1E1E1E</code>·<code>terminalForeground</code> <code>#D4D4D4</code>(두 테마 공통)</td></tr>
+    <tr><td><code>typography</code></td><td>M3 <code>Typography</code></td><td>M3 기본 단계. <code>titleMedium</code>·<code>titleLarge</code> 만 <code>SemiBold</code> 로 올려 카드·화면 제목을 본문과 가른다</td></tr>
+    <tr><td><code>codeTextStyle</code></td><td><code>TextStyle</code></td><td><code>FontFamily.Monospace</code>, 13sp. 터미널 글자</td></tr>
+    <tr><td><code>shapes</code></td><td>M3 <code>Shapes</code></td><td>extraSmall 4 · small 8 · medium 12 · large 16 · extraLarge 28 (dp, 둥근 모서리)</td></tr>
+    <tr><td><code>dimens.spacing</code></td><td><code>JarvisSpacing</code></td><td>xxs 2 · xs 4 · s 8 · m 12 · l 16 · xl 20 · xxl 24 (dp)</td></tr>
+    <tr><td><code>dimens.iconSize</code></td><td><code>JarvisIconSize</code></td><td>small 18 · medium 24 (dp). 버튼 안 아이콘은 small, 단독·IconButton 은 medium</td></tr>
+    <tr><td><code>dimens.stroke</code></td><td><code>JarvisStroke</code></td><td>thin 1 · thick 4 (dp). 포커스 테두리, 분할 경계선</td></tr>
+    <tr><td><code>dimens.layout</code></td><td><code>JarvisLayout</code></td><td>screenPadding 16 · gridMinCellWidth 220 · topBarHeight 56 (dp)</td></tr>
+  </tbody>
+</table>
+
+<h3 id="components">컴포넌트와 Defaults</h3>
+
+<p>공용 컴포넌트는 <code>:core:designsystem</code> 에, 기능 하나만 쓰는 컴포넌트의 Defaults 는 그 기능 모듈에 있다. "Style" 열이 채워진 컴포넌트는 <code>style: Style = Style</code> 인자를 받는다.</p>
+
+<table>
+  <thead><tr><th>컴포넌트</th><th>모듈</th><th>Defaults 가 가진 것</th><th>Style</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisCard</code> (클릭 없음 / <code>onClick</code>)</td><td><code>:core:designsystem</code></td><td><code>shape</code>(shapes.medium), <code>colors()</code>, <code>contentArrangement</code>(spacing.s)</td><td>내용 영역: <code>contentPadding(spacing.l)</code></td></tr>
+    <tr><td><code>JarvisCardHeader</code></td><td><code>:core:designsystem</code></td><td>제목 글꼴(titleMedium), 아이콘 크기(medium)·색(primary), 간격(spacing.m)</td><td>—</td></tr>
+    <tr><td><code>JarvisLabeledValue</code></td><td><code>:core:designsystem</code></td><td>라벨 글꼴·색(bodyMedium, onSurfaceVariant), 값 글꼴(bodyMedium)</td><td>—</td></tr>
+    <tr><td><code>JarvisIconButton</code></td><td><code>:core:designsystem</code></td><td><code>colors()</code>(M3 <code>IconButtonDefaults.iconButtonColors</code> 위), 아이콘 크기(medium)</td><td>—</td></tr>
+    <tr><td><code>JarvisTopBar</code></td><td><code>:core:designsystem</code></td><td>제목 글꼴(titleLarge), 뒤로 아이콘·설명(<code>Back</code>, "뒤로")</td><td>막대: <code>minHeight(topBarHeight)</code></td></tr>
+    <tr><td><code>ToggleFeatureCard</code></td><td><code>:core:ui</code></td><td><code>JarvisCard</code>·<code>JarvisCardHeader</code> 의 Defaults 를 그대로 쓴다</td><td><code>JarvisCard</code> 에 넘긴다</td></tr>
+    <tr><td><code>AppInfoCard</code></td><td><code>:feature:appinfo:ui</code></td><td><code>AppInfoCardDefaults</code>: 제목 headlineSmall, 줄 간격 spacing.m</td><td><code>contentPadding(spacing.xl)</code> — 카드 기본 16 을 20 으로 덮는다</td></tr>
+    <tr><td>기기 줄</td><td><code>:feature:emulator:ui</code></td><td><code>EmulatorDeviceDefaults</code>: 상태 아이콘 색(실행 중 success / 화면 꺼짐 warning / 꺼짐 onSurfaceVariant), 실행 중 표시 크기</td><td>—</td></tr>
+    <tr><td>터미널 탭</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalTabDefaults</code>: 제목 너비 120, 글꼴 labelLarge</td><td>shapes.small, 배경 surfaceVariant → <code>selected</code> 에서 primaryContainer, <code>hovered</code>·<code>pressed</code> 에서 한 단계 진하게, 전환은 <code>animate</code></td></tr>
+    <tr><td>터미널 패널</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalPaneDefaults</code>: 글자(codeTextStyle), 배경·글자색(colors.terminal*), 흐린 글자·커서 알파 0.6</td><td>패널: 배경 terminalBackground, <code>selected</code>(분할 중 포커스된 패널)에서 <code>border(stroke.thin, primary)</code>. 경계선: 굵기 stroke.thick, outlineVariant → <code>hovered</code> 에서 primary</td></tr>
+  </tbody>
+</table>
+
+<h3 id="icons">아이콘</h3>
+
+<p><code>JarvisIcons</code> 의 모든 아이콘은 24 × 24 뷰포트, 선 굵기 2, 둥근 끝·이음새의 윤곽선 아이콘이다. 칠하지 않고 선만 긋는다. 색은 <code>Icon</code> 의 <code>tint</code>(기본 <code>LocalContentColor</code>)가 정한다.</p>
+
+<table>
+  <thead><tr><th>아이콘</th><th>쓰는 곳</th><th>contentDescription</th></tr></thead>
+  <tbody>
+    <tr><td><code>Back</code></td><td>기기 목록·기기 화면·터미널 상단 막대</td><td>뒤로</td></tr>
+    <tr><td><code>SplitSideBySide</code>, <code>SplitStacked</code></td><td>터미널 상단 막대</td><td>좌우 분할 / 상하 분할</td></tr>
+    <tr><td><code>Add</code></td><td>터미널 상단 막대</td><td>새 탭</td></tr>
+    <tr><td><code>Close</code></td><td>터미널 상단 막대(패널 닫기), 탭 닫기</td><td>닫기 / 탭 닫기</td></tr>
+    <tr><td><code>Play</code></td><td>기기 줄의 실행 버튼</td><td>실행</td></tr>
+    <tr><td><code>Sun</code></td><td>기기 줄의 화면 켜기 버튼</td><td>화면 켜기</td></tr>
+    <tr><td><code>RotateLeft</code>, <code>RotateRight</code></td><td>화면 회전 카드의 -90° / +90° 버튼(글자 옆), 회전 카드 머리(<code>RotateRight</code>)</td><td>없음 — 버튼에 글자가 함께 있다</td></tr>
+    <tr><td><code>Eye</code>, <code>Monitor</code>, <code>Smartphone</code>, <code>Terminal</code></td><td>기능 카드 머리: 화면 꺼짐 방지 / 시스템 전역 / 에뮬레이터 / 터미널. <code>Smartphone</code> 은 기기 줄의 상태 표시도 겸한다</td><td>없음 — 장식</td></tr>
+    <tr><td><code>ChevronRight</code></td><td>눌러서 다른 화면으로 가는 카드(에뮬레이터, 터미널) 머리의 오른쪽 끝</td><td>없음 — 카드 자체가 버튼이다</td></tr>
+  </tbody>
+</table>
+
+<h3 id="screens">화면별 변화</h3>
+
+<table>
+  <thead><tr><th>화면</th><th>전</th><th>후</th></tr></thead>
+  <tbody>
+    <tr><td>기기 목록·기기 화면</td><td><code>TextButton</code> "← 뒤로" + 제목</td><td><code>JarvisTopBar</code>: <code>Back</code> 아이콘 버튼 + 제목</td></tr>
+    <tr><td>기기 줄</td><td>이름·설명 + <code>TextButton</code> "화면 켜기" / "실행" / "켜는 중…"</td><td>상태 색 <code>Smartphone</code> 아이콘 + 이름·설명 + <code>Sun</code> / <code>Play</code> 아이콘 버튼. 실행 요청 중에는 버튼 자리에 작은 원형 진행 표시가 돌고 버튼이 잠긴다. 그 동안 contentDescription 은 "켜는 중…"</td></tr>
+    <tr><td>터미널 상단</td><td>"← 뒤로", 제목, 글자 버튼 넷</td><td><code>JarvisTopBar</code> + 아이콘 버튼 넷(<code>SplitSideBySide</code>, <code>SplitStacked</code>, <code>Add</code>, <code>Close</code>)</td></tr>
+    <tr><td>터미널 탭</td><td>이름 + 글자 "×"</td><td>이름 + <code>Close</code> 아이콘(small). 선택·hover·눌림 배경은 Style 이 애니메이션한다</td></tr>
+    <tr><td>기능 카드</td><td>제목 글자만</td><td><code>JarvisCardHeader</code>: 아이콘 + 제목 (+ 스위치 또는 <code>ChevronRight</code>)</td></tr>
+    <tr><td>화면 회전 버튼</td><td>"-90°", "+90°"</td><td><code>RotateLeft</code>/<code>RotateRight</code> 아이콘 + 같은 글자</td></tr>
+    <tr><td>앱 정보·에뮬레이터 요약 줄</td><td>기능마다 따로 만든 <code>InfoRow</code>·<code>SummaryRow</code></td><td><code>JarvisLabeledValue</code> 하나</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>테마</dt><dd><code>core/designsystem/.../designsystem/theme/</code> — <code>JarvisTheme.kt</code>(컴포저블 + <code>object JarvisTheme</code> + Style 용 확장), <code>JarvisColorScheme.kt</code>, <code>JarvisColors.kt</code>, <code>JarvisTypography.kt</code>, <code>JarvisShapes.kt</code>, <code>JarvisDimens.kt</code></dd>
+  <dt>아이콘</dt><dd><code>core/designsystem/.../designsystem/icon/JarvisIcons.kt</code></dd>
+  <dt>컴포넌트</dt><dd><code>core/designsystem/.../designsystem/component/</code> — <code>JarvisCard.kt</code>, <code>JarvisCardHeader.kt</code>, <code>JarvisLabeledValue.kt</code>, <code>JarvisIconButton.kt</code>, <code>JarvisTopBar.kt</code></dd>
+  <dt>기능 Defaults</dt><dd><code>AppInfoCardDefaults</code>(AppInfoCard.kt), <code>EmulatorDeviceDefaults</code>(EmulatorListScreen.kt), <code>TerminalTabDefaults</code>(TerminalTab.kt), <code>TerminalPaneDefaults</code>(TerminalPane.kt)</dd>
+  <dt>공급</dt><dd>없음. 전부 commonMain Compose 코드다. 시스템 다크 모드는 Compose 의 <code>isSystemInDarkTheme()</code> 가 플랫폼별로 읽는다(<a href="#platforms">판정</a>)</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: M3 위에 얹는다</strong>
+  <code>JarvisTheme</code> 은 <code>MaterialTheme</code> 을 대신하지 않고 그 안쪽을 채운다. 자체 디자인 시스템(M3 없이 foundation 만)으로 가면 <code>Switch</code>·<code>FilterChip</code>·<code>Card</code> 의 접근성·상태 처리를 다시 짜야 해서 버렸다. M3 가 가진 역할(색 역할, 글꼴 단계, 모서리 단계)은 M3 타입 그대로 두고, M3 에 없는 것(success·warning·terminal 색, 고정폭 글꼴, 치수)만 Jarvis 타입으로 더한다. <code>JarvisTheme.colorScheme</code> 은 M3 의 <code>LocalColorScheme</code> 이 internal 이라 Style 블록에서 읽을 수 없어서 같은 값을 우리 <code>CompositionLocal</code> 에도 한 번 더 넣는다.
+</aside>
+
+<aside class="decision" id="decision-style">
+  <strong>결정: Style 은 컨테이너에, Defaults 는 글자·색 인자에</strong>
+  Style API 는 <code>textStyle</code>·<code>contentColor</code> 도 자식에게 물려준다고 되어 있지만, 그 값은 <code>BasicText</code> 가 받은 스타일에 <em>비어 있는</em> 속성만 채운다(<code>StyleProperties.toTextStyle(supplied)</code>). M3 <code>Text</code> 는 <code>LocalTextStyle</code>·<code>LocalContentColor</code> 로 색과 크기를 항상 채워서 넘기므로 Style 의 글자 속성이 이긴 적이 없다. 그래서
+  <ul>
+    <li><strong>Style</strong>: 여백(<code>contentPadding</code>), 배경, 모양, 테두리, 최소 크기, 상태별 변화(<code>selected</code>·<code>hovered</code>·<code>pressed</code>)와 그 애니메이션(<code>animate</code>).</li>
+    <li><strong>Defaults 의 값·함수</strong>: 글꼴(<code>TextStyle</code>), 글자·아이콘 색, <code>CardColors</code> 처럼 M3 컴포넌트가 인자로 받는 것.</li>
+  </ul>
+  Defaults 의 Style 은 <code>val style: Style</code> 로 둔다. Style 블록은 컴포지션 밖에서 실행되고 테마 값은 <code>jarvisDimens</code> 처럼 그때 읽으므로, 테마가 바뀌어도 같은 객체를 다시 쓸 수 있다. 컴포넌트는 <code>Modifier.styleable(state, Defaults.style, style)</code> 로 기본 Style 과 호출자의 Style 을 차례로 적용해 오른쪽이 속성 단위로 이긴다. 호출자가 <code>style = Defaults.style then …</code> 처럼 기본값을 다시 넘길 필요가 없다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 모듈 <code>:core:designsystem</code> 을 새로 둔다</strong>
+  <code>:core:ui</code> 에 넣으면 테마만 필요한 모듈도 Navigator·Koin 내비게이션 의존성을 함께 받는다. 디자인 시스템은 Compose 와 M3 만 알고 앱의 어떤 개념(라우트, ViewModel)도 모르게 둔다. 의존 방향은 <code>:feature:*:ui</code>·<code>:core:ui</code>·<code>:app:ui</code> → <code>:core:designsystem</code> 한 방향이다(<a href="module-architecture.html">모듈 구조</a>).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 아이콘은 <code>ImageVector.Builder</code> + SVG 경로 문자열로 직접 만든다</strong>
+  후보는 넷이었다.
+  <ul>
+    <li><strong>채택.</strong> <code>ImageVector.Builder(…).addPath(addPathNodes("M12 5v14…"), stroke = …)</code>. 의존성이 없고 네 타깃에서 같은 경로를 그린다. 경로 문자열 하나가 아이콘 하나라 고치기 쉽다. <code>by lazy</code> 로 처음 쓸 때 한 번만 만든다.</li>
+    <li><code>material-icons-core</code>/<code>-extended</code>. 지금 의존성에 없고, androidx 가 1.7.x 이후 새 버전을 내지 않으며 Material Symbols 로 옮기라고 안내한다. extended 는 수천 개 아이콘이라 Wasm 번들이 커진다. 버렸다.</li>
+    <li>Compose Resources 의 벡터 XML(<code>Res.drawable.*</code> + <code>vectorResource</code>). <code>ImageVector</code> 를 얻을 수는 있지만 리소스 로딩을 거치고(Web 은 비동기), 지시가 요구한 "ImageVector 를 만든다"와 거리가 있다. 버렸다.</li>
+    <li>Material Symbols 가변 글꼴. 글꼴 파일을 번들해야 하고 <code>Icon</code> 이 아니라 <code>Text</code> 로 그려져 <code>IconButton</code>·<code>tint</code> 규약을 벗어난다. 버렸다.</li>
+  </ul>
+</aside>
+
+<aside class="decision" id="decision-literals">
+  <strong>결정: 리터럴이 남는 세 곳</strong>
+  <ul>
+    <li><strong>토큰과 Defaults 의 정의</strong> — 값이 처음 태어나는 자리다.</li>
+    <li><strong>터미널 ANSI 팔레트</strong>(<code>TerminalPalette.kt</code>) — 0–15 는 VS Code 테마, 16–255 는 xterm 정의값이다. 셸 프로그램이 이 값을 가정하므로 테마 토큰이 아니다.</li>
+    <li><strong>화면과 무관한 수</strong> — 제스처 최소 시간, 화면 좌표 변환, 줄 번호 같은 것. dp·sp·Color 가 아니다.</li>
+  </ul>
+</aside>
+
+<aside class="decision" id="decision-font">
+  <strong>결정: 글꼴 파일을 번들하지 않는다</strong>
+  Pretendard 같은 한글 글꼴을 넣으면 네 타깃의 글자 모양이 같아지지만, 한글 글꼴은 굵기 하나에 수 MB 라 Web 첫 로딩이 그만큼 늦어진다. 지금은 M3 기본 단계(크기·줄 간격)만 정하고 글꼴 모양은 플랫폼에 맡긴다. 넣을 때는 <code>JarvisTypography.kt</code> 의 <code>FontFamily</code> 한 곳만 바꾼다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: Style API 의 실험 표시는 컨벤션 플러그인에서 한 번에 풀어 준다</strong>
+  Style API 는 <code>@ExperimentalFoundationStyleApi</code> 다. 파일마다 <code>@OptIn</code> 을 달면 Style 을 쓰는 모든 기능 파일이 같은 줄을 반복한다. <code>jarvis.kmp.compose</code> 가 <code>languageSettings.optIn(…)</code> 으로 Compose 모듈 전체에 켠다. API 가 바뀌면 컴파일이 깨져서 바로 드러나므로 숨겨지는 위험은 없다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<p>토큰·컴포넌트·아이콘은 전부 commonMain 코드다. 플랫폼마다 다른 것은 시스템 다크 모드를 읽는 경로와, 벡터·Style 을 그리는 렌더러다.</p>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>다크 모드는 <code>Configuration.uiMode</code>. 매니페스트가 <code>uiMode</code> 변경을 직접 받아 액티비티를 다시 만들지 않고 재구성한다</td><td><a href="../platform/android.html#design-system">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>다크 모드는 <code>UITraitCollection.userInterfaceStyle</code>, 바뀌면 <code>userInterfaceStyleDidChange</code> 로 들어온다</td><td><a href="../platform/ios.html#design-system">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 외관을 skiko 가 1초마다 다시 읽는다</td><td><a href="../platform/jvm.html#design-system">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td><code>matchMedia("(prefers-color-scheme: dark)")</code> 의 change 이벤트</td><td><a href="../platform/web.html#design-system">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisThemeTest.materialThemeFollowsJarvisTokens</code></td><td>R1, R2. <code>JarvisTheme</code> 안에서 <code>MaterialTheme.colorScheme</code>·<code>typography</code>·<code>shapes</code> 가 Jarvis 값이다</td><td><code>:core:designsystem</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisThemeTest.darkThemeSwapsColors</code></td><td>R3. <code>darkTheme = true</code> 면 다크 색 두 벌(<code>colorScheme</code>, <code>colors</code>)이 공급된다</td><td>같음</td></tr>
+    <tr><td><code>JarvisCardTest.defaultStylePadsContent</code></td><td>R6. 카드 내용이 기본 Style 의 여백(spacing.l)만큼 들어가 있다</td><td>같음</td></tr>
+    <tr><td><code>JarvisCardTest.callerStyleOverridesOnlyWhatItSets</code></td><td>R5, R6. 호출자 Style 이 여백을 바꾸면 그 값이 쓰이고, 넘기지 않은 속성(카드 모양·색)은 그대로다</td><td>같음</td></tr>
+    <tr><td><code>JarvisIconsTest.everyIconIsA24dpOutline</code></td><td>R7. 모든 아이콘의 경로 문자열이 해석되고 24dp·24 뷰포트다. 경로 오타는 처음 그릴 때 예외가 나서 이 테스트가 먼저 잡는다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTest.backReturnsToListThenGrid</code> 외 뒤로 테스트</td><td>R7, R8. "뒤로" contentDescription 으로 찾아 누르면 전과 같이 이동한다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppLaunchLockTest.launchingDeviceLocksTheButton</code></td><td>R8. 실행 요청 중 contentDescription 이 "켜는 중…" 이고 버튼이 잠긴다</td><td><code>:app:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td>나머지 <code>JarvisAppTest</code>·<code>JarvisAppTerminalTest</code></td><td>R8. 태그·문구로 찾는 기존 테스트가 그대로 지나간다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R4. 리터럴 검사: <code>grep -rnE '[0-9]+\.(dp|sp)\b|Color\(0x' feature/*/ui app/ui core/ui --include=*.kt</code> 결과가 <a href="#decision-literals">예외</a> 자리뿐이다. 선택·hover 애니메이션과 다크 모드 모양은 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>Style API 는 실험 API 다. Compose 버전을 올릴 때 이름이나 시그니처가 바뀔 수 있고, 그러면 <code>*Defaults.style</code> 과 <code>styleable</code> 을 부르는 곳을 함께 고친다. 컴파일이 깨지므로 조용히 틀어지지는 않는다.</li>
+  <li>Style 의 글자 속성(<code>textStyle</code>, <code>contentColor</code>)은 M3 <code>Text</code> 에 닿지 않는다(<a href="#decision-style">결정</a>). 글자는 Defaults 로만 바꾼다.</li>
+  <li>M3 컴포넌트(<code>Switch</code>, <code>FilterChip</code>, <code>OutlinedButton</code>)는 Style 인자가 없다. 이들은 <code>MaterialTheme</code> 을 거쳐 Jarvis 색·모양을 따르고, 개별 값은 M3 의 <code>*Defaults</code>(예: <code>ButtonDefaults.ButtonWithIconContentPadding</code>)로 바꾼다.</li>
+  <li>글꼴 모양은 플랫폼마다 다르다(<a href="#decision-font">결정</a>).</li>
+  <li>시각적 결과(색이 맞는지, 애니메이션이 부드러운지)는 자동 테스트가 보지 않는다. 시맨틱 트리에 색이 없어서다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a> · <a href="module-architecture.html">모듈 구조</a> · <a href="card-ripple.html">카드 물결 효과</a>
+</footer>
+
+</body>
+</html>

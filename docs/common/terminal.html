@@ -44,12 +44,12 @@
   <li><strong>R2.</strong> 터미널 화면에 들어가면 탭 하나, 패널 하나가 있고 그 패널에 셸이 떠 있다.</li>
   <li><strong>R3.</strong> 셸 출력은 xterm 호환 제어 시퀀스로 해석해 글자 격자로 그린다. 해석 범위는 <a href="#emulation">아래 표</a>다. 한글 같은 전각 문자는 두 칸을 차지한다.</li>
   <li><strong>R4.</strong> 포커스된 패널의 키 입력이 그 셸로 간다. 문자(IME 로 조합한 한글 포함), Enter, Backspace, Tab, Shift+Tab, Esc, 방향키, Home/End/PageUp/PageDown/Insert/Delete, F1–F12, Ctrl+문자.</li>
-  <li><strong>R5.</strong> <strong>좌우 분할</strong> — 포커스된 패널을 좌우로 나누고 오른쪽에 새 셸을 띄운다. 새 패널이 포커스를 가져간다. 버튼 "좌우 분할", 단축키 ⌘D.</li>
-  <li><strong>R6.</strong> <strong>상하 분할</strong> — 포커스된 패널을 위아래로 나누고 아래에 새 셸을 띄운다. 새 패널이 포커스를 가져간다. 버튼 "상하 분할", 단축키 ⌘⇧D.</li>
-  <li><strong>R7.</strong> <strong>새 탭</strong> — 탭 줄 끝에 패널 하나짜리 탭이 붙고 선택된다. 버튼 "새 탭", 단축키 ⌘T.</li>
+  <li><strong>R5.</strong> <strong>좌우 분할</strong> — 포커스된 패널을 좌우로 나누고 오른쪽에 새 셸을 띄운다. 새 패널이 포커스를 가져간다. 아이콘 버튼 <code>SplitSideBySide</code>(contentDescription "좌우 분할"), 단축키 ⌘D.</li>
+  <li><strong>R6.</strong> <strong>상하 분할</strong> — 포커스된 패널을 위아래로 나누고 아래에 새 셸을 띄운다. 새 패널이 포커스를 가져간다. 아이콘 버튼 <code>SplitStacked</code>(contentDescription "상하 분할"), 단축키 ⌘⇧D.</li>
+  <li><strong>R7.</strong> <strong>새 탭</strong> — 탭 줄 끝에 패널 하나짜리 탭이 붙고 선택된다. 아이콘 버튼 <code>Add</code>(contentDescription "새 탭"), 단축키 ⌘T.</li>
   <li><strong>R8.</strong> 분할은 중첩된다. 두 패널 사이 경계선을 끌어 비율을 바꾼다. 비율은 0.1–0.9 로 묶인다.</li>
   <li><strong>R9.</strong> 패널 크기가 바뀌면 격자의 열·행 수를 다시 계산하고 셸에 알린다.</li>
-  <li><strong>R10.</strong> <strong>닫기</strong> — "닫기" 버튼 또는 ⌘W 가 포커스된 패널을 닫고 그 셸을 끝낸다. 형제 패널이 부모 자리를 채우고 포커스를 받는다. 탭의 마지막 패널이면 탭이 닫히고, 마지막 탭이면 홈으로 돌아간다. 탭의 × 는 그 탭의 패널을 전부 닫는다.</li>
+  <li><strong>R10.</strong> <strong>닫기</strong> — <code>Close</code> 아이콘 버튼(contentDescription "닫기") 또는 ⌘W 가 포커스된 패널을 닫고 그 셸을 끝낸다. 형제 패널이 부모 자리를 채우고 포커스를 받는다. 탭의 마지막 패널이면 탭이 닫히고, 마지막 탭이면 홈으로 돌아간다. 탭의 닫기 아이콘(<code>Close</code>, contentDescription "탭 닫기")은 그 탭의 패널을 전부 닫는다.</li>
   <li><strong>R11.</strong> 셸이 스스로 끝나면(<code>exit</code>) 그 패널이 R10 과 같이 닫힌다.</li>
   <li><strong>R12.</strong> 패널을 누르면 포커스가 그 패널로 간다. 한 탭에 패널이 둘 이상이면 포커스된 패널에 테두리가 그려진다. ⌘] / ⌘[ 는 다음·이전 패널, ⌘⇧] / ⌘⇧[ 는 다음·이전 탭, ⌘1–⌘9 는 그 번호의 탭을 고른다.</li>
   <li><strong>R13.</strong> 탭 이름은 그 탭에서 포커스된 패널의 셸이 OSC 0/2 로 정한 제목이다. 제목이 없으면 "셸 N"(N 은 탭 순번).</li>
@@ -76,10 +76,10 @@
     <tr><td>홈 카드 제목</td><td>터미널</td></tr>
     <tr><td>홈 카드 설명</td><td>iTerm 처럼 셸을 띄운다. 패널을 좌우·상하로 나누고 탭을 더할 수 있다.</td></tr>
     <tr><td>잠긴 카드 설명</td><td>이 플랫폼에서는 셸을 실행할 수 없습니다.</td></tr>
-    <tr><td>화면 상단</td><td>"← 뒤로", 제목 "터미널", 버튼 "좌우 분할" · "상하 분할" · "새 탭" · "닫기"</td></tr>
-    <tr><td>탭 줄</td><td>탭마다 이름과 ×. 선택된 탭은 강조한다</td></tr>
-    <tr><td>패널</td><td>어두운 배경(#1E1E1E), 기본 글자색 #D4D4D4, 고정폭 13sp. 커서는 블록, 포커스가 없으면 테두리만. 전각 글자는 대체 글꼴 폭이 두 칸보다 좁아 두 칸 가운데에 그린다</td></tr>
-    <tr><td>경계선</td><td>4dp. 끌면 비율이 바뀐다</td></tr>
+    <tr><td>화면 상단</td><td><code>JarvisTopBar</code>: 뒤로 아이콘 버튼, 제목 "터미널", 아이콘 버튼 넷(좌우 분할 · 상하 분할 · 새 탭 · 닫기). 모양은 <a href="design-system.html#icons">디자인 시스템</a></td></tr>
+    <tr><td>탭 줄</td><td>탭마다 이름과 닫기 아이콘. 선택된 탭은 primaryContainer 배경, 마우스를 올리거나 누르면 한 단계 진해진다(<code>TerminalTabDefaults.style</code>)</td></tr>
+    <tr><td>패널</td><td>어두운 배경(<code>JarvisTheme.colors.terminalBackground</code> #1E1E1E), 기본 글자색(<code>terminalForeground</code> #D4D4D4), 고정폭 13sp(<code>JarvisTheme.codeTextStyle</code>). 분할 중 포커스된 패널은 primary 1dp 테두리. 커서는 블록, 포커스가 없으면 테두리만. 전각 글자는 대체 글꼴 폭이 두 칸보다 좁아 두 칸 가운데에 그린다</td></tr>
+    <tr><td>경계선</td><td>4dp(<code>dimens.stroke.thick</code>), outlineVariant. 마우스를 올리면 primary. 끌면 비율이 바뀐다</td></tr>
     <tr><td>셸을 띄우지 못한 패널</td><td>격자에 "[셸을 시작할 수 없습니다]" 가 찍힌 채 남는다. 닫기로 닫는다</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>feature:terminal</code> (홈 카드), <code>terminal:screen</code>,
