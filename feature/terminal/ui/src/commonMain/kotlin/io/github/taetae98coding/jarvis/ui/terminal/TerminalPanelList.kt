@@ -61,8 +61,8 @@ import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisShapes
+import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
-import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 
 const val TerminalNewPanelTestTag = "terminal:new-panel"
 const val TerminalPanelNameFieldTestTag = "terminal:panel-name-field"
@@ -73,20 +73,34 @@ fun terminalPanelRenameTestTag(id: Long): String = "terminal:panel-rename:$id"
 
 fun terminalPanelCloseTestTag(id: Long): String = "terminal:panel-close:$id"
 
-/** 왼쪽의 패널 목록. 패널이 하나뿐이면 닫을 수 없다. "새 패널" 은 [NewPanelDialog] 를 거쳐 [onAdd] 를 부른다. */
+fun terminalNewWorktreeTestTag(id: Long): String = "terminal:new-worktree:$id"
+
+fun terminalWorktreePanelTestTag(id: Long): String = "terminal:worktree-panel:$id"
+
+fun terminalPanelBranchTestTag(id: Long): String = "terminal:panel-branch:$id"
+
+/**
+ * 왼쪽의 패널 목록. 최상위 패널마다 그 워크트리 패널을 바로 아래 들여써 그린다. 닫아서 패널이 하나도 남지 않게
+ * 되는 줄에는 ✕ 가 없다. "새 패널" 은 [NewPanelDialog] 를 거쳐 [onAdd] 를, [worktrees] 에 있는 패널의 + 는
+ * [NewWorktreeDialog] 를 거쳐 [onAddWorktree] 를 부른다. 워크트리 패널 줄의 현재 브랜치는 [worktrees] 에서
+ * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다.
+ */
 @Composable
 internal fun TerminalPanelList(
     panels: List<TerminalPanel>,
     selectedPanelId: Long?,
     nextPanelName: String,
-    canOpenClaude: Boolean,
+    worktrees: Map<Long, GitWorktree>,
     onSelect: (Long) -> Unit,
     onRename: (Long, String) -> Unit,
     onClose: (Long) -> Unit,
-    onAdd: (name: String, directory: String, program: TerminalProgram) -> Unit,
+    onAdd: (name: String, directory: String) -> Unit,
+    onAddWorktree: suspend (parentId: Long, branch: String, baseBranch: String?, directory: String) -> Result<Unit>,
     modifier: Modifier = Modifier,
 ) {
     var creating by remember { mutableStateOf(false) }
+    // 창이 떠 있는 동안 폴링이 워크트리를 바꿔도 창은 열 때의 값으로 간다.
+    var creatingWorktree by remember { mutableStateOf<Pair<TerminalPanel, GitWorktree>?>(null) }
 
     Column(
         modifier = modifier.width(TerminalPanelListDefaults.width).fillMaxHeight(),
@@ -96,19 +110,37 @@ internal fun TerminalPanelList(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xxs),
         ) {
-            panels.forEach { panel ->
+            @Composable
+            fun item(panel: TerminalPanel, closable: Boolean) {
+                val worktree = worktrees[panel.id]
+                val isWorktree = panel.parentId != null
+
                 TerminalPanelItem(
                     name = panel.name,
                     directory = panel.directory,
                     selected = panel.id == selectedPanelId,
-                    closable = panels.size > 1,
+                    closable = closable,
+                    isWorktree = isWorktree,
+                    branch = if (isWorktree) worktree?.branch ?: panel.branch else null,
+                    baseBranch = if (isWorktree) panel.baseBranch else null,
                     onSelect = { onSelect(panel.id) },
                     onRename = { onRename(panel.id, it) },
                     onClose = { onClose(panel.id) },
+                    onAddWorktree = worktree?.let { { creatingWorktree = panel to it } },
                     modifier = Modifier.fillMaxWidth().testTag(terminalPanelTestTag(panel.id)),
                     renameModifier = Modifier.testTag(terminalPanelRenameTestTag(panel.id)),
                     closeModifier = Modifier.testTag(terminalPanelCloseTestTag(panel.id)),
+                    addWorktreeModifier = Modifier.testTag(terminalNewWorktreeTestTag(panel.id)),
+                    worktreeIconModifier = Modifier.testTag(terminalWorktreePanelTestTag(panel.id)),
+                    branchModifier = Modifier.testTag(terminalPanelBranchTestTag(panel.id)),
                 )
+            }
+
+            panels.filter { it.parentId == null }.forEach { parent ->
+                val children = panels.filter { it.parentId == parent.id }
+
+                item(parent, closable = panels.size > children.size + 1)
+                children.forEach { child -> item(child, closable = panels.size > 1) }
             }
         }
 
@@ -125,19 +157,27 @@ internal fun TerminalPanelList(
     if (creating) {
         NewPanelDialog(
             defaultName = nextPanelName,
-            canOpenClaude = canOpenClaude,
-            onCreate = { name, directory, program ->
+            onCreate = { name, directory ->
                 creating = false
-                onAdd(name, directory, program)
+                onAdd(name, directory)
             },
             onDismiss = { creating = false },
+        )
+    }
+
+    creatingWorktree?.let { (parent, worktree) ->
+        NewWorktreeDialog(
+            worktree = worktree,
+            onCreate = { branch, baseBranch, directory -> onAddWorktree(parent.id, branch, baseBranch, directory) },
+            onDismiss = { creatingWorktree = null },
         )
     }
 }
 
 /**
  * 패널 한 줄. 이름을 바꾸는 동안은 이름 자리에 입력 필드가 온다. 편집 중인지는 이 줄만 아는 값이라
- * ViewModel 에 두지 않는다.
+ * ViewModel 에 두지 않는다. [isWorktree] 면 들여쓰고 이름 앞에 브랜치 아이콘을 둔다. [branch] 가 있으면 이름과
+ * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. [onAddWorktree] 가 있으면 ✎ 앞에 + 가 있다.
  */
 @Composable
 internal fun TerminalPanelItem(
@@ -149,8 +189,15 @@ internal fun TerminalPanelItem(
     onRename: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    isWorktree: Boolean = false,
+    branch: String? = null,
+    baseBranch: String? = null,
+    onAddWorktree: (() -> Unit)? = null,
     renameModifier: Modifier = Modifier,
     closeModifier: Modifier = Modifier,
+    addWorktreeModifier: Modifier = Modifier,
+    worktreeIconModifier: Modifier = Modifier,
+    branchModifier: Modifier = Modifier,
     style: Style = Style,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -158,6 +205,8 @@ internal fun TerminalPanelItem(
     val styleState = rememberUpdatedStyleState(interactionSource) { it.isSelected = selected }
     val contentColor = TerminalPanelItemDefaults.contentColor(selected)
     val spacing = JarvisTheme.dimens.spacing
+    // 워크트리 줄은 브랜치 아이콘이 들여쓰기 자리에 오고 이름은 그 바로 옆에 붙는다.
+    val namePadding = if (isWorktree) spacing.xs else spacing.m
 
     Row(
         modifier = modifier
@@ -165,9 +214,20 @@ internal fun TerminalPanelItem(
             .styleable(styleState, TerminalPanelItemDefaults.style, style),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (isWorktree) {
+            Icon(
+                imageVector = JarvisIcons.GitBranch,
+                contentDescription = null,
+                tint = TerminalPanelItemDefaults.directoryColor(selected),
+                modifier = worktreeIconModifier
+                    .padding(start = spacing.m + spacing.s)
+                    .size(JarvisTheme.dimens.iconSize.small),
+            )
+        }
+
         val nameModifier = Modifier
             .weight(1f)
-            .padding(start = spacing.m, end = spacing.xs, top = spacing.s, bottom = spacing.s)
+            .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s)
 
         if (editing) {
             PanelNameField(
@@ -187,7 +247,7 @@ internal fun TerminalPanelItem(
                     .clip(JarvisTheme.shapes.small)
                     // 눌림은 Style 의 배경이 보여 준다. 물결까지 그리면 같은 표시가 두 번 겹친다.
                     .clickable(interactionSource = interactionSource, indication = null, onClick = onSelect)
-                    .padding(start = spacing.m, end = spacing.xs, top = spacing.s, bottom = spacing.s),
+                    .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s),
             ) {
                 Text(
                     text = name,
@@ -196,6 +256,17 @@ internal fun TerminalPanelItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (branch != null) {
+                    Text(
+                        text = if (baseBranch != null) "$baseBranch → $branch" else branch,
+                        style = TerminalPanelItemDefaults.directoryStyle,
+                        color = TerminalPanelItemDefaults.directoryColor(selected),
+                        maxLines = 1,
+                        // 끝의 현재 브랜치가 알아보는 데 중요하다.
+                        overflow = TextOverflow.StartEllipsis,
+                        modifier = branchModifier,
+                    )
+                }
                 if (directory != null) {
                     Text(
                         text = directory,
@@ -208,6 +279,9 @@ internal fun TerminalPanelItem(
                 }
             }
 
+            if (onAddWorktree != null) {
+                PanelItemIcon(JarvisIcons.Add, "워크트리 추가", contentColor, onClick = onAddWorktree, modifier = addWorktreeModifier)
+            }
             PanelItemIcon(JarvisIcons.Edit, "이름 바꾸기", contentColor, onClick = { editing = true }, modifier = renameModifier)
             if (closable) {
                 PanelItemIcon(JarvisIcons.Close, "패널 닫기", contentColor, onClick = onClose, modifier = closeModifier)

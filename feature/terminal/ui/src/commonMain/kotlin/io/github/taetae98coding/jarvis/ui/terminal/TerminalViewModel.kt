@@ -4,12 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
+import io.github.taetae98coding.jarvis.domain.terminal.AddWorktreePanelUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
+import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsBrowserSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsChromeImportSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveChromeProfilesUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitWorktreeUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
@@ -18,10 +21,17 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import io.github.taetae98coding.jarvis.domain.terminal.UpdateTerminalWorkspaceUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -39,6 +49,8 @@ internal class TerminalViewModel(
     isChromeImportSupported: IsChromeImportSupportedUseCase,
     private val observeChromeProfiles: ObserveChromeProfilesUseCase,
     private val importChromeCookies: ImportChromeCookiesUseCase,
+    private val observeGitWorktree: ObserveGitWorktreeUseCase,
+    private val addWorktree: AddWorktreePanelUseCase,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -54,6 +66,25 @@ internal class TerminalViewModel(
         .onEach(::reconcile)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), null)
 
+    /**
+     * 폴더가 git 저장소 안에 있는 패널마다 그 워크트리. 여기 없는 패널에는 + 가 없다. 패널 id·폴더 짝이 바뀔 때만
+     * 다시 묶어서, 탭을 여닫는 것으로는 git 을 다시 읽지 않는다.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val worktrees: StateFlow<Map<Long, GitWorktree>> = workspace
+        .map { current -> current?.panels.orEmpty().mapNotNull { panel -> panel.directory?.let { panel.id to it } } }
+        .distinctUntilChanged()
+        .flatMapLatest { entries ->
+            if (entries.isEmpty()) {
+                flowOf(emptyMap())
+            } else {
+                combine(entries.map { (id, directory) -> observeGitWorktree(directory).map { id to it } }) { pairs ->
+                    pairs.mapNotNull { (id, worktree) -> worktree?.let { id to it } }.toMap()
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyMap())
+
     fun pane(tabId: Long): TerminalPaneState? = host.pane(tabId)
 
     /** 셸 창은 셸이 정한 제목, 브라우저 탭은 페이지 제목. */
@@ -66,10 +97,14 @@ internal class TerminalViewModel(
 
     private fun browserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
-    fun addPanel(name: String, directory: String, program: TerminalProgram) {
-        val sessionId = if (program == TerminalProgram.Claude) newClaudeSessionId() else null
-        update { it.addPanel(name, directory, program, sessionId) }
-    }
+    fun addPanel(name: String, directory: String) = update { it.addPanel(name, directory) }
+
+    /**
+     * [parentId] 패널의 저장소에 워크트리를 만들고 그 아래 빈 패널을 붙인다. 창이 닫혀 이 호출이 취소돼도 git 명령과
+     * 패널 추가는 끝까지 간다 — 만들다 만 워크트리가 패널 없이 남지 않게.
+     */
+    suspend fun addWorktreePanel(parentId: Long, branch: String, baseBranch: String?, directory: String): Result<Unit> =
+        viewModelScope.async { addWorktree(parentId, branch, baseBranch, directory).map { } }.await()
 
     fun renamePanel(panelId: Long, name: String) = update { it.renamePanel(panelId, name) }
 

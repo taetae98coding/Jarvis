@@ -58,6 +58,7 @@
     <li><a href="#terminal-tab-dock">탭 끌어 놓기 분할</a></li>
     <li><a href="#terminal-tab-groups">분할 그룹마다 탭 줄</a></li>
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
+    <li><a href="#terminal-worktree">패널에서 git 워크트리 추가</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
@@ -989,14 +990,14 @@ class JarvisApplication : Application() {
     <tr><td>SAF <code>Intent.ACTION_OPEN_DOCUMENT_TREE</code>(<code>ActivityResultContracts.OpenDocumentTree</code>)</td><td>버렸다. 결과가 <code>content://com.android.externalstorage.documents/tree/primary%3A…</code> 같은 트리 URI 이고, 받은 권한은 <code>ContentResolver</code> 로 문서에 접근하는 권한일 뿐 파일 경로 접근 권한이 아니다. 셸(<code>/system/bin/sh</code>)은 경로로 <code>chdir</code> 해야 한다. <code>primary:</code> 를 <code>/storage/emulated/0/</code> 로 바꿔 경로를 만들 수는 있지만, Android 11+ 에서 앱 uid 가 그 경로의 다른 앱 파일을 읽으려면 <code>MANAGE_EXTERNAL_STORAGE</code> 가 필요하고 이 권한은 Play 정책상 파일 관리자 앱에만 허용된다. 권한 없이 고른 폴더는 셸이 비어 있거나 들어가지 못해 "고른 폴더에서 연다" 는 R4 를 지키지 못한다</td></tr>
     <tr><td>앱 안에서 <code>java.io.File.listFiles()</code> 로 폴더를 훑는 자체 선택 창</td><td>버렸다. 셸이 들어갈 수 있는 곳은 사실상 앱의 <code>filesDir</code> 아래뿐이라 훑을 나무가 작고, 그만큼을 위해 목록 화면 하나를 새로 만들 값이 없다. 경로 입력으로 같은 일을 한다</td></tr>
     <tr><td><code>~</code> 펼치기</td><td>앱의 <code>filesDir</code>. 셸의 <code>$HOME</code> 으로 넘기는 값과 같다(<a href="#terminal">터미널</a>)</td></tr>
-    <tr><td>Claude (YOLO) 버튼</td><td>없다. <a href="#terminal-claude">Claude 실행</a>이 불가다</td></tr>
+    <tr><td>첫 탭</td><td>창은 탭을 열지 않는다(공통). 빈 패널의 + 메뉴에는 "터미널" 만 있다 — <a href="#terminal-claude">Claude 실행</a>이 불가다</td></tr>
   </tbody>
 </table>
 
 <h3>우회</h3>
 <dl class="meta">
   <dt>파일</dt><dd><code>feature/terminal/ui/src/androidMain/.../ui/terminal/DirectoryPicker.android.kt</code>(<code>null</code>), <code>feature/terminal/data/src/androidMain/.../data/terminal/Terminal.android.kt</code>(<code>expandHome</code>)</dd>
-  <dt>동작</dt><dd>"찾아보기" 가 없고 폴더는 경로로 직접 입력한다. 버튼은 "취소"·"터미널" 뿐이다. 나머지는 공통 스펙 R1–R9 그대로</dd>
+  <dt>동작</dt><dd>"찾아보기" 가 없고 폴더는 경로로 직접 입력한다. 버튼은 공통과 같은 "취소"·"확인" 이다. 나머지는 공통 스펙 R1–R9 그대로</dd>
   <dt>실패</dt><dd>들어갈 수 없는 경로는 <code>filesDir</code> 에서 시작한다(R9)</dd>
 </dl>
 
@@ -1007,7 +1008,37 @@ class JarvisApplication : Application() {
 </ul>
 
 <h3>검증</h3>
-<p>모델은 <code>:feature:terminal:domain</code> 의 Android 호스트 테스트로 돈다. 화면은 Android 계측 테스트가 없어(<a href="#test">테스트</a>) 기기에서 손으로 확인한다: "새 패널" 에서 폴더에 <code>~</code> 를 넣고 "터미널" 을 누르면 <code>pwd</code> 가 <code>filesDir</code> 여야 한다.</p>
+<p>모델은 <code>:feature:terminal:domain</code> 의 Android 호스트 테스트로 돈다. 화면은 Android 계측 테스트가 없어(<a href="#test">테스트</a>) 기기에서 손으로 확인한다: "새 패널" 에서 폴더에 <code>~</code> 를 넣고 "확인" 을 누른 뒤 빈 패널의 + 로 터미널을 열면 <code>pwd</code> 가 <code>filesDir</code> 여야 한다.</p>
+</section>
+
+<section class="feature" id="terminal-worktree">
+<h2>패널에서 git 워크트리 추가 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-worktree.html">패널에서 git 워크트리 추가</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>기기의 <code>git</code> 실행 파일</td><td>없다. AOSP 는 <code>git</code> 을 싣지 않고, <code>/system/bin/sh</code> 에서 <code>git</code> 은 <code>not found</code> 다. Termux 의 <code>git</code> 은 다른 앱의 샌드박스라 이 앱이 실행할 수 없다</td></tr>
+    <tr><td>JGit 을 앱에 싣기</td><td>버렸다. 워크트리를 만들 수는 있지만 만든 워크트리에서 셸이 <code>git</code> 을 못 쓰니(위) 사용자가 그 폴더에서 할 수 있는 일이 없다. 의존성만 는다</td></tr>
+    <tr><td>모델·저장</td><td>공통 코드. <code>parentId</code>·<code>branch</code>·<code>baseBranch</code> 가 있는 파일(다른 기기에서 가져온 것)도 그대로 읽고 들여쓴 줄과 <code>기준 → 브랜치</code> 줄로 보인다. 관측할 git 이 없어 브랜치 줄은 저장한 값으로 고정된다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/androidMain/.../data/terminal/Git.android.kt</code>(<code>UnsupportedGitDataSource</code>)</dd>
+  <dt>동작</dt><dd><code>observeWorktree</code> 가 늘 null 이라 어떤 패널에도 + 가 없다. 셸 패널은 그대로 쓴다</dd>
+  <dt>실패</dt><dd><code>addWorktree</code> 는 부를 곳이 없다. 불리면 "이 플랫폼에서는 git 을 쓸 수 없습니다" 로 실패한다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>Android 에서는 워크트리를 만들 수 없다. 만들어진 워크트리 폴더도 이 기기에는 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>모델은 <code>:feature:terminal:domain</code> 의 Android 호스트 테스트로 돈다. 화면은 Android 계측 테스트가 없어(<a href="#test">테스트</a>) 기기에서 손으로 확인한다: 폴더가 있는 패널에도 + 가 없어야 한다.</p>
 </section>
 
 

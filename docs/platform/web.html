@@ -57,6 +57,7 @@
     <li><a href="#terminal-tab-dock">탭 끌어 놓기 분할</a></li>
     <li><a href="#terminal-tab-groups">분할 그룹마다 탭 줄</a></li>
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
+    <li><a href="#terminal-worktree">패널에서 git 워크트리 추가</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
@@ -823,6 +824,29 @@
 <dl class="meta">
   <dt>파일</dt><dd><code>feature/terminal/ui/src/wasmJsMain/.../ui/terminal/DirectoryPicker.wasmJs.kt</code>(<code>null</code>)</dd>
   <dt>동작</dt><dd>화면에 들어갈 수 없으므로 동작이 없다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>검증</h3>
+<p>화면에 들어갈 수 없으므로 확인할 동작이 없다. 컴파일만 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-worktree">
+<h2>패널에서 git 워크트리 추가 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-worktree.html">패널에서 git 워크트리 추가</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>git 저장소 판정·워크트리 만들기</td><td>불가가 아니라 쓸 데가 없다. <a href="#terminal">터미널</a> 자체가 불가라 카드가 잠겨 화면에 들어갈 수 없다. 모델·창은 공통 코드라 이 타깃에서도 컴파일된다. 프로세스를 띄울 수 없으므로 <code>git</code> 도 조사하지 않았다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/wasmJsMain/.../data/terminal/Git.wasmJs.kt</code>(<code>UnsupportedGitDataSource</code>)</dd>
+  <dt>동작</dt><dd>화면에 들어갈 수 없으므로 동작이 없다. <code>observeWorktree</code> 는 null, <code>addWorktree</code> 는 실패다</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
 

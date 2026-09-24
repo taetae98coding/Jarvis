@@ -247,13 +247,16 @@ class TerminalWorkspaceTest {
     }
 
     @Test
-    fun newPanelIsNamedByCountAndSelected() {
+    fun newPanelIsNamedByCountSelectedAndEmpty() {
         val workspace = TerminalWorkspace.initial().addPanel()
 
         assertEquals(listOf("패널 1", "패널 2"), workspace.panels.map { it.name })
         assertEquals(workspace.panels.last().id, workspace.selectedPanelId)
-        assertEquals(1, workspace.groups.size)
-        assertEquals(TerminalProgram.Shell, workspace.focusedTab!!.program)
+        assertNull(workspace.selectedPanel!!.root)
+        assertNull(workspace.selectedPanel!!.focusedGroupId)
+        assertEquals(emptyList(), workspace.groups)
+        assertNull(workspace.focusedTab)
+        assertEquals(1, workspace.tabIds.size)
     }
 
     @Test
@@ -268,18 +271,19 @@ class TerminalWorkspaceTest {
     }
 
     @Test
-    fun newPanelOpensItsFirstTabInItsDirectory() {
-        val shell = TerminalWorkspace.initial().addPanel(directory = "/work")
-        val claude = TerminalWorkspace.initial()
-            .addPanel(directory = "/work", program = TerminalProgram.Claude, claudeSessionId = "session")
+    fun firstTabOfANewPanelIsOpenedByAddTabInThePanelDirectory() {
+        val empty = TerminalWorkspace.initial().addPanel(directory = "/work")
 
-        assertEquals(TerminalTab(shell.focusedTab!!.id, TerminalProgram.Shell, "/work"), shell.focusedTab)
-        assertEquals(TerminalTab(claude.focusedTab!!.id, TerminalProgram.Claude, "/work", "session"), claude.focusedTab)
+        val opened = empty.addTab(directory = empty.startDirectory())
+
+        assertEquals(1, opened.selectedPanel!!.groups.size)
+        assertEquals(TerminalTab(opened.focusedTab!!.id, TerminalProgram.Shell, "/work"), opened.focusedTab)
+        assertEquals(opened.groups.single().id, opened.focusedGroupId)
     }
 
     @Test
     fun startDirectoryPrefersTheSelectedTabThenThePanelDirectory() {
-        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work")
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work").addTab(directory = "/work")
         val tab = workspace.focusedTab!!
 
         assertEquals("/work/api", workspace.setDirectory(tab.id, "/work/api").startDirectory())
@@ -290,7 +294,7 @@ class TerminalWorkspaceTest {
 
     @Test
     fun groupsBelongToTheSelectedPanel() {
-        val workspace = TerminalWorkspace.initial().addTab().addPanel()
+        val workspace = TerminalWorkspace.initial().addTab().addPanel().addTab()
         val (first, second) = workspace.panels
 
         val split = workspace.split(SplitDirection.SideBySide)
@@ -328,8 +332,114 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    fun worktreePanelGoesRightAfterItsParentAndItsSiblingsAndIsSelected() {
+        val workspace = TerminalWorkspace.initial().addPanel(name = "Jarvis", directory = "/work/jarvis").addPanel(name = "API")
+        val (first, parent, api) = workspace.panels
+
+        val one = workspace.addWorktreePanel(parent.id, name = "feature/login", directory = "/work/jarvis-worktrees/feature/login")
+        val two = one.addWorktreePanel(parent.id, name = "fix", directory = "/work/jarvis-worktrees/fix")
+
+        val (login, fix) = two.children(parent.id)
+        assertEquals(listOf(first.id, parent.id, login.id, fix.id, api.id), two.panels.map { it.id })
+        assertEquals(listOf(first, parent, api).map { it.id }, two.topLevelPanels.map { it.id })
+        assertEquals(fix.id, two.selectedPanelId)
+        assertEquals(parent.id, fix.parentId)
+        assertEquals("fix", fix.name)
+        assertEquals("/work/jarvis-worktrees/fix", fix.directory)
+        assertNull(fix.root)
+        assertEquals("/work/jarvis-worktrees/fix", two.startDirectory())
+    }
+
+    @Test
+    fun worktreePanelMadeFromAWorktreePanelIsASiblingUnderTheSameParent() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis")
+        val parent = workspace.panels.last()
+        val withChild = workspace.addWorktreePanel(parent.id, name = "a", directory = "/work/a")
+        val child = withChild.selectedPanel!!
+
+        val withSibling = withChild.addWorktreePanel(child.id, name = "b", directory = "/work/b")
+
+        assertEquals(listOf("a", "b"), withSibling.children(parent.id).map { it.name })
+        assertEquals(parent.id, withSibling.selectedPanel!!.parentId)
+        assertEquals(emptyList(), withSibling.children(child.id))
+    }
+
+    @Test
+    fun worktreePanelRemembersItsBranchAndBaseBranchAndDropsBlankOnes() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis")
+        val parent = workspace.panels.last()
+
+        val remembered = workspace
+            .addWorktreePanel(parent.id, name = "a", directory = "/work/a", branch = " a ", baseBranch = " main ")
+            .selectedPanel!!
+        val blank = workspace
+            .addWorktreePanel(parent.id, name = "b", directory = "/work/b", branch = "b", baseBranch = "  ")
+            .selectedPanel!!
+
+        assertEquals("a", remembered.branch)
+        assertEquals("main", remembered.baseBranch)
+        assertEquals("b", blank.branch)
+        assertNull(blank.baseBranch)
+        assertNull(parent.branch)
+
+        // 이름을 바꿔도 브랜치는 그대로다.
+        val renamed = workspace.addWorktreePanel(parent.id, branch = "a", baseBranch = "main").let { it.renamePanel(it.selectedPanelId!!, "x") }
+        assertEquals("x", renamed.selectedPanel!!.name)
+        assertEquals("a", renamed.selectedPanel!!.branch)
+    }
+
+    @Test
+    fun worktreePanelForAnUnknownParentChangesNothing() {
+        val workspace = TerminalWorkspace.initial()
+
+        assertEquals(workspace, workspace.addWorktreePanel(999, name = "a", directory = "/work/a"))
+    }
+
+    @Test
+    fun closingAParentClosesItsWorktreePanelsToo() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis").addTab()
+        val parent = workspace.panels.last()
+        val withChildren = workspace
+            .addWorktreePanel(parent.id, name = "a", directory = "/work/a").addTab()
+            .addWorktreePanel(parent.id, name = "b", directory = "/work/b").addTab()
+            .addPanel(name = "after")
+        val children = withChildren.children(parent.id)
+        val selectedChild = withChildren.selectPanel(children.first().id)
+
+        val closed = selectedChild.closePanel(parent.id)
+
+        assertEquals(listOf(workspace.panels.first().id, withChildren.panels.last().id), closed.panels.map { it.id })
+        assertEquals(withChildren.panels.last().id, closed.selectedPanelId)
+        assertTrue(children.flatMap { it.tabs }.none { it.id in closed.tabIds })
+        assertTrue(parent.tabs.none { it.id in closed.tabIds })
+    }
+
+    @Test
+    fun closingAWorktreePanelKeepsItsParent() {
+        val workspace = TerminalWorkspace.initial().addPanel(directory = "/work/jarvis")
+        val parent = workspace.panels.last()
+        val withChild = workspace.addWorktreePanel(parent.id, name = "a", directory = "/work/a")
+        val child = withChild.selectedPanel!!
+
+        val closed = withChild.closePanel(child.id)
+
+        assertEquals(workspace.panels.map { it.id }, closed.panels.map { it.id })
+        assertEquals(parent.id, closed.selectedPanelId)
+    }
+
+    @Test
+    fun theLastFamilyIsNotClosed() {
+        val workspace = TerminalWorkspace.initial()
+        val parent = workspace.panels.single()
+        val withChild = workspace.addWorktreePanel(parent.id, name = "a", directory = "/work/a")
+
+        assertEquals(withChild, withChild.closePanel(parent.id))
+        assertEquals(1, withChild.closePanel(withChild.selectedPanelId!!).panels.size)
+    }
+
+    @Test
     fun closingTheSelectedPanelSelectsTheNextOne() {
-        val workspace = TerminalWorkspace.initial().addPanel().addPanel()
+        val workspace = TerminalWorkspace.initial().addPanel().addTab().addPanel()
         val (first, middle, last) = workspace.panels
 
         val closed = workspace.selectPanel(middle.id).closePanel(middle.id)

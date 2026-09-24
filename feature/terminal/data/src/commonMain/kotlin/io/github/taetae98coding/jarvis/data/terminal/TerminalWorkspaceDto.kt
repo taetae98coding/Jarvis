@@ -33,6 +33,9 @@ internal data class TerminalPanelDto(
     val root: PaneNodeDto? = null,
     val focusedGroupId: Long? = null,
     val directory: String? = null,
+    val parentId: Long? = null,
+    val branch: String? = null,
+    val baseBranch: String? = null,
 )
 
 @Serializable
@@ -83,14 +86,21 @@ internal fun TerminalWorkspace.toDto(): TerminalWorkspaceDto =
                 root = panel.root?.toDto(),
                 focusedGroupId = panel.focusedGroupId,
                 directory = panel.directory,
+                parentId = panel.parentId,
+                branch = panel.branch,
+                baseBranch = panel.baseBranch,
             )
         },
         selectedPanelId = selectedPanelId,
         nextId = nextId,
     )
 
-/** 패널이 하나도 없거나 그룹이 하나도 없는 파일은 처음 켠 것과 같게 읽는다. 화면에는 늘 패널이 하나 이상 있다. */
+/**
+ * 패널이 하나도 없거나 그룹이 하나도 없는 파일은 처음 켠 것과 같게 읽는다. 화면에는 늘 패널이 하나 이상 있다.
+ * 부모가 목록에 없거나 부모 자신이 워크트리 패널인 `parentId` 는 버려 최상위로 읽는다 — 목록은 한 단계만 그린다.
+ */
 internal fun TerminalWorkspaceDto.toDomain(): TerminalWorkspace {
+    val topLevelIds = panels.filter { it.parentId == null }.map { it.id }.toSet()
     val restored = panels.map { panel ->
         TerminalPanel(
             id = panel.id,
@@ -98,6 +108,9 @@ internal fun TerminalWorkspaceDto.toDomain(): TerminalWorkspace {
             root = panel.root?.toDomain(),
             focusedGroupId = panel.focusedGroupId,
             directory = panel.directory,
+            parentId = panel.parentId?.takeIf { it in topLevelIds },
+            branch = panel.branch,
+            baseBranch = panel.baseBranch,
         )
     }
     if (restored.none { it.root != null }) return TerminalWorkspace.initial()
