@@ -83,7 +83,7 @@
     <tr><td>줄</td><td>세로로 쌓는다: 글자 묶음(워크트리 줄은 브랜치 아이콘 + 글자 묶음) → 버튼 줄. 줄 전체에 <code>TerminalPanelItemDefaults.style</code> 배경. 글자 묶음과 버튼 줄의 빈 자리가 선택 클릭을 받는다</td></tr>
     <tr><td>글자 묶음</td><td>이름·브랜치 줄·폴더 줄. 여백은 왼쪽 <code>spacing.m</code>(워크트리 줄은 아이콘 뒤 <code>spacing.xs</code>), 오른쪽 <code>spacing.xs</code>, 위 <code>spacing.s</code>. 아래는 버튼 줄이 있으면 0(버튼의 여백이 대신한다), 이름 입력 필드일 때는 <code>spacing.s</code></td></tr>
     <tr><td>버튼 줄</td><td><code>Row</code>, 줄 폭 전체: Claude 상태 표시 → <code>Spacer(weight(1f))</code> → 버튼. 왼쪽 여백은 보통 줄 <code>spacing.m - spacing.s</code>, 워크트리 줄 <code>spacing.m</code> — 표시 칸의 안쪽 여백(<code>spacing.s</code>)을 빼서 아이콘이 이름·브랜치 아이콘과 세로로 맞는다. 버튼 모양·contentDescription·보이는 조건은 이전과 같다(<code>iconSize.small</code> 아이콘, 둘레 <code>spacing.s</code>)</td></tr>
-    <tr><td>테스트 태그</td><td>바뀌지 않는다. <code>terminal:panel:&lt;id&gt;</code>(줄 전체), <code>terminal:panel-rename:&lt;id&gt;</code>, <code>terminal:panel-close:&lt;id&gt;</code>, <code>terminal:new-worktree:&lt;id&gt;</code>, <code>terminal:panel-claude-status:&lt;id&gt;</code></td></tr>
+    <tr><td>테스트 태그</td><td>바뀌지 않는다. <code>terminal:panel:&lt;id&gt;</code>(줄 전체), <code>terminal:panel-rename:&lt;id&gt;</code>, <code>terminal:panel-close:&lt;id&gt;</code>, <code>terminal:new-worktree:&lt;id&gt;</code>, <code>terminal:panel-claude-status:&lt;id&gt;:&lt;tabId&gt;</code>(뒤따른 <a href="terminal-claude-status.html#requirements">Claude 상태 R4</a> 로 표시마다)</td></tr>
   </tbody>
 </table>
 
