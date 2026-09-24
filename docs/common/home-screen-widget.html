@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>홈 화면 위젯 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>홈 화면 위젯</span></nav>
+
+<header>
+  <h1>홈 화면 위젯</h1>
+  <p class="lead">Android 홈 화면에서 앱을 열지 않고 화면 회전과 시스템 전역 화면 꺼짐 방지를 조작한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>screenRotate는 어떤 플랫폼들 지원해?</p>
+  <p>화면 꺼짐(시스템 전역)은 어떤 플랫폼 지원해?</p>
+  <p>자그럼 Android 한정해서 위젯 기능 2개 전부 구현해줘.</p>
+  <footer>2026-09-24 대화. 앞의 두 질문에 "두 기능 모두 시스템 설정을 실제로 바꾸는 곳은 Android 뿐"이라고 답한 뒤에 온 지시다. "위젯 기능 2개"는 <a href="device-rotation.html">화면 회전</a>과 <a href="system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a>이다. 브랜치 이름 <code>screenRotateWidget</code>이 이 작업의 출발점이었다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>위젯 같은 경우 상태가 업데이트 안돼. 그리고 처음에 권한 없을 때 설정가서 허용하도 돌아와도 또 설정으로 보내 위젯을 다시 만들어야 적용되고 수정해줘.</p>
+  <footer>2026-09-24 대화. Galaxy Note20(Android 13)에 설치해 본 결과다. 원인은 하나다. Glance 는 세션이 살아 있는 동안 <code>provideGlance</code>를 다시 부르지 않는데, 상태를 <code>provideContent</code> 밖에서 한 번 읽어 넘겨서 값이 고정됐다. 권한 문제는 그 결과로 화면에 남은 "설정 열기" 버튼이 계속 설정으로 보낸 것이다. R5·R6 를 고치고 아래 결정 두 개를 다시 썼다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> Android 홈 화면 위젯 목록에 "화면 회전" 위젯과 "화면 꺼짐 방지" 위젯이 따로 있다. 하나만 놓아도 되고, 여러 개 놓아도 된다.</li>
+  <li><strong>R2.</strong> 화면 회전 위젯에는 0°·90°·180°·270° 버튼, 잠금 토글 버튼, <code>-90°</code>·<code>+90°</code> 버튼이 있다. 동작 규칙은 카드와 같다(<a href="device-rotation.html#requirements">화면 회전 R2~R5</a>). 각도를 고르면 잠금이 함께 걸린다.</li>
+  <li><strong>R3.</strong> 화면 꺼짐 방지 위젯에는 켬/끔 토글 버튼이 있다. 켜면 시스템 화면 꺼짐 시간을 늘리고, 끄면 저장해 둔 값으로 되돌린다(<a href="system-keep-screen-awake.html#requirements">시스템 전역 화면 꺼짐 방지</a>의 규칙).</li>
+  <li><strong>R4.</strong> 위젯은 앱이 떠 있지 않아도 동작한다. 프로세스가 죽어 있어도 탭 한 번으로 조작이 끝나고, 앱을 열 필요가 없다.</li>
+  <li><strong>R5.</strong> 권한(<code>WRITE_SETTINGS</code>)이 없으면 위젯의 모든 버튼이 권한 설정 화면을 열고, 위젯 설명에 권한이 필요하다고 보인다. 설정에서 허용하고 돌아오면 위젯은 <strong>다시 만들지 않아도</strong> 동작한다. 허용된 뒤에 그 버튼을 눌러도 설정 화면으로 다시 보내지 않는다.</li>
+  <li><strong>R6.</strong> 위젯이 보여주는 현재 각도·잠금·꺼짐 방지 상태는 (a) 위젯을 탭한 직후, (b) 시스템 설정(자동 회전·고정 각도·화면 꺼짐 시간)이나 권한이 바뀌었을 때, (c) 30분마다 다시 읽는다. 앱 카드에서 바꾼 것도 (b)로 따라온다. 위젯 세션이 살아 있는 동안(마지막 조작 뒤 약 45초)은 (b)가 즉시고, 그 뒤에는 설정 변경 트리거를 거친다.</li>
+  <li><strong>R7.</strong> 위젯 조작과 앱 카드 조작은 같은 유스케이스를 거친다. "각도를 고르면 잠근다", "권한 없으면 쓰지 않는다" 같은 규칙이 두 곳에 적히지 않는다.</li>
+  <li><strong>R8.</strong> Android 외 플랫폼에는 위젯을 만들지 않는다. 지시가 Android 한정이고, 두 기능이 그 플랫폼들에서 <a href="device-rotation.html#platforms">불가</a>라 위젯이 보여줄 것도 없다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong>iOS WidgetKit, macOS 위젯, PWA.</strong> R8. 각 플랫폼 문서의 버린 후보에 조사 결과만 남겼다.</li>
+    <li><strong>위젯 설정 화면(configuration Activity), 크기별 레이아웃 분기, "앱 열기" 버튼.</strong> 지시에 없다. 두 위젯은 놓는 즉시 동작하고 최소 크기 하나로 그린다.</li>
+    <li><strong>자동 회전 중 각도 변화의 실시간 반영.</strong> 프로세스가 없는 동안 디스플레이 회전을 알려주는 시스템 경로가 없다(<a href="#limits">한계</a>). 잠금·설정값 변화는 R6(b)로 따라온다.</li>
+    <li><strong>앱 수명 내 <a href="keep-screen-awake.html">화면 꺼짐 방지</a> 위젯.</strong> 앱이 떠 있는 동안만 유효한 기능이라 홈 화면에서 켤 이유가 없다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>화면 회전 위젯</th><th>화면 꺼짐 방지 위젯</th></tr></thead>
+  <tbody>
+    <tr><td>위젯 목록 이름</td><td>화면 회전</td><td>화면 꺼짐 방지</td></tr>
+    <tr><td>위젯 목록 설명</td><td>기기를 0·90·180·270도로 돌리고 그 각도에 고정합니다.</td><td>앱을 닫아도 화면이 꺼지지 않게 합니다.</td></tr>
+    <tr><td>제목</td><td>화면 회전</td><td>화면 꺼짐 방지</td></tr>
+    <tr><td>설명 (권한 없음)</td><td colspan="2">시스템 설정 변경 권한이 필요합니다. 누르면 권한 설정 화면이 열립니다.</td></tr>
+    <tr><td>설명 (상태)</td><td>카드와 같다. "현재 {각도}°에 고정되어 있습니다." / "현재 {각도}°, 센서를 따라 회전합니다." / "현재 각도를 읽을 수 없습니다."</td><td>켜짐: "앱을 닫아도 화면이 꺼지지 않습니다." 꺼짐: "시스템 설정대로 화면이 꺼집니다." 둘 다 뒤에 " 현재 시스템 설정은 {시간}입니다."를 붙인다(읽을 수 있을 때)</td></tr>
+    <tr><td>컨트롤</td><td>잠금 버튼 1개(잠김이면 "고정", 아니면 "자동"), 각도 버튼 4개(현재 각도만 <code>primary</code> 색), <code>-90°</code>·<code>+90°</code> 버튼</td><td>토글 버튼 1개(켜져 있으면 "켜짐", 아니면 "꺼짐")</td></tr>
+    <tr><td>최소 크기</td><td>4 × 3 셀 (250 × 180 dp)</td><td>3 × 2 셀 (180 × 110 dp)</td></tr>
+    <tr><td>크기 조절</td><td colspan="2">가로·세로 모두. 내용은 크기와 무관하게 한 레이아웃이다</td></tr>
+    <tr><td>주기 갱신</td><td colspan="2"><code>updatePeriodMillis</code> 1,800,000 (30분, 시스템 최소값)</td></tr>
+    <tr><td>테스트 태그</td><td colspan="2">해당 없음. Glance 에는 <code>testTag</code> 시맨틱이 없고 Android 에는 UI 테스트가 없다(<a href="../platform/android.html#test">이유</a>)</td></tr>
+  </tbody>
+</table>
+
+<p>권한이 없을 때 버튼은 잠기지 않는다. 카드와 같은 이유로, 잠그면 권한을 요구할 입구가 사라진다. 버튼을 누르면 동작 대신 권한 설정 화면이 열린다(R5).</p>
+
+<h2 id="implementation">공통 구현</h2>
+
+<p><strong><code>commonMain</code>에는 위젯 코드가 없다.</strong> 위젯은 Android 전용 모듈에 산다. 공용 코드에 들어가는 것은 도메인 유스케이스 하나뿐이다.</p>
+
+<dl class="meta">
+  <dt>규칙 (공용)</dt><dd><code>SyncSystemScreenAwakeUseCase</code> (<code>:feature:screen:domain</code>)</dd>
+  <dt>위젯 (Android 전용)</dt><dd><code>:feature:rotation:widget</code>, <code>:feature:screen:widget</code> — <code>com.android.library</code> 모듈. 같은 기능의 <code>domain</code>과 <code>:core:widget</code>만 의존한다</dd>
+  <dt>갱신·권한 (Android 전용)</dt><dd><code>:core:widget</code> — 시스템 설정이 바뀌면 위젯을 다시 그리게 하는 <code>JobService</code>, 권한을 탭 시점에 다시 확인하는 <code>WriteSettingsPermissionActivity</code>. 두 위젯이 함께 쓴다(<a href="module-architecture.html#requirements">모듈 구조 R4</a>)</dd>
+  <dt>진입점</dt><dd><code>androidApp/.../JarvisApplication.kt</code> — 프로세스가 뜰 때 <code>startJarvisKoin()</code></dd>
+  <dt>빌드</dt><dd>컨벤션 플러그인 <code>jarvis.android.library</code> — Android 전용 라이브러리 모듈의 namespace·SDK 선언</dd>
+</dl>
+
+<pre><code>// :feature:screen:domain — 설정값을 시스템에 한 번 반영한다. 화면 없이 부르는 쪽(위젯)이 쓴다.
+class SyncSystemScreenAwakeUseCase(
+    private val settings: ScreenAwakeSettingsRepository,
+    private val systemScreenAwake: SystemScreenAwakeRepository,
+) {
+    suspend operator fun invoke() {
+        val status = systemScreenAwake.observeStatus().first()
+
+        // 권한이 없으면 적용도 복원도 할 수 없다. ApplySystemScreenAwakeUseCase 와 같은 판단이다.
+        if (!status.permitted) return
+
+        systemScreenAwake.setEnabled(settings.readKeepSystemScreenAwake())
+    }
+}</code></pre>
+
+<aside class="decision">
+  <strong>결정: 위젯은 Glance 로 그린다</strong>
+  Android 위젯은 <code>RemoteViews</code>만 받는다. Jetpack Compose 는 쓸 수 없다. 후보는 둘이었다. <code>androidx.glance:glance-appwidget</code> 1.2.0은 Compose 문법으로 <code>RemoteViews</code>를 만들어 주고, 버튼 탭을 <code>ActionCallback</code> 클래스로 받는다. XML 레이아웃 + <code>RemoteViews</code> 직접 조립은 버렸다. 버튼 여섯 개의 <code>PendingIntent</code> 배선과 상태별 색 분기를 손으로 짜야 하고, 이 프로젝트의 화면은 전부 Compose 라 XML 레이아웃이 처음 들어오는 일이 된다. Glance 는 <code>androidx.compose.runtime</code>만 요구하고 Compose UI 는 요구하지 않아서, 컨벤션 플러그인의 Compose Multiplatform 의존과 겹치지 않는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 위젯 모듈은 기능마다 하나, Android 전용 <code>com.android.library</code></strong>
+  <code>:feature:&lt;기능&gt;:widget</code>은 기능의 네 번째 모듈이다. <code>ui</code>와 마찬가지로 <code>domain</code>만 의존하고 <code>data</code>를 보지 못한다(<a href="module-architecture.html#requirements">모듈 구조 R2</a>). 다른 두 자리를 버렸다. <code>:androidApp</code>에 직접 두면 앱 모듈이 기능 도메인을 의존해야 해서 "<code>:androidApp</code>은 <code>:shared</code> 하나만 의존한다"는 결정이 깨진다. <code>:app:widget</code> 하나에 두 위젯을 모으면 기능을 통째로 떼어낼 수 있다는 기능 분리의 목적(R3)이 위젯에서만 사라진다. KMP 라이브러리(<code>jarvis.kmp.library</code>)로 만들지 않는 이유는 다른 네 타깃에 넣을 코드가 한 줄도 없어서다. 빈 소스셋 넷과 iOS 프레임워크 링크만 늘어난다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: <code>Application</code> 서브클래스를 들인다 (예전 결정을 뒤집는다)</strong>
+  <a href="module-architecture.html#context">모듈 구조</a>와 <a href="dependency-injection.html">의존성 주입</a>은 <code>Application</code> 서브클래스를 버리고 <code>MainActivity</code>가 <code>startJarvisKoin()</code>을 부르게 했다. 이유는 "매니페스트에 등록해야 앱이 뜨는 구조를 피한다"였다. 위젯이 그 전제를 깬다. 위젯 탭은 Activity 없이 프로세스를 띄우고 <code>ActionCallback</code>이 곧바로 유스케이스를 부르므로, Koin 은 프로세스가 뜨는 순간 서 있어야 한다. 그리고 위젯 리시버 자체가 이미 매니페스트 등록이다. 그래서 <code>JarvisApplication.onCreate</code>가 <code>startJarvisKoin(this)</code>를 부르고, <code>MainActivity</code>의 호출은 지웠다. 위젯 모듈이 스스로 <code>startJarvisKoin()</code>을 부르는 안은 버렸다. 그 함수는 <code>:shared</code>에 있고 <code>:shared</code>가 위젯 모듈을 의존하므로 순환이다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 갱신은 <code>JobScheduler</code> 콘텐트 URI 트리거로 받는다</strong>
+  앱 카드는 <code>ContentObserver</code>를 <code>Flow</code>로 감싸 수집하는 동안 시스템 변화를 따라간다(<a href="state-observation.html">상태 조회 규칙</a>). 위젯은 수집할 프로세스가 없다. 대신 <code>JobInfo.Builder.addTriggerContentUri()</code>가 같은 URI 알림을 시스템이 대신 지켜보다가 잡을 때 job 을 띄워 준다. job 은 위젯 리시버에 <code>ACTION_APPWIDGET_UPDATE</code>를 보내고, 리시버의 <code>onUpdate</code>가 위젯을 다시 그린 뒤 job 을 다시 건다(트리거 job 은 한 번 뜨면 끝이다). 이 규칙의 "콜백부터 찾는다"를 위젯 쪽에서 지키는 방법이다. 버린 후보: 포그라운드 서비스로 <code>ContentObserver</code>를 붙잡기(알림이 상주하고 배터리 정책에 걸린다), <code>WorkManager</code> 주기 작업(최소 15분이고 콜백이 아니다), <code>updatePeriodMillis</code>만 쓰기(30분 동안 틀린 값을 보여준다).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 권한이 없으면 버튼이 권한 중계 Activity 를 연다</strong>
+  유스케이스는 권한이 없으면 <code>requestPermission()</code>으로 설정 화면을 연다. 위젯도 그 길을 타면 <code>BroadcastReceiver</code> 안에서 <code>startActivity</code>를 부르는 셈이고, Android 10+ 의 백그라운드 액티비티 시작 제한이 런처의 <code>PendingIntent</code> 유예에 기대게 된다. 그래서 권한이 없을 때 버튼은 <code>actionStartActivity</code>다. 런처가 직접 Activity <code>PendingIntent</code>를 보내므로 제한과 무관하다.
+  <p>처음 구현은 설정 인텐트를 곧바로 열었다. 기기에서 확인해 보니 사용자가 허용하고 돌아온 뒤에도 위젯에는 이전에 그린 "설정 열기" 버튼이 남아 있어서, 다시 누르면 또 설정으로 갔다(2026-09-24 지시). 권한 변화는 URI 알림이 아니라 설정 변경 트리거로도 잡히지 않는다. 그래서 버튼은 <code>:core:widget</code>의 투명한 <code>WriteSettingsPermissionActivity</code>를 연다. 이 Activity 는 그 시점에 권한을 다시 확인해서, 이미 허용됐으면 설정 대신 이 앱의 위젯을 전부 다시 그리게 하고, 아니면 설정 화면을 열고 곧 끝난다. 탭 시점에 판단하므로 그려진 버튼이 낡아도 설정으로 되돌아가지 않는다. 세션이 살아 있는 동안은 아래 결정의 수집이 appop 콜백으로 버튼을 먼저 바꿔 놓아 중계가 필요 없다. 유스케이스 안의 권한 확인은 그대로 있어 두 경로가 어긋나지 않는다(R7).</p>
+</aside>
+
+<aside class="decision">
+  <strong>결정: 꺼짐 방지 토글은 설정을 바꾸고 곧바로 한 번 반영한다</strong>
+  카드는 <code>SetKeepSystemScreenAwakeUseCase</code>로 설정만 바꾸고, 시스템에 쓰는 일은 앱 루트 ViewModel 이 돌리는 <code>ApplySystemScreenAwakeUseCase</code>가 설정 <code>Flow</code>를 따라 한다. 위젯에는 그 ViewModel 이 없다. 설정만 바꾸면 사용자가 앱을 열 때까지 화면 꺼짐 시간이 그대로다. 그래서 <code>SyncSystemScreenAwakeUseCase</code>를 하나 더 두고 위젯이 <code>Set</code> 다음에 부른다. 앱이 떠 있을 때는 <code>Apply</code>도 같은 값을 한 번 더 쓰는데, <code>extend()</code>는 저장값이 있으면 덮어쓰지 않고 <code>restore()</code>는 저장값을 지우므로 두 번 써도 결과가 같다. <code>Set</code> 안에 반영을 넣는 안은 버렸다. 카드 경로에서 <code>Apply</code>와 역할이 겹치고, 권한이 늦게 들어오는 경우를 <code>Apply</code>가 이미 맡고 있다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 위젯은 세션이 살아 있는 동안 리포지토리 <code>Flow</code> 를 수집한다</strong>
+  처음에는 "Glance 는 <code>update</code> 시점에 한 번 그리고 끝난다"고 보고 <code>provideGlance</code>에서 <code>observeStatus().first()</code>로 스냅샷을 읽어 <code>provideContent</code>에 넘겼다. 틀렸다. Glance 는 위젯마다 세션(<code>AppWidgetSession</code>)을 열고 마지막 이벤트 뒤 약 45초 동안 컴포지션을 살려 둔다. 그 사이의 <code>update()</code>는 <code>provideGlance</code>를 다시 부르지 않고 기존 컴포지션을 재구성만 하므로, 밖에서 읽은 값은 세션이 끝날 때까지 고정된다. 탭한 뒤에도 각도가 바뀌지 않고, 권한을 허용하고 와도 문구가 그대로였던 이유다(2026-09-24 지시).
+  <p>지금은 <code>provideContent</code> 안에서 <code>repository.observeStatus().collectAsState(initial)</code>로 수집한다. 초기값은 <code>provideGlance</code>가 <code>observeStatus().first()</code>로 읽는다. <code>readStatus()</code>는 첫 프레임 전용이라 쓰지 않는다. 상태가 바뀌면 Glance 가 재구성해 <code>RemoteViews</code>를 다시 보내므로, 세션이 살아 있는 동안은 카드처럼 즉시 따라간다. 세션이 닫히면 컴포지션이 사라지며 수집도 끝나고 리스너가 풀린다. <a href="state-observation.html">상태 조회 규칙</a>의 "수집은 화면 수명에 묶는다"가 위젯에서는 세션 수명이다. 세션이 없는 동안의 변화는 설정 변경 트리거가 새 세션을 열어 잡는다. <code>ObserveXUseCase</code>는 <code>CoroutineScope</code>를 받아 <code>StateFlow</code>를 만드는 ViewModel 용이라 위젯에는 맞지 않아서, 위젯 모듈은 리포지토리 인터페이스를 직접 주입받는다.</p>
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td>Glance 위젯 둘. 탭은 <code>ActionCallback</code>이 유스케이스를 부르고, 시스템 설정 변화는 <code>JobScheduler</code> 콘텐트 트리거가 위젯을 다시 그린다</td><td><a href="../platform/android.html#home-screen-widget">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>지시가 Android 한정. WidgetKit 은 Swift 전용이고 두 기능이 iOS 에서 불가라 보여줄 것도 없다</td><td><a href="../platform/ios.html#home-screen-widget">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge no">불가</span></td><td>macOS 위젯도 WidgetKit 이라 JVM 앱이 만들 수 없다. 두 기능이 JVM 에서 불가다</td><td><a href="../platform/jvm.html#home-screen-widget">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>홈 화면 위젯 개념이 없다. PWA 바로가기는 앱을 여는 것뿐이다</td><td><a href="../platform/web.html#home-screen-widget">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>SyncSystemScreenAwakeUseCaseTest</code> (3개)</td><td>R3, R5. 권한이 있으면 저장된 설정값을 시스템에 쓰고, 없으면 아무것도 쓰지 않는다</td><td><code>:feature:screen:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>SetDeviceRotationAngleUseCaseTest</code>, <code>SetDeviceRotationLockUseCaseTest</code>, <code>RotateDeviceUseCaseTest</code></td><td>R2, R7. 위젯이 부르는 유스케이스가 카드와 같은 것이므로 기존 테스트가 그대로 규칙을 덮는다</td><td><code>:feature:rotation:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisKoinTest</code></td><td>R7. 새 유스케이스가 Koin 그래프에서 해석된다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>./gradlew :androidApp:assembleDebug</code></td><td>R1. 위젯 모듈 셋과 매니페스트가 합쳐져 APK 가 만들어진다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<p>위젯 화면과 탭 동작, 설정 변경 뒤 갱신(R1, R2, R4, R5, R6)은 <span class="badge untested">미검증</span>이다. Android 에는 UI 테스트가 없고(<a href="../platform/android.html#test">이유</a>), 위젯은 런처가 있어야 그려진다. 수동 확인 절차는 <a href="../platform/android.html#home-screen-widget">android.html</a> 검증 절에 있다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><strong>자동 회전 중에는 위젯의 각도가 늦게 바뀐다.</strong> 잠금이 풀린 채 기기를 돌리면 디스플레이만 돌고 시스템 설정은 바뀌지 않아 R6(b)가 울리지 않는다. 다음 탭이나 30분 주기에 따라온다. 잠금·고정 각도·꺼짐 시간 변화는 즉시 따라온다.</li>
+  <li><strong>재부팅 뒤에는 첫 갱신까지 설정 변화를 놓친다.</strong> 콘텐트 트리거 job 은 재부팅에 남지 않는다(<code>setPersisted</code>와 함께 쓸 수 없다). 30분 주기 갱신이나 탭이 오면 리시버가 job 을 다시 건다. <code>BOOT_COMPLETED</code> 리시버는 권한 하나를 더 요구해 넣지 않았다.</li>
+  <li><strong>세션이 닫힌 뒤 권한을 허용하면 버튼을 한 번 더 눌러야 한다.</strong> 마지막 조작 뒤 약 45초 안에 돌아오면 appop 콜백이 위젯을 바로 바꾼다. 그 뒤에 돌아오면 그려진 버튼이 낡아 있고, 누르면 권한 중계 Activity 가 설정 대신 위젯을 다시 그리므로 그다음 탭부터 동작한다. 설정으로 되돌려 보내지는 않는다.</li>
+  <li><strong>앱을 삭제하면 늘려 둔 화면 꺼짐 시간이 남는다.</strong> 위젯으로 켰어도 <a href="system-keep-screen-awake.html#limits">카드의 한계</a>와 같다. 위젯을 지우는 것(<code>onDisabled</code>)은 되돌리지 않는다. 위젯을 치웠다고 사용자가 화면을 꺼지게 하려던 것은 아니다.</li>
+  <li><strong>위젯 문구가 카드와 두 곳에 적혀 있다.</strong> 위젯 모듈은 <code>ui</code> 모듈을 의존하지 않아 <code>describe()</code>를 공유할 수 없다. 문구는 이 문서의 <a href="#behavior">화면·동작</a>이 기준이다.</li>
+</ul>
+
+<footer class="page">
+  <a href="device-rotation.html">← 화면 회전</a> · <a href="index.html">공통 스펙</a>
+</footer>
+
+</body>
+</html>

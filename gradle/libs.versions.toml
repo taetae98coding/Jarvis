@@ -12,6 +12,8 @@ android-minSdk = "24"
 android-targetSdk = "37"
 
 androidx-activityCompose = "1.13.0"
+# 홈 화면 위젯. RemoteViews 를 Compose 문법으로 만든다. Compose UI 가 아니라 compose.runtime 만 요구한다.
+androidx-glance = "1.2.0"
 
 koin = "4.2.2"
 
@@ -68,6 +70,7 @@ compose-components-resources = { module = "org.jetbrains.compose.components:comp
 compose-ui-toolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "androidx-glance" }
 
 # build-logic 의 컨벤션 플러그인이 쓰는 플러그인 마커. plugins { } 로 적용하려면 컴파일
 # 클래스패스에 있어야 해서 라이브러리로도 선언한다.
@@ -83,4 +86,5 @@ composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "k
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidLibrary = { id = "com.android.library", version.ref = "agp" }
 androidKotlinMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }

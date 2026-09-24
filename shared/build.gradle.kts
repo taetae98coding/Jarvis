@@ -29,6 +29,13 @@ kotlin {
             implementation(projects.feature.terminal.data)
         }
 
+        androidMain.dependencies {
+            // 홈 화면 위젯은 Android 전용 com.android.library 모듈이다. 여기 붙여야 매니페스트가 합쳐져
+            // APK 에 들어가고, :androidApp 은 여전히 :shared 하나만 본다.
+            implementation(projects.feature.rotation.widget)
+            implementation(projects.feature.screen.widget)
+        }
+
         jvmMain.dependencies {
             // viewModelScope 가 Dispatchers.Main.immediate 다. JVM 에서 그 디스패처는 이 아티팩트가 있어야
             // 존재한다 — Compose Desktop 은 데려오지 않는다. 없으면 viewModelScope 가 조용히 EDT 밖에서

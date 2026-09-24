@@ -65,6 +65,7 @@
 │   ├── device-list-split.html       기기 목록 좌우 분할 (Android | iOS)
 │   ├── card-ripple.html             카드 물결 효과
 │   ├── device-rotation.html         화면 회전
+│   ├── home-screen-widget.html      홈 화면 위젯 (Android 전용, 회전·꺼짐 방지)
 │   ├── home-staggered-grid.html     홈 그리드 세로 배치
 │   ├── terminal.html                터미널 (분할·탭)
 │   ├── terminal-claude.html         터미널에서 Claude 실행 (YOLO 모드)
@@ -226,9 +227,16 @@
     <tr>
       <td><a href="common/device-rotation.html">화면 회전</a></td>
       <td class="center"><a href="platform/android.html#device-rotation"><span class="badge workaround">우회</span></a></td>
-      <td class="center"><a href="platform/ios.html#device-rotation"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/ios.html#device-rotation"><span class="badge no">불가</span></a></td>
       <td class="center"><a href="platform/jvm.html#device-rotation"><span class="badge no">불가</span></a></td>
-      <td class="center"><a href="platform/web.html#device-rotation"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/web.html#device-rotation"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/home-screen-widget.html">홈 화면 위젯</a></td>
+      <td class="center"><a href="platform/android.html#home-screen-widget"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#home-screen-widget"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#home-screen-widget"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/web.html#home-screen-widget"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
       <td><a href="common/home-staggered-grid.html">홈 그리드 세로 배치</a></td>
@@ -294,6 +302,7 @@
   <li><a href="common/device-list-split.html">기기 목록 좌우 분할</a><p>기기 목록을 두 열로 나눠 왼쪽에 Android, 오른쪽에 iOS 기기를 둔다</p></li>
   <li><a href="common/card-ripple.html">카드 물결 효과</a><p>누를 수 있는 카드의 물결이 카드의 둥근 모서리 안에서만 퍼진다</p></li>
   <li><a href="common/device-rotation.html">화면 회전</a><p>화면을 0·90·180·270도로 돌리고 그 각도에 고정한다</p></li>
+  <li><a href="common/home-screen-widget.html">홈 화면 위젯</a><p>Android 홈 화면에서 앱을 열지 않고 화면 회전과 시스템 전역 화면 꺼짐 방지를 조작한다</p></li>
   <li><a href="common/home-staggered-grid.html">홈 그리드 세로 배치</a><p>높이가 제각각인 기능 카드를 행으로 묶지 않고 가장 짧은 열에 이어 붙인다</p></li>
   <li><a href="common/design-system.html">디자인 시스템</a><p>M3 위의 JarvisTheme 토큰, *Defaults 와 Style 로 정의한 컴포넌트, ImageVector 아이콘</p></li>
   <li><a href="common/terminal.html">터미널</a><p>iTerm 처럼 셸을 띄우고 좌우·상하 분할과 탭을 쓴다. JVM 은 pty, Android 는 파이프, iOS·Web 은 불가</p></li>
