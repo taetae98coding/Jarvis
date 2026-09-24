@@ -17,14 +17,16 @@ class NotifyClaudeTurnEndsUseCaseTest {
         .let { it.renameTab(it.tabs.last().id, "리뷰") }
         .addTab(program = TerminalProgram.Claude, claudeSessionId = "session-b")
 
-    private val working = ClaudeStatus(ClaudeActivity.Working)
+    private val working = ClaudeActivity.Working
+
+    private val activities = RecordingClaudeActivityRepository()
 
     private fun TestScope.start(
         repository: RecordingTerminalRepository,
         isWatching: (String) -> Boolean = { false },
     ) {
         backgroundScope.launch {
-            NotifyClaudeTurnEndsUseCase(repository, InMemoryTerminalWorkspaceRepository(workspace))(isWatching)
+            NotifyClaudeTurnEndsUseCase(activities, InMemoryTerminalWorkspaceRepository(workspace), repository)(isWatching)
         }
         runCurrent()
     }
@@ -32,7 +34,7 @@ class NotifyClaudeTurnEndsUseCaseTest {
     @Test
     fun theFirstStatusesAreNotNotified() = runTest {
         val repository = RecordingTerminalRepository()
-        repository.claudeStatuses.value = mapOf("session-a" to ClaudeStatus(ClaudeActivity.Finished, "done before"))
+        activities.activities.value = mapOf("session-a" to ClaudeActivity.Finished(10, summary = "done before"))
 
         start(repository)
 
@@ -42,12 +44,12 @@ class NotifyClaudeTurnEndsUseCaseTest {
     @Test
     fun aFinishedTurnIsNotified() = runTest {
         val repository = RecordingTerminalRepository()
-        repository.claudeStatuses.value = mapOf("session-a" to working, "session-b" to working)
+        activities.activities.value = mapOf("session-a" to working, "session-b" to working)
         start(repository)
 
-        repository.claudeStatuses.value = mapOf(
-            "session-a" to ClaudeStatus(ClaudeActivity.Finished, "tests green"),
-            "session-b" to ClaudeStatus(ClaudeActivity.WaitingForInput, "pick one"),
+        activities.activities.value = mapOf(
+            "session-a" to ClaudeActivity.Finished(20, summary = "tests green"),
+            "session-b" to ClaudeActivity.Finished(20, needsInput = true, summary = "pick one"),
         )
         runCurrent()
 
@@ -63,12 +65,12 @@ class NotifyClaudeTurnEndsUseCaseTest {
     @Test
     fun aWatchedTabIsNotNotified() = runTest {
         val repository = RecordingTerminalRepository()
-        repository.claudeStatuses.value = mapOf("session-a" to working, "session-b" to working)
+        activities.activities.value = mapOf("session-a" to working, "session-b" to working)
         start(repository, isWatching = { it == "session-a" })
 
-        repository.claudeStatuses.value = mapOf(
-            "session-a" to ClaudeStatus(ClaudeActivity.Finished),
-            "session-b" to ClaudeStatus(ClaudeActivity.Finished),
+        activities.activities.value = mapOf(
+            "session-a" to ClaudeActivity.Finished(20),
+            "session-b" to ClaudeActivity.Finished(20),
         )
         runCurrent()
 
@@ -76,12 +78,24 @@ class NotifyClaudeTurnEndsUseCaseTest {
     }
 
     @Test
-    fun aSessionOutsideTheWorkspaceIsNotNotified() = runTest {
-        val repository = RecordingTerminalRepository()
-        repository.claudeStatuses.value = mapOf("elsewhere" to working)
+    fun nothingIsObservedWhereClaudeIsNotSupported() = runTest {
+        val repository = RecordingTerminalRepository(isClaudeSupported = false)
+        activities.activities.value = mapOf("session-a" to working)
         start(repository)
 
-        repository.claudeStatuses.value = mapOf("elsewhere" to ClaudeStatus(ClaudeActivity.Finished))
+        activities.activities.value = mapOf("session-a" to ClaudeActivity.Finished(20))
+        runCurrent()
+
+        assertEquals(emptyList(), repository.notifications)
+    }
+
+    @Test
+    fun aSessionOutsideTheWorkspaceIsNotNotified() = runTest {
+        val repository = RecordingTerminalRepository()
+        activities.activities.value = mapOf("elsewhere" to working)
+        start(repository)
+
+        activities.activities.value = mapOf("elsewhere" to ClaudeActivity.Finished(20))
         runCurrent()
 
         assertEquals(emptyList(), repository.notifications)

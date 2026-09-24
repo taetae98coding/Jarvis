@@ -95,14 +95,17 @@ internal fun TerminalScreen(
 ) {
     val workspace by viewModel.workspace.collectAsStateWithLifecycle()
     val worktrees by viewModel.worktrees.collectAsStateWithLifecycle()
+    val claudeStatuses by viewModel.claudeStatuses.collectAsStateWithLifecycle()
+    // 창이 뒤에 있는 동안 보이는 탭은 본 것이 아니다(docs/common/terminal-claude-status.html#requirements R3).
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(windowFocused) { viewModel.setWindowFocused(windowFocused) }
     val drag = remember { TerminalTabDragState() }
     // 기기 기능이 빠진 조립에서는 없다. 그때는 메뉴에 기기 구획이 없다. getKoin() 은 처음 본 Koin 을 붙잡아 두어
     // Koin 을 다시 세우면(테스트) 닫힌 것을 돌려주므로, 닫히면 다시 찾는 currentKoinScope() 로 받는다.
     val scope = currentKoinScope()
     val devices = remember(scope) { scope.getOrNull<DeviceScreens>() }
 
-    // 창에 포커스가 있을 때 선택된 패널에 보이는 Claude 탭만 "보고 있음" 이다(docs/common/claude-notification.html R4).
-    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    // 상태 표시의 "본다" 와 같은 뜻이다. 보고 있는 Claude 탭은 턴이 끝나도 알리지 않는다(docs/common/claude-notification.html R4).
     val watched = workspace?.takeIf { windowFocused }?.visibleTabs?.mapNotNullTo(mutableSetOf()) { it.claudeSessionId }.orEmpty()
     DisposableEffect(viewModel, watched) {
         viewModel.watchClaude(watched)
@@ -134,6 +137,7 @@ internal fun TerminalScreen(
                     selectedPanelId = current.selectedPanelId,
                     nextPanelName = current.nextPanelName,
                     worktrees = worktrees,
+                    claudeStatuses = claudeStatuses,
                     onSelect = viewModel::selectPanel,
                     onRename = viewModel::renamePanel,
                     onClose = viewModel::closePanel,
@@ -169,7 +173,8 @@ internal fun TerminalScreen(
 /** 그룹이 없는 패널. + 하나가 그룹을 만들어 탭을 넣는다. */
 @Composable
 private fun EmptyPanel(viewModel: TerminalViewModel, devices: DeviceScreens?, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s)) {
+    // 탭 줄과 간격은 TerminalGroup 과 같게 둔다. + 가 탭이 있을 때와 같은 자리·크기로 보여야 한다.
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.xs)) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             NewTabButton(
                 groupId = null,

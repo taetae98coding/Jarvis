@@ -76,10 +76,12 @@
 │   ├── terminal-browser.html        터미널에서 웹 브라우저 (새 탭 메뉴, 시스템 웹뷰)
 │   ├── terminal-device.html         터미널에서 기기 화면 (새 탭 메뉴, 탭·스와이프)
 │   ├── terminal-tab-label.html      탭 종류 표시와 이름 바꾸기 (터미널·Claude·브라우저·Android·iOS 아이콘, 더블클릭 이름)
+│   ├── terminal-panel-item-layout.html 패널 줄의 버튼을 아래 줄로 (이름이 목록 폭 전체를 쓴다)
 │   ├── claude-notification.html     Claude 턴 알림 (작업 완료·입력 대기, state.json 폴링, 시스템 알림)
 │   ├── device-mirroring.html        기기 화면 영상 스트림·호버 (scrcpy-server + FFmpeg, 마우스 호버)
 │   ├── terminal-panel-create.html   새 패널 제목·폴더 (확인이 빈 패널을 만든다)
 │   ├── terminal-worktree.html       패널에서 git 워크트리 추가·지우기 (패널의 +, 기준 브랜치, git worktree add, 들여쓴 빈 하위 패널, ✕ 의 지우기 창)
+│   ├── terminal-claude-status.html  패널 줄의 Claude 상태 표시 (작업 중·응답 대기·확인함·모니터링 중)
 │   ├── chrome-cookie-import.html    Chrome 쿠키 가져오기 (프로필 골라 모든 쿠키를 웹뷰로)
 │   └── design-system.html           디자인 시스템 (JarvisTheme, Defaults·Style, 아이콘)
 ├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
@@ -321,6 +323,13 @@
       <td class="center"><a href="platform/web.html#terminal-tab-label"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/terminal-panel-item-layout.html">패널 줄의 버튼을 아래 줄로</a></td>
+      <td class="center"><a href="platform/android.html#terminal-panel-item-layout"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-panel-item-layout"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-panel-item-layout"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-panel-item-layout"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/claude-notification.html">Claude 턴 알림</a></td>
       <td class="center"><a href="platform/android.html#claude-notification"><span class="badge no">불가</span></a></td>
       <td class="center"><a href="platform/ios.html#claude-notification"><span class="badge no">불가</span></a></td>
@@ -347,6 +356,13 @@
       <td class="center"><a href="platform/ios.html#terminal-worktree"><span class="badge no">불가</span></a></td>
       <td class="center"><a href="platform/jvm.html#terminal-worktree"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/web.html#terminal-worktree"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/terminal-claude-status.html">패널 줄의 Claude 상태 표시</a></td>
+      <td class="center"><a href="platform/android.html#terminal-claude-status"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-claude-status"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-claude-status"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-claude-status"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
       <td><a href="common/chrome-cookie-import.html">Chrome 쿠키 가져오기</a></td>
@@ -380,6 +396,8 @@
 
 <ul class="cards">
   <li><a href="common/index.html">공통 규약과 한계</a><p>expect/actual 목록, 앱 구조, 모든 플랫폼에 공통인 한계</p></li>
+  <li><a href="common/terminal-panel-item-layout.html">패널 줄의 버튼을 아래 줄로</a><p>왼쪽 패널 목록 줄의 +·✎·✕ 를 이름 아래 따로 된 줄로 내려 이름이 목록 폭을 다 쓰게 한다</p></li>
+  <li><a href="common/claude-notification.html">Claude 턴 알림</a><p>Claude 탭의 Claude 가 작업을 마치거나 사용자 입력을 기다리기 시작하면 시스템 알림을 보낸다. 그 탭을 보고 있으면 알리지 않는다. JVM(macOS)</p></li>
   <li><a href="common/module-architecture.html">모듈 구조</a><p>기능마다 domain / data / ui 모듈, core 와 앱 셸, 빌드 컨벤션 플러그인</p></li>
   <li><a href="common/dependency-injection.html">의존성 주입</a><p>Koin 모듈로 리포지토리·유스케이스·ViewModel·라우트를 등록하고 주입한다</p></li>
   <li><a href="common/view-model.html">화면 상태 소유 (ViewModel)</a><p>화면 하나가 쓰는 상태와 유스케이스 호출을 ViewModel 이 소유한다</p></li>
@@ -410,11 +428,11 @@
   <li><a href="common/terminal-browser.html">터미널에서 웹 브라우저</a><p>새 탭(+) 메뉴에서 골라 그 그룹에 웹 페이지 탭을 연다. 시스템 웹뷰를 쓰고 마지막 주소를 저장한다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-device.html">터미널에서 기기 화면</a><p>새 탭(+) 메뉴에 화면을 볼 수 있는 에뮬레이터·실물 기기가 나오고, 고르면 그 그룹에 기기 화면 탭을 열어 탭·스와이프를 보낸다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-tab-label.html">탭 종류 표시와 이름 바꾸기</a><p>탭 제목 앞의 아이콘·색으로 터미널·Claude·브라우저·Android·iOS 탭을 가르고, 탭 제목을 두 번 눌러 이름을 바꾼다. 이름은 저장된다</p></li>
-  <li><a href="common/claude-notification.html">Claude 턴 알림</a><p>Claude 탭의 Claude 가 작업을 마치거나 사용자 입력을 기다리기 시작하면 시스템 알림을 보낸다. 그 탭을 보고 있으면 알리지 않는다. JVM(macOS)</p></li>
   <li><a href="common/chrome-cookie-import.html">Chrome 쿠키 가져오기</a><p>브라우저 탭 주소 줄의 버튼으로 이 PC 의 Chrome 프로필을 골라 모든 사이트 쿠키를 웹뷰로 옮긴다. 영구 저장소라 앱을 껐다 켜도 로그인이 이어진다. JVM(macOS)</p></li>
   <li><a href="common/device-mirroring.html">기기 화면 영상 스트림·호버</a><p>Android 기기 화면을 기기 안 에이전트의 H.264 영상으로 받고, 누름·끌기·마우스 호버를 그 자리에서 기기에 넣는다. JVM 은 직접, 나머지는 호스트가 푼 프레임을 JPEG 로</p></li>
   <li><a href="common/terminal-panel-create.html">새 패널 제목·폴더</a><p>"새 패널" 이 제목(비우면 "패널 N")과 폴더를 받는 창을 띄우고, "확인" 이 그 제목·폴더의 빈 패널을 만든다. 탭은 빈 패널의 + 로 그 폴더에서 연다</p></li>
   <li><a href="common/terminal-worktree.html">패널에서 git 워크트리 추가·지우기</a><p>git 저장소 폴더의 패널에 + 가 붙고, 브랜치와 기준 브랜치를 받아 <code>git worktree add</code> 로 만든 워크트리를 그 패널 아래 들여쓴 빈 패널로 열고, 줄에 <code>기준 → 현재</code> 브랜치를 보인다. 워크트리 패널의 ✕ 는 워크트리·브랜치와 폴더를 지울지 묻는다. JVM(macOS)</p></li>
+  <li><a href="common/terminal-claude-status.html">패널 줄의 Claude 상태 표시</a><p>패널 줄마다 그 패널 Claude 탭의 상태를 작업 중·응답 대기·확인함·모니터링 중 네 표시 중 하나로 보인다. 응답 대기는 끝난 결과를 사용자가 아직 보지 않은 것이다. JVM(macOS)</p></li>
 </ul>
 
 <h2 id="platform">플랫폼 스펙</h2>

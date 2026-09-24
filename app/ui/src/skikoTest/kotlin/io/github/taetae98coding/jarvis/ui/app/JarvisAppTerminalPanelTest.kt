@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -11,6 +12,8 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -19,6 +22,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
@@ -94,6 +98,34 @@ class JarvisAppTerminalPanelTest {
         assertEquals(1, panelCount())
         onNodeWithText("패널 1").assertIsDisplayed()
         assertEquals(0, onAllNodesWithTag(terminalPanelCloseTestTag(1)).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun panelButtonsSitBelowTheName() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val workspace = FakeTerminalWorkspaceRepository()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        val name = "아주 긴 패널 이름이라 목록 폭을 넘는다"
+        addPanel(name = name)
+        val id = workspace.workspace.value.selectedPanelId!!
+
+        val row = onNodeWithTag(terminalPanelTestTag(id)).getBoundsInRoot()
+        val title = onNodeWithText(name).getBoundsInRoot()
+        val rename = onNodeWithTag(terminalPanelRenameTestTag(id)).getBoundsInRoot()
+        val close = onNodeWithTag(terminalPanelCloseTestTag(id)).getBoundsInRoot()
+        assertTrue(rename.top >= title.bottom, "✎ 가 이름 아래 줄에 있어야 한다: $title / $rename")
+        assertTrue(close.top >= title.bottom, "✕ 가 이름 아래 줄에 있어야 한다: $title / $close")
+        assertTrue(rename.left < close.left)
+        assertTrue(close.right <= row.right)
+        assertTrue(title.right > rename.left, "이름이 버튼 자리까지 폭을 써야 한다: $title / $rename")
+
+        val first = workspace.workspace.value.panels.first().id
+        // 버튼 줄의 왼쪽 빈 자리.
+        onNodeWithTag(terminalPanelTestTag(first)).performTouchInput { click(Offset(10f, height - 10f)) }
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.selectedPanelId == first }
     }
 
     @Test

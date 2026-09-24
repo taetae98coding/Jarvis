@@ -3,7 +3,6 @@ package io.github.taetae98coding.jarvis.data.terminal
 import io.github.taetae98coding.jarvis.data.PlatformContext
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
-import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
@@ -22,8 +21,6 @@ internal interface TerminalDataSource {
     suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession?
 
     suspend fun stopClaude(sessionId: String)
-
-    fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>>
 
     suspend fun showNotification(title: String, message: String)
 
@@ -46,8 +43,6 @@ internal object UnsupportedTerminalDataSource : TerminalDataSource {
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? = null
 
     override suspend fun stopClaude(sessionId: String) = Unit
-
-    override fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>> = flowOf(emptyMap())
 
     override suspend fun showNotification(title: String, message: String) = Unit
 

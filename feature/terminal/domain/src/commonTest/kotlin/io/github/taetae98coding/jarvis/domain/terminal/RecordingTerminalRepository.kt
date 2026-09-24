@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 internal class RecordingTerminalRepository(
     override val isSupported: Boolean = true,
@@ -13,7 +14,6 @@ internal class RecordingTerminalRepository(
 ) : TerminalRepository {
     val opened = mutableListOf<TerminalTab>()
     val stopped = mutableListOf<String>()
-    val claudeStatuses = MutableStateFlow<Map<String, ClaudeStatus>>(emptyMap())
     val notifications = mutableListOf<ClaudeNotification>()
 
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession {
@@ -24,8 +24,6 @@ internal class RecordingTerminalRepository(
     override suspend fun stopClaude(sessionId: String) {
         stopped += sessionId
     }
-
-    override fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>> = claudeStatuses
 
     override suspend fun showNotification(notification: ClaudeNotification) {
         notifications += notification
@@ -45,6 +43,13 @@ internal class RecordingTerminalRepository(
 
         override fun close() = Unit
     }
+}
+
+internal class RecordingClaudeActivityRepository : ClaudeActivityRepository {
+    val activities = MutableStateFlow<Map<String, ClaudeActivity>>(emptyMap())
+
+    override fun observeActivities(sessionIds: Set<String>): Flow<Map<String, ClaudeActivity>> =
+        activities.map { all -> all.filterKeys { it in sessionIds } }
 }
 
 internal class InMemoryTerminalWorkspaceRepository(

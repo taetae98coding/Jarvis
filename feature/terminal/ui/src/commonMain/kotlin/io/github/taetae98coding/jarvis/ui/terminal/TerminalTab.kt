@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,7 +36,9 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -166,6 +169,9 @@ internal fun TerminalNewTabButton(
             .styleable(styleState, TerminalTabDefaults.style)
             // 눌림은 Style 의 배경이 보여 준다. 물결까지 그리면 같은 표시가 두 번 겹친다.
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            // 탭이 없는 빈 패널의 줄에서는 따라갈 탭이 없다. 그때 aspectRatio 가 intrinsic 높이를 아이콘 너비로
+            // 정해 버튼이 아이콘 크기까지 줄어드므로, 탭 높이를 최소로 둔다.
+            .heightIn(min = TerminalTabDefaults.height())
             .fillMaxHeight()
             .aspectRatio(1f, matchHeightConstraintsFirst = true),
         contentAlignment = Alignment.Center,
@@ -184,6 +190,17 @@ internal object TerminalTabDefaults {
 
     val titleStyle: TextStyle
         @Composable @ReadOnlyComposable get() = JarvisTheme.typography.labelLarge
+
+    /** 제목 한 줄과 위아래 spacing.s. [TerminalTab] 의 제목 여백과 함께 고친다. */
+    @Composable
+    fun height(): Dp {
+        val measurer = rememberTextMeasurer()
+        val style = titleStyle
+        val density = LocalDensity.current
+        val line = remember(measurer, style, density) { with(density) { measurer.measure(" ", style).size.height.toDp() } }
+
+        return maxOf(line, JarvisTheme.dimens.iconSize.small) + JarvisTheme.dimens.spacing.s * 2
+    }
 
     fun kindIcon(kind: TerminalTabKind): ImageVector =
         when (kind) {

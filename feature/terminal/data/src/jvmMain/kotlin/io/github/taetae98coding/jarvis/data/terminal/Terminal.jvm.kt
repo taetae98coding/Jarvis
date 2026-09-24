@@ -6,7 +6,6 @@ import com.pty4j.WinSize
 import io.github.taetae98coding.jarvis.data.PlatformContext
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
-import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -35,7 +33,6 @@ internal actual fun createTerminalDataSource(context: PlatformContext): Terminal
             }
         },
         claude = claude,
-        claudeJobs = File(claudeConfigDirectory(), "jobs"),
         notifier = TrayNotifier(),
     )
 }
@@ -50,7 +47,6 @@ internal class PtyLaunch(
 internal class PtyTerminalDataSource(
     private val launch: suspend (TerminalTab) -> PtyLaunch,
     private val claude: ClaudeBackground? = null,
-    private val claudeJobs: File? = null,
     private val notifier: TrayNotifier? = null,
     private val readDirectory: (Long) -> String? = ::processDirectory,
 ) : TerminalDataSource {
@@ -89,9 +85,6 @@ internal class PtyTerminalDataSource(
     override suspend fun stopClaude(sessionId: String) {
         claude?.stop(sessionId)
     }
-
-    override fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>> =
-        claudeJobs?.let(::observeClaudeStatuses) ?: flowOf(emptyMap())
 
     override suspend fun showNotification(title: String, message: String) {
         notifier?.show(title, message)

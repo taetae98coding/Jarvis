@@ -75,13 +75,7 @@ internal data class ClaudeJob(
 }
 
 /** 창 sessionId 와 Claude 가 정한 실제 세션을 잇는 이름. Claude 입력창에도 보인다. */
-internal fun claudeJobName(sessionId: String): String = "$ClaudeJobNamePrefix$sessionId"
-
-/** [claudeJobName] 을 거꾸로. Jarvis 가 만든 세션이 아니면 null 이다. */
-internal fun claudeTabSessionId(jobName: String): String? =
-    jobName.takeIf { it.startsWith(ClaudeJobNamePrefix) }?.removePrefix(ClaudeJobNamePrefix)?.takeIf { it.isNotEmpty() }
-
-private const val ClaudeJobNamePrefix = "jarvis-"
+internal fun claudeJobName(sessionId: String): String = "jarvis-$sessionId"
 
 /**
  * `--bg` 는 `--session-id` 를 무시하고, 처음 보는 uuid 를 `--resume` 에 주면 세션이 곧 죽는다

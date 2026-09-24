@@ -471,7 +471,9 @@ class JarvisAppTerminalTest {
     @Test
     fun closingTheLastTabLeavesAnEmptyPanelWithANewTabButton() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
-        openTerminal(terminal)
+        val workspace = FakeTerminalWorkspaceRepository()
+        openTerminal(terminal, workspace)
+        val groupButton = onNodeWithTag(terminalNewTabTestTag(workspace.workspace.value.groups.single().id)).fetchSemanticsNode().boundsInRoot
 
         pressTerminalShortcut(Key.W)
 
@@ -481,6 +483,9 @@ class JarvisAppTerminalTest {
         onNodeWithTag(TerminalScreenTestTag).assertIsDisplayed()
         onNodeWithText("탭이 없습니다. 새 탭(+)으로 터미널이나 Claude 를 엽니다.").assertIsDisplayed()
         assertTrue(terminal.sessions.single().closed)
+        val emptyButton = onNodeWithTag(terminalNewTabTestTag(null)).fetchSemanticsNode().boundsInRoot
+        assertEquals(groupButton.size, emptyButton.size)
+        assertEquals(groupButton.top, emptyButton.top)
 
         onNodeWithTag(terminalNewTabTestTag(null)).performClick()
         onNodeWithTag(TerminalNewShellTabTestTag).performClick()

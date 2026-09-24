@@ -4,32 +4,24 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ClaudeTurnEndsTest {
-    private val working = ClaudeStatus(ClaudeActivity.Working, "running tests")
-    private val finished = ClaudeStatus(ClaudeActivity.Finished, "tests green")
-    private val waiting = ClaudeStatus(ClaudeActivity.WaitingForInput, "awaiting choice")
-    private val idle = ClaudeStatus(ClaudeActivity.Idle)
+    private val finished = ClaudeActivity.Finished(at = 20, summary = "tests green")
+    private val asked = ClaudeActivity.Finished(at = 30, needsInput = true, summary = "awaiting choice")
 
     @Test
-    fun workingToFinishedOrWaitingEndsATurn() {
+    fun workingOrMonitoringToFinishedEndsATurn() {
         val ends = claudeTurnEnds(
-            previous = mapOf("a" to working, "b" to working),
-            current = mapOf("a" to finished, "b" to waiting),
+            previous = mapOf("a" to ClaudeActivity.Working, "b" to ClaudeActivity.Monitoring),
+            current = mapOf("a" to finished, "b" to asked),
         )
 
-        assertEquals(
-            listOf(
-                ClaudeTurnEnd("a", ClaudeActivity.Finished, "tests green"),
-                ClaudeTurnEnd("b", ClaudeActivity.WaitingForInput, "awaiting choice"),
-            ),
-            ends,
-        )
+        assertEquals(listOf(ClaudeTurnEnd("a", finished), ClaudeTurnEnd("b", asked)), ends)
     }
 
     @Test
-    fun onlyAChangeFromWorkingEndsATurn() {
+    fun otherChangesDoNotEndATurn() {
         val ends = claudeTurnEnds(
-            previous = mapOf("same" to finished, "idle" to idle, "waiting" to waiting, "stopping" to working),
-            current = mapOf("same" to finished, "idle" to waiting, "waiting" to finished, "stopping" to idle, "new" to finished),
+            previous = mapOf("same" to finished, "again" to finished, "monitor" to ClaudeActivity.Working),
+            current = mapOf("same" to finished, "again" to asked, "monitor" to ClaudeActivity.Monitoring, "new" to finished),
         )
 
         assertEquals(emptyList(), ends)
@@ -38,22 +30,21 @@ class ClaudeTurnEndsTest {
     @Test
     fun notificationShowsPanelTabAndSummary() {
         val panel = TerminalPanel(id = 1, name = "Jarvis", root = null, focusedGroupId = null)
-        val end = ClaudeTurnEnd("a", ClaudeActivity.Finished, "  tests green \n")
 
         assertEquals(
             ClaudeNotification("Claude 작업 완료", "Jarvis · 리뷰 — tests green"),
-            claudeNotification(end, panel, TerminalTab(2, TerminalProgram.Claude, name = "리뷰")),
+            claudeNotification(ClaudeTurnEnd("a", finished.copy(summary = "  tests green \n")), panel, TerminalTab(2, TerminalProgram.Claude, name = "리뷰")),
         )
         assertEquals(
             ClaudeNotification("Claude 입력 대기", "Jarvis"),
-            claudeNotification(end.copy(activity = ClaudeActivity.WaitingForInput, summary = " "), panel, TerminalTab(2)),
+            claudeNotification(ClaudeTurnEnd("a", asked.copy(summary = " ")), panel, TerminalTab(2)),
         )
     }
 
     @Test
     fun longSummaryIsCut() {
         val panel = TerminalPanel(id = 1, name = "P", root = null, focusedGroupId = null)
-        val end = ClaudeTurnEnd("a", ClaudeActivity.Finished, "x".repeat(500))
+        val end = ClaudeTurnEnd("a", finished.copy(summary = "x".repeat(500)))
 
         assertEquals("P — " + "x".repeat(200), claudeNotification(end, panel, TerminalTab(2)).message)
     }

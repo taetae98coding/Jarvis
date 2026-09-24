@@ -25,6 +25,8 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만 있다. [deviceName]·[devicePlatform] 은
  * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다.
  *
+ * [claudeCheckedAt] 은 사용자가 본 마지막 끝난 결과의 [ClaudeActivity.Finished.at] 이다(docs/common/terminal-claude-status.html).
+ *
  * [name] 은 사용자가 정한 이름이다. null 이면 화면이 창의 제목이나 순번으로 자동 제목을 짓는다.
  */
 data class TerminalTab(
@@ -37,6 +39,7 @@ data class TerminalTab(
     val deviceName: String? = null,
     val devicePlatform: DevicePlatform? = null,
     val name: String? = null,
+    val claudeCheckedAt: Long? = null,
 ) {
     val kind: TerminalTabKind
         get() = when (program) {
@@ -399,6 +402,20 @@ data class TerminalWorkspace(
 
     /** 앞뒤 공백을 뗀다. 비어 있으면 사용자가 정한 이름을 지워 자동 제목으로 돌아간다. */
     fun renameTab(tabId: Long, name: String): TerminalWorkspace = replaceTab(tabId) { it.copy(name = name.trim().ifEmpty { null }) }
+
+    /**
+     * 지금 보이는 Claude 탭 중 끝난 결과가 있는 탭의 확인 기록을 그 결과로 올린다. 올릴 것이 없으면 자신이다.
+     * 보이는지는 [visibleTabs] 이고, 앱 창이 포커스를 가졌는지는 부르는 쪽이 가린다.
+     */
+    fun checkVisibleClaudeTabs(activities: Map<String, ClaudeActivity>): TerminalWorkspace =
+        visibleTabs.fold(this) { workspace, tab ->
+            val finished = tab.claudeSessionId?.let(activities::get) as? ClaudeActivity.Finished
+            if (finished == null || (tab.claudeCheckedAt ?: Long.MIN_VALUE) >= finished.at) {
+                workspace
+            } else {
+                workspace.replaceTab(tab.id) { it.copy(claudeCheckedAt = finished.at) }
+            }
+        }
 
     /**
      * 형제가 부모 자리를 채운다. 사라진 그룹이 포커스를 갖고 있었으면 형제 쪽에서 닫힌 자리와 맞닿은

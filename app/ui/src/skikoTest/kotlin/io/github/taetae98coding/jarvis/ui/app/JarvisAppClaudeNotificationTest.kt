@@ -7,7 +7,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivity
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeNotification
-import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
@@ -26,20 +25,23 @@ class JarvisAppClaudeNotificationTest {
         )
 
     /** 한 턴을 돌린다. 상태를 한 번에 바꾸면 StateFlow 가 합쳐 Working 을 건너뛴다. */
-    private fun ComposeUiTest.finishTurn(terminal: FakeTerminalRepository, summary: String) {
-        terminal.claudeStatuses.value = mapOf(Session to ClaudeStatus(ClaudeActivity.Working))
+    private fun ComposeUiTest.finishTurn(claude: FakeClaudeActivityRepository, summary: String) {
+        claude.activities.value = mapOf(Session to ClaudeActivity.Working)
         waitForIdle()
-        terminal.claudeStatuses.value = mapOf(Session to ClaudeStatus(ClaudeActivity.Finished, summary))
+        claude.activities.value = mapOf(Session to ClaudeActivity.Finished(at = ++finishedAt, summary = summary))
         waitForIdle()
     }
+
+    private var finishedAt = 0L
 
     @Test
     fun aFinishedTurnIsNotifiedWithoutOpeningTheTerminal() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
-        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace()) }
+        val claudeActivity = FakeClaudeActivityRepository()
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace(), claudeActivity = claudeActivity) }
         waitForIdle()
 
-        finishTurn(terminal, "tests green")
+        finishTurn(claudeActivity, "tests green")
 
         assertEquals(listOf(ClaudeNotification("Claude 작업 완료", "패널 1 — tests green")), terminal.notifications)
     }
@@ -47,19 +49,20 @@ class JarvisAppClaudeNotificationTest {
     @Test
     fun theClaudeTabOnScreenIsNotNotified() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
+        val claudeActivity = FakeClaudeActivityRepository()
         val workspace = workspace()
-        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, claudeActivity = claudeActivity) }
         onNodeWithTag(TerminalTestTag).performClick()
         val (shell, claude) = workspace.workspace.value.tabs
 
         onNodeWithTag(terminalTabTestTag(claude.id)).performClick()
         waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.id == claude.id }
-        finishTurn(terminal, "seen")
+        finishTurn(claudeActivity, "seen")
         assertEquals(emptyList(), terminal.notifications)
 
         onNodeWithTag(terminalTabTestTag(shell.id)).performClick()
         waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.id == shell.id }
-        finishTurn(terminal, "hidden")
+        finishTurn(claudeActivity, "hidden")
         assertEquals(listOf(ClaudeNotification("Claude 작업 완료", "패널 1 — hidden")), terminal.notifications)
     }
 

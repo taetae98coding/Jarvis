@@ -1,7 +1,11 @@
 package io.github.taetae98coding.jarvis.ui.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.WindowInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
 import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
@@ -32,8 +36,9 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivity
+import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivityRepository
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeNotification
-import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeRepository
@@ -92,6 +97,9 @@ internal fun TestJarvisApp(
     terminal: TerminalRepository = FakeTerminalRepository(),
     terminalWorkspace: TerminalWorkspaceRepository = FakeTerminalWorkspaceRepository(),
     gitWorktree: GitWorktreeRepository = FakeGitWorktreeRepository(),
+    claudeActivity: ClaudeActivityRepository = FakeClaudeActivityRepository(),
+    // null 이면 테스트 창의 포커스를 그대로 쓴다.
+    windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
 ) {
     remember {
@@ -110,6 +118,7 @@ internal fun TestJarvisApp(
             single<TerminalRepository> { terminal }
             single<TerminalWorkspaceRepository> { terminalWorkspace }
             single<GitWorktreeRepository> { gitWorktree }
+            single<ClaudeActivityRepository> { claudeActivity }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -129,7 +138,17 @@ internal fun TestJarvisApp(
         }
     }
 
-    JarvisApp()
+    if (windowFocused == null) {
+        JarvisApp()
+    } else {
+        val window = LocalWindowInfo.current
+        val info = remember(window) {
+            object : WindowInfo by window {
+                override val isWindowFocused: Boolean get() = windowFocused.value
+            }
+        }
+        CompositionLocalProvider(LocalWindowInfo provides info) { JarvisApp() }
+    }
 }
 
 internal class FakeScreenAwakeSettingsRepository(
@@ -306,8 +325,6 @@ internal class FakeTerminalRepository(
 
     val stoppedClaudeSessions = mutableListOf<String>()
 
-    val claudeStatuses = MutableStateFlow<Map<String, ClaudeStatus>>(emptyMap())
-
     val notifications = mutableListOf<ClaudeNotification>()
 
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession =
@@ -316,8 +333,6 @@ internal class FakeTerminalRepository(
     override suspend fun stopClaude(sessionId: String) {
         stoppedClaudeSessions += sessionId
     }
-
-    override fun observeClaudeStatuses(): Flow<Map<String, ClaudeStatus>> = claudeStatuses
 
     override suspend fun showNotification(notification: ClaudeNotification) {
         notifications += notification
@@ -390,6 +405,16 @@ internal class FakeGitWorktreeRepository(
         worktrees.update { it - directory }
         return Result.success(Unit)
     }
+}
+
+/** 창 sessionId 마다 테스트가 정한 활동을 답한다. 기본값은 어떤 세션도 찾지 못한 것이다. */
+internal class FakeClaudeActivityRepository(
+    activities: Map<String, ClaudeActivity> = emptyMap(),
+) : ClaudeActivityRepository {
+    val activities = MutableStateFlow(activities)
+
+    override fun observeActivities(sessionIds: Set<String>): Flow<Map<String, ClaudeActivity>> =
+        this.activities.map { all -> all.filterKeys { it in sessionIds } }
 }
 
 internal class FakeTerminalSession(
