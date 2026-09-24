@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -15,9 +16,11 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelClaudeStatusTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelRenameTestTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class JarvisAppTerminalClaudeStatusTest {
@@ -57,6 +60,21 @@ class JarvisAppTerminalClaudeStatusTest {
         awaitStatus(jarvis.id, "Claude 작업 중")
         awaitStatus(login.id, "Claude 모니터링 중")
         assertNull(status(api.id))
+    }
+
+    @Test
+    fun statusSitsOnTheButtonLineBelowTheName() = runComposeUiTest {
+        val claude = FakeClaudeActivityRepository(mapOf("main" to ClaudeActivity.Working))
+        setContent { TestJarvisApp(terminalWorkspace = FakeTerminalWorkspaceRepository(initial), claudeActivity = claude) }
+        openTerminal()
+        awaitStatus(jarvis.id, "Claude 작업 중")
+
+        val title = onNodeWithText("Jarvis").getBoundsInRoot()
+        val status = onNodeWithTag(terminalPanelClaudeStatusTestTag(jarvis.id), useUnmergedTree = true).getBoundsInRoot()
+        val rename = onNodeWithTag(terminalPanelRenameTestTag(jarvis.id), useUnmergedTree = true).getBoundsInRoot()
+        assertTrue(status.top >= title.bottom, "상태 표시가 이름 아래 줄에 있어야 한다: $title / $status")
+        assertTrue(status.right <= rename.left, "상태 표시가 버튼 줄 왼쪽에 있어야 한다: $status / $rename")
+        assertEquals(rename.top, status.top)
     }
 
     @Test

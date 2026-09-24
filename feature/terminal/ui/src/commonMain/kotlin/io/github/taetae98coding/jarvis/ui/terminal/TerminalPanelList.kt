@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -192,8 +193,9 @@ internal fun TerminalPanelList(
 /**
  * 패널 한 줄. 이름을 바꾸는 동안은 이름 자리에 입력 필드가 온다. 편집 중인지는 이 줄만 아는 값이라
  * ViewModel 에 두지 않는다. [isWorktree] 면 들여쓰고 이름 앞에 브랜치 아이콘을 둔다. [branch] 가 있으면 이름과
- * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. [claudeStatus] 가 있으면 이름 칸 바로 오른쪽에,
- * [onAddWorktree] 가 있으면 ✎ 앞에 + 가 있다.
+ * 폴더 사이에 `<baseBranch> → <branch>`(기준이 없으면 `<branch>`) 줄이 있다. 이름이 폭을 다 쓰도록 [claudeStatus] 표시와
+ * 버튼(+ · ✎ · ✕)은 글자 아래 따로 된 줄에 둔다 — 표시는 왼쪽 끝, 버튼은 오른쪽 끝이다. 이름을 바꾸는 동안은 버튼이 없고
+ * 표시만 남는다. [onAddWorktree] 가 있으면 ✎ 앞에 + 가 있다.
  */
 @Composable
 internal fun TerminalPanelItem(
@@ -226,86 +228,104 @@ internal fun TerminalPanelItem(
     // 워크트리 줄은 브랜치 아이콘이 들여쓰기 자리에 오고 이름은 그 바로 옆에 붙는다.
     val namePadding = if (isWorktree) spacing.xs else spacing.m
 
-    Row(
+    Column(
         modifier = modifier
             .hoverable(interactionSource)
             .styleable(styleState, TerminalPanelItemDefaults.style, style),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (isWorktree) {
-            Icon(
-                imageVector = JarvisIcons.GitBranch,
-                contentDescription = null,
-                tint = TerminalPanelItemDefaults.directoryColor(selected),
-                modifier = worktreeIconModifier
-                    .padding(start = spacing.m + spacing.s)
-                    .size(JarvisTheme.dimens.iconSize.small),
-            )
+        // 줄 전체에 clickable 을 붙이면 글자와 브랜치 아이콘의 semantics 가 한 노드로 합쳐진다. 글자 묶음과
+        // 버튼 줄에 따로 붙이고, 눌림은 Style 의 배경이 보여 주므로 물결은 그리지 않는다.
+        val select = Modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onSelect)
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isWorktree) {
+                Icon(
+                    imageVector = JarvisIcons.GitBranch,
+                    contentDescription = null,
+                    tint = TerminalPanelItemDefaults.directoryColor(selected),
+                    modifier = worktreeIconModifier
+                        .padding(start = spacing.m + spacing.s)
+                        .size(JarvisTheme.dimens.iconSize.small),
+                )
+            }
+
+            if (editing) {
+                TerminalNameField(
+                    initial = name,
+                    textStyle = TerminalPanelItemDefaults.nameStyle,
+                    color = contentColor,
+                    onDone = { value ->
+                        editing = false
+                        onRename(value)
+                    },
+                    onCancel = { editing = false },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s)
+                        .testTag(TerminalPanelNameFieldTestTag),
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(JarvisTheme.shapes.small)
+                        .then(select)
+                        // 아래는 버튼 줄의 여백이 대신한다.
+                        .padding(start = namePadding, end = spacing.xs, top = spacing.s),
+                ) {
+                    Text(
+                        text = name,
+                        style = TerminalPanelItemDefaults.nameStyle,
+                        color = contentColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (branch != null) {
+                        Text(
+                            text = if (baseBranch != null) "$baseBranch → $branch" else branch,
+                            style = TerminalPanelItemDefaults.directoryStyle,
+                            color = TerminalPanelItemDefaults.directoryColor(selected),
+                            maxLines = 1,
+                            // 끝의 현재 브랜치가 알아보는 데 중요하다.
+                            overflow = TextOverflow.StartEllipsis,
+                            modifier = branchModifier,
+                        )
+                    }
+                    if (directory != null) {
+                        Text(
+                            text = directory,
+                            style = TerminalPanelItemDefaults.directoryStyle,
+                            color = TerminalPanelItemDefaults.directoryColor(selected),
+                            maxLines = 1,
+                            // 경로는 끝의 폴더 이름이 알아보는 데 중요하다.
+                            overflow = TextOverflow.StartEllipsis,
+                        )
+                    }
+                }
+            }
         }
 
-        val nameModifier = Modifier
-            .weight(1f)
-            .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s)
-
-        if (editing) {
-            TerminalNameField(
-                initial = name,
-                textStyle = TerminalPanelItemDefaults.nameStyle,
-                color = contentColor,
-                onDone = { value ->
-                    editing = false
-                    onRename(value)
-                },
-                onCancel = { editing = false },
-                modifier = nameModifier.testTag(TerminalPanelNameFieldTestTag),
-            )
-            claudeStatus?.let { ClaudeStatusIndicator(it, contentColor, interactionSource, onSelect, claudeStatusModifier) }
-        } else {
-            Column(
+        if (!editing || claudeStatus != null) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
                     .clip(JarvisTheme.shapes.small)
-                    // 눌림은 Style 의 배경이 보여 준다. 물결까지 그리면 같은 표시가 두 번 겹친다.
-                    .clickable(interactionSource = interactionSource, indication = null, onClick = onSelect)
-                    .padding(start = namePadding, end = spacing.xs, top = spacing.s, bottom = spacing.s),
+                    .then(select)
+                    // 표시의 아이콘이 이름(워크트리 줄은 브랜치 아이콘)과 같은 세로선에 오도록 안쪽 여백만큼 당긴다.
+                    .padding(start = if (isWorktree) spacing.m else spacing.m - spacing.s),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = name,
-                    style = TerminalPanelItemDefaults.nameStyle,
-                    color = contentColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (branch != null) {
-                    Text(
-                        text = if (baseBranch != null) "$baseBranch → $branch" else branch,
-                        style = TerminalPanelItemDefaults.directoryStyle,
-                        color = TerminalPanelItemDefaults.directoryColor(selected),
-                        maxLines = 1,
-                        // 끝의 현재 브랜치가 알아보는 데 중요하다.
-                        overflow = TextOverflow.StartEllipsis,
-                        modifier = branchModifier,
-                    )
+                claudeStatus?.let { ClaudeStatusIndicator(it, contentColor, interactionSource, onSelect, claudeStatusModifier) }
+                Spacer(modifier = Modifier.weight(1f))
+                if (!editing) {
+                    if (onAddWorktree != null) {
+                        PanelItemIcon(JarvisIcons.Add, "워크트리 추가", contentColor, onClick = onAddWorktree, modifier = addWorktreeModifier)
+                    }
+                    PanelItemIcon(JarvisIcons.Edit, "이름 바꾸기", contentColor, onClick = { editing = true }, modifier = renameModifier)
+                    if (closable) {
+                        PanelItemIcon(JarvisIcons.Close, "패널 닫기", contentColor, onClick = onClose, modifier = closeModifier)
+                    }
                 }
-                if (directory != null) {
-                    Text(
-                        text = directory,
-                        style = TerminalPanelItemDefaults.directoryStyle,
-                        color = TerminalPanelItemDefaults.directoryColor(selected),
-                        maxLines = 1,
-                        // 경로는 끝의 폴더 이름이 알아보는 데 중요하다.
-                        overflow = TextOverflow.StartEllipsis,
-                    )
-                }
-            }
-
-            claudeStatus?.let { ClaudeStatusIndicator(it, contentColor, interactionSource, onSelect, claudeStatusModifier) }
-            if (onAddWorktree != null) {
-                PanelItemIcon(JarvisIcons.Add, "워크트리 추가", contentColor, onClick = onAddWorktree, modifier = addWorktreeModifier)
-            }
-            PanelItemIcon(JarvisIcons.Edit, "이름 바꾸기", contentColor, onClick = { editing = true }, modifier = renameModifier)
-            if (closable) {
-                PanelItemIcon(JarvisIcons.Close, "패널 닫기", contentColor, onClick = onClose, modifier = closeModifier)
             }
         }
     }
