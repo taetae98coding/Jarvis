@@ -1,11 +1,15 @@
 package io.github.taetae98coding.jarvis.ui.emulator
 
+import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
+import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
+import io.github.taetae98coding.jarvis.domain.emulator.PairingService
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -40,6 +44,26 @@ internal class FakeEmulatorRepository(
         woken += deviceId
     }
 }
+
+// 결과는 테스트가 정할 때까지 돌려주지 않는다. 그동안이 "페어링하는 중" 이다.
+internal class FakeDevicePairingRepository(
+    services: List<PairingService>? = emptyList(),
+) : DevicePairingRepository {
+    val services = MutableStateFlow(services)
+
+    val paired = mutableListOf<Pair<PairingService, String>>()
+
+    val result = CompletableDeferred<PairingResult>()
+
+    override fun observePairingServices() = services
+
+    override suspend fun pair(service: PairingService, code: String): PairingResult {
+        paired += service to code
+        return result.await()
+    }
+}
+
+internal val WaitingPairingService = PairingService(name = "adb-R54T202XEHN-Y2yH0N", host = "172.30.1.47", port = 37123)
 
 internal val RunningAndroidDevice = EmulatorDevice(
     id = "emulator-5554",

@@ -21,6 +21,7 @@ import org.koin.dsl.navigation3.navigation
 val emulatorUiModule = module {
     viewModelOf(::EmulatorStatusViewModel)
     viewModelOf(::EmulatorDevicesViewModel)
+    viewModelOf(::WifiPairingViewModel)
 
     // 라우트가 나르는 deviceId 를 파라미터로 받는다.
     viewModel { parameters -> EmulatorScreenViewModel(parameters.get(), get(), get(), get()) }
@@ -31,6 +32,7 @@ val emulatorUiModule = module {
         EmulatorListScreen(
             viewModel = koinViewModel(),
             onSelect = { device -> navigator.goTo(EmulatorRoute.Screen(device.id)) },
+            onPair = { navigator.goTo(EmulatorRoute.Pairing) },
             onBack = navigator::back,
         )
     }
@@ -44,8 +46,13 @@ val emulatorUiModule = module {
         )
     }
 
+    navigation<EmulatorRoute.Pairing> {
+        WifiPairingScreen(viewModel = koinViewModel(), onBack = LocalNavigator.current::back)
+    }
+
     navKeySerializers<EmulatorRoute> {
         subclass(EmulatorRoute.Devices::class, EmulatorRoute.Devices.serializer())
         subclass(EmulatorRoute.Screen::class, EmulatorRoute.Screen.serializer())
+        subclass(EmulatorRoute.Pairing::class, EmulatorRoute.Pairing.serializer())
     }
 }

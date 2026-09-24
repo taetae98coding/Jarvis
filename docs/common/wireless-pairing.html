@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wi-Fi 기기 페어링 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>Wi-Fi 기기 페어링</span></nav>
+
+<header>
+  <h1>Wi-Fi 기기 페어링</h1>
+  <p class="lead">Android Studio 의 "Pair Devices Using Wi-Fi" 처럼, 케이블 없이 QR 코드나 6자리 페어링 코드로 실물 Android 기기를 개발자 머신의 <code>adb</code> 에 페어링하고 연결한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#research">기기 종류별 조사</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#agent">에이전트 프로토콜</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>Android Studio 보면 무선으로 디바이스 페어링 할 수 있도록 지원하잖아. 우리도 동일한 기능 만들어줘. iOS도 가능한지 검토해서 같이 구현해줘.<br>
+  - 가능한 플랫폼만 조사해서 진행해줘.</p>
+  <footer>2026-09-24 대화.</footer>
+</blockquote>
+
+<p>"iOS 도 가능한지" 는 페어링 <em>대상</em> 기기가 iPhone·iPad 인 경우로 읽었다(Xcode 의 무선 연결에 해당). 이 앱이 도는 네 타깃은 기존 기기 기능과 같이 모두 같은 화면을 갖는다. 기기 종류별 판정은 <a href="#research">기기 종류별 조사</a>, 앱 타깃별 판정은 <a href="#platforms">플랫폼별 판정</a>에 있다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> <a href="emulator-control.html">기기 목록</a> 상단 막대에 <code>JarvisIcons.Wifi</code> 아이콘 버튼(contentDescription "Wi-Fi 로 페어링")이 있고, 누르면 페어링 화면으로 간다. 뒤로 가면 기기 목록으로 돌아온다.</li>
+  <li><strong>R2.</strong> 페어링 화면은 Android Studio 와 같이 "QR 코드" 와 "페어링 코드" 두 탭을 갖는다. 처음에는 "QR 코드" 탭이 열린다.</li>
+  <li><strong>R3.</strong> QR 코드 탭은 <code>WIFI:T:ADB;S:&lt;서비스 이름&gt;;P:&lt;비밀번호&gt;;;</code> 를 담은 QR 을 그린다. 서비스 이름은 <code>jarvis-</code> 뒤에 영숫자 10자, 비밀번호는 영숫자 12자이고, 화면에 들어올 때마다 새로 만든다. QR 은 테마와 무관하게 흰 바탕에 검은 칸이다.</li>
+  <li><strong>R4.</strong> 기기가 QR 을 스캔해 그 서비스 이름으로 페어링을 알리면(mDNS <code>_adb-tls-pairing._tcp</code>), 사용자가 더 누르지 않아도 그 주소로 비밀번호를 써서 페어링한다. 다른 이름의 페어링 서비스에는 반응하지 않는다.</li>
+  <li><strong>R5.</strong> QR 탭의 상태 문구는 "스캔을 기다리는 중…" → "&lt;주소&gt; 와 페어링하는 중…" → 결과(성공/실패) 순으로 바뀐다. 결과가 나오면 "새 QR 코드" 버튼으로 이름·비밀번호를 새로 만들어 다시 기다린다.</li>
+  <li><strong>R6.</strong> 페어링 코드 탭은 개발자 머신이 mDNS 로 찾은 페어링 대기 기기를 서비스 이름과 주소로 나열한다. 기기에서 "페어링 코드로 기기 페어링" 창을 열면 1초 안팎으로 나타나고, 닫으면 사라진다.</li>
+  <li><strong>R7.</strong> 줄마다 코드 입력칸과 "페어링" 버튼이 있다. 입력칸은 숫자만 받고 6자리를 넘기지 않는다. 6자리가 아니면 버튼이 잠긴다. 화면이 막는 것과 별개로 도메인도 6자리 숫자가 아닌 코드를 기기까지 보내지 않는다.</li>
+  <li><strong>R8.</strong> 페어링 요청이 끝날 때까지 그 줄의 버튼은 잠기고 "페어링하는 중…" 이 보인다. 같은 기기에 요청이 겹쳐 나가지 않는다.</li>
+  <li><strong>R9.</strong> 페어링에 성공하면 개발자 머신이 그 기기에 연결까지 한다. 연결된 기기는 다음 <a href="emulator-control.html">목록 갱신</a>(최대 5초) 때 실물 기기로 나타나고, 그때부터 화면·제스처가 USB 기기와 똑같이 동작한다.</li>
+  <li><strong>R10.</strong> 실패하면 <code>adb</code> 가 준 이유 한 줄을 그대로 보여준다(예: <code>Failed: Wrong password or connection was dropped.</code>). 코드 탭은 같은 줄에서 다시 시도할 수 있다.</li>
+  <li><strong>R11.</strong> 개발자 머신이 페어링 대기 기기를 찾을 수 없으면(<code>adb</code> 가 없음, 데스크톱 앱이 꺼져 있음) 빈 목록이 아니라 "개발자 머신에서 페어링 대기 기기를 찾을 수 없습니다." 를 보여준다. 0개와 찾을 수 없음을 구분한다.</li>
+  <li><strong>R12.</strong> iPhone·iPad 는 공개 도구로 무선 첫 페어링을 시작할 수 없다(<a href="#research">조사</a>). 페어링 화면 아래에 "iPhone·iPad 는 처음 한 번 케이블로 연결해 '이 컴퓨터 신뢰' 를 눌러야 합니다. 그 뒤로는 같은 네트워크에서 케이블 없이 기기 목록에 나타납니다." 를 보여 주고, 그 밖의 동작은 하지 않는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>주소(<code>IP:포트</code>)를 손으로 입력해 페어링하는 것. Android Studio 의 이 화면에도 없다. mDNS 가 막힌 네트워크에서는 <a href="terminal.html">터미널</a>에서 <code>adb pair</code> 를 직접 부른다.</li>
+    <li>iPhone·iPad 의 케이블 페어링(<code>devicectl manage pair</code>). 무선 페어링이 아니고, 케이블을 꽂으면 Finder·Xcode 가 이미 신뢰를 묻는다(<a href="#research">조사</a>).</li>
+    <li>페어링 해제, 무선 연결 끊기(<code>adb disconnect</code>). 지시에 없고, 끊는 것은 USB 로 다시 꽂아야 되돌릴 수 있는 경우가 있다.</li>
+    <li>Android 10 이하의 <code>adb tcpip 5555</code> 방식. 한 번은 USB 가 필요해서 "무선 페어링" 이 아니다.</li>
+    <li>에뮬레이터 페어링. 에뮬레이터는 처음부터 <code>adb</code> 에 붙어 있다.</li>
+  </ul>
+</aside>
+
+<h2 id="research">기기 종류별 조사</h2>
+
+<p>페어링하는 주체는 언제나 개발자 머신(macOS)이다. 기기와 같은 네트워크에서 mDNS 를 보고, SDK 도구를 실행할 수 있는 곳이 그곳뿐이다.</p>
+
+<h3>Android — <span class="badge ok">구현</span></h3>
+
+<p>Android 11+ 의 무선 디버깅은 공개된 <code>adb</code> 명령만으로 끝까지 간다. 이 머신의 <code>adb</code> 37.0.1 에서 <code>adb mdns check</code>·<code>adb mdns services</code>·<code>adb pair</code> 가 모두 동작하고, 무선으로 붙은 실물 기기 두 대가 <code>adb-&lt;시리얼&gt;-&lt;임의&gt;._adb-tls-connect._tcp</code> 시리얼로 <code>adb devices</code> 에 나오는 것을 확인했다.</p>
+
+<pre class="tree"><code>QR 코드                                   페어링 코드
+───────                                   ──────────
+앱이 이름·비밀번호를 만들어 QR 로 보여 줌   기기가 6자리 코드와 주소를 보여 줌
+기기가 스캔 → &lt;이름&gt; 으로 mDNS 알림        기기가 adb-&lt;시리얼&gt;-&lt;임의&gt; 로 mDNS 알림
+        └──────── adb mdns services 에 _adb-tls-pairing._tcp 로 나타남 ────────┘
+                     adb pair &lt;주소&gt; &lt;비밀번호 또는 코드&gt;
+                     → Successfully paired to &lt;주소&gt; [guid=adb-&lt;시리얼&gt;-&lt;임의&gt;]
+                     adb 가 _adb-tls-connect._tcp 를 보고 스스로 연결 (안 되면 adb connect)</code></pre>
+
+<p>후보와 명령의 세부는 <a href="../platform/jvm.html#wireless-pairing">JVM 스펙</a>에 있다.</p>
+
+<h3>iOS — <span class="badge no">불가</span></h3>
+
+<p>iPhone·iPad 의 페어링은 CoreDevice 의 비공개 프로토콜(RemotePairing)이고, Apple 이 주는 공개 도구는 <code>xcrun devicectl</code> 뿐이다. 무선으로 <em>처음</em> 페어링하는 경로는 공개 도구에 없어서 구현하지 않고 안내 문구(R12)로 대신한다.</p>
+
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>iOS 26 이하 + Xcode 26 이하</td><td>불가. 처음 한 번은 케이블로 연결해 기기에서 "이 컴퓨터 신뢰" 를 눌러야 한다(Apple 문서 "Pair devices using a cable"). 그 뒤로는 같은 네트워크에서 자동으로 무선 연결된다 — 개발 머신의 iPad 가 <code>transportType: localNetwork</code>, <code>pairingState: paired</code> 로 나오는 것을 확인했다. 이 머신의 iPhone·iPad 는 둘 다 iOS 26.6.1 이다</td></tr>
+    <tr><td>iOS 27 + Xcode 27 의 Device Hub "Pair Nearby Device…"</td><td>버렸다. 케이블 없이 첫 페어링이 되지만, Mac 이 <code>_remotepairing-pairable-host._tcp</code> 로 자기를 알리고 Mac 에 뜬 PIN 을 iPhone 에 입력하는 방향이라 Mac 쪽을 Device Hub GUI 만 할 수 있다. <code>devicectl</code> 에는 그 알림을 띄우는 명령이 없다. 직접 알리려면 비공개 프로토콜을 다시 구현해야 한다(jkcoxson/idevice <code>pair_host</code> 가 역공학으로 한 일)</td></tr>
+    <tr><td><code>devicectl manage pair --device &lt;UDID&gt;</code></td><td>버렸다. CoreDevice 가 이미 찾은 기기와 페어링한다. 페어링 안 된 iPhone 이 보이는 경로는 USB 뿐이라, 결국 케이블 페어링이고 무선 페어링이 아니다. 기기에서 신뢰를 누르게 하는 것은 Finder·Xcode 가 케이블을 꽂는 순간 이미 한다. 성공 시 종료 코드 0 과 <code>Paired with device:</code>, 실패 시 1 과 <code>com.apple.dt.CoreDeviceError</code> 다. 페어링 안 된 기기가 없어 실제로는 확인하지 못했다</td></tr>
+    <tr><td><code>devicectl list devices --include-wireless-pairable-devices</code></td><td>버렸다. 문서에 없는 옵션이다. 받아들이고 0 으로 끝나지만 개발 머신에서 기기가 하나도 늘지 않았다</td></tr>
+    <tr><td>mDNS <code>_remotepairing-manual-pairing._tcp</code></td><td>버렸다. Apple TV·Vision Pro 가 PIN 페어링을 기다릴 때 알린다. iPhone·iPad 는 알리지 않고, 개발 머신에서도 아무것도 보이지 않았다. Apple TV·Vision Pro 는 이 앱의 기기 목록 대상이 아니다</td></tr>
+    <tr><td><code>pymobiledevice3 remote pair</code>, libimobiledevice</td><td>버렸다. 앞의 것은 RemotePairing 을 지원하는 기기(Apple TV 등)만 무선으로 되고, 뒤의 것은 USB(lockdown) 만 된다. 둘 다 역공학한 비공개 프로토콜이라 Xcode 가 바뀌면 깨진다</td></tr>
+  </tbody>
+</table>
+
+<p>iOS 27 이상이 널리 쓰이고 <code>devicectl</code> 에 무선 페어링 명령이 생기면 다시 본다. 그때는 <code>DevicePairingRepository</code> 에 iOS 대기 기기를 더하는 것으로 충분하다.</p>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>들어가는 곳</td><td>기기 목록 상단 막대 오른쪽의 <code>Wifi</code> 아이콘 버튼, contentDescription <code>Wi-Fi 로 페어링</code>, 테스트 태그 <code>emulator:pairing</code></td></tr>
+    <tr><td>제목</td><td><code>Wi-Fi 로 기기 페어링</code></td></tr>
+    <tr><td>탭</td><td><code>QR 코드</code> / <code>페어링 코드</code>. 테스트 태그 <code>emulator:pairing:tab:qr</code> / <code>emulator:pairing:tab:code</code></td></tr>
+    <tr><td>QR 탭 안내</td><td><code>기기에서 설정 › 개발자 옵션 › 무선 디버깅 › QR 코드로 기기 페어링을 열고 이 코드를 스캔하세요.</code></td></tr>
+    <tr><td>QR</td><td>테스트 태그 <code>emulator:pairing:qr</code>, contentDescription <code>페어링 QR 코드</code>. 흰 바탕, 사방 4칸 여백</td></tr>
+    <tr><td>QR 탭 상태</td><td><code>스캔을 기다리는 중…</code> / <code>&lt;주소&gt; 와 페어링하는 중…</code> / 성공 문구 / 실패 문구 / 찾을 수 없음 문구. 테스트 태그 <code>emulator:pairing:status</code></td></tr>
+    <tr><td>새 QR 코드</td><td>결과가 나온 뒤에만 보이는 버튼 <code>새 QR 코드</code></td></tr>
+    <tr><td>코드 탭 안내</td><td><code>기기에서 무선 디버깅 › 페어링 코드로 기기 페어링을 열면 여기에 나타납니다.</code></td></tr>
+    <tr><td>코드 탭 결과</td><td>안내 아래 한 줄 <code>&lt;서비스 이름&gt;: &lt;성공 또는 실패 문구&gt;</code>, 테스트 태그 <code>emulator:pairing:status</code>. 줄이 아니라 탭에 붙인다 — 성공하면 기기가 페어링 창을 닫아 그 줄이 목록에서 사라진다</td></tr>
+    <tr><td>코드 탭 줄</td><td>서비스 이름(제목) + 주소(설명) + 입력칸(<code>페어링 코드</code>) + 버튼 <code>페어링</code>. 테스트 태그 <code>emulator:pairing:service:&lt;이름&gt;</code>, <code>emulator:pairing:code:&lt;이름&gt;</code>, <code>emulator:pairing:pair:&lt;이름&gt;</code></td></tr>
+    <tr><td>코드 탭 빈 목록</td><td><code>페어링을 기다리는 기기가 없습니다.</code></td></tr>
+    <tr><td>찾을 수 없음</td><td><code>개발자 머신에서 페어링 대기 기기를 찾을 수 없습니다.</code> 두 탭 공통</td></tr>
+    <tr><td>진행 중</td><td><code>페어링하는 중…</code>. 버튼이 잠긴다</td></tr>
+    <tr><td>성공</td><td>연결까지 됐으면 <code>페어링했습니다. 기기 목록에 곧 나타납니다.</code>, 페어링만 됐으면 <code>페어링했지만 아직 연결되지 않았습니다.</code></td></tr>
+    <tr><td>실패</td><td><code>페어링하지 못했습니다: &lt;이유&gt;</code></td></tr>
+    <tr><td>iOS 안내</td><td>화면 맨 아래 한 줄(R12). 테스트 태그 <code>emulator:pairing:ios</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인 모델</dt><dd><code>PairingService(name, host, port)</code> — mDNS 로 찾은 페어링 대기 기기. <code>PairingQrCode(serviceName, password)</code> 와 그 <code>payload</code>. <code>PairingResult</code> = <code>Paired(isConnected)</code> | <code>Failed(reason)</code>. <code>QrPairingState</code> = <code>Unavailable</code> | <code>Waiting</code> | <code>Pairing(service)</code> | <code>Finished(result)</code></dd>
+  <dt>리포지토리</dt><dd><code>DevicePairingRepository</code> — <code>observePairingServices(): Flow&lt;List&lt;PairingService&gt;?&gt;</code>(null 은 찾을 수 없음), <code>suspend pair(service, code): PairingResult</code></dd>
+  <dt>유스케이스</dt><dd><code>CreatePairingQrCodeUseCase</code>(R3), <code>ObservePairingServicesUseCase</code>(R6, R11), <code>PairWithQrCodeUseCase(qr): Flow&lt;QrPairingState&gt;</code>(R4, R5), <code>PairWithCodeUseCase(service, code)</code>(R7)</dd>
+  <dt>데이터 소스</dt><dd><code>internal expect val devicePairingDataSource: DevicePairingDataSource</code> — JVM 은 <code>adb</code> 를 직접 부르고 나머지는 <a href="#agent">에이전트</a>에 묻는다</dd>
+  <dt>UI</dt><dd><code>ui/emulator/WifiPairingScreen.kt</code>(두 탭), <code>ui/emulator/QrCode.kt</code>(QR 인코더), <code>ui/emulator/QrCodeImage.kt</code>(그리기, <code>QrCodeImageDefaults</code>). 라우트 <code>EmulatorRoute.Pairing</code></dd>
+  <dt>상태</dt><dd><code>WifiPairingViewModel</code> — 선택된 탭, 현재 QR 과 그 <code>QrPairingState</code>(<code>SharingStarted.Eagerly</code> — 코드 탭을 보는 동안에도 QR 세션이 이어지고 결과가 남는다), 코드 탭의 대기 기기 목록(<code>WhileSubscribed</code>), 줄마다의 입력값·진행 여부와 마지막 결과(<code>CodePairingState</code>)</dd>
+</dl>
+
+<pre><code>QR 세션 하나 = PairWithQrCodeUseCase(qr) 의 수집 한 번
+  observePairingServices()  ──(1초 폴링)──┐
+     null        → Unavailable              │
+     이름이 없음 → Waiting                  │ 이름이 qr.serviceName 인 서비스가
+     있음        → Pairing(service) ────────┘ 처음 보이는 순간 수집을 멈춘다
+  pair(service, qr.password) → Finished(result)
+"새 QR 코드" = 수집을 취소하고 새 qr 로 다시 수집</code></pre>
+
+<aside class="decision">
+  <strong>결정: 기존 <code>emulator</code> 기능 안에 두되 리포지토리는 따로 둔다</strong>
+  페어링은 기기 목록 화면에서 들어가고, 비 JVM 타깃은 <a href="emulator-count.html#agent">에뮬레이터 에이전트</a>를 거쳐야 한다. 에이전트 서버가 <code>:feature:emulator:data</code> 에 있으므로 새 기능 모듈로 떼면 모듈끼리 서로를 봐야 한다(<a href="module-architecture.html">기능은 서로를 의존하지 않는다</a>). 대신 <code>EmulatorRepository</code> 에 메서드를 더하지 않고 <code>DevicePairingRepository</code> 를 따로 둔다. 기기 목록·화면·실행과 수명이 다르고(페어링 화면이 떠 있는 동안만 산다), 기존 가짜 저장소 네 벌을 고치지 않아도 된다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: QR 비밀번호는 클라이언트가 만들고, 에이전트는 상태를 들지 않는다</strong>
+  QR 세션을 에이전트에 두면(<code>POST /pairing/qr</code> 로 시작, <code>GET</code> 으로 상태 조회) 에이전트가 세션 수명과 정리 시점을 가져야 한다. 대신 에이전트는 "지금 보이는 페어링 서비스" 와 "이 주소에 이 코드로 페어링" 두 가지만 하고, QR 이름·비밀번호와 기다리는 일은 도메인 유스케이스가 한다. QR 과 코드 두 흐름이 같은 <code>pair</code> 하나로 끝난다 — QR 의 비밀번호가 곧 페어링 코드다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: QR 인코더를 직접 둔다</strong>
+  후보는 셋이었다.
+  <ul>
+    <li>채택. <code>:feature:emulator:ui</code> 안의 QR 인코더(ISO/IEC 18004, 바이트 모드, 오류 정정 M, 버전 1–10). 페이로드가 50바이트 안팎이라 버전 4(33×33)면 충분하다. 결과는 칸 배열이고 <code>Canvas</code> 로 그린다. 의존성이 없고 네 타깃에서 같은 코드다. 인코더가 만든 그림을 macOS CoreImage(<code>CIDetector</code>) 로 디코딩해 원문이 나오는 것을 확인한 칸 배열을 테스트의 기대값으로 둔다.</li>
+    <li><code>io.github.alexzhirkevich:qrose</code>. Compose Multiplatform 용 QR 라이브러리지만 마지막 배포가 Compose 1.6·Kotlin 2.0 시절이다. 이 프로젝트의 Kotlin 2.4 / Compose 1.12 / Wasm 에서 klib 이 맞는지 보장이 없어서 버렸다.</li>
+    <li>ZXing. JVM·Android 뿐이라 iOS·Web 에서 그릴 수 없다. 에이전트가 PNG 를 만들어 주는 방법도 있지만 JVM 타깃 자신은 그 PNG 를 또 따로 만들어야 하고, QR 하나에 HTTP 왕복이 생긴다. 버렸다.</li>
+  </ul>
+</aside>
+
+<aside class="decision">
+  <strong>결정: 서비스 이름과 비밀번호는 영숫자만 쓴다</strong>
+  <code>WIFI:</code> 형식은 <code>; , : \ "</code> 를 역슬래시로 이스케이프해야 한다. 영숫자만 쓰면 이스케이프가 필요 없어서, 기기 쪽 파서가 이스케이프를 어떻게 다루는지에 기대지 않는다. 이름 접두사 <code>jarvis-</code> 는 mDNS 목록에서 누가 만든 세션인지 사람이 알아보기 위한 것이다(Android Studio 는 <code>studio-</code>). 비밀번호에는 <code>:</code> 이 들어가면 안 된다는 제약도 있다 — <code>adb</code> 서버가 <code>host:pair:&lt;비밀번호&gt;:&lt;주소&gt;</code> 를 첫 <code>:</code> 에서 자른다(<code>services.cpp</code>). 난수는 <code>Uuid.random()</code> 에서 뽑는다. commonMain 에서 네 타깃 모두 암호학적으로 안전한 난수에 닿는 표준 경로가 그것뿐이고, <code>Random.Default</code> 처럼 예측할 수 있으면 같은 네트워크의 다른 호스트가 먼저 기기와 짝을 맺을 수 있다. Android Studio 도 <code>SecureRandom</code> 을 쓴다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 페어링 뒤 <code>adb connect</code> 를 부르지 않고 연결을 기다리기만 한다</strong>
+  <code>adb</code> 서버는 페어링에 성공하면 곧바로 그 <code>guid</code> 로 연결을 시도하고(<code>client/adb_wifi.cpp</code> 의 <code>adb_secure_connect_by_service_name</code>), 그 뒤에도 알려진 기기의 <code>_adb-tls-connect._tcp</code> 를 보면 스스로 붙는다. Android Studio 도 <code>adb connect</code> 를 부르지 않고 기다린다. 우리가 <code>adb connect &lt;IP:포트&gt;</code> 를 더 부르면 같은 기기가 mDNS 이름과 <code>IP:포트</code> 두 시리얼로 붙어 목록에 두 번 나올 수 있다. 그래서 최대 10초 동안 <code>adb devices</code> 에 <code>guid</code> 로 시작하는 시리얼이 생기는지만 보고, 생기면 <code>Paired(isConnected = true)</code>, 안 생기면 <code>false</code> 로 답한다. 늦게 붙어도 기기 목록이 알아서 보여 준다.
+</aside>
+
+<h2 id="agent">에이전트 프로토콜</h2>
+
+<p><a href="emulator-count.html#agent">로컬 에이전트</a>에 엔드포인트 둘이 더 붙는다.</p>
+
+<table>
+  <thead><tr><th>메서드·경로</th><th>본문</th><th>응답</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /emulators/pairing/services</code></td><td>—</td><td><code>200</code> <code>{"services":[{"name":"adb-R54T202XEHN-Y2yH0N","host":"172.30.1.47","port":37123}]}</code>. 찾을 수 없으면 <code>503</code>, GET 이외는 <code>405</code></td></tr>
+    <tr><td><code>POST /emulators/pairing/pair</code></td><td><code>{"name":"…","host":"…","port":37123,"code":"123456"}</code>, <code>Content-Type: text/plain</code></td><td><code>200</code> <code>{"paired":true,"connected":true}</code> 또는 <code>{"paired":false,"reason":"Failed: …"}</code>. 본문을 읽지 못하면 <code>400</code></td></tr>
+  </tbody>
+</table>
+
+<p>페어링은 실행·깨우기와 달리 결과를 돌려준다. 사용자가 입력한 코드가 맞았는지 알려 줄 곳이 이 응답뿐이기 때문이다. <code>adb pair</code>(최대 15초)와 연결 대기(최대 10초)를 응답 안에서 기다리므로, 클라이언트는 이 경로에만 30초 타임아웃을 준다.</p>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span></td><td>에이전트에 <code>GET</code>·<code>POST</code>. <code>10.0.2.2</code> → <code>127.0.0.1</code></td><td><a href="../platform/android.html#wireless-pairing">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>에이전트에 <code>GET</code>·<code>POST</code>. 시뮬레이터에서만 닿는다</td><td><a href="../platform/ios.html#wireless-pairing">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge workaround">우회</span></td><td><code>adb mdns services</code> + <code>adb pair</code> 를 직접 실행한다</td><td><a href="../platform/jvm.html#wireless-pairing">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td><code>fetch</code>. <code>POST</code> 는 CORS 단순 요청으로 보낸다</td><td><a href="../platform/web.html#wireless-pairing">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>CreatePairingQrCodeUseCaseTest</code></td><td>R3. 페이로드 형식, 이름 접두사·길이, 영숫자, 부를 때마다 달라짐</td><td><code>:feature:emulator:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>PairWithQrCodeUseCaseTest</code></td><td>R4, R5, R11. 이름이 같은 서비스에만 비밀번호로 페어링한다. 찾을 수 없음 → 기다림 → 페어링 → 결과 순서</td><td>같음</td></tr>
+    <tr><td><code>PairWithCodeUseCaseTest</code></td><td>R7. 6자리 숫자가 아닌 코드는 리포지토리까지 가지 않는다</td><td>같음</td></tr>
+    <tr><td><code>QrCodeTest</code></td><td>R3. 인코더가 CoreImage 로 확인한 칸 배열과 같은 결과를 낸다. 길이에 따라 버전이 오르고, 버전 10 을 넘으면 거부한다. 구현할 때 오류 정정 L·M·Q·H, 버전 1·4·5·10, 한글(UTF-8) 다섯 경우를 CoreImage 로 디코딩해 확인했다</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>WifiPairingViewModelTest</code></td><td>R5, R8, R10. QR 세션의 상태 전이와 "새 QR 코드", 코드 탭의 진행 잠금·결과</td><td><code>:feature:emulator:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppPairingTest.deviceListOpensWifiPairing</code></td><td>R1, R2, R12. 버튼으로 들어가 QR 탭이 먼저 열리고 QR 과 iOS 안내가 보이며, 뒤로 가면 기기 목록이다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppPairingTest.pairingCodeIsSentForTheChosenDevice</code></td><td>R6, R7. 대기 기기가 줄로 나오고, 6자리를 넣어야 버튼이 살아나며, 누르면 그 기기에 그 코드가 간다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppPairingTest.pairingSaysWhenNothingCanBeFound</code>, <code>pairingSaysWhenNoDeviceIsWaiting</code></td><td>R11. 찾을 수 없음과 0개가 다른 문구다</td><td>같음</td></tr>
+    <tr><td><code>HostAgentTest</code> 의 pairing 테스트</td><td>대기 기기 목록·페어링 요청·결과의 와이어 포맷, 에이전트가 없으면 찾을 수 없음·실패</td><td><code>:feature:emulator:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>HostAgentServerTest</code> 의 pairing 테스트</td><td>엔드포인트가 목록을 주고 <code>503</code>/<code>400</code> 을 가르며, 페어링 결과를 돌려준다</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>DevicePairingParsingTest</code></td><td><code>adb mdns services</code>·<code>adb pair</code> 출력 해석</td><td><code>:feature:emulator:data</code> <code>jvmTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R4, R9. 실제 기기로 QR·코드 페어링과 연결 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><strong>기기와 개발자 머신이 같은 네트워크에서 mDNS 가 통해야 한다.</strong> 회사망·게스트망처럼 멀티캐스트를 막는 네트워크에서는 대기 기기가 나타나지 않고, QR 은 "스캔을 기다리는 중…" 에 머문다. Android Studio 도 같은 조건이다.</li>
+  <li><strong>JVM 외에는 데스크톱 앱이 같은 머신에 떠 있어야 한다.</strong> 없으면 "찾을 수 없습니다" 가 보인다.</li>
+  <li><strong>QR 이름이 다른 도구와 겹치지 않는다는 보장은 확률뿐이다.</strong> 영숫자 10자라 사실상 겹치지 않는다.</li>
+  <li>코드 탭은 모든 <code>_adb-tls-pairing._tcp</code> 를 보여 준다. 다른 머신의 Android Studio 가 띄운 QR 을 스캔 중인 기기(<code>studio-…</code>)도 잠깐 줄로 보일 수 있고, 거기에 코드를 넣으면 실패한다.</li>
+  <li>페어링 결과는 <code>adb</code> 의 영어 문구를 그대로 보여 준다. 실패 이유를 번역하려면 <code>adb</code> 버전마다 문구를 따라가야 한다.</li>
+  <li>로컬 에이전트는 인증이 없다. 같은 머신의 다른 프로세스나 브라우저 페이지도 페어링 요청을 보낼 수 있지만, 페어링하려면 기기 화면에 뜬 코드를 알아야 한다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a> · <a href="emulator-control.html">기기 목록·화면·제스처</a>
+</footer>
+
+</body>
+</html>

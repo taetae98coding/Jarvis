@@ -67,10 +67,17 @@ object JarvisIcons {
 
     val Terminal: ImageVector by lazy { outline("Terminal", "M4 17l6-6-6-6M12 19h8") }
 
+    val Wifi: ImageVector by lazy {
+        outline(
+            "Wifi",
+            "M2 8.82a15 15 0 0 1 20 0M5 12.86a10 10 0 0 1 14 0M8.5 16.43a5 5 0 0 1 7 0M12 20h.01",
+        )
+    }
+
     internal val all: List<ImageVector>
         get() = listOf(
             Add, Back, ChevronRight, Close, Eye, Monitor, Play, RotateLeft, RotateRight,
-            Smartphone, SplitSideBySide, SplitStacked, Sun, Terminal,
+            Smartphone, SplitSideBySide, SplitStacked, Sun, Terminal, Wifi,
         )
 }
 

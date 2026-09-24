@@ -44,6 +44,7 @@ fun emulatorWakeTestTag(id: String): String = "emulator:wake:$id"
 internal fun EmulatorListScreen(
     viewModel: EmulatorDevicesViewModel,
     onSelect: (EmulatorDevice) -> Unit,
+    onPair: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -54,7 +55,14 @@ internal fun EmulatorListScreen(
         modifier = modifier.fillMaxSize().testTag(EmulatorListTestTag),
         verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m),
     ) {
-        JarvisTopBar(title = "기기 목록", onBack = onBack)
+        JarvisTopBar(title = "기기 목록", onBack = onBack) {
+            JarvisIconButton(
+                icon = JarvisIcons.Wifi,
+                contentDescription = "Wi-Fi 로 페어링",
+                onClick = onPair,
+                modifier = Modifier.testTag(WifiPairingTestTag),
+            )
+        }
 
         if (devices.isEmpty()) {
             // 빈 화면만 남으면 기기가 없는 것인지 물어볼 곳이 없는 것인지 가릴 수 없다.

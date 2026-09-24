@@ -2,7 +2,9 @@ package io.github.taetae98coding.jarvis.data.emulator.agent
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.github.taetae98coding.jarvis.data.emulator.DevicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
+import io.github.taetae98coding.jarvis.data.emulator.devicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.emulatorDataSource
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
@@ -21,8 +23,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 같은 머신의 다른 타깃에 에뮬레이터 개수·목록·화면을 알려주고 제스처를 대신 전달하는 로컬 HTTP
- * 에이전트를 띄운다.
+ * 같은 머신의 다른 타깃에 에뮬레이터 개수·목록·화면을 알려주고 제스처·실행·깨우기·페어링을 대신
+ * 전달하는 로컬 HTTP 에이전트를 띄운다.
  *
  * Android 에뮬레이터·iOS 시뮬레이터·브라우저는 샌드박스 안이라 SDK 도구를 직접 띄울 수 없다.
  * 도구에 닿을 수 있는 건 개발자 머신에서 도는 데스크탑 앱뿐이어서, 그 결과를 HTTP 로 넘긴다.
@@ -30,11 +32,13 @@ import java.util.concurrent.atomic.AtomicReference
  * 포트가 이미 쓰이고 있으면 조용히 no-op 으로 빠진다. 데스크탑 앱 자신은 에이전트 없이도 동작하므로
  * 여기서 실패해도 앱에는 영향이 없다.
  */
-fun startEmulatorHostAgent(): AutoCloseable = startEmulatorHostAgent(HostAgentPort, emulatorDataSource)
+fun startEmulatorHostAgent(): AutoCloseable =
+    startEmulatorHostAgent(HostAgentPort, emulatorDataSource, devicePairingDataSource)
 
 internal fun startEmulatorHostAgent(
     port: Int,
     dataSource: EmulatorDataSource,
+    pairing: DevicePairingDataSource,
 ): AutoCloseable {
     // 루프백에만 바인딩한다. 에뮬레이터의 10.0.2.2 와 `adb reverse` 는 호스트 루프백으로 들어오므로
     // 이걸로 충분하고, 같은 네트워크의 다른 기기에는 열리지 않는다.
@@ -161,6 +165,44 @@ internal fun startEmulatorHostAgent(
                     } else {
                         runBlocking { dataSource.wake(deviceId) }
                         exchange.respond(NoContent)
+                    }
+                }
+
+                else -> exchange.respond(MethodNotAllowed)
+            }
+        }
+    }
+
+    server.createContext(HostAgentPairingServicesPath) { exchange ->
+        exchange.handle {
+            when {
+                exchange.requestMethod != "GET" -> exchange.respond(MethodNotAllowed)
+                // 목록과 달리 미리 받아 두지 않는다. 페어링 화면이 떠 있을 때만 오는 요청이고,
+                // 미리 받으려면 아무도 보지 않는 동안에도 1초마다 adb 를 불러야 한다.
+                else -> runBlocking { pairing.observePairingServices().first() }
+                    ?.let { exchange.respond(Ok, encodePairingServices(it).encodeToByteArray()) }
+                    ?: exchange.respond(ServiceUnavailable)
+            }
+        }
+    }
+
+    server.createContext(HostAgentPairPath) { exchange ->
+        exchange.handle {
+            when (exchange.requestMethod) {
+                "OPTIONS" -> exchange.respond(NoContent)
+
+                "POST" -> {
+                    val request = exchange.requestBody.use(InputStream::readBytes)
+                        .decodeToString()
+                        .let(::decodePairRequest)
+
+                    if (request == null) {
+                        exchange.respond(BadRequest)
+                    } else {
+                        // 실행과 달리 끝날 때까지 기다린다. 입력한 코드가 맞았는지 알려 줄 곳이 이
+                        // 응답뿐이다. 클라이언트는 이 경로에만 타임아웃을 길게 준다.
+                        val result = runBlocking { pairing.pair(request.service, request.code) }
+                        exchange.respond(Ok, encodePairResult(result).encodeToByteArray())
                     }
                 }
 

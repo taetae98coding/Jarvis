@@ -20,7 +20,7 @@ import kotlin.test.assertEquals
 /**
  * 화면을 그리지 않고 상태만 보는 테스트.
  *
- * 이 기능 모듈의 유일한 테스트이고 `jvmTest` 에만 있다. `viewModelScope` 가 `Dispatchers.Main` 을 쓰고,
+ * 이 기능 모듈의 ViewModel 테스트는 `jvmTest` 에만 있다. `viewModelScope` 가 `Dispatchers.Main` 을 쓰고,
  * 그것을 테스트 디스패처로 갈아끼우는 `Dispatchers.setMain` 을 Wasm 에서는 쓸 수 없다.
  */
 @OptIn(ExperimentalCoroutinesApi::class)

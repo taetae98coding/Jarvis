@@ -65,6 +65,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | 앱 정보 | `AppInfo`, `GetAppInfoUseCase` | `platformName`, `APP_VERSION` | `AppInfoCard` |
 | 에뮬레이터 개수 | `EmulatorStatus`, `EmulatorRepository` | `EmulatorDataSource`, 호스트 에이전트 | `EmulatorCard` |
 | 에뮬레이터 목록·화면·제스처 | `EmulatorDevice`, `EmulatorGesture`, 유스케이스 3개 | `EmulatorDataSource`, 호스트 에이전트 | `EmulatorListScreen`, `EmulatorStreamScreen` |
+| Wi-Fi 기기 페어링 | `DevicePairingRepository`, `PairingQrCode`, 유스케이스 4개 | `DevicePairingDataSource`, 호스트 에이전트 | `WifiPairingScreen`, `QrCode` |
 | 화면 꺼짐 방지 | `ScreenAwakeSettingsRepository`, 유스케이스 7개 | `SettingsStore`, `IdleInhibitor`, `SystemScreenAwakeDataSource` | `ScreenAwakeCard`, `SystemScreenAwakeCard` |
 
 ## 의존성 주입 · ViewModel · 화면 이동
@@ -176,6 +177,18 @@ Android SDK는 `ANDROID_HOME` → `ANDROID_SDK_ROOT` → `~/Library/Android/sdk`
 
 개수와 같은 에이전트를 쓴다. JVM 외의 타깃은 `GET /emulators/devices`, `GET /emulators/screen?id=…`,
 `POST /emulators/gesture` 세 엔드포인트로 데스크탑 앱에 물어본다.
+
+### Wi-Fi 기기 페어링
+
+기기 목록 상단의 Wi-Fi 버튼을 누르면 Android Studio 의 "Pair Devices Using Wi-Fi" 와 같은 화면이 열린다.
+**QR 코드** 탭은 `WIFI:T:ADB;S:jarvis-…;P:…;;` QR 을 그리고, 기기가 스캔해 그 이름으로 mDNS 알림을 내면
+알아서 `adb pair` 한다. **페어링 코드** 탭은 `adb mdns services` 에 나온 대기 기기마다 6자리 코드를 받는다.
+페어링하면 `adb` 서버가 스스로 연결하고, 기기는 다음 목록 갱신 때 실물 기기로 나타난다.
+
+QR 은 의존성 없이 `feature:emulator:ui` 의 인코더(`QrCode.kt`)가 그린다. iPhone·iPad 는 공개 도구로 무선 첫
+페어링을 할 수 없어서(iOS 26 이하는 케이블 필수, iOS 27 은 Xcode Device Hub 만 가능) 안내 문구만 보여 준다.
+JVM 외의 타깃은 에이전트의 `GET /emulators/pairing/services`, `POST /emulators/pairing/pair` 로 묻는다.
+조사와 판정은 [공통 스펙](docs/common/wireless-pairing.html)에 있다.
 
 ### 화면 꺼짐 방지
 

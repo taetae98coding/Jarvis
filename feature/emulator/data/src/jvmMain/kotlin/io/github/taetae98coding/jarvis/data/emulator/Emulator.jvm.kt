@@ -273,7 +273,7 @@ internal fun parseRunningEmulatorCount(output: String): Int =
  * 공백이 아니라 탭으로만 자른다. 무선 디버깅으로 붙은 기기의 시리얼은 mDNS 이름이라 공백을 품을 수
  * 있고(`adb-R54T202XEHN-Y2yH0N (2)._adb-tls-connect._tcp`), 공백으로 자르면 그런 줄이 통째로 빠진다.
  */
-private fun parseAttachedSerials(output: String): List<String> =
+internal fun parseAttachedSerials(output: String): List<String> =
     output.lineSequence()
         .map { it.split('\t') }
         .filter { it.size >= 2 && it[1].trim() == "device" }
@@ -366,7 +366,7 @@ private val SimulatorUdid = Regex("""[0-9A-F-]{36}""")
 
 private val PhysicalIosLine = Regex("""(.+) \((\d[\d.]*)\) \(([0-9A-Fa-f-]{25,})\)""")
 
-private fun androidSdkDirectory(): File? =
+internal fun androidSdkDirectory(): File? =
     sequenceOf(
         System.getenv("ANDROID_HOME"),
         System.getenv("ANDROID_SDK_ROOT"),
@@ -376,7 +376,7 @@ private fun androidSdkDirectory(): File? =
         .map(::File)
         .firstOrNull(File::isDirectory)
 
-private fun adbBinary(sdk: File): String = File(sdk, "platform-tools/adb").path
+internal fun adbBinary(sdk: File): String = File(sdk, "platform-tools/adb").path
 
 private fun emulatorBinary(sdk: File): String = File(sdk, "emulator/emulator").path
 
@@ -393,10 +393,23 @@ private fun xcodeToolCommand(tool: String): List<String>? {
 
 private const val CommandTimeoutSeconds = 10L
 
-private fun runCommand(command: List<String>, mergeError: Boolean = false): String? =
+internal fun runCommand(command: List<String>, mergeError: Boolean = false): String? =
     runCommandBytes(command, mergeError)?.decodeToString()
 
-private fun runCommandBytes(command: List<String>, mergeError: Boolean = false): ByteArray? =
+/**
+ * 두 스트림을 합친 출력을 종료 코드와 상관없이 준다. 실패 이유가 출력에 있는 명령(`adb pair`)에 쓴다.
+ * 시간 안에 끝나지 않았거나 띄우지 못했으면 null 이다.
+ */
+internal fun runCommandOutput(command: List<String>, timeoutSeconds: Long): String? =
+    runCommandBytes(command, mergeError = true, timeoutSeconds = timeoutSeconds, requireSuccess = false)
+        ?.decodeToString()
+
+private fun runCommandBytes(
+    command: List<String>,
+    mergeError: Boolean = false,
+    timeoutSeconds: Long = CommandTimeoutSeconds,
+    requireSuccess: Boolean = true,
+): ByteArray? =
     runCatching {
         // 출력을 파이프가 아니라 파일로 받는다. `adb` 는 stdout 을 물려받는 데몬을 fork 하므로, 파이프를
         // 읽으면 자식이 끝난 뒤에도 블록되어 아래 타임아웃을 넘겨 버린다.
@@ -413,12 +426,12 @@ private fun runCommandBytes(command: List<String>, mergeError: Boolean = false):
             process.outputStream.close()
 
             when {
-                !process.waitFor(CommandTimeoutSeconds, TimeUnit.SECONDS) -> {
+                !process.waitFor(timeoutSeconds, TimeUnit.SECONDS) -> {
                     process.destroyForcibly()
                     null
                 }
 
-                process.exitValue() != 0 -> null
+                requireSuccess && process.exitValue() != 0 -> null
                 else -> output.readBytes()
             }
         } finally {

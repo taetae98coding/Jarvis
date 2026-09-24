@@ -5,11 +5,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
+import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
+import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
+import io.github.taetae98coding.jarvis.domain.emulator.PairingService
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationRepository
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
@@ -62,6 +65,7 @@ internal fun TestJarvisApp(
     settings: ScreenAwakeSettingsRepository = FakeScreenAwakeSettingsRepository(),
     systemScreenAwake: SystemScreenAwakeRepository = FakeSystemScreenAwakeRepository(),
     emulator: EmulatorRepository = FakeEmulatorRepository(),
+    pairing: DevicePairingRepository = FakeDevicePairingRepository(),
     deviceRotation: DeviceRotationRepository = FakeDeviceRotationRepository(),
     screenAwake: ScreenAwakeRepository = ScreenAwakeRepository { },
     terminal: TerminalRepository = FakeTerminalRepository(),
@@ -75,6 +79,7 @@ internal fun TestJarvisApp(
             single<CoroutineScope> { scope }
             single<AppInfoRepository> { AppInfoRepository { appInfo } }
             single<EmulatorRepository> { emulator }
+            single<DevicePairingRepository> { pairing }
             single<ScreenAwakeSettingsRepository> { settings }
             single<ScreenAwakeRepository> { screenAwake }
             single<SystemScreenAwakeRepository> { systemScreenAwake }
@@ -178,6 +183,23 @@ internal object SilentEmulatorRepository : EmulatorRepository {
     override suspend fun launch(deviceId: String) = Unit
 
     override suspend fun wake(deviceId: String) = Unit
+}
+
+// 기본값은 페어링을 기다리는 기기가 없는 개발자 머신이다.
+internal class FakeDevicePairingRepository(
+    services: List<PairingService>? = emptyList(),
+    private val result: PairingResult = PairingResult.Paired(isConnected = true),
+) : DevicePairingRepository {
+    val services = MutableStateFlow(services)
+
+    val paired = mutableListOf<Pair<PairingService, String>>()
+
+    override fun observePairingServices() = services
+
+    override suspend fun pair(service: PairingService, code: String): PairingResult {
+        paired += service to code
+        return result
+    }
 }
 
 // 기본값은 Skiko 로 렌더링하는 세 타깃 중 JVM 의 실제 상태와 같다. 돌릴 화면이 없다.

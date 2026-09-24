@@ -4,7 +4,7 @@ import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
 /**
- * 이 기능이 갖는 화면 둘. 백스택에 저장·복원되므로 직렬화 가능한 값만 담는다.
+ * 이 기능이 갖는 화면 셋. 백스택에 저장·복원되므로 직렬화 가능한 값만 담는다.
  *
  * 앱 셸은 이 타입을 모른다. 등록은 [emulatorUiModule] 이 한다.
  */
@@ -19,4 +19,7 @@ internal sealed interface EmulatorRoute : NavKey {
      */
     @Serializable
     data class Screen(val deviceId: String) : EmulatorRoute
+
+    @Serializable
+    data object Pairing : EmulatorRoute
 }

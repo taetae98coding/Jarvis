@@ -5,6 +5,8 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
+import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
+import io.github.taetae98coding.jarvis.domain.emulator.PairingService
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -15,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.seconds
 
@@ -193,11 +196,63 @@ class HostAgentTest {
         )
     }
 
+    @Test
+    fun pairingServicesSurviveTheWireFormat() {
+        val services = listOf(WaitingService, WaitingService.copy(name = "adb-R3CY705Y62R-WbpIT6 (2)", port = 40001))
+
+        assertEquals(services, decodePairingServices(encodePairingServices(services)))
+    }
+
+    @Test
+    fun pairRequestsCarryTheServiceAndCode() = runTest {
+        val sent = mutableListOf<Pair<String, String>>()
+        val client = HostAgentClient(
+            fetch = { null },
+            send = { _, _ -> },
+            exchange = { path, body ->
+                sent += path to body
+                encodePairResult(PairingResult.Paired(isConnected = false)).encodeToByteArray()
+            },
+        )
+
+        val result = hostAgentDevicePairingDataSource(client).pair(WaitingService, "012345")
+
+        assertEquals(PairingResult.Paired(isConnected = false), result)
+        assertEquals(HostAgentPairPath, sent.single().first)
+        val request = decodePairRequest(sent.single().second)
+        assertEquals(WaitingService, request?.service)
+        assertEquals("012345", request?.code)
+    }
+
+    @Test
+    fun pairFailuresKeepTheReason() {
+        val failure = PairingResult.Failed("Failed: Wrong password or connection was dropped.")
+
+        assertEquals(failure, decodePairResult(encodePairResult(failure)))
+    }
+
+    @Test
+    fun missingAgentMeansPairingServicesCannotBeFound() = runTest {
+        val services = silentPairing().observePairingServices().take(1).toList()
+
+        assertEquals(listOf(null), services)
+    }
+
+    @Test
+    fun missingAgentMeansPairingFailed() = runTest {
+        assertIs<PairingResult.Failed>(silentPairing().pair(WaitingService, "012345"))
+    }
+
+    private fun silentPairing() =
+        hostAgentDevicePairingDataSource(HostAgentClient(fetch = { null }, send = { _, _ -> }, exchange = { _, _ -> null }))
+
     // 에이전트가 없을 때의 클라이언트. 모든 요청이 아무것도 돌려주지 않는다.
     private fun silentAgent() =
         hostAgentEmulatorDataSource(HostAgentClient(fetch = { null }, send = { _, _ -> }))
 
     private companion object {
+        val WaitingService = PairingService(name = "adb-R54T202XEHN-Y2yH0N", host = "172.30.1.47", port = 37123)
+
         val RunningDevice = EmulatorDevice(
             id = "emulator-5554",
             name = "Pixel_9_API_37",

@@ -21,6 +21,7 @@ import kotlin.coroutines.resume
 internal val iosHostAgentClient = HostAgentClient(
     fetch = ::fetchFromHostAgent,
     send = ::sendToHostAgent,
+    exchange = ::exchangeWithHostAgent,
 )
 
 // 시뮬레이터에서 127.0.0.1 은 시뮬레이터를 띄운 Mac 이다. 실물 기기에서는 자기 자신이라 에이전트가
@@ -71,6 +72,35 @@ private suspend fun sendToHostAgent(path: String, body: String) {
         task.resume()
     }
 }
+
+private suspend fun exchangeWithHostAgent(path: String, body: String): ByteArray? =
+    suspendCancellableCoroutine { continuation ->
+        val url = NSURL.URLWithString(hostAgentUrl(Loopback, path))
+
+        if (url == null) {
+            continuation.resume(null)
+            return@suspendCancellableCoroutine
+        }
+
+        val request = NSMutableURLRequest.requestWithURL(url).apply {
+            setHTTPMethod("POST")
+            setValue("text/plain", forHTTPHeaderField = "Content-Type")
+            setHTTPBody(body.encodeToByteArray().toNSData())
+            // 에이전트가 `adb pair`(최대 15초)와 연결 대기(최대 10초)를 응답 안에서 끝낸다.
+            setTimeoutInterval(PairTimeoutSeconds)
+        }
+
+        val task = NSURLSession.sharedSession.dataTaskWithRequest(request) { data, response, _ ->
+            val ok = (response as? NSHTTPURLResponse)?.statusCode == 200L
+
+            continuation.resume(if (ok) data?.toByteArray() else null)
+        }
+
+        continuation.invokeOnCancellation { task.cancel() }
+        task.resume()
+    }
+
+private const val PairTimeoutSeconds = 30.0
 
 // NSString 으로 감싸 String 에 캐스팅하는 관용구는 정적 타입이 이어지지 않아 경고가 난다. 바이트를
 // 그대로 읽으면 타입이 분명하고, JSON 이 깨져 있으면 파싱에서 걸린다.

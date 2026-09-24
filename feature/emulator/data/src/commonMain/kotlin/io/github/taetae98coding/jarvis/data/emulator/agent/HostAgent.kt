@@ -1,11 +1,15 @@
 package io.github.taetae98coding.jarvis.data.emulator.agent
 
+import io.github.taetae98coding.jarvis.data.emulator.DevicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorScreenPollInterval
+import io.github.taetae98coding.jarvis.data.emulator.PairingServicePollInterval
 import io.github.taetae98coding.jarvis.data.state.observeByPolling
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
+import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
+import io.github.taetae98coding.jarvis.domain.emulator.PairingService
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration.Companion.seconds
 
@@ -22,6 +26,8 @@ internal const val HostAgentScreenPath: String = "$HostAgentPath/screen"
 internal const val HostAgentGesturePath: String = "$HostAgentPath/gesture"
 internal const val HostAgentLaunchPath: String = "$HostAgentPath/launch"
 internal const val HostAgentWakePath: String = "$HostAgentPath/wake"
+internal const val HostAgentPairingServicesPath: String = "$HostAgentPath/pairing/services"
+internal const val HostAgentPairPath: String = "$HostAgentPath/pairing/pair"
 
 internal fun hostAgentUrl(host: String, path: String = HostAgentPath): String =
     "http://$host:$HostAgentPort$path"
@@ -38,10 +44,14 @@ internal fun hostAgentScreenPath(deviceId: String): String =
  *
  * [fetch] 가 null 을 주면(에이전트가 없거나 응답이 망가졌으면) 개수는 "셀 수 없음", 목록은 빈 목록,
  * 프레임은 없는 것이 된다.
+ *
+ * [send] 는 응답을 버리는 POST, [exchange] 는 응답 본문을 돌려받는 POST 다. 뒤의 것은 페어링만 쓰고,
+ * 에이전트가 `adb pair` 를 끝낼 때까지 기다려야 해서 타깃마다 타임아웃을 길게 준다.
  */
 internal class HostAgentClient(
     private val fetch: suspend (path: String) -> ByteArray?,
     private val send: suspend (path: String, body: String) -> Unit,
+    private val exchange: suspend (path: String, body: String) -> ByteArray? = { _, _ -> null },
 ) {
     suspend fun status(): EmulatorStatus? =
         fetch(HostAgentPath)?.decodeToString()?.let(::decodeEmulatorStatus)
@@ -62,6 +72,12 @@ internal class HostAgentClient(
     suspend fun wake(deviceId: String) {
         send(HostAgentWakePath, encodeEmulatorDeviceId(deviceId))
     }
+
+    suspend fun pairingServices(): List<PairingService>? =
+        fetch(HostAgentPairingServicesPath)?.decodeToString()?.let(::decodePairingServices)
+
+    suspend fun pair(service: PairingService, code: String): PairingResult? =
+        exchange(HostAgentPairPath, encodePairRequest(service, code))?.decodeToString()?.let(::decodePairResult)
 }
 
 internal fun hostAgentEmulatorDataSource(client: HostAgentClient): EmulatorDataSource =
@@ -88,6 +104,17 @@ internal fun hostAgentEmulatorDataSource(client: HostAgentClient): EmulatorDataS
             client.wake(deviceId)
         }
     }
+
+internal fun hostAgentDevicePairingDataSource(client: HostAgentClient): DevicePairingDataSource =
+    object : DevicePairingDataSource {
+        override fun observePairingServices(): Flow<List<PairingService>?> =
+            observeByPolling(interval = PairingServicePollInterval) { client.pairingServices() }
+
+        override suspend fun pair(service: PairingService, code: String): PairingResult =
+            client.pair(service, code) ?: PairingResult.Failed(UnreachableAgent)
+    }
+
+private const val UnreachableAgent = "개발자 머신의 에이전트에 닿지 못했습니다."
 
 // 에뮬레이터를 켜고 끄는 건 사람의 손이라 이보다 촘촘히 볼 이유가 없다.
 private val HostAgentPollInterval = 5.seconds

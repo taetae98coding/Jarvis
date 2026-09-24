@@ -12,6 +12,7 @@ import kotlin.js.ExperimentalWasmJsInterop
 internal val webHostAgentClient = HostAgentClient(
     fetch = ::fetchFromHostAgent,
     send = ::sendToHostAgent,
+    exchange = ::exchangeWithHostAgent,
 )
 
 // 브라우저에서 localhost 는 페이지를 띄운 머신이고, 개발 서버와 에이전트가 같은 머신에 있으면
@@ -38,6 +39,16 @@ private suspend fun sendToHostAgent(path: String, body: String) {
             .await<Response>()
     }
 }
+
+// fetch 에는 기본 타임아웃이 없어서 에이전트가 `adb pair` 를 끝낼 때까지 기다린다.
+@OptIn(ExperimentalWasmJsInterop::class)
+private suspend fun exchangeWithHostAgent(path: String, body: String): ByteArray? =
+    runCatching {
+        val response = window.fetch(hostAgentUrl(Loopback, path), RequestInit(method = "POST", body = body.toJsString()))
+            .await<Response>()
+
+        if (response.ok) response.arrayBuffer().await<ArrayBuffer>().toByteArray() else null
+    }.getOrNull()
 
 // 프레임은 JSON 이 아니라 PNG 바이트다. ArrayBuffer 를 Kotlin 쪽으로 한 번 복사해야 한다.
 @OptIn(ExperimentalWasmJsInterop::class)

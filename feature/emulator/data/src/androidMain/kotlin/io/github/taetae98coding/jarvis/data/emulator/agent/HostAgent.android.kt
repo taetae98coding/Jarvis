@@ -9,6 +9,7 @@ import java.net.URI
 internal val androidHostAgentClient = HostAgentClient(
     fetch = ::fetchFromHostAgent,
     send = ::sendToHostAgent,
+    exchange = ::exchangeWithHostAgent,
 )
 
 // 10.0.2.2 는 에뮬레이터가 호스트 머신의 루프백을 부르는 주소다. 실물 기기에는 그런 주소가 없어서
@@ -19,6 +20,9 @@ private val HostAliases = listOf("10.0.2.2", "127.0.0.1")
 // 없다는 뜻이다. 프레임만 호스트가 화면을 찍는 시간을 기다려 준다.
 private const val TimeoutMillis = 2_000
 private const val ScreenTimeoutMillis = 5_000
+
+// 에이전트가 `adb pair`(최대 15초)와 연결 대기(최대 10초)를 응답 안에서 끝낸다.
+private const val PairTimeoutMillis = 30_000
 
 private suspend fun fetchFromHostAgent(path: String): ByteArray? =
     withContext(Dispatchers.IO) {
@@ -32,6 +36,11 @@ private suspend fun sendToHostAgent(path: String, body: String) {
         HostAliases.firstOrNull { host -> post(hostAgentUrl(host, path), body) }
     }
 }
+
+private suspend fun exchangeWithHostAgent(path: String, body: String): ByteArray? =
+    withContext(Dispatchers.IO) {
+        HostAliases.firstNotNullOfOrNull { host -> post(hostAgentUrl(host, path), body, PairTimeoutMillis) }
+    }
 
 private fun request(url: String, path: String): ByteArray? =
     runCatching {
@@ -51,13 +60,16 @@ private fun request(url: String, path: String): ByteArray? =
         }
     }.getOrNull()
 
-private fun post(url: String, body: String): Boolean =
+private fun post(url: String, body: String): Boolean = post(url, body, TimeoutMillis) != null
+
+// 2xx 면 본문을(없으면 빈 배열), 아니면 null 을 준다.
+private fun post(url: String, body: String, timeoutMillis: Int): ByteArray? =
     runCatching {
         val connection = (URI(url).toURL().openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
             connectTimeout = TimeoutMillis
-            readTimeout = TimeoutMillis
+            readTimeout = timeoutMillis
             // 브라우저 클라이언트가 CORS 사전 요청을 피하려고 text/plain 으로 보낸다. 에이전트의
             // 분기를 하나로 두려고 여기서도 같은 타입을 쓴다.
             setRequestProperty("Content-Type", "text/plain")
@@ -66,8 +78,12 @@ private fun post(url: String, body: String): Boolean =
         try {
             connection.outputStream.use { it.write(body.encodeToByteArray()) }
 
-            connection.responseCode in 200..299
+            when (connection.responseCode) {
+                HttpURLConnection.HTTP_NO_CONTENT -> ByteArray(0)
+                in 200..299 -> connection.inputStream.use(InputStream::readBytes)
+                else -> null
+            }
         } finally {
             connection.disconnect()
         }
-    }.getOrDefault(false)
+    }.getOrNull()

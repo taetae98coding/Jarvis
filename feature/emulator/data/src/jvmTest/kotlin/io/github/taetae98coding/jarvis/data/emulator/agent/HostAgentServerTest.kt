@@ -1,11 +1,14 @@
 package io.github.taetae98coding.jarvis.data.emulator.agent
 
+import io.github.taetae98coding.jarvis.data.emulator.DevicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
+import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
+import io.github.taetae98coding.jarvis.domain.emulator.PairingService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -60,9 +63,9 @@ class HostAgentServerTest {
         val port = freePort()
         val dataSource = FakeEmulatorDataSource(statuses = MutableStateFlow(EmulatorStatus()))
 
-        startEmulatorHostAgent(port, dataSource).use {
+        startEmulatorHostAgent(port, dataSource, FakeDevicePairingDataSource()).use {
             // 두 번째 에이전트는 예외를 던지지 않고 아무것도 하지 않는다.
-            startEmulatorHostAgent(port, dataSource).close()
+            startEmulatorHostAgent(port, dataSource, FakeDevicePairingDataSource()).close()
 
             assertEquals(200, request(port, HostAgentPath).code)
         }
@@ -184,10 +187,60 @@ class HostAgentServerTest {
         }
     }
 
-    private fun withAgent(dataSource: EmulatorDataSource, block: (Int) -> Unit) {
+    @Test
+    fun servesPairingServices() {
+        val services = listOf(WaitingService)
+
+        withAgent(pairing = FakeDevicePairingDataSource(services = services)) { port ->
+            assertEquals(services, decodePairingServices(awaitBody(port, HostAgentPairingServicesPath)))
+        }
+    }
+
+    // 빈 목록으로 답하면 "기다리는 기기가 없다" 와 "찾을 방법이 없다" 가 섞인다.
+    @Test
+    fun answersServiceUnavailableWhenPairingServicesCannotBeFound() {
+        withAgent(pairing = FakeDevicePairingDataSource(services = null)) { port ->
+            assertEquals(503, request(port, HostAgentPairingServicesPath).code)
+        }
+    }
+
+    @Test
+    fun answersWithThePairingResult() {
+        val failure = PairingResult.Failed("Failed: Wrong password or connection was dropped.")
+        val pairing = FakeDevicePairingDataSource(result = failure)
+
+        withAgent(pairing = pairing) { port ->
+            val response = request(
+                port = port,
+                path = HostAgentPairPath,
+                method = "POST",
+                body = encodePairRequest(WaitingService, "123456"),
+            )
+
+            assertEquals(200, response.code)
+            assertEquals(failure, response.bytes?.decodeToString()?.let(::decodePairResult))
+            assertEquals(listOf(WaitingService to "123456"), pairing.paired)
+        }
+    }
+
+    @Test
+    fun rejectsBrokenPairRequests() {
+        val pairing = FakeDevicePairingDataSource()
+
+        withAgent(pairing = pairing) { port ->
+            assertEquals(400, request(port, HostAgentPairPath, method = "POST", body = "not json").code)
+            assertTrue(pairing.paired.isEmpty())
+        }
+    }
+
+    private fun withAgent(
+        dataSource: EmulatorDataSource = FakeEmulatorDataSource(),
+        pairing: DevicePairingDataSource = FakeDevicePairingDataSource(),
+        block: (Int) -> Unit,
+    ) {
         val port = freePort()
 
-        startEmulatorHostAgent(port, dataSource).use { block(port) }
+        startEmulatorHostAgent(port, dataSource, pairing).use { block(port) }
     }
 
     // 에이전트는 개수와 목록을 백그라운드에서 받아 두므로 첫 요청이 503 일 수 있다.
@@ -272,7 +325,23 @@ class HostAgentServerTest {
         }
     }
 
+    private class FakeDevicePairingDataSource(
+        private val services: List<PairingService>? = emptyList(),
+        private val result: PairingResult = PairingResult.Paired(isConnected = true),
+    ) : DevicePairingDataSource {
+        val paired = mutableListOf<Pair<PairingService, String>>()
+
+        override fun observePairingServices() = flowOf(services)
+
+        override suspend fun pair(service: PairingService, code: String): PairingResult {
+            paired += service to code
+            return result
+        }
+    }
+
     private companion object {
+        val WaitingService = PairingService(name = "adb-R54T202XEHN-Y2yH0N", host = "172.30.1.47", port = 37123)
+
         val RunningDevice = EmulatorDevice(
             id = "emulator-5554",
             name = "Pixel_9_API_37",
