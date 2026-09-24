@@ -36,6 +36,8 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
+include(":core:automation")
+include(":core:browser")
 include(":core:data")
 include(":core:designsystem")
 include(":core:ui")
@@ -62,6 +64,9 @@ include(":feature:rotation:widget")
 include(":feature:terminal:domain")
 include(":feature:terminal:data")
 include(":feature:terminal:ui")
+
+include(":feature:mcp:domain")
+include(":feature:mcp:data")
 
 include(":app:ui")
 include(":shared")

@@ -14,7 +14,17 @@ import java.nio.ByteBuffer
  * action 이 HOVER_MOVE 일 때만 SOURCE_MOUSE·TOOL_TYPE_MOUSE 로 주입한다 — 그래야 기기 안 UI 가 호버로 반응한다.
  */
 internal object ControlMessages {
+    private const val TypeInjectKeycode = 0
+    private const val TypeInjectText = 1
     private const val TypeInjectTouchEvent = 2
+    private const val TypeSetClipboard = 9
+
+    // 서버의 ControlMessageReader.INJECT_TEXT_MAX_LENGTH. 넘으면 서버가 메시지를 버린다.
+    const val InjectTextMaxBytes = 300
+
+    // android.view.KeyEvent 의 ACTION_DOWN·ACTION_UP.
+    const val KeyActionDown = 0
+    const val KeyActionUp = 1
 
     // android.view.MotionEvent 의 ACTION 상수. 서버가 그대로 MotionEvent 로 만든다.
     private const val ActionDown = 0
@@ -62,6 +72,43 @@ internal object ControlMessages {
         buffer.putInt(0) // buttons
 
         return buffer.array()
+    }
+
+    /** type(1) action(1) keycode(4) repeat(4) metaState(4). */
+    fun encodeKeycode(action: Int, keycode: Int): ByteArray =
+        ByteBuffer.allocate(14)
+            .put(TypeInjectKeycode.toByte())
+            .put(action.toByte())
+            .putInt(keycode)
+            .putInt(0)
+            .putInt(0)
+            .array()
+
+    /**
+     * type(1) length(4) utf8. 서버는 기기의 KeyCharacterMap 으로 키를 만들어 넣으므로 ASCII 만 믿을 수 있다.
+     * [text] 는 [InjectTextMaxBytes] 를 넘지 않아야 한다.
+     */
+    fun encodeText(text: String): ByteArray {
+        val bytes = text.encodeToByteArray()
+        require(bytes.size <= InjectTextMaxBytes) { "INJECT_TEXT 는 ${InjectTextMaxBytes}바이트까지다" }
+
+        return ByteBuffer.allocate(5 + bytes.size).put(TypeInjectText.toByte()).putInt(bytes.size).put(bytes).array()
+    }
+
+    /**
+     * type(1) sequence(8) paste(1) length(4) utf8. [paste] 면 서버가 클립보드를 바꾼 뒤 KEYCODE_PASTE 를 넣는다.
+     * sequence 0(SEQUENCE_INVALID)이면 서버가 확인 응답을 보내지 않는다 — 제어 소켓을 읽는 곳이 없다.
+     */
+    fun encodeSetClipboard(text: String, paste: Boolean): ByteArray {
+        val bytes = text.encodeToByteArray()
+
+        return ByteBuffer.allocate(14 + bytes.size)
+            .put(TypeSetClipboard.toByte())
+            .putLong(0)
+            .put((if (paste) 1 else 0).toByte())
+            .putInt(bytes.size)
+            .put(bytes)
+            .array()
     }
 
     private fun putPosition(buffer: ByteBuffer, gesture: EmulatorGesture) {

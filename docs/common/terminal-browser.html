@@ -35,6 +35,11 @@
   <footer>2026-09-24 대화. "+" 는 그룹마다 있는 새 탭 버튼(<a href="terminal-tab-groups.html">분할 그룹</a>)으로, "webBrowser 지원" 은 그 메뉴에서 웹 페이지를 띄우는 탭을 여는 것으로 읽었다. "가장 간단하고 효율적인 방법" 은 엔진을 앱에 싣지 않고 각 운영체제의 시스템 웹뷰를 쓰는 것으로 읽었다(<a href="#implementation">결정</a>).</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>JCEF로 진행하자. Android/iOS도 지원해줘. 그리고 해당 기능을 쓸 땐 해당 Worktree에 탭을 추가해서 사용자가 원할 때 볼 수 있도록 해줘 Android/iOS도 마찬가지야.</p>
+  <footer>2026-09-25 대화. <a href="mcp-server.html">Claude 에게 브라우저·기기 조작 맡기기</a>의 지시다. Claude 가 페이지를 조작하려면 CDP 가 있는 엔진이어야 해서 JVM 의 엔진을 WKWebView 에서 Chromium(JCEF)으로 바꾼다. 그 결과 R5·R6·R9 가 JVM 에서 바뀐다. Android 는 그대로다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
@@ -42,11 +47,11 @@
   <li><strong>R2.</strong> "웹 브라우저" 를 고르면 그 그룹의 탭 줄 끝에 브라우저 탭이 붙어 선택되고 그 그룹이 포커스를 받는다(셸 탭과 같은 자리·선택 규칙). 첫 페이지는 <code>https://www.google.com</code> 이다.</li>
   <li><strong>R3.</strong> 브라우저 탭의 창은 위에 주소 줄, 아래에 웹 페이지다. 주소 줄은 뒤로, 앞으로, 새로 고침 버튼과 주소 입력칸이다. 뒤로·앞으로는 갈 곳이 없으면 잠긴다. 입력칸은 페이지가 바뀔 때마다 지금 주소를 보여 주고, Enter 를 누르면 입력한 곳으로 간다.</li>
   <li><strong>R4.</strong> 입력은 이렇게 주소가 된다. 앞뒤 공백을 뗀다. <code>://</code> 가 있으면 그대로다. 공백이 없고 <code>localhost</code> 로 시작하면 <code>http://</code> 를, 공백이 없고 <code>.</code> 이 있으면 <code>https://</code> 를 앞에 붙인다. 나머지는 Google 검색(<code>https://www.google.com/search?q=</code> 뒤에 UTF-8 퍼센트 인코딩)이다. 빈 입력은 아무 일도 하지 않는다.</li>
-  <li><strong>R5.</strong> 탭 이름은 페이지 제목이고, 제목이 없으면 "웹 N" 이다(N 은 탭 줄에서의 순서, <a href="terminal.html#requirements">터미널 R13</a> 과 같은 규칙). 제목은 저장하지 않는다. 가려진 탭은 이 화면에서 마지막으로 본 제목을 보이고, 화면을 나갔다 오거나 앱을 다시 켜면 다시 보일 때까지 "웹 N" 이다.</li>
-  <li><strong>R6.</strong> 페이지를 옮길 때마다 지금 주소가 탭에 저장된다. 앱을 다시 켜거나 가려졌던 탭이 다시 보이면 그 주소를 다시 연다. 뒤로 가기 기록, 스크롤 위치, 입력하던 폼은 남지 않는다.</li>
+  <li><strong>R5.</strong> 탭 이름은 페이지 제목이고, 제목이 없으면 "웹 N" 이다(N 은 탭 줄에서의 순서, <a href="terminal.html#requirements">터미널 R13</a> 과 같은 규칙). 제목은 저장하지 않는다. JVM 은 엔진이 탭마다 살아 있어서(R6) 가려진 탭도 지금 제목을 보인다. Android 는 가려진 탭이 이 화면에서 마지막으로 본 제목을 보이고, 화면을 나갔다 오거나 앱을 다시 켜면 다시 보일 때까지 "웹 N" 이다.</li>
+  <li><strong>R6.</strong> 페이지를 옮길 때마다 지금 주소가 탭에 저장된다. 앱을 다시 켜면 그 주소를 다시 연다. JVM 에서는 탭을 닫거나 앱을 끌 때까지 페이지가 살아 있다 — 가려졌던 탭이 다시 보이거나 다른 그룹으로 옮겨져도 새로 부르지 않고, 뒤로 가기 기록·스크롤·입력하던 폼이 그대로다. 가려진 동안에도 페이지는 돈다(<a href="mcp-server.html#requirements">MCP R10</a>). Android 는 예전대로 가려졌던 탭이 다시 보이면 저장된 주소로 새로 열고 기록·스크롤·폼은 남지 않는다.</li>
   <li><strong>R7.</strong> 브라우저 탭은 셸을 띄우지 않는다. 닫기(✕), 끌어 놓아 분할·옮기기, 탭 고르기 단축키는 셸 탭과 같다. 브라우저 탭이 선택된 그룹을 ⌘D 로 나누면 새 그룹의 탭은 셸이고, 브라우저 탭에는 작업 디렉터리가 없으므로 패널의 폴더(없으면 홈)에서 시작한다(<a href="terminal-panel-create.html">새 패널 제목·폴더</a>).</li>
   <li><strong>R8.</strong> 웹 페이지를 띄울 수 없는 타깃(JVM 의 macOS 가 아닌 운영체제 포함)에서는 "웹 브라우저" 항목이 없다. 저장된 브라우저 탭이 있는 파일을 그런 타깃에서 열면 그 탭은 "[웹 페이지를 열 수 없습니다]" 만 보인다.</li>
-  <li><strong>R9.</strong> 새 탭 메뉴가 떠 있거나 탭을 끄는 동안에는 웹 페이지가 사라지고 그 칸이 비어 보인다. 메뉴가 닫히거나 탭을 놓으면 같은 페이지가 다시 보인다(새로 부르지 않는다). 메뉴와 놓을 자리 미리 보기가 페이지에 가려지지 않게 하려는 것이다(<a href="#limits">한계</a>).</li>
+  <li><strong>R9.</strong> 새 탭 메뉴가 떠 있거나 탭을 끄는 동안에는 웹 페이지가 사라지고 그 칸이 비어 보인다. 메뉴가 닫히거나 탭을 놓으면 같은 페이지가 다시 보인다(새로 부르지 않는다). 메뉴와 놓을 자리 미리 보기가 페이지에 가려지지 않게 하려는 것이다(<a href="#limits">한계</a>). 페이지를 네이티브 뷰로 띄우는 Android 에만 해당한다. JVM 은 페이지를 Compose 가 그리므로 메뉴·미리 보기가 페이지 위에 그대로 올라가고 페이지는 사라지지 않는다.</li>
 </ol>
 
 <aside class="warn">
@@ -55,7 +60,7 @@
     <li>북마크, 방문 기록 저장, 다운로드 관리, 개발자 도구, 탭 안의 새 창(<code>target="_blank"</code>)을 새 탭으로 여는 것. 지시가 "가장 간단한" 브라우저다.</li>
     <li>브라우저 탭 단축키. ⌘T 는 셸 탭 그대로다.</li>
     <li>탭마다 쿠키·저장소를 나누는 것. 모든 브라우저 탭이 시스템 웹뷰의 기본 저장소를 함께 쓴다.</li>
-    <li>가려진 탭의 페이지를 살려 두는 것(R6). 탭마다 웹뷰를 붙잡아 두면 셸 창처럼 앱 수명 동안 메모리를 쥔다. 다시 보일 때 저장된 주소로 새로 여는 쪽을 택했다.</li>
+    <li>Android 에서 가려진 탭의 페이지를 살려 두는 것(R6). 탭마다 웹뷰를 붙잡아 두면 셸 창처럼 앱 수명 동안 메모리를 쥔다. JVM 은 Claude 가 가려진 탭을 조작해야 해서(<a href="mcp-server.html">MCP</a>) 2026-09-25 부터 살려 둔다.</li>
   </ul>
 </aside>
 
@@ -83,11 +88,20 @@
   </dd>
   <dt>공급</dt><dd><code>TerminalDataSource.isBrowserSupported</code>. <code>createTerminalDataSource</code> 의 <code>expect</code> 시그니처는 그대로다. 저장 형식은 <code>program = "browser"</code> 와 <code>url</code> 키가 늘어난다. <code>url</code> 이 없는 <code>browser</code> 탭은 첫 페이지 주소로 읽는다</dd>
   <dt>상태</dt><dd><code>TerminalViewModel.isBrowserSupported</code>, <code>addBrowserTab(groupId)</code>, <code>setUrl(tabId, url)</code>. <code>reconcile</code> 은 <code>Browser</code> 탭의 셸 창을 열지 않는다. 페이지 제목은 저장하지 않고 창 안의 웹뷰 상태에서 바로 읽는다</dd>
-  <dt>UI</dt><dd><code>feature/terminal/ui/.../TerminalBrowser.kt</code> — 주소 줄과 <code>io.github.kdroidfilter.webview.web.WebView</code>. 웹뷰 상태(<code>rememberWebViewState</code>)는 탭 id 로 <code>key</code> 를 건 컴포지션에만 있다. <code>lastLoadedUrl</code> 이 바뀌면 <code>onUrl</code> 로, <code>pageTitle</code> 이 바뀌면 탭 이름으로 올린다. <code>pageHidden</code> 이면 웹뷰의 크기를 0 으로 줄인다(R9). 이 값은 <code>TerminalTabDragState.coversPages</code>(끄는 중이거나 <code>menuOpen</code>)다</dd>
+  <dt>UI</dt><dd><code>feature/terminal/ui/.../TerminalBrowser.kt</code> — 주소 줄과 페이지. 엔진은 <code>BrowserPage.kt</code> 의 expect 넷으로 가른다: <code>@Composable rememberBrowserPage(tab): BrowserPage</code>, <code>@Composable BrowserPageView(page, hidden, onFocus, modifier)</code>, <code>browserTitle(tabId): StateFlow&lt;String?&gt;?</code>(엔진이 아는 가려진 탭의 제목), <code>closeBrowserPages(tabIds)</code>. <code>BrowserPage</code> 는 주소·제목·뒤로/앞으로 가능 여부(Compose 상태), <code>coversOverlays</code>(R9 가 필요한 네이티브 뷰인지), <code>failed</code>, <code>load</code>·<code>back</code>·<code>forward</code>·<code>reload</code>·<code>importCookies</code> 를 가진다. 페이지 주소가 바뀌면 <code>onUrl</code> 로, 제목이 바뀌면 탭 이름으로 올린다.<br>
+    Android actual — <code>io.github.kdroidfilter.webview.web.WebView</code>. 웹뷰 상태(<code>rememberWebViewState</code>)는 탭 id 로 <code>key</code> 를 건 컴포지션에만 있다. <code>pageHidden</code> 이면 웹뷰의 크기를 0 으로 줄인다(R9). 이 값은 <code>TerminalTabDragState.coversPages</code>(끄는 중이거나 <code>menuOpen</code>)다.<br>
+    JVM actual — <code>:core:browser</code> 의 <code>BrowserEngine.page(tabId, url)</code>. 페이지는 앱 수명 동안 탭 id 로 살아 있고(R6), 화면은 그 페이지가 그린 픽셀을 받아 그리고 입력을 넘길 뿐이다. 탭이 작업 공간에서 사라지면 <code>TerminalViewModel.reconcile</code> 이 <code>closeBrowserPages</code> 로 닫는다(본 적 있는 탭 중 사라진 것만).<br>
+    iOS·Web actual — 불리지 않는다(R8 의 "[웹 페이지를 열 수 없습니다]" 가 먼저 나간다)</dd>
 </dl>
 
 <aside class="decision">
-  <strong>결정: 시스템 웹뷰를 감싼 <code>composewebview</code>(1.0.0-beta-02) 한 의존성으로 네 타깃을 덮는다</strong>
+  <strong>결정(2026-09-25): JVM 엔진을 JCEF 로 바꾸고, 페이지를 화면 밖에서 그려 Compose 가 그린다</strong>
+  Claude 가 페이지를 보고 누르려면 CDP 가 있어야 하고, WKWebView 에는 없다(<a href="mcp-server.html">MCP</a>). 그래서 JVM 만 Chromium 을 싣는다(<code>me.friwi:jcefmaven</code>, 버린 후보는 <a href="../platform/jvm.html#terminal-browser">JVM 문서</a>). 창 모드(네이티브 뷰를 <code>SwingPanel</code> 에)가 아니라 화면 밖 렌더링(OSR)으로 띄우고, 엔진이 주는 BGRA 픽셀을 <code>ImageBitmap</code> 으로 그린다. 창 모드는 가려진 탭의 네이티브 뷰가 그리기를 멈춰 Claude 의 캡처가 멈추고, 뷰를 다른 창으로 옮겨 붙이는 것이 macOS 에서 불안정하고, 예전처럼 메뉴가 페이지에 가려진다. 화면 밖 렌더링은 탭이 보이든 말든 같은 방식으로 그리고, 사람의 입력과 Claude 의 입력이 모두 CDP <code>Input.*</code> 로 같은 길을 간다. <a href="device-mirroring.html">기기 화면 영상 스트림</a>과 같은 구조다.
+  대가: 엔진 네이티브(약 136MB)가 번들에 붙는다. 이 지시 전에 (2) 로 버렸던 이유다. 한글 입력은 페이지가 아니라 Compose 의 숨은 입력칸이 조합을 받아 CDP <code>Input.imeSetComposition</code>·<code>Input.insertText</code> 로 넘긴다.
+</aside>
+
+<aside class="decision">
+  <strong>결정(2026-09-24, JVM 은 2026-09-25 에 위 결정으로 바뀜): 시스템 웹뷰를 감싼 <code>composewebview</code>(1.0.0-beta-02) 한 의존성으로 네 타깃을 덮는다</strong>
   후보는 넷이었다. (1) JavaFX <code>WebView</code> 를 <code>JFXPanel</code> 로 넣기 — JVM 만 되고, macOS 한 곳만 해도 <code>javafx-web</code>·<code>graphics</code>·<code>media</code> 네이티브(WebKit 을 통째로 싣는다)가 번들에 수십 MB 붙는다. 페이지를 화면 밖에서 그려 Swing 이미지로 옮기므로 스크롤이 무겁다. 버렸다. (2) KCEF(JCEF, Chromium) — 처음 켤 때 100MB 넘는 Chromium 번들을 내려받는다. 버렸다. (3) JNA 로 <code>WKWebView</code> 를 AWT 창의 <code>NSView</code> 에 직접 붙이기 — 엔진은 시스템 것이라 가장 가볍지만 좌표·포커스·수명을 전부 손으로 맞춰야 하고 Android 는 따로 짜야 한다. 버렸다. (4) 채택: <code>io.github.kdroidfilter:composewebview</code>. Android <code>android.webkit.WebView</code>, iOS <code>WKWebView</code>, JVM 은 wry(Rust) 가 띄우는 시스템 웹뷰(macOS 에서는 <code>WKWebView</code>) 를 <code>SwingPanel</code> 로 넣는다. 엔진을 싣지 않아 번들이 작고, 공통 코드 한 벌로 끝난다. Compose 1.10 으로 빌드된 베타지만 이 프로젝트의 Compose 1.12.1·Kotlin 2.4.20 에서 JVM·wasmJs·iOS·Android 가 컴파일된다.
 </aside>
 
@@ -103,7 +117,7 @@
   <tbody>
     <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>AndroidView</code> 안의 <code>android.webkit.WebView</code></td><td><a href="../platform/android.html#terminal-browser">android.html</a></td></tr>
     <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-browser">ios.html</a></td></tr>
-    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. wry 가 띄운 <code>WKWebView</code> 를 <code>SwingPanel</code> 로. 다른 운영체제는 항목이 없다</td><td><a href="../platform/jvm.html#terminal-browser">jvm.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. JCEF(Chromium) 를 화면 밖에서 그려 Compose 에 픽셀로. 다른 운영체제는 항목이 없다</td><td><a href="../platform/jvm.html#terminal-browser">jvm.html</a></td></tr>
     <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-browser">web.html</a></td></tr>
   </tbody>
 </table>
@@ -121,14 +135,15 @@
   </tbody>
 </table>
 
-<p>자동으로 확인하지 못하는 것: 실제 페이지가 뜨는지, 주소 줄로 옮기기, 탭 이름이 페이지 제목이 되는지. 네이티브 웹뷰는 테스트 화면(<code>runComposeUiTest</code>)에 붙지 않는다. <code>./gradlew :desktopApp:run</code> 과 Android 기기에서 손으로 확인한다.</p>
+<p>자동으로 확인하지 못하는 것: 실제 페이지가 뜨는지, 주소 줄로 옮기기, 탭 이름이 페이지 제목이 되는지. 네이티브 웹뷰와 Chromium 엔진은 테스트 화면(<code>runComposeUiTest</code>)에 붙지 않는다. <code>./gradlew :desktopApp:run</code> 과 Android 기기에서 손으로 확인한다.</p>
 
 <h2 id="limits">한계</h2>
 
 <ul>
-  <li>웹 페이지는 Compose 가 그리지 않는 네이티브 뷰라서 Compose 가 그리는 것이 그 위에 올라가지 못한다. 그래서 R9 대로 메뉴가 떠 있거나 탭을 끄는 동안 페이지를 치운다. 그동안 페이지가 보이지 않는다.</li>
-  <li>페이지에 키보드 포커스가 있으면 키 입력이 네이티브 뷰로 바로 가서 터미널 단축키(⌘T, ⌘W, ⌘D, ⌘1–9 …)가 듣지 않는다. 주소 줄이나 다른 창을 누른 뒤에 쓴다.</li>
-  <li>R6 대로 탭을 옮기거나 다른 탭을 보다 돌아오면 페이지를 새로 연다.</li>
+  <li>Android 의 웹 페이지는 Compose 가 그리지 않는 네이티브 뷰라서 Compose 가 그리는 것이 그 위에 올라가지 못한다. 그래서 R9 대로 메뉴가 떠 있거나 탭을 끄는 동안 페이지를 치운다. 그동안 페이지가 보이지 않는다.</li>
+  <li>Android 는 페이지에 키보드 포커스가 있으면 키 입력이 네이티브 뷰로 바로 가서 터미널 단축키가 듣지 않는다. JVM 은 키가 Compose 를 거쳐 가므로 단축키가 먼저 듣는다.</li>
+  <li>Android 는 R6 대로 탭을 옮기거나 다른 탭을 보다 돌아오면 페이지를 새로 연다.</li>
+  <li>JVM 은 열린 브라우저 탭마다 Chromium 렌더러가 살아 있다. 탭을 닫기 전까지 메모리를 쥐고, 가려진 탭의 페이지도 돈다.</li>
   <li>플랫폼마다의 한계는 각 플랫폼 문서에 있다.</li>
 </ul>
 

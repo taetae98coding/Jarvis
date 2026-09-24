@@ -63,6 +63,11 @@
   </ul>
 </aside>
 
+<aside class="note">
+  <strong>2026-09-25: JVM 엔진이 JCEF 로 바뀌었다</strong>
+  <a href="terminal-browser.html#implementation">웹 브라우저</a>의 JVM 엔진이 WKWebView(wry) 에서 Chromium(JCEF)으로 바뀌었다. 그래서 JVM 에서는 R3a·R3c·R6 이 필요 없어졌다 — 쿠키를 Chrome 이 저장한 모양 그대로(도메인 쿠키, SameSite 그대로) CDP <code>Network.setCookies</code> 로 넣고, 드롭다운·Snackbar 는 Compose 가 그린 페이지 위에 그대로 뜬다. R4 의 "시스템 웹뷰의 기본 저장소" 는 JVM 에서 엔진의 영구 저장소(앱 데이터 폴더의 <code>jcef/cache</code>)다. R8a 의 되읽기는 <code>Network.getCookies</code> 다. 나머지(R1·R2·R3·R3b·R5·R7·R8)는 그대로다. 가져오기는 JVM 에만 있으므로(R7) wry 우회였던 <code>expandCookiesForHostOnlyStore</code> 는 지운다.
+</aside>
+
 <h2 id="behavior">화면·동작</h2>
 
 <table>

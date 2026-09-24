@@ -58,6 +58,7 @@
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
+    <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
@@ -1070,36 +1071,52 @@ internal actual fun createSystemScreenAwakeDataSource(
 <p>공통 스펙: <a href="../common/terminal-browser.html">터미널에서 웹 브라우저</a></p>
 
 <h3>기술 조사</h3>
+<p>2026-09-25 에 엔진을 다시 골랐다. Claude 가 페이지를 조작하려면 CDP 가 있어야 한다(<a href="#mcp-server">MCP 서버</a>). 그 전의 조사(2026-09-24)는 아래 표의 "예전" 줄이다.</p>
 <table>
   <thead><tr><th>후보</th><th>결과</th></tr></thead>
   <tbody>
-    <tr><td><code>composewebview</code> 의 <code>WebView</code></td><td>채택. JVM actual 은 <code>wrywebview</code>(Rust wry 를 JNI 로 감싼 네이티브 라이브러리, jar 안에 macOS 용 dylib 이 들어 있다)로 시스템 웹뷰를 띄워 <code>SwingPanel</code> 에 넣는다. macOS 에서는 WebKit.framework 의 <code>WKWebView</code> 다. 주소·제목·로딩·뒤로 갈 수 있는지는 네이티브에 알림이 없어 라이브러리가 컴포지션 안에서 짧은 간격으로 다시 읽는다(보이는 브라우저 창이 있을 때만 돈다)</td></tr>
-    <tr><td>JavaFX <code>WebView</code> + <code>JFXPanel</code></td><td>버렸다. WebKit 을 통째로 싣는 <code>javafx-web</code> 네이티브가 번들을 수십 MB 늘리고, 화면 밖에서 그려 Swing 이미지로 옮겨 스크롤이 무겁다. 가볍게 그려지는(lightweight) Swing 컴포넌트라 Compose 가 위에 그릴 수 있다는 장점은 있다</td></tr>
-    <tr><td>KCEF / JCEF(Chromium)</td><td>버렸다. 처음 켤 때 100MB 넘는 Chromium 번들을 내려받는다. <code>compose-webview-multiplatform</code>(KevinnZou) 의 데스크톱 경로가 이것이다</td></tr>
-    <tr><td>JNA 로 <code>WKWebView</code> 를 창의 <code>NSView</code> 에 직접 붙이기</td><td>버렸다. wry 가 하는 일(좌표 맞추기, 포커스, 수명)을 손으로 다시 짜는 것이다</td></tr>
+    <tr><td><code>me.friwi:jcefmaven:146.0.10</code>(JCEF, CEF 146.0.10 / Chromium 146) 화면 밖 렌더링 + 직접 짠 렌더러</td><td>채택. Maven Central 하나로 끝나고(jogl·gluegen 도 <code>me.friwi</code> 로 다시 올려 둔다), 2026-05 까지 릴리스가 이어진다. <code>CefBrowser.getDevToolsClient()</code> 로 브라우저마다 CDP 를 보낸다. 네이티브는 <code>jcef-natives-macosx-arm64</code> 를 의존성으로 넣어 첫 실행에 내려받지 않는다(약 136MB, 설치 폴더에 풀기만 한다). Intel Mac 은 넣지 않았다 — 첫 실행에 jcefmaven 이 받아 온다</td></tr>
+    <tr><td>jcefmaven 의 <code>CefBrowserOsr</code></td><td>버렸다. JOGL <code>GLCanvas</code>(무거운 AWT 캔버스)에 그려서 예전 WKWebView 처럼 Compose 가 그 위에 못 그리고, 캔버스가 화면에 없으면 <code>onPaint</code> 가 GL 문맥을 못 얻어 버린다(<code>javap -c</code> 로 확인: 문맥이 없으면 곧바로 return). 대신 같은 패키지(<code>org.cef.browser</code>)에 <code>CefBrowser_N</code> 을 이은 <code>JarvisOsrBrowser</code> 를 두고 <code>CefRenderHandler</code> 를 직접 구현한다. <code>createBrowser(client, 0, url, osr = true, …)</code> 는 창 핸들 없이 만들어진다(<code>CefBrowserOsr.createImmediately</code> 가 쓰는 경로)</td></tr>
+    <tr><td>JCEF 창 모드(<code>createBrowser(url, false, false)</code> + <code>SwingPanel</code>)</td><td>버렸다. 네이티브 뷰는 컴포넌트가 화면에 붙을 때(<code>addNotify</code>) 생기고 떼면 합성이 멈춰, Claude 가 가려진 탭을 못 찍는다. 뷰를 다른 창으로 옮겨 붙이는 것은 macOS 에서 불안정하다고 알려져 있다. Compose 가 위에 못 그리는 것도 WKWebView 와 같다</td></tr>
+    <tr><td>KCEF(<code>dev.datlag:kcef:2025.03.23</code>)</td><td>버렸다. 저장소가 보관(archived)됐고 README 가 쓰지 말라고 한다. macOS 에서 네이티브가 죽는 이슈(#25)가 열려 있다. 처음 켤 때 JBR 번들 약 247MB 를 받는다</td></tr>
+    <tr><td>JetBrains Runtime 의 JCEF(<code>jbr_jcef</code>)</td><td>버렸다. 앱이 그 JBR 위에서 돌아야 해서 <code>compose.desktop</code> 의 <code>javaHome</code> 과 <code>jlink</code> 런타임 이미지를 바꿔야 한다. 런타임이 약 247MB 다</td></tr>
+    <tr><td>예전: <code>composewebview</code> 의 <code>WebView</code>(wry, <code>WKWebView</code>)</td><td>2026-09-25 에 버렸다. CDP 가 없다. Safari Web Inspector 가 쓰는 원격 인스펙터는 비공개 XPC 다. 스크립트로 만든 클릭은 <code>isTrusted = false</code> 라 막는 사이트가 있다. 2026-09-24 에는 번들이 작다는 이유로 채택했었다. 이 의존성은 이제 Android 에만 있다</td></tr>
+    <tr><td>예전: JavaFX <code>WebView</code> + <code>JFXPanel</code></td><td>버렸다. WebKit 을 통째로 싣고 CDP 가 없다</td></tr>
+    <tr><td>예전: JNA 로 <code>WKWebView</code> 를 창의 <code>NSView</code> 에 직접 붙이기</td><td>버렸다. CDP 가 없다</td></tr>
     <tr><td><code>Desktop.browse(uri)</code></td><td>버렸다. 기본 브라우저가 앱 밖에서 열려 탭이 되지 않는다</td></tr>
-    <tr><td>팝업을 따로 된 창으로(<code>System.setProperty("compose.layers.type", "WINDOW")</code>)</td><td>버렸다. 새 탭 메뉴가 네이티브 페이지 위로 올라오게 하려던 것인데, 이 값을 걸자 Compose 1.12.1 데스크톱 앱이 예외 기록 없이 곧바로 끝났다(두 번 재현, 걷어 내자 정상). <code>compose.interop.blending</code> 은 Swing 컴포넌트와 섞어 그리는 것이라 네이티브 <code>NSView</code> 에는 듣지 않는다</td></tr>
-    <tr><td>가리는 동안 웹뷰 크기를 0 으로</td><td>채택(R9). <code>WryWebViewPanel</code> 은 AWT 배치가 바뀔 때마다(<code>doLayout</code>) 네이티브 뷰의 위치·크기를 맞추므로 Compose 에서 크기를 0 으로 주면 페이지가 사라진다. 컴포지션에서 빼면 <code>removeNotify</code> 로 웹뷰가 닫혀 페이지를 새로 불러야 해서 빼지 않는다. 라이브러리에 보이기·숨기기 API 는 없다</td></tr>
-    <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. <code>os.name</code> 이 <code>Mac</code> 으로 시작하지 않으면 <code>isBrowserSupported = false</code> 라 메뉴 항목이 없다(R8). wry 네이티브를 불러 보지도 않는다</td></tr>
+    <tr><td>한글 입력: 페이지에 AWT <code>KeyEvent</code> 를 그대로 넘기기</td><td>버렸다. Compose 는 입력칸이 포커스를 가질 때만 입력기(IME)를 켠다. 그렇지 않으면 조합이 오지 않는다. 대신 페이지 위에 보이지 않는 <code>BasicTextField</code> 를 두어 조합을 받고 CDP <code>Input.imeSetComposition</code>·<code>Input.insertText</code> 로 넘긴다. Enter·Backspace·방향키·단축키는 <code>onPreviewKeyEvent</code> 에서 <code>Input.dispatchKeyEvent</code> 로 보낸다(조합 중에는 입력기에 둔다)</td></tr>
+    <tr><td>복사·붙여 넣기(⌘C·⌘V·⌘X·⌘A·⌘Z)</td><td>화면 밖 렌더링에서는 키만 보내면 macOS 편집 명령이 불리지 않는다. <code>CefFrame.copy()</code>·<code>paste()</code>·<code>cut()</code>·<code>selectAll()</code>·<code>undo()</code>·<code>redo()</code> 를 직접 부른다</td></tr>
+    <tr><td><code>&lt;select&gt;</code> 펼침 목록</td><td>화면 밖 렌더링은 펼침 목록을 따로 그려 준다(<code>onPopupShow</code>·<code>onPopupSize</code>·<code>onPaint(popup = true)</code>). 그 사각형을 본 화면 위에 겹쳐 그린다</td></tr>
+    <tr><td>새 창(<code>window.open</code>, <code>target="_blank"</code>)</td><td><code>CefLifeSpanHandler.onBeforePopup</code> 에서 막고 같은 탭에서 그 주소를 연다. 공통 스코프가 새 탭으로 여는 것은 뺐다</td></tr>
+    <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. <code>os.name</code> 이 <code>Mac</code> 으로 시작하지 않으면 <code>isBrowserSupported = false</code> 라 메뉴 항목이 없다(R8). 엔진을 띄우지 않는다</td></tr>
   </tbody>
 </table>
 
 <h3>구현</h3>
 <dl class="meta">
-  <dt>파일</dt><dd>공통 코드(<code>TerminalBrowser.kt</code>). <code>Terminal.jvm.kt</code> 의 <code>isBrowserSupported</code></dd>
-  <dt>동작</dt><dd>공통 스펙 R1–R9. 새 탭 메뉴(<code>DropdownMenu</code>)는 + 바로 아래, 즉 브라우저 창 위로 펼쳐진다. 네이티브 뷰는 Compose 캔버스보다 위에 있어서 같은 캔버스에 그리는 팝업은 페이지 아래에 가려진다(치우기 전에는 첫 항목 반쯤만 보였다). 메뉴가 떠 있는 동안 페이지 크기를 0 으로 줄여 치운다</dd>
-  <dt>실패</dt><dd>페이지를 불러오지 못하면 <code>WKWebView</code> 가 빈 페이지를 보인다. 네이티브 라이브러리를 불러오지 못하면 브라우저 창 자리에서 예외가 난다 — macOS arm64·x64 dylib 이 jar 에 있어 macOS 에서는 일어나지 않는다</dd>
+  <dt>파일</dt><dd><code>core/browser/src/jvmMain/kotlin/…/browser/BrowserEngine.kt</code>(엔진 한 벌·탭 id 별 페이지), <code>BrowserPageState.kt</code>(주소·제목·뒤로/앞으로·불러오는 중·최신 픽셀), <code>org/cef/browser/JarvisOsrBrowser.kt</code>(렌더러), <code>DevTools.kt</code>(CDP 호출을 <code>suspend</code> 로), <code>BrowserSurface.kt</code>(그리기·입력). 터미널은 <code>feature/terminal/ui/src/jvmMain/.../BrowserPage.jvm.kt</code> 의 actual 이 이것을 부른다</dd>
+  <dt>엔진</dt><dd>처음 페이지가 필요할 때 <code>Dispatchers.IO</code> 에서 한 번 띄운다. 설치 폴더 <code>~/Library/Application Support/Jarvis/jcef/bundle</code>, 저장소 <code>…/jcef/cache</code>(<code>root_cache_path</code>·<code>cache_path</code>, 쿠키가 앱을 다시 켜도 남는다), <code>windowless_rendering_enabled = true</code>, 초당 60장. 앱이 끝날 때 <code>CefApp.dispose()</code></dd>
+  <dt>그리기</dt><dd><code>getViewRect</code> 는 화면이 잰 크기(dp = CSS 픽셀, 처음 보이기 전에는 1280×800), <code>getScreenInfo</code> 의 배율은 창의 밀도(Retina 2.0). <code>onPaint</code> 의 BGRA 버퍼를 페이지 한 장의 <code>ByteArray</code> 에 옮겨 두고 <code>StateFlow</code> 의 세대 번호를 올린다. 화면은 세대가 바뀔 때 Skia <code>Image.makeRaster</code> 로 <code>ImageBitmap</code> 을 만들어 그린다. 앞의 비트맵은 곧바로 놓는다(<a href="#device-mirroring">영상 스트림 R10</a> 과 같은 이유)</dd>
+  <dt>입력</dt><dd>누르기·끌기·떼기·움직이기·휠을 CSS 좌표로 <code>Input.dispatchMouseEvent</code>. 커서 모양은 <code>onCursorChange</code> 를 <code>PointerIcon</code> 으로(손·글자·기본). 페이지를 누르면 숨은 입력칸이 포커스를 받고 그룹이 포커스를 받는다</dd>
+  <dt>수명</dt><dd>페이지는 탭 id 로 든다. <code>TerminalViewModel.reconcile</code> 이 본 적 있는 탭 중 사라진 것만 <code>BrowserEngine.close</code> 로 닫는다 — Claude 가 막 붙인 탭의 페이지를, 그 탭이 아직 없는 옛 배치로 닫지 않기 위해서다. <a href="#mcp-server">MCP</a> 의 <code>browser_close</code> 는 스스로 닫는다</dd>
+  <dt>실패</dt><dd>엔진을 띄우지 못하면(네이티브 없음·풀기 실패) 페이지 자리에 "[웹 페이지를 열 수 없습니다]" 를 보이고 도구는 오류다. 페이지를 불러오지 못하면 Chromium 의 오류 페이지가 보인다</dd>
 </dl>
 
 <h3>한계</h3>
 <ul>
-  <li>공통 스펙의 <a href="../common/terminal-browser.html#limits">한계</a>(메뉴·끌기 동안 페이지가 사라진다, 페이지에 포커스가 있으면 단축키가 듣지 않는다)는 이 타깃에서 생긴다.</li>
-  <li>Google 은 이 웹뷰의 User-Agent 를 보고 예전 모양의 첫 페이지를 준다.</li>
-  <li><code>composewebview</code> 는 베타(1.0.0-beta-02)다. Compose 1.10 으로 빌드된 것을 1.12.1 위에서 쓴다.</li>
+  <li>엔진 네이티브 약 136MB 가 앱에 붙고, 처음 페이지를 열 때 설치 폴더에 푸는 데 몇 초 걸린다.</li>
+  <li>화면 밖 렌더링이라 드래그 앤 드롭(파일을 페이지로 끌어 놓기, 페이지 안 끌기의 시스템 드래그)과 오른쪽 클릭 메뉴가 없다.</li>
+  <li>숨은 입력칸을 거쳐 조합하므로 조합 중 글자가 페이지의 입력칸 위치가 아니라 페이지 안에 그대로 그려진다(Chromium 이 조합 밑줄을 그린다). 한자 변환 창 위치는 맞지 않을 수 있다.</li>
+  <li>JavaScript 대화 상자(<code>alert</code>·<code>confirm</code>·<code>prompt</code>)는 Chromium 기본 처리다. 화면 밖 렌더링에서는 보이지 않고 곧바로 취소된다.</li>
+  <li>Google 은 이 엔진의 User-Agent 를 Chrome 으로 보고 요즘 첫 페이지를 준다(WKWebView 때의 옛 모양 문제는 사라졌다).</li>
 </ul>
 
 <h3>검증</h3>
-<p>메뉴와 저장은 <code>JarvisAppTerminalTest</code>(skiko)·<code>TerminalWorkspaceStoreTest</code> 가 확인한다. 실제 페이지는 <code>./gradlew :desktopApp:run</code> → 터미널 → + → 웹 브라우저로 손으로 확인한다. 2026-09-24 에 macOS(arm64)에서 페이지가 뜨고, 탭 이름이 "Google" 이 되고, 주소칸에 <code>https://www.google.com/</code> 이 보이고, 앱을 다시 켜도 탭이 되살아나고, 메뉴를 여는 동안 페이지가 치워졌다가 닫으면 돌아오는 것을 확인했다. 주소칸에 쳐서 옮기기는 <span class="badge untested">미검증</span>이다.</p>
+<p>메뉴와 저장은 <code>JarvisAppTerminalTest</code>(skiko)·<code>TerminalWorkspaceStoreTest</code> 가 확인한다. 실제 페이지는 <code>./gradlew :desktopApp:run</code> → 터미널 → + → 웹 브라우저로 손으로 확인한다. 2026-09-24 의 WKWebView 확인 기록은 엔진을 바꾸면서 지웠다 — git 히스토리에 있다.</p>
+<ul>
+  <li>2026-09-25(JCEF): 첫 페이지까지 약 5초(처음 풀 때), 그 뒤 0.4초. 탭 이름이 페이지 제목("Example Domain")이 되고, 주소칸이 이동을 따라가고, 페이지의 링크를 마우스로 누르면 옮겨 가고, 입력칸을 누르고 친 글자와 Backspace 가 들어갔다(합성 키 입력). 가려진 탭의 제목도 탭 줄에 보였다.</li>
+  <li><span class="badge untested">미검증</span>: 실제 한글 입력기의 조합(합성 입력으로는 조합이 생기지 않는다), 트랙패드·휠 스크롤(프로세스에 보낸 휠 이벤트는 AWT 에 닿지 않았다 — CDP 휠은 된다), ⌘C·⌘V, <code>&lt;select&gt;</code> 펼침 목록, 커서 모양, Chrome 쿠키 가져오기, JavaScript 대화 상자.</li>
+</ul>
 </section>
 
 <section class="feature" id="terminal-device">
@@ -1214,6 +1231,77 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>검증</h3>
 <p><code>ControlMessagesTest</code>·<code>ScrcpyStreamTest</code>(jvmTest)가 바이트 배치와 헤더 파서를, <code>HostAgentServerTest</code> 가 JPEG 응답을 확인한다. 실제 기기 왕복은 <span class="badge untested">미검증</span>으로 시작해 아래에 결과를 적는다.</p>
 <p id="device-mirroring-manual">수동 확인 결과: (구현 뒤 기록)</p>
+</section>
+
+<section class="feature" id="mcp-server">
+<h2>Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버) <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/mcp-server.html">Claude 에게 브라우저·기기 조작 맡기기</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>갈래</th><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="3">전송</td><td>JDK <code>com.sun.net.httpserver.HttpServer</code> + Streamable HTTP(JSON 응답)</td><td>채택. <a href="#emulator">호스트 에이전트</a>와 같은 서버. 루프백에만 묶는다. 요청마다 스레드를 주는 풀에서 받고, 그 스레드가 <code>runBlocking(Dispatchers.IO)</code> 로 도구가 끝나기를 기다린 뒤 응답을 쓴다(한 요청의 스레드라 다른 요청을 막지 않는다)</td></tr>
+    <tr><td><code>io.modelcontextprotocol:kotlin-sdk</code></td><td>버렸다. Ktor 서버를 끌고 온다. 공통 스펙의 <a href="../common/mcp-server.html#protocol">결정</a></td></tr>
+    <tr><td>stdio 서버</td><td>버렸다. Claude 가 세션마다 프로세스를 새로 띄운다. 그 프로세스는 이미 떠 있는 앱의 탭·브라우저에 닿을 수 없어서 결국 앱으로 넘기는 중계가 하나 더 필요하다</td></tr>
+    <tr><td rowspan="2">Claude 연결</td><td><code>claude --bg … --mcp-config '&lt;JSON&gt;'</code></td><td>채택. <code>ClaudeBackground.claudeStartScript</code> 와 직접 띄우는 경로(<code>claudeForegroundScript</code>) 모두에 붙인다. <code>--mcp-config</code> 는 값을 여럿 받는 인자라 뒤에 옵션(<code>--dangerously-skip-permissions</code>)이 와야 다음 낱말을 먹지 않는다</td></tr>
+    <tr><td><code>claude mcp add --scope user</code></td><td>버렸다. 사용자의 전역 설정을 앱이 고친다. 공통 스펙의 스코프</td></tr>
+    <tr><td rowspan="5">브라우저</td><td>JCEF <code>me.friwi:jcefmaven:146.0.10</code>(CEF 146 / Chromium 146) + 직접 짠 화면 밖 렌더러</td><td>채택. <a href="#terminal-browser">웹 브라우저</a> 참고. CDP 는 브라우저마다 <code>CefBrowser.getDevToolsClient().executeDevToolsMethod(method, paramsJson)</code> 로 보낸다(원격 디버깅 포트 없음)</td></tr>
+    <tr><td><code>remote_debugging_port</code> + WebSocket</td><td>버렸다. 포트가 열리고, <code>/json/list</code> 의 대상과 탭 id 를 주소로 짝지어야 한다(같은 주소 탭이 둘이면 못 가른다). DevTools 클라이언트는 그 짝이 처음부터 맞다</td></tr>
+    <tr><td><code>Page.captureScreenshot</code></td><td>채택(캡처). <code>clip = {0, 0, 뷰포트 CSS 크기, scale 1}</code> 로 찍어 이미지 픽셀 = CSS 픽셀(공통 R12). 화면 밖 렌더링이라 탭이 가려져도 찍힌다</td></tr>
+    <tr><td><code>Input.dispatchMouseEvent</code>·<code>dispatchKeyEvent</code>·<code>insertText</code></td><td>채택(입력, 공통 R11). 사람의 입력도 같은 길이다</td></tr>
+    <tr><td>DOM 을 도는 스크립트(<code>Runtime.evaluate</code>)</td><td>채택(<code>browser_snapshot</code>). <code>Accessibility.getFullAXTree</code> 는 노드마다 좌표가 없어 <code>DOM.getBoxModel</code> 을 노드 수만큼 더 불러야 한다. 스크립트 한 번이 보이는 상호작용 요소의 역할·이름·<code>getBoundingClientRect</code> 가운데를 한꺼번에 준다</td></tr>
+    <tr><td rowspan="7">Android</td><td>scrcpy 제어 소켓(<a href="#device-mirroring">영상 스트림</a>과 같은 세션)</td><td>채택(탭·스와이프·키·글자). 탭·스와이프는 기존 <code>INJECT_TOUCH_EVENT</code> 를 시간에 맞춰 <code>DOWN</code>→<code>MOVE</code>…→<code>UP</code> 으로 보낸다. 키는 <code>INJECT_KEYCODE</code>(0), ASCII 글자는 <code>INJECT_TEXT</code>(1, 최대 300 바이트씩), 그 밖의 글자(한글 등)는 <code>SET_CLIPBOARD</code>(9, paste = true)로 붙여 넣는다 — <code>INJECT_TEXT</code> 는 기기의 <code>KeyCharacterMap</code> 에 있는 글자만 넣는다. 형식은 v4.1 <code>ControlMessageReader</code></td></tr>
+    <tr><td><code>adb shell input tap|swipe|text|keyevent</code></td><td>버렸다. 부를 때마다 기기가 Java VM 을 띄워 0.2~0.4초, <code>input text</code> 는 ASCII 만 된다(<a href="#device-mirroring">영상 스트림 조사</a>와 같다)</td></tr>
+    <tr><td>스트림의 최신 프레임</td><td>채택(캡처). 도구가 부르는 동안 세션을 구독해 두고(<code>AndroidAutomation.lease</code>, 마지막 호출 뒤 30초) 최신 <code>Pixels</code> 를 받은 자리에서 복사해 줄이고 JPEG 로 준다. 스트림을 못 올리면 <code>adb exec-out screencap -p</code> 로 한 장 찍는다</td></tr>
+    <tr><td><code>adb exec-out uiautomator dump /dev/tty</code></td><td>채택(UI 트리). SM-X906N 에서 약 3초. XML 의 <code>bounds</code>(디스플레이 픽셀)를 <code>wm size</code> 와 캡처 크기의 비로 이미지 좌표로 바꾸고 — 루트 노드는 앱 창이라 화면 분할이면 디스플레이보다 작다 — 글자·<code>content-desc</code>·<code>resource-id</code> 가 있거나 누를 수 있는 노드만 남긴다</td></tr>
+    <tr><td>기기 목록</td><td>한 번 세는 데 7초쯤 걸린다(<code>xctrace</code>·<code>devicectl</code>·기기마다 <code>adb</code>). 도구가 기기 이름을 찾을 때마다 새로 세지 않도록, 마지막 도구 호출 뒤 60초 동안 목록을 구독해 둔다(공유 Flow 의 replay 가 곧바로 답한다)</td></tr>
+    <tr><td><code>adb shell monkey -p &lt;패키지&gt; -c android.intent.category.LAUNCHER 1</code></td><td>채택(앱 실행). <code>am start</code> 는 액티비티 이름을 알아야 한다</td></tr>
+    <tr><td>접이식 기기의 두 번째 디스플레이</td><td>하지 않는다. 스트림이 첫 디스플레이만 받는다(<a href="#emulator-control">기기 목록</a>)</td></tr>
+    <tr><td rowspan="7">iOS</td><td>WebDriverAgent(appium/WebDriverAgent v16.12.10)</td><td>채택. XCUITest 러너 앱이 기기 안에서 HTTP(<code>USE_PORT</code>)를 연다. <code>/wda/tap</code>·<code>/wda/dragfromtoforduration</code>·<code>/wda/keys</code>·<code>/wda/pressButton</code>·<code>/wda/homescreen</code>·<code>/screenshot</code>·<code>/source?format=json</code>·<code>/wda/apps/launch</code>·<code>/window/size</code>. 좌표는 포인트다</td></tr>
+    <tr><td>WDA 소스(GitHub 태그 <code>v16.12.10</code> 의 zip)를 <code>xcodebuild build-for-testing</code> → <code>xcodebuild test-without-building -xctestrun</code></td><td>채택(시뮬레이터·실물 공통). 처음 쓸 때 소스를 <code>~/Library/Application Support/Jarvis/wda/16.12.10/</code> 에 받아 풀고(<code>ditto -x -k</code>), 시뮬레이터는 <code>CODE_SIGNING_ALLOWED=NO</code> 로, 실물은 서명해서 빌드한다(M4 Mac 에서 약 70초, 런타임·팀마다 한 번). 띄운 <code>xcodebuild</code> 는 테스트가 끝나지 않으므로 앱이 끝날 때까지 산다. 포트는 <code>TEST_RUNNER_USE_PORT</code>(xcodebuild 가 <code>TEST_RUNNER_</code> 접두사를 떼어 러너에 넘긴다)로 시뮬레이터마다 빈 포트를 주고, 출력의 <code>ServerURLHere-&gt;http://…&lt;-ServerURLHere</code> 로 주소를 안다. 2026-09-25 iOS 27.0 시뮬레이터(iPhone 18 Pro Max)에서 16초 만에 <code>/status</code> 가 답했다</td></tr>
+    <tr><td>실물 서명</td><td>팀 id 는 키체인의 "Apple Development" 인증서(<code>security find-certificate -a -c "Apple Development" -p</code>) 주체의 OU 에서 읽는다. 러너 대상의 번들 id 만 <code>io.github.taetae98coding.jarvis.wda.&lt;팀 id&gt;</code> 로 바꾼다(<code>project.pbxproj</code> 의 <code>com.facebook.WebDriverAgentRunner</code> 를 바꾼다 — Appium 의 <code>updatedWDABundleId</code> 와 같은 방식). 명령줄 <code>PRODUCT_BUNDLE_IDENTIFIER=</code> 는 라이브러리 대상까지 같은 id 로 만들어 버렸다. <code>-allowProvisioningUpdates DEVELOPMENT_TEAM=&lt;팀 id&gt;</code> 가 Xcode 에 로그인된 계정으로 프로파일을 만든다</td></tr>
+    <tr><td>미리 빌드된 <code>WebDriverAgentRunner-Build-Sim-arm64.zip</code> + <code>simctl install</code>·<code>simctl launch</code></td><td>버렸다. 설치·실행은 되지만 iOS 27.0 시뮬레이터에서 러너가 "Failed to background test runner within 30.0s"(<code>com.apple.dt.xctest.ui-testing.error</code> 10300)로 UI 테스트를 시작하지 못해 HTTP 를 열지 않는다(2026-09-25 재현). <code>xcodebuild</code> 없이 띄운 러너는 testmanagerd 가 배경으로 보내 주지 않는다 — 실물의 <code>devicectl</code> 경로(appium/appium#22636)와 같은 문제다. iOS 26 이하 시뮬레이터에서는 되지만 한 벌로 맞춘다</td></tr>
+    <tr><td>실물: 미리 빌드된 <code>WebDriverAgentRunner-Runner.zip</code> 을 다시 서명 + <code>devicectl device process launch</code></td><td>버렸다. 프로비저닝 프로파일을 따로 만들어야 하고, iOS 27 에서는 <code>devicectl</code> 로 띄운 러너가 HTTP 서버를 열지 않는다(appium/appium#22636)</td></tr>
+    <tr><td><code>idb</code>(fb-idb), AXe</td><td>버렸다. Homebrew·pip 설치와 상주 companion 을 전제한다. 공통 R15(사용자가 따로 설치하지 않는다)</td></tr>
+    <tr><td><code>CGEvent</code> 를 Simulator.app 창에 보내기</td><td>버렸다. 사용자의 마우스 커서가 움직이고, 손쉬운 사용 권한이 필요하며, 창이 가려지면 엉뚱한 곳을 누른다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>서버</dt><dd><code>feature/mcp/data/src/jvmMain/.../McpServer.kt</code> — <code>startMcpServer(toolbox, port = 47891): AutoCloseable</code>. <code>McpProtocol.kt</code> 가 JSON-RPC 한 통을 <code>McpToolbox</code> 호출로 바꾸고 응답 JSON 을 만든다(HTTP 와 떼어 두어 테스트가 소켓 없이 돈다). <code>:shared</code> 의 <code>jvmMain</code> 에 있는 <code>startJarvisMcpServer()</code> 가 Koin 에서 <code>McpToolbox</code> 를 꺼내 띄우고, <code>desktopApp</code> 의 <code>main</code> 이 Koin 다음에 부른다</dd>
+  <dt>Claude</dt><dd><code>feature/terminal/data/src/jvmMain/.../ClaudeBackground.kt</code> — <code>jarvisMcpConfig(sessionId)</code> 를 셸 인용해 <code>--mcp-config</code> 로. 이미 살아 있는 세션에 붙을 때(<code>claude attach</code>)는 바뀌지 않는다(공통 한계)</dd>
+  <dt>탭</dt><dd><code>feature/terminal/data/src/commonMain/.../WorkspaceAgentTabs.kt</code> — <code>TerminalWorkspaceRepository.updateWorkspace</code> 한 번 안에서 찾고 붙인다(동시에 두 도구가 불려도 같은 기기 탭이 두 번 생기지 않는다). <code>browser_close</code> 는 탭을 닫은 뒤 <code>McpToolbox</code> 가 <code>BrowserAutomation.close</code> 로 페이지도 닫는다 — 터미널 화면이 떠 있지 않으면 <code>TerminalViewModel</code> 이 페이지를 닫지 못하기 때문이다</dd>
+  <dt>브라우저</dt><dd><code>core/browser/src/jvmMain/.../CefBrowserAutomation.kt</code>. 페이지마다 <code>Emulation.setFocusEmulationEnabled(true)</code> 를 걸어 가려진 탭에서도 포커스·캐럿이 살아 있게 한다. <code>navigate</code>·<code>back</code> 은 <code>CefLoadHandler.onLoadingStateChange(isLoading = false)</code> 가 올 때까지(최대 15초) 기다린다</dd>
+  <dt>Android</dt><dd><code>feature/emulator/data/src/jvmMain/.../automation/AndroidAutomation.kt</code>. 이미지 크기는 <code>scaleToFit(frameW, frameH, 1280)</code> 한 규칙이고 입력 좌표도 같은 규칙으로 되돌린다 — 캡처와 입력 사이에 상태를 들지 않는다. 회전으로 프레임 크기가 바뀌면 다음 캡처부터 새 크기다</dd>
+  <dt>iOS</dt><dd><code>…/automation/WebDriverAgent.kt</code>(HTTP 클라이언트, <code>java.net.http.HttpClient</code>), <code>WdaRunner.kt</code>(소스 내려받기·빌드·<code>xcodebuild</code> 실행). 기기마다 <code>(포트 또는 주소, 세션 id)</code> 를 메모리에 든다. <code>/status</code> 가 답하지 않으면 다시 띄운다. 캡처는 <code>/screenshot</code> 의 PNG 를 <code>/window/size</code> 포인트 크기로 줄여 JPEG 로 준다(공통 R17)</dd>
+  <dt>실패</dt><dd><code>AutomationException</code> 의 문구: 기기가 없음, 조작할 수 없는 기기(꺼진 AVD 에 입력), Xcode 없음, WDA 내려받기 실패, 서명 팀 없음, 기기 신뢰 안 됨(<code>xcodebuild</code> 출력에서 찾는다), 시간 초과. 모두 도구 오류로 끝나고 서버는 계속 돈다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>WDA 를 처음 준비하는 데 소스 내려받기와 빌드로 1~2분, 그 뒤 앱을 켤 때마다 러너를 띄우는 데 15~20초 걸린다. 앱이 끝나면 러너도 끝난다.</li>
+  <li>실물 iOS 는 Xcode 에 개발 팀 계정이 있어야 하고, 무료 개인 팀이면 7일마다 프로파일이 만료돼 다시 빌드한다. 처음 올린 뒤 기기의 설정 → 일반 → VPN 및 기기 관리에서 개발자를 신뢰해야 한다.</li>
+  <li>실물 iOS 는 Wi-Fi 주소로 닿는다. 기기와 Mac 이 다른 네트워크면 도구가 시간 초과로 끝난다.</li>
+  <li>Android 글자 입력의 비 ASCII 경로는 기기 클립보드를 덮어쓴다.</li>
+  <li><code>uiautomator dump</code> 는 애니메이션이 도는 화면에서 "could not get idle state" 로 실패할 수 있다. 그때는 오류다.</li>
+  <li>엔진이 뜬 뒤에는 SIGTERM(<code>kill</code>)으로 앱이 끝나지 않았다(2026-09-25). Chromium 이 신호 처리기를 바꾼 것으로 보인다. 창을 닫으면 정상으로 끝난다.</li>
+  <li>macOS 가 아닌 데스크톱은 분기가 없다. 서버는 뜨지만 브라우저 엔진이 없어 브라우저 도구가 오류이고, <code>adb</code> 가 있으면 Android 도구만 된다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동: 공통 스펙의 <a href="../common/mcp-server.html#verification">검증</a> 표. 수동(2026-09-25, macOS arm64, Xcode 27.0, Claude Code 2.1.282). 개발 인스턴스는 <code>JAVA_TOOL_OPTIONS=-Duser.home=&lt;임시 폴더&gt;</code> 로 띄워 사용자의 작업 공간을 건드리지 않았다.</p>
+<ul>
+  <li>R1·R4: 서버가 <code>127.0.0.1:47891</code> 에 뜨고, 호스트 에이전트 포트(47890)를 다른 Jarvis 가 쓰고 있어도 함께 뜬다.</li>
+  <li>R2·R3: Claude 탭을 여니 <code>claude --bg … --mcp-config</code> 세션이 1초 안에 서버에 붙었고, 그 세션의 <code>/mcp</code> 에 "✔ jarvis 21 tools" 가 보였다. <code>claude -p --mcp-config '&lt;같은 JSON&gt;'</code> 로 띄운 Claude 가 스스로 <code>browser_open</code>·<code>browser_snapshot</code>(Hacker News 첫 기사 제목)과 <code>device_list</code>·<code>device_screenshot</code>(iOS 시뮬레이터)을 불렀다.</li>
+  <li>R5·R6: 두 도구가 호출한 그룹 끝에 브라우저 탭·기기 탭을 붙였고, 선택된 탭·패널은 그대로였다. 같은 기기를 다시 써도 탭이 늘지 않았다.</li>
+  <li>R10–R12: 한 번도 보이지 않은 탭에서 스크린샷(1280×800)·스냅숏·클릭이 됐다. 탭을 누르니 같은 페이지가 탭 크기(660×424 CSS)로 보였고, 보이는 동안 Claude 의 클릭으로 페이지가 바뀌었다. 스크립트로 잰 클릭은 <code>isTrusted = true</code>, <code>Input.insertText</code> 로 "안녕 hello" 가 들어갔다.</li>
+  <li>R14: SM-X906N(무선 adb, 가로 2960×1848)에서 캡처(1280×799, 두 번째부터 70ms), 탭으로 설정의 "데이터 사용" 열기, <code>back</code>·<code>home</code>, UI 트리(화면 분할 상태)가 됐다.</li>
+  <li>R15: iPhone 18 Pro Max(iOS 27.0) 시뮬레이터에서 처음 호출이 WDA 내려받기·빌드·실행까지 43초, 캡처(440×956)·앱 실행·UI 트리가 됐다. 탭·글자·스와이프는 도구로 확인하지 못했다 — 화면에 다른 앱의 권한 요청 창이 떠 있었고, 사용자의 앱 상태라 누르지 않았다. 같은 러너에 <code>/wda/tap</code> 을 직접 보낸 것은 성공했다. <span class="badge untested">미검증</span></li>
+  <li>R16: <span class="badge untested">미검증</span>. 이 머신의 실물 iPhone·iPad 는 "available (paired)" 였지만 연결되지 않아 <code>xctrace</code> 목록(= <code>device_list</code>)에 나오지 않았다.</li>
+  <li>앱 창을 닫으면 앱·WDA 의 <code>xcodebuild</code>·Chromium 도우미가 모두 끝났다.</li>
+</ul>
 </section>
 
 <section class="feature" id="design-system">

@@ -8,6 +8,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(projects.feature.emulator.domain)
+            // Claude 의 기기 도구 이음새(docs/common/mcp-server.html#modules).
+            implementation(projects.core.automation)
             // 폴링 조회 규칙을 쓴다.
             implementation(projects.core.data)
             implementation(libs.kotlinx.serialization.json)

@@ -10,7 +10,15 @@ kotlin {
             api(projects.feature.terminal.domain)
             implementation(projects.core.designsystem)
             implementation(projects.core.ui)
+        }
+
+        androidMain.dependencies {
+            // 시스템 웹뷰. JVM 은 :core:browser 의 Chromium 을 쓴다(docs/common/terminal-browser.html#implementation).
             implementation(libs.compose.webview)
+        }
+
+        jvmMain.dependencies {
+            implementation(projects.core.browser)
         }
     }
 }

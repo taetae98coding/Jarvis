@@ -31,11 +31,11 @@ class TerminalCommandTest {
     @Test
     fun newClaudeSessionIsNamedAfterThePaneSessionId() {
         assertEquals(
-            "claude --bg --name 'jarvis-e0c0' --dangerously-skip-permissions",
+            "claude --bg --name 'jarvis-e0c0' --mcp-config '${jarvisMcpConfig("e0c0")}' --dangerously-skip-permissions",
             claudeStartScript("e0c0", resume = null),
         )
         assertEquals(
-            "claude --bg --name 'jarvis-e0c0' --resume 'f1d1' --dangerously-skip-permissions",
+            "claude --bg --name 'jarvis-e0c0' --resume 'f1d1' --mcp-config '${jarvisMcpConfig("e0c0")}' --dangerously-skip-permissions",
             claudeStartScript("e0c0", resume = "f1d1"),
         )
     }
@@ -43,12 +43,20 @@ class TerminalCommandTest {
     @Test
     fun foregroundFallbackShowsWhyThenResumesOrStarts() {
         assertEquals(
-            "printf '%s\\n\\n' 'Workspace not trusted.'; claude --dangerously-skip-permissions --session-id 'e0c0'",
+            "printf '%s\\n\\n' 'Workspace not trusted.'; claude --mcp-config '${jarvisMcpConfig("e0c0")}' --dangerously-skip-permissions --session-id 'e0c0'",
             claudeForegroundScript("e0c0", resume = null, reason = "Workspace not trusted.\n"),
         )
         assertEquals(
-            "claude --dangerously-skip-permissions --resume 'f1d1'",
+            "claude --mcp-config '${jarvisMcpConfig("e0c0")}' --dangerously-skip-permissions --resume 'f1d1'",
             claudeForegroundScript("e0c0", resume = "f1d1", reason = ""),
+        )
+    }
+
+    @Test
+    fun mcpConfigPointsAtTheAppServerWithThePaneSessionHeader() {
+        assertEquals(
+            """{"mcpServers":{"jarvis":{"type":"http","url":"http://127.0.0.1:47891/mcp","headers":{"X-Jarvis-Session":"e0c0"}}}}""",
+            jarvisMcpConfig("e0c0"),
         )
     }
 

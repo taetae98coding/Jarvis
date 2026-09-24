@@ -20,6 +20,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /**
  * adb 시리얼로 붙은 기기(에뮬레이터·실물 Android)의 화면을 scrcpy 영상 스트림으로 받고, 제스처를 같은
@@ -39,6 +42,22 @@ internal class ScreenMirror(
         val connection = sessions[serial]?.connection?.get() ?: return
         withContext(Dispatchers.IO) {
             runCatching { connection.send(ControlMessages.encode(gesture)) }
+        }
+    }
+
+    /**
+     * 제어 소켓에 메시지 하나를 쓴다. [sendGesture] 와 달리 세션이 막 올라오는 중이면 [timeout] 까지 기다린다 — 도구는
+     * 화면을 보는 구독(MCP 의 기기 임대)을 막 시작한 참일 수 있다. 끝내 연결이 없으면 false 다.
+     */
+    suspend fun send(serial: String, message: ByteArray, timeout: Duration = MirrorConnectTimeout): Boolean {
+        val deadline = TimeSource.Monotonic.markNow() + timeout
+        while (true) {
+            val connection = sessions[serial]?.connection?.get()
+            if (connection != null) {
+                return withContext(Dispatchers.IO) { runCatching { connection.send(message) }.isSuccess }
+            }
+            if (deadline.hasPassedNow()) return false
+            delay(ConnectionPollInterval)
         }
     }
 
@@ -100,3 +119,5 @@ internal class ScreenMirror(
         }
     }
 }
+
+private val ConnectionPollInterval = 50.milliseconds

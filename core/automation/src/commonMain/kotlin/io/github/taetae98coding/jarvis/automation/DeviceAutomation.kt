@@ -1,0 +1,53 @@
+package io.github.taetae98coding.jarvis.automation
+
+/**
+ * Android·iOS 기기를 조작한다(docs/common/mcp-server.html R13–R18). 좌표는 [screenshot] 이 준 이미지의 픽셀이다.
+ * 구현은 기기 도구를 직접 부를 수 있는 타깃만 Koin 에 등록한다.
+ */
+interface DeviceAutomation {
+    suspend fun devices(): List<AutomationDevice>
+
+    suspend fun boot(deviceId: String)
+
+    suspend fun screenshot(deviceId: String): AutomationImage
+
+    suspend fun tap(deviceId: String, x: Int, y: Int, durationMs: Long)
+
+    suspend fun swipe(deviceId: String, fromX: Int, fromY: Int, toX: Int, toY: Int, durationMs: Long)
+
+    suspend fun type(deviceId: String, text: String)
+
+    suspend fun press(deviceId: String, key: DeviceKey)
+
+    /** 요소마다 한 줄. 좌표는 [screenshot] 과 같은 이미지 픽셀이다. */
+    suspend fun uiTree(deviceId: String): String
+
+    suspend fun launchApp(deviceId: String, appId: String)
+}
+
+data class AutomationDevice(
+    val id: String,
+    val name: String,
+    val platform: AutomationPlatform,
+    val isPhysical: Boolean,
+    val isRunning: Boolean,
+    val canControl: Boolean,
+)
+
+enum class AutomationPlatform { ANDROID, IOS }
+
+enum class DeviceKey(val wireName: String) {
+    BACK("back"),
+    HOME("home"),
+    APP_SWITCH("app_switch"),
+    ENTER("enter"),
+    DELETE("delete"),
+    POWER("power"),
+    VOLUME_UP("volume_up"),
+    VOLUME_DOWN("volume_down"),
+    ;
+
+    companion object {
+        fun fromWireName(name: String): DeviceKey? = entries.firstOrNull { it.wireName == name }
+    }
+}

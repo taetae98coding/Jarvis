@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.shared
 
+import io.github.taetae98coding.jarvis.browser.browserModule
 import io.github.taetae98coding.jarvis.data.PlatformContext
 import io.github.taetae98coding.jarvis.data.appinfo.appInfoDataModule
 import io.github.taetae98coding.jarvis.data.emulator.emulatorDataModule
@@ -8,6 +9,7 @@ import io.github.taetae98coding.jarvis.data.screen.screenDataModule
 import io.github.taetae98coding.jarvis.data.terminal.terminalDataModule
 import io.github.taetae98coding.jarvis.domain.appinfo.appInfoDomainModule
 import io.github.taetae98coding.jarvis.domain.emulator.emulatorDomainModule
+import io.github.taetae98coding.jarvis.domain.mcp.mcpDomainModule
 import io.github.taetae98coding.jarvis.domain.rotation.rotationDomainModule
 import io.github.taetae98coding.jarvis.domain.screen.screenDomainModule
 import io.github.taetae98coding.jarvis.domain.terminal.terminalDomainModule
@@ -45,6 +47,7 @@ internal fun jarvisModules(context: PlatformContext): List<Module> =
         screenDomainModule, screenDataModule, screenUiModule,
         rotationDomainModule, rotationDataModule, rotationUiModule,
         terminalDomainModule, terminalDataModule, terminalUiModule,
+        browserModule, mcpDomainModule,
         appUiModule,
     )
 
