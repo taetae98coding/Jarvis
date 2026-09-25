@@ -204,7 +204,14 @@ internal fun TerminalPane(
             .scrollable(
                 orientation = Orientation.Vertical,
                 state = rememberScrollableState { delta ->
-                    state.scrollBy(delta, cell.height.toFloat())
+                    // 터치 드래그는 호버가 없어 위치를 모른다. 그때는 커서 칸이다.
+                    val at = pointer
+                    state.scrollBy(
+                        pixels = delta,
+                        lineHeight = cell.height.toFloat(),
+                        column = at?.let { (it.x / cell.width).toInt() } ?: state.emulator.cursorColumn,
+                        row = at?.let { (it.y / cell.height).toInt() } ?: state.emulator.cursorRow,
+                    )
                     delta
                 },
             )

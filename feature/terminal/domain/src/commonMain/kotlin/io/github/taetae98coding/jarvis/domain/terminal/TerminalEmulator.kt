@@ -40,6 +40,18 @@ class TerminalEmulator(
     var focusReporting: Boolean = false
         private set
 
+    /** DECSET 9·1000·1002·1003 중 하나. 휠만 보고한다(docs/common/terminal-scroll.html R8). */
+    var mouseTracking: Boolean = false
+        private set
+
+    /** DECSET 1006. 마우스 보고를 `ESC [ <` 형태로 보낸다. */
+    var sgrMouse: Boolean = false
+        private set
+
+    /** DECSET 1007. 마우스 보고가 꺼진 대체 화면에서 휠을 방향키로 보낸다. xterm 과 달리 처음부터 켜져 있다(docs/common/terminal-scroll.html 의 결정). */
+    var alternateScroll: Boolean = true
+        private set
+
     val isAlternateScreen: Boolean get() = screen === alternate
 
     /** 대체 화면에서는 스크롤백을 보여주지 않는다. `vim` 을 나가기 전의 화면이 섞이면 안 된다. */
@@ -551,7 +563,11 @@ class TerminalEmulator(
                 restoreCursor()
             }
 
+            // xterm 과 같이 어느 모드든 끄면 켰던 모드와 무관하게 보고가 멈춘다.
+            9, 1000, 1002, 1003 -> mouseTracking = enabled
             1004 -> focusReporting = enabled
+            1006 -> sgrMouse = enabled
+            1007 -> alternateScroll = enabled
             2004 -> bracketedPaste = enabled
         }
     }
@@ -681,6 +697,9 @@ class TerminalEmulator(
         applicationCursorKeys = false
         bracketedPaste = false
         focusReporting = false
+        mouseTracking = false
+        sgrMouse = false
+        alternateScroll = true
         autoWrap = true
         insertMode = false
         lineDrawing = false

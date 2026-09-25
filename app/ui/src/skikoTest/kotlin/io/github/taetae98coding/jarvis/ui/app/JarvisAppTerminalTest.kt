@@ -659,6 +659,64 @@ class JarvisAppTerminalTest {
         }
     }
 
+    private fun FakeTerminalSession.writtenText() = written.joinToString("") { it.decodeToString() }
+
+    /** 마우스를 창 오른쪽 아래 칸에 두고 휠을 위로 굴린다. */
+    private fun ComposeUiTest.scrollUpAtBottomRight() {
+        onNode(pane).performMouseInput {
+            moveTo(bottomRight - Offset(1f, 1f))
+            scroll(-10f)
+        }
+    }
+
+    @Test
+    fun wheelIsReportedAsSgrWhereClaudeCodeFullscreenTurnedMouseTrackingOn() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        openTerminal(terminal)
+        val session = terminal.sessions.single()
+        emitAtFirstCell(session, "\u001b[?1049h\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h")
+
+        scrollUpAtBottomRight()
+
+        val cell = "${session.size.columns};${session.size.rows}"
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { session.writtenText().startsWith("\u001b[<64;${cell}M") }
+        assertFalse(session.writtenText().contains("\u001b[<65;"))
+    }
+
+    @Test
+    fun wheelSendsArrowKeysOnTheAlternateScreenWithoutMouseTracking() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        openTerminal(terminal)
+        val session = terminal.sessions.single()
+        emitAtFirstCell(session, "\u001b[?1049h")
+
+        scrollUpAtBottomRight()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { session.writtenText().startsWith("\u001b[A") }
+        assertEquals("", session.writtenText().replace("\u001b[A", ""))
+    }
+
+    @Test
+    fun wheelOnTheMainScreenScrollsBackWithoutWritingAndClampsWhenScrollbackIsCleared() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isBrowserSupported = false)
+        val uriHandler = RecordingUriHandler()
+        setContent { TestJarvisApp(terminal = terminal, uriHandler = uriHandler) }
+        onNodeWithTag(TerminalTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+        val session = terminal.sessions.single()
+        emitAtFirstCell(session, "line\r\n".repeat(200))
+
+        scrollUpAtBottomRight()
+        waitForIdle()
+        assertEquals("", session.writtenText())
+
+        // 스크롤백이 비면 보던 자리도 맨 아래로 줄어, 첫 칸을 누르면 지금 화면 첫 줄의 링크가 잡힌다.
+        emitAtFirstCell(session, "\u001b[3J\u001b[H\u001b[2Jhttp://localhost:8080/")
+        clickFirstCell()
+
+        assertEquals(listOf("http://localhost:8080/"), uriHandler.opened)
+    }
+
     private companion object {
         const val FrameTimeoutMillis = 10_000L
     }

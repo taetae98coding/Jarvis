@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>터미널 휠 스크롤 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>터미널 휠 스크롤</span></nav>
+
+<header>
+  <h1>터미널 휠 스크롤</h1>
+  <p class="lead">셸·Claude 탭에서 마우스 휠·트랙패드·드래그로 스크롤한다. 셸 출력은 스크롤백을 움직이고, 전체 화면 프로그램(Claude Code 의 전체 화면 모드, <code>vim</code>, <code>less</code>)에서는 휠을 그 프로그램에 휠 이벤트나 방향키로 넘겨서 프로그램이 스스로 스크롤하게 한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>지금 터미널이나 Claude에서 scroll 지원해?</p>
+  <footer>2026-09-25 대화. 조사해서 "셸의 스크롤백은 휠로 되지만, 대체 화면을 쓰는 전체 화면 프로그램에서는 스크롤백이 0 이고 마우스 보고(DECSET 1000 계열)를 해석하지 않아 휠이 아무 일도 하지 않는다" 고 답했다. 그러면서 (1) 스펙에 휠 스크롤 요구사항을 적고, (2) 마우스 보고 1000/1002/1006 을 넣어 휠을 SGR 로 보내고, (3) 마우스 보고가 꺼진 대체 화면에서는 xterm 의 alternateScroll(1007)처럼 휠을 ↑/↓ 로 바꾸자고 제안했다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>진행해줘.</p>
+  <footer>2026-09-25 대화. 위 제안 세 가지를 그대로 받아들였다.</footer>
+</blockquote>
+
+<p>조사하다 보니 사용자의 Claude Code 설정(<code>~/.claude/settings.json</code>)이 <code>"tui": "fullscreen"</code> 이었다. Claude Code 2.1.282 는 이 모드(환경 변수 <code>CLAUDE_CODE_NO_FLICKER=1</code> 과 같다)에서 켜자마자 <code>ESC[?1049h</code>(대체 화면)와 <code>ESC[?1000h ESC[?1002h ESC[?1003h ESC[?1006h</code>(마우스 보고, SGR 인코딩)를 보낸다(pty 로 띄워 출력을 받아 확인). 대화 기록은 Claude Code 가 대체 화면 안에서 직접 그리고, 휠 이벤트를 받아야 스스로 스크롤한다. 그래서 Jarvis 의 Claude 탭에서 휠이 아무 일도 하지 않았다. 기본 모드(<code>tui</code> 설정이 없을 때)는 메인 화면에 그리고 마우스 보고를 켜지 않아, 지나간 출력이 스크롤백에 쌓인다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<p>"한 줄" 은 휠·트랙패드·드래그가 움직인 거리를 창의 줄 높이(칸 높이)로 나눈 것이다. 줄 높이보다 작은 움직임은 모아 두었다가 한 줄이 되면 쓴다. 위로 굴리거나 손가락을 아래로 끄는 것이 "위로" 다.</p>
+
+<ol>
+  <li><strong>R1.</strong> 휠은 창의 모드에 따라 아래 셋 중 <strong>하나만</strong> 한다. 위에 있는 것이 먼저다.
+    <ol type="a">
+      <li>프로그램이 마우스 보고(<code>?9</code>·<code>?1000</code>·<code>?1002</code>·<code>?1003</code>)를 켰으면 → 휠 이벤트를 보낸다(R2, R3).</li>
+      <li>대체 화면이고 alternateScroll(<code>?1007</code>)이 켜져 있으면 → 방향키를 보낸다(R4).</li>
+      <li>그 밖에는 → 스크롤백을 움직인다(R5). 대체 화면에서는 스크롤백이 없어 아무 일도 없다.</li>
+    </ol>
+  </li>
+  <li><strong>R2.</strong> 휠 이벤트는 한 줄마다 한 번 보낸다. 위는 버튼 64, 아래는 버튼 65(xterm 의 휠 버튼 4·5)이고 수정자 비트는 붙이지 않는다. 좌표는 마우스가 있는 칸(1부터 센 열·행)이다. 마우스 위치를 모르면(터치 드래그) 커서 칸이다.</li>
+  <li><strong>R3.</strong> 프로그램이 <code>?1006</code> 을 켰으면 SGR 인코딩 <code>ESC [ &lt; 버튼 ; 열 ; 행 M</code>, 아니면 X10 인코딩 <code>ESC [ M</code> 뒤에 <code>32+버튼</code>·<code>32+열</code>·<code>32+행</code> 세 바이트다. X10 은 한 바이트라 열·행을 223 으로 자른다.</li>
+  <li><strong>R4.</strong> 방향키는 한 줄마다 ↑ 또는 ↓ 하나다. 바이트는 키보드의 방향키와 같다 — DECCKM(<code>?1</code>)이 켜져 있으면 <code>ESC O A</code>, 아니면 <code>ESC [ A</code>. alternateScroll 은 처음에 켜져 있고 프로그램이 <code>?1007l</code> 로 끌 수 있다.</li>
+  <li><strong>R5.</strong> 스크롤백은 <a href="terminal.html#requirements">터미널 R14</a> 그대로다 — 창마다 2,000줄까지 거슬러 올라가 볼 수 있고, 키를 누르면 맨 아래로 돌아온다.</li>
+  <li><strong>R6.</strong> 휠을 셸로 보낼 때(R2, R4)는 키 입력과 같이 보던 스크롤백이 맨 아래로 돌아온다.</li>
+  <li><strong>R7.</strong> 스크롤백을 거슬러 올라가 있는 동안 스크롤백이 줄면(<code>ESC[3J</code>, 대체 화면 진입, 창 크기 변경) 보는 위치도 남은 스크롤백 안으로 줄어든다. 화면 위쪽이 빈 줄로 보이는 일이 없다.</li>
+  <li><strong>R8.</strong> 마우스 보고가 켜져 있어도 보내는 것은 휠뿐이다. 누르기·끌기·움직임은 보내지 않고, 누르면 지금처럼 창 포커스와 <a href="terminal-link.html">링크</a>로 간다.</li>
+  <li><strong>R9.</strong> 마우스 보고 모드는 켰던 것과 무관하게 <code>?9</code>·<code>?1000</code>·<code>?1002</code>·<code>?1003</code> 중 어느 것이든 <code>l</code> 로 끄면 꺼진다(xterm 과 같다). <code>ESC c</code>(RIS)는 마우스 보고·SGR 인코딩을 끄고 alternateScroll 을 켠다.</li>
+  <li><strong>R10.</strong> Claude Code 의 전체 화면 모드(<code>"tui": "fullscreen"</code>)가 도는 Claude 탭에서 휠을 굴리면 Claude Code 의 대화 기록이 스크롤된다(R1a). 기본 모드에서는 스크롤백이 움직인다(R1c).</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>누르기·끌기·움직임 보고(R8). Claude Code 전체 화면 모드의 마우스 글자 선택, <code>htop</code>·<code>vim mouse=a</code> 의 클릭은 되지 않는다. 휠만 지시 범위다.</li>
+    <li>UTF-8(<code>?1005</code>)·urxvt(<code>?1015</code>)·SGR 픽셀(<code>?1016</code>) 인코딩. 켜도 무시하고, 마우스 보고가 켜져 있으면 X10 이나 SGR 로 보낸다.</li>
+    <li>Shift+휠로 마우스 보고를 건너뛰고 스크롤백 보기(xterm·iTerm2). macOS 는 Shift+휠을 가로 스크롤로 바꿔 보내서 세로 휠로 받을 수 없다.</li>
+    <li>휠 이벤트의 수정자 비트(Shift 4·Alt 8·Ctrl 16), 가로 휠(버튼 66·67).</li>
+    <li>스크롤백을 거슬러 올라가 있는 동안 새 출력이 와도 보던 내용에 머물기. 지금처럼 보는 위치(맨 아래에서 센 줄 수)가 그대로라 내용이 밀린다.</li>
+    <li>휠 속도 조정, ⌘↑ / ⌘↓ 스크롤(<a href="terminal.html#cmd-arrows">터미널 결정</a>).</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<p>새 화면 요소는 없다. 창(<code>terminal:pane:&lt;id&gt;</code>) 위의 휠·드래그 동작만 바뀐다.</p>
+
+<table>
+  <thead><tr><th>창의 상태</th><th>위로 한 줄</th><th>아래로 한 줄</th></tr></thead>
+  <tbody>
+    <tr><td>마우스 보고 + <code>?1006</code> (Claude Code 전체 화면 모드)</td><td><code>ESC[&lt;64;열;행M</code></td><td><code>ESC[&lt;65;열;행M</code></td></tr>
+    <tr><td>마우스 보고, <code>?1006</code> 없음</td><td><code>ESC[M</code> <code>0x60</code> <code>32+열</code> <code>32+행</code></td><td><code>ESC[M</code> <code>0x61</code> <code>32+열</code> <code>32+행</code></td></tr>
+    <tr><td>대체 화면, 마우스 보고 없음 (<code>less</code>, 마우스를 끈 <code>vim</code>)</td><td>↑ (<code>ESC[A</code> 또는 <code>ESC OA</code>)</td><td>↓ (<code>ESC[B</code> 또는 <code>ESC OB</code>)</td></tr>
+    <tr><td>대체 화면, <code>?1007l</code></td><td colspan="2">아무 일도 없다</td></tr>
+    <tr><td>메인 화면, 마우스 보고 없음 (셸, Claude Code 기본 모드)</td><td>스크롤백 한 줄 위</td><td>스크롤백 한 줄 아래(맨 아래에서 멈춘다)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<p>플랫폼 코드는 없다. 휠·트랙패드·드래그를 한 경로(Compose <code>Modifier.scrollable</code> 의 delta)로 받고, 그 다음은 전부 domain 규칙이다.</p>
+
+<dl class="meta">
+  <dt>에뮬레이터</dt><dd><code>TerminalEmulator</code> 에 <code>mouseTracking: Boolean</code>(<code>?9</code>·<code>?1000</code>·<code>?1002</code>·<code>?1003</code>), <code>sgrMouse: Boolean</code>(<code>?1006</code>), <code>alternateScroll: Boolean</code>(<code>?1007</code>, 처음 <code>true</code>)을 더한다(R1, R9)</dd>
+  <dt>도메인 규칙</dt><dd><code>fun encodeTerminalWheel(emulator: TerminalEmulator, lines: Int, column: Int, row: Int): ByteArray?</code> — <code>feature/terminal/domain/.../TerminalWheel.kt</code>. <code>lines</code> 는 양수가 위, <code>column</code>·<code>row</code> 는 0부터. 셸로 보낼 바이트(R2–R4)를 돌려주고, null 이면 창이 스크롤백을 움직인다(R1c)</dd>
+  <dt>상태</dt><dd><code>TerminalPaneState.scrollBy(pixels, lineHeight, column, row)</code> — 픽셀을 줄로 모으고(기존), <code>encodeTerminalWheel</code> 이 바이트를 주면 <code>input</code> 으로 보내고(R6), 아니면 <code>scrollOffset</code> 을 움직인다. 출력이 올 때마다 <code>scrollOffset</code> 을 <code>emulator.scrollbackSize</code> 로 묶는다(R7)</dd>
+  <dt>UI</dt><dd><code>TerminalPane</code> — 기존 <code>scrollable</code> 의 delta 와 마우스 위치(호버에서 이미 받는 <code>pointer</code>)를 칸으로 바꿔 넘긴다. 위치를 모르면 커서 칸(R2)</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: Termux 처럼 "마우스 보고 → 대체 화면이면 방향키 → 스크롤백" 순서로 고른다</strong>
+  xterm 은 마우스 보고가 켜져 있으면 휠을 보고하고, alternateScroll 리소스가 켜져 있으면 대체 화면에서 방향키를 보낸다. Termux(<code>TerminalView.doScroll</code>)·iTerm2("Scroll wheel sends arrow keys when in alternate screen mode")·VTE(GNOME Terminal)도 같은 순서다. 대체 화면에는 스크롤백이 없으므로 휠을 버리는 것보다 방향키로 바꾸는 편이 <code>less</code>·<code>man</code>·마우스를 끈 <code>vim</code> 에서 쓸모가 있다.<br>
+  alternateScroll 의 처음 값은 켜짐으로 했다. xterm 은 꺼짐이 기본이지만 iTerm2·VTE·Termux 는 켜져 있어 macOS 사용자가 익숙한 쪽이다. 방향키가 거슬리는 프로그램은 <code>?1007l</code> 로 끌 수 있다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 휠 이벤트·방향키를 한 줄마다 하나씩 보낸다</strong>
+  xterm 은 휠 한 칸(notch)마다 보고 하나를 보낸다. 트랙패드는 한 칸이 없고 작은 delta 가 잇따라 오는데, delta 마다 보고 하나를 보내면 손가락을 조금만 움직여도 수십 개가 가서 Claude Code 가 수십 줄씩 뛴다. 그렇다고 한 번 굴림에 하나만 보내면 트랙패드의 긴 밀기가 한 번이 된다. Termux·Ghostty 처럼 움직인 거리를 줄로 바꿔 줄 수만큼 보내면 트랙패드·휠·터치 드래그가 스크롤백을 굴릴 때와 같은 속도가 된다. 이미 있는 "줄 높이보다 작은 움직임은 모아 둔다" 경로를 그대로 쓴다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 휠만 보고하고 누르기는 창이 계속 받는다</strong>
+  누르기를 프로그램에 보내면 링크 열기(<a href="terminal-link.html">터미널 링크</a>)와 창 포커스가 마우스 보고를 켠 프로그램(Claude Code 전체 화면 모드 전부)에서 막힌다. 끌기·움직임까지 보내면 Claude Code 가 마우스로 글자를 고르게 되지만, 지시 범위 밖이고 링크·포커스와의 우선순위를 따로 정해야 한다. 휠만 보내면 둘이 겹칠 일이 없다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 좌표는 호버에서 받은 마우스 위치를 쓴다</strong>
+  <code>Modifier.scrollable</code> 의 delta 에는 위치가 없다. 창은 링크 밑줄 때문에 이미 <code>pointerInput</code> 으로 <code>Move</code>·<code>Enter</code>·<code>Exit</code> 를 받아 마우스 위치(<code>pointer</code>)를 들고 있다. 휠을 굴리기 전에 마우스는 창 위에 들어와 있으므로 그 값이 곧 휠 위치다. 터치 드래그는 호버가 없고, 누른 자리 대신 커서 칸을 쓴다 — Claude Code 는 휠 좌표로 어느 영역을 굴릴지만 고르고, 커서는 늘 입력 칸(대화 영역 아래)에 있다.<br>
+  버린 후보: 휠 이벤트를 <code>pointerInput</code> 에서 직접 받기(<code>PointerEventType.Scroll</code>) — 위치는 정확하지만 휠 delta 를 플랫폼별로 픽셀로 바꾸는 규칙(macOS 10dp 배수, 부드러운 스크롤 애니메이션)과 터치 드래그·플링을 새로 짜야 한다. <code>scrollable</code> 이 이미 하는 일이다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td>공통 코드. 터치 드래그·마우스 휠이 <code>scrollable</code> 로 온다. 파이프 셸이라 전체 화면 프로그램이 돌지 않아 R1a·R1b 에 들어갈 일은 거의 없다</td><td><a href="../platform/android.html#terminal-scroll">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가</td><td><a href="../platform/ios.html#terminal-scroll">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 코드. AWT <code>MouseWheelEvent</code> 를 Compose 가 <code>scrollable</code> delta 로 바꾼다. macOS 만</td><td><a href="../platform/jvm.html#terminal-scroll">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가</td><td><a href="../platform/web.html#terminal-scroll">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TerminalWheelTest</code></td><td>R1–R4, R9. 고르는 순서, SGR·X10 바이트, 223 자르기, 줄 수만큼 반복, DECCKM 에 따른 방향키, <code>?1007l</code>, 아무 모드든 <code>l</code> 로 꺼짐, RIS</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalTest</code></td><td>R1a·R2(마우스를 올린 칸 좌표로 SGR 이 셸에 간다), R1b(대체 화면에서 ↑), R1c·R5(메인 화면 휠은 셸에 아무것도 보내지 않는다), R7(스크롤백을 비우면 보는 위치가 줄어 셸 출력이 다시 보인다)</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>R10 은 실제 Claude Code 가 필요해 자동으로 확인하지 못한다. 2026-09-25 에 Claude Code 2.1.282 를 전체 화면 모드로 pty(100×30)에 띄워 1–120 을 한 줄씩 찍게 한 뒤, 이 구현이 만드는 바이트(<code>ESC[&lt;64;50;10M</code> 15개, 이어서 <code>ESC[&lt;65;50;10M</code> 15개)를 보냈다. 가만히 있을 때는 출력이 없고, 위로 보내자 80–90번대 줄이 다시 그려지고 아래로 보내자 108–112 가 돌아왔다. 앱 창 안에서 실제 휠·트랙패드로 굴리는 것은 아직 손으로 확인하지 않았다 — <code>./gradlew :desktopApp:run</code> 으로 띄워 <code>"tui": "fullscreen"</code> 인 Claude 탭에서 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>마우스 보고를 켠 프로그램에서 휠 말고는 마우스가 가지 않는다(R8). Claude Code 전체 화면 모드의 마우스 글자 선택·클릭이 되지 않는다.</li>
+  <li>메인 화면에서 마우스 보고를 켠 프로그램이 돌면 휠이 그 프로그램으로 가서 Jarvis 의 스크롤백을 휠로 볼 수 없다(Shift+휠 우회가 없다).</li>
+  <li>macOS 에서 칸이 있는 마우스 휠 한 칸은 Compose 가 <code>10dp × scrollAmount</code> 로 바꾼다(<a href="../platform/jvm.html#terminal-scroll">JVM</a>). 줄 높이보다 작을 수 있어, 천천히 한 칸씩 굴리면 몇 칸에 한 줄꼴로 움직인다.</li>
+  <li>X10 인코딩은 223 열·행을 넘는 칸을 나타낼 수 없어 가장자리 칸으로 보낸다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

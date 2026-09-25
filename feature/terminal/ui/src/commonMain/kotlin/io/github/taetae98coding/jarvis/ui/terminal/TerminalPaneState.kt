@@ -4,6 +4,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.LineDiscipline
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalEmulator
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
+import io.github.taetae98coding.jarvis.domain.terminal.encodeTerminalWheel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
@@ -86,6 +87,8 @@ internal class TerminalPaneState(
             if (responses.isNotEmpty()) writes.trySend(responses)
 
             _title.value = emulator.title
+            // ESC[3J·대체 화면 진입으로 스크롤백이 줄면 보던 자리가 그 밖에 남는다.
+            _scrollOffset.update { it.coerceAtMost(emulator.scrollbackSize) }
             invalidate()
         }
 
@@ -131,8 +134,11 @@ internal class TerminalPaneState(
         invalidate()
     }
 
-    /** 양수면 과거로 올라간다. 줄 높이보다 작은 움직임은 모아 둔다. */
-    fun scrollBy(pixels: Float, lineHeight: Float) {
+    /**
+     * 휠·드래그. 양수면 과거로 올라간다. 줄 높이보다 작은 움직임은 모아 둔다. [column]·[row] 는 휠이 있는 칸이다.
+     * 프로그램이 마우스 보고나 대체 화면을 켰으면 스크롤백 대신 그 프로그램에 보낸다(docs/common/terminal-scroll.html).
+     */
+    fun scrollBy(pixels: Float, lineHeight: Float, column: Int, row: Int) {
         if (lineHeight <= 0f) return
 
         scrollRemainder += pixels
@@ -140,6 +146,13 @@ internal class TerminalPaneState(
         if (lines == 0) return
 
         scrollRemainder -= lines * lineHeight
+
+        val bytes = encodeTerminalWheel(emulator, lines, column, row)
+        if (bytes != null) {
+            input(bytes)
+            return
+        }
+
         _scrollOffset.update { (it + lines).coerceIn(0, emulator.scrollbackSize) }
     }
 
