@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.style.Style
 import androidx.compose.foundation.style.animate
@@ -20,13 +21,19 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -48,9 +55,13 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
@@ -61,11 +72,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.taetae98coding.jarvis.designsystem.icon.JarvisIcons
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColors
@@ -74,12 +88,22 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalEmulator
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalKey
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalKeyModifiers
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalLine
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalLink
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalStyle
 import io.github.taetae98coding.jarvis.domain.terminal.encodeControlCharacter
 import io.github.taetae98coding.jarvis.domain.terminal.encodeTerminalKey
+import io.github.taetae98coding.jarvis.domain.terminal.linkAt
 
 fun terminalPaneTestTag(id: Long): String = "terminal:pane:$id"
 
+const val TerminalLinkMenuUrlTestTag = "terminal:link-menu:url"
+const val TerminalLinkMenuSystemTestTag = "terminal:link-menu:system"
+const val TerminalLinkMenuJarvisTestTag = "terminal:link-menu:jarvis"
+
+/**
+ * [onOpenInJarvis] 가 null 이면 이 타깃에서 브라우저 탭을 띄울 수 없는 것이라, 링크 메뉴에 Jarvis 항목이 없고 누르면
+ * 곧바로 시스템 브라우저로 연다(docs/common/terminal-link.html R7).
+ */
 @Composable
 internal fun TerminalPane(
     state: TerminalPaneState,
@@ -87,6 +111,7 @@ internal fun TerminalPane(
     showFocusBorder: Boolean,
     onFocus: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenInJarvis: ((String) -> Unit)? = null,
 ) {
     val revision by state.revision.collectAsStateWithLifecycle()
     val scrollOffset by state.scrollOffset.collectAsStateWithLifecycle()
@@ -103,6 +128,27 @@ internal fun TerminalPane(
     val focusRequester = remember { FocusRequester() }
     val currentOnFocus by rememberUpdatedState(onFocus)
     val field = rememberTextFieldState()
+
+    // 마우스 위치와 누른 링크의 메뉴. 화면 안에서만 쓰는 값이라 ViewModel 이 아니라 여기 둔다.
+    var pointer by remember { mutableStateOf<Offset?>(null) }
+    var linkMenu by remember { mutableStateOf<LinkMenu?>(null) }
+    val uriHandler = LocalUriHandler.current
+    val currentOnOpenInJarvis by rememberUpdatedState(onOpenInJarvis)
+
+    // 화면 좌표 → 칸 → 링크. 보이는 줄 번호에서 스크롤한 만큼 빼면 에뮬레이터의 줄 번호다.
+    fun linkAt(offset: Offset): TerminalLink? {
+        val row = (offset.y / cell.height).toInt() - state.scrollOffset.value
+        val column = (offset.x / cell.width).toInt()
+        return state.emulator.linkAt(row, column)
+    }
+
+    // 마우스가 그대로여도 출력이 오거나 스크롤하면 그 자리의 글자가 바뀐다. 그때마다 다시 찾는다.
+    val hoveredLink = remember(pointer, revision, scrollOffset, cell) { pointer?.let(::linkAt) }
+
+    fun openInSystemBrowser(url: String) {
+        // 기본 브라우저가 없거나 주소가 잘못돼 던져도 셸은 그대로여야 한다.
+        runCatching { uriHandler.openUri(url) }
+    }
 
     // 확정된 글자만 셸로 보내고 필드를 비운다. 필드 상태가 곧 IME 버퍼라, 여기서 비우면 IME 쪽도 함께 비워진다.
     // (값을 받는 TextFieldValue API 는 빈 값을 다시 넘겨도 버퍼를 비우지 않아 다음 입력에 앞 글자가 누적됐다.)
@@ -129,12 +175,32 @@ internal fun TerminalPane(
                     rows = (size.height / cell.height).coerceAtLeast(1),
                 )
             }
-            .pointerInput(Unit) {
-                detectTapGestures {
-                    currentOnFocus()
-                    focusRequester.requestFocus()
+            .pointerInput(cell) {
+                detectTapGestures { offset ->
+                    val link = linkAt(offset)
+                    when {
+                        link == null -> {
+                            currentOnFocus()
+                            focusRequester.requestFocus()
+                        }
+
+                        currentOnOpenInJarvis == null -> openInSystemBrowser(link.url)
+                        else -> linkMenu = LinkMenu(link, offset)
+                    }
                 }
             }
+            .pointerInput(cell) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        when (event.type) {
+                            PointerEventType.Move, PointerEventType.Enter -> pointer = event.changes.firstOrNull()?.position
+                            PointerEventType.Exit -> pointer = null
+                        }
+                    }
+                }
+            }
+            .pointerHoverIcon(if (hoveredLink != null) PointerIcon.Hand else PointerIcon.Default)
             .scrollable(
                 orientation = Orientation.Vertical,
                 state = rememberScrollableState { delta ->
@@ -149,6 +215,16 @@ internal fun TerminalPane(
             revision
 
             drawTerminal(state.emulator, scrollOffset, TerminalCanvas(textMeasurer, textStyle, colors, cell), focused)
+            hoveredLink?.let { drawLinkUnderline(it, scrollOffset, state.emulator.rows, cell, colors.foreground) }
+        }
+
+        linkMenu?.let { menu ->
+            TerminalLinkMenu(
+                menu = menu,
+                onDismiss = { linkMenu = null },
+                onOpenInSystem = { openInSystemBrowser(menu.link.url) },
+                onOpenInJarvis = currentOnOpenInJarvis?.let { open -> { open(menu.link.url) } },
+            )
         }
 
         // IME 조합(한글)은 텍스트 필드만 받는다. 커서 자리에 겹쳐 두어 조합 중인 글자가 그 자리에 보이게
@@ -171,6 +247,55 @@ internal fun TerminalPane(
                 autoCorrectEnabled = false,
             ),
         )
+    }
+}
+
+/** 누른 링크와 누른 자리(창 안 픽셀). 메뉴는 그 자리에 뜬다(R4). */
+private class LinkMenu(val link: TerminalLink, val position: Offset)
+
+@Composable
+private fun TerminalLinkMenu(
+    menu: LinkMenu,
+    onDismiss: () -> Unit,
+    onOpenInSystem: () -> Unit,
+    onOpenInJarvis: (() -> Unit)?,
+) {
+    val density = LocalDensity.current
+    val offset = with(density) { DpOffset(menu.position.x.toDp(), menu.position.y.toDp()) }
+
+    DropdownMenu(expanded = true, onDismissRequest = onDismiss, offset = offset) {
+        // OSC 8 은 보이는 글자와 여는 주소가 다를 수 있다. 무엇을 열지 누르기 전에 보인다.
+        Text(
+            text = menu.link.url,
+            modifier = Modifier
+                .widthIn(max = TerminalPaneDefaults.linkMenuMaxWidth)
+                .padding(horizontal = JarvisTheme.dimens.spacing.m, vertical = JarvisTheme.dimens.spacing.xs)
+                .testTag(TerminalLinkMenuUrlTestTag),
+            color = JarvisTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+            style = JarvisTheme.typography.labelMedium,
+        )
+        DropdownMenuItem(
+            text = { Text("시스템 브라우저에서 열기") },
+            leadingIcon = { Icon(imageVector = JarvisIcons.OpenInNew, contentDescription = null) },
+            onClick = {
+                onDismiss()
+                onOpenInSystem()
+            },
+            modifier = Modifier.testTag(TerminalLinkMenuSystemTestTag),
+        )
+        if (onOpenInJarvis != null) {
+            DropdownMenuItem(
+                text = { Text("Jarvis 브라우저에서 열기") },
+                leadingIcon = { Icon(imageVector = JarvisIcons.Globe, contentDescription = null) },
+                onClick = {
+                    onDismiss()
+                    onOpenInJarvis()
+                },
+                modifier = Modifier.testTag(TerminalLinkMenuJarvisTestTag),
+            )
+        }
     }
 }
 
@@ -317,6 +442,22 @@ private fun DrawScope.drawTerminal(
     }
 }
 
+/** 마우스가 올라간 링크의 칸마다 아래쪽에 선을 긋는다(R3). 화면 밖(스크롤된) 칸은 건너뛴다. */
+private fun DrawScope.drawLinkUnderline(link: TerminalLink, scrollOffset: Int, rows: Int, cell: IntSize, color: Color) {
+    for (terminalCell in link.cells) {
+        val row = terminalCell.row + scrollOffset
+        if (row !in 0 until rows) continue
+
+        val y = (row + 1) * cell.height.toFloat() - 1f
+        drawLine(
+            color = color,
+            start = Offset(terminalCell.column * cell.width.toFloat(), y),
+            end = Offset((terminalCell.column + 1) * cell.width.toFloat(), y),
+            strokeWidth = 1f,
+        )
+    }
+}
+
 /**
  * 같은 스타일의 ASCII 칸은 한 조각으로 모아 그린다. 그 밖의 글자는 칸마다 따로 그린다 — 고정폭 글꼴에
  * 없는 글자는 대체 글꼴로 그려져 폭이 달라서, 한 조각에 섞으면 뒤따르는 칸이 전부 밀린다.
@@ -416,6 +557,9 @@ internal object TerminalPaneDefaults {
     const val DimAlpha = 0.6f
 
     val inputMinWidth: Dp = 1.dp
+
+    /** 링크 메뉴 위 주소 줄의 최대 너비. 긴 주소는 가운데를 줄인다. */
+    val linkMenuMaxWidth: Dp = 360.dp
 
     @Composable
     @ReadOnlyComposable

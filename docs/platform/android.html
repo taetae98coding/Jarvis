@@ -69,6 +69,7 @@
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
+    <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
@@ -1388,6 +1389,38 @@ class JarvisApplication : Application() {
 
 <h3>검증</h3>
 <p>공통 UI 테스트 <code>JarvisAppTerminalLineCommentTest</code> 가 Claude 가 없는 타깃의 C12 를 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-link">
+<h2>터미널 출력의 링크 열기 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/terminal-link.html">터미널 출력의 링크 열기</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>시스템 브라우저: Compose 의 <code>LocalUriHandler</code>(<code>AndroidUriHandler</code>)</td><td>채택. <code>Intent(Intent.ACTION_VIEW, Uri.parse(uri))</code> 를 <code>Context.startActivity</code> 로 띄운다. 기본 브라우저(또는 앱 링크를 받는 앱)가 열린다. 받을 앱이 없으면 <code>ActivityNotFoundException</code> 을 <code>IllegalArgumentException</code> 으로 바꿔 던진다</td></tr>
+    <tr><td>Custom Tabs(<code>androidx.browser</code>)</td><td>버렸다. 앱 밖의 브라우저 화면이 앱 위에 뜬다. "시스템 브라우저" 는 앱 밖이고 "Jarvis 브라우저" 는 탭이라, 둘 사이의 것이 필요 없다</td></tr>
+    <tr><td>Jarvis 브라우저: 시스템 웹뷰 탭</td><td>채택. <a href="#terminal-browser">웹 브라우저</a>의 <code>WebView</code> 탭이 첫 주소를 받는다</td></tr>
+    <tr><td>호버(<code>PointerEventType.Move</code>)</td><td>터치에는 없다. 마우스·스타일러스를 붙이면 Compose 가 <code>Move</code> 를 주어 밑줄·손 커서가 그대로 된다. <code>pointerHoverIcon</code> 은 Android N+ 에서 <code>View.setPointerIcon</code> 이다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드. <code>androidMain</code> 에는 없다</dd>
+  <dt>동작</dt><dd>공통 스펙 R1–R8 그대로. 파이프 셸(<a href="#terminal">터미널</a>)의 출력도 같은 에뮬레이터를 지나므로 <code>echo https://…</code> 가 링크가 된다. Claude 탭은 없다(<a href="#terminal-claude">Claude 실행</a>). 탭 한 번이 곧 R4 의 누름이라 메뉴가 뜬다</dd>
+  <dt>실패</dt><dd><code>ACTION_VIEW</code> 를 받을 앱이 없으면 <code>AndroidUriHandler</code> 가 던지고, 창의 클릭 처리가 <code>runCatching</code> 으로 삼킨다. 아무 일도 하지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>터치에는 호버가 없어 어디가 링크인지 누르기 전에 알 수 없다(공통 한계).</li>
+  <li>공통 스펙의 <a href="../common/terminal-link.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>감지·메뉴는 공통 테스트(<code>TerminalLinkTest</code>, skiko 의 <code>JarvisAppTerminalTest</code>)가 확인하지만 Android 의 <code>ACTION_VIEW</code>·터치 경로는 테스트가 없어 <span class="badge untested">미검증</span>이다. <code>./gradlew :androidApp:installDebug</code> 로 깔아 터미널에서 <code>echo https://example.com</code> 뒤 그 글자를 눌러 손으로 확인한다.</p>
 </section>
 
 <section class="feature" id="claude-notification">

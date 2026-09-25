@@ -4,7 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.WindowInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
@@ -114,6 +116,8 @@ internal fun TestJarvisApp(
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
+    // 기본 핸들러(DesktopUriHandler)는 테스트 중에 실제 브라우저를 띄운다. 늘 기록만 하는 것으로 바꾼다.
+    uriHandler: RecordingUriHandler = RecordingUriHandler(),
 ) {
     remember {
         installTestMainDispatcher()
@@ -153,16 +157,27 @@ internal fun TestJarvisApp(
         }
     }
 
-    if (windowFocused == null) {
-        JarvisApp()
-    } else {
-        val window = LocalWindowInfo.current
-        val info = remember(window) {
-            object : WindowInfo by window {
-                override val isWindowFocused: Boolean get() = windowFocused.value
+    CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+        if (windowFocused == null) {
+            JarvisApp()
+        } else {
+            val window = LocalWindowInfo.current
+            val info = remember(window) {
+                object : WindowInfo by window {
+                    override val isWindowFocused: Boolean get() = windowFocused.value
+                }
             }
+            CompositionLocalProvider(LocalWindowInfo provides info) { JarvisApp() }
         }
-        CompositionLocalProvider(LocalWindowInfo provides info) { JarvisApp() }
+    }
+}
+
+/** 시스템 브라우저로 열라고 한 주소를 기록한다(docs/common/terminal-link.html R5). */
+internal class RecordingUriHandler : UriHandler {
+    val opened = mutableListOf<String>()
+
+    override fun openUri(uri: String) {
+        opened += uri
     }
 }
 

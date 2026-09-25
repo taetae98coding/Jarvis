@@ -365,6 +365,7 @@ private fun TerminalGroup(
                         focused = focused,
                         showFocusBorder = showFocusBorder,
                         onFocus = { viewModel.focusGroup(group.id) },
+                        onOpenInJarvis = { url: String -> viewModel.addBrowserTab(group.id, url) }.takeIf { viewModel.isBrowserSupported },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 }

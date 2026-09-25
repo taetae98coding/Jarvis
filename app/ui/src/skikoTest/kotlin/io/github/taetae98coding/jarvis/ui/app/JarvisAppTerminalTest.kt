@@ -9,6 +9,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
@@ -31,6 +32,9 @@ import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalDragGhostTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalEmptyPanelTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalLinkMenuJarvisTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalLinkMenuSystemTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalLinkMenuUrlTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewBrowserTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewClaudeTabTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
@@ -529,6 +533,75 @@ class JarvisAppTerminalTest {
 
         assertEquals(2, terminal.sessions.size)
         assertTrue(terminal.sessions.none { it.closed })
+    }
+
+    /**
+     * 셸이 첫 줄 첫 칸부터 [text] 를 찍고 제목을 정한다. 제목이 탭에 보이면 같은 덩어리의 글자도 해석된 것이다.
+     * 첫 칸을 누르는 것이 곧 그 글자를 누르는 것이라, 칸 크기를 몰라도 된다.
+     */
+    private fun ComposeUiTest.emitAtFirstCell(session: FakeTerminalSession, text: String) {
+        session.emit("$text\u001b]0;printed\u0007")
+        waitUntil(timeoutMillis = FrameTimeoutMillis) {
+            onAllNodesWithText("printed").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun ComposeUiTest.clickFirstCell() {
+        onNode(pane).performMouseInput { click(Offset(2f, 2f)) }
+    }
+
+    @Test
+    fun clickingALinkOffersSystemAndJarvisBrowser() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isBrowserSupported = true)
+        val uriHandler = RecordingUriHandler()
+        setContent { TestJarvisApp(terminal = terminal, uriHandler = uriHandler) }
+        onNodeWithTag(TerminalTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+        emitAtFirstCell(terminal.sessions.single(), "https://example.com/docs. next")
+
+        clickFirstCell()
+
+        onNodeWithTag(TerminalLinkMenuUrlTestTag).assertIsDisplayed()
+        onNode(hasText("https://example.com/docs") and hasTestTag(TerminalLinkMenuUrlTestTag)).assertIsDisplayed()
+        onNodeWithTag(TerminalLinkMenuJarvisTestTag).assertIsDisplayed()
+        val items = listOf(TerminalLinkMenuSystemTestTag, TerminalLinkMenuJarvisTestTag)
+            .map { onNodeWithTag(it).fetchSemanticsNode().boundsInRoot.top }
+        assertEquals(items.sorted(), items)
+
+        onNodeWithTag(TerminalLinkMenuSystemTestTag).performClick()
+
+        assertEquals(listOf("https://example.com/docs"), uriHandler.opened)
+        assertEquals(0, onAllNodesWithTag(TerminalLinkMenuUrlTestTag).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun clickingPlainTextOnlyFocusesThePane() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isBrowserSupported = true)
+        val uriHandler = RecordingUriHandler()
+        setContent { TestJarvisApp(terminal = terminal, uriHandler = uriHandler) }
+        onNodeWithTag(TerminalTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+        emitAtFirstCell(terminal.sessions.single(), "hello https://example.com")
+
+        clickFirstCell()
+
+        assertEquals(0, onAllNodesWithTag(TerminalLinkMenuUrlTestTag).fetchSemanticsNodes().size)
+        assertTrue(uriHandler.opened.isEmpty())
+    }
+
+    @Test
+    fun linkOpensInTheSystemBrowserDirectlyWhereJarvisBrowserIsNotSupported() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isBrowserSupported = false)
+        val uriHandler = RecordingUriHandler()
+        setContent { TestJarvisApp(terminal = terminal, uriHandler = uriHandler) }
+        onNodeWithTag(TerminalTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+        emitAtFirstCell(terminal.sessions.single(), "http://localhost:8080/")
+
+        clickFirstCell()
+
+        assertEquals(listOf("http://localhost:8080/"), uriHandler.opened)
+        assertEquals(0, onAllNodesWithTag(TerminalLinkMenuUrlTestTag).fetchSemanticsNodes().size)
     }
 
     @Test

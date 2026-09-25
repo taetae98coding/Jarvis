@@ -4,12 +4,14 @@ package io.github.taetae98coding.jarvis.domain.terminal
  * 격자의 한 줄. 칸마다 코드 포인트 하나와 스타일 하나를 배열로 들고 있다.
  *
  * 코드 포인트 0 은 빈칸이다. 전각 문자는 두 칸을 차지하고 둘째 칸에 [WideTail] 을 둔다. 결합 문자는
- * 칸을 차지하지 않아서 앞 칸에 붙여 드문드문 보관한다.
+ * 칸을 차지하지 않아서 앞 칸에 붙여 드문드문 보관한다. OSC 8 하이퍼링크의 주소도 같은 방식으로 붙인다
+ * (docs/common/terminal-link.html).
  */
 class TerminalLine internal constructor(columns: Int, fill: TerminalStyle) {
     private var codePoints = IntArray(columns)
     private var styles = LongArray(columns) { fill.bits }
     private var combining: MutableMap<Int, String>? = null
+    private var links: MutableMap<Int, String>? = null
 
     /** 자동 줄바꿈으로 다음 줄에 이어진다. */
     var wrapped: Boolean = false
@@ -24,6 +26,9 @@ class TerminalLine internal constructor(columns: Int, fill: TerminalStyle) {
     fun isWideTail(column: Int): Boolean = codePoints[column] == WideTail
 
     fun isWide(column: Int): Boolean = column + 1 < columns && codePoints[column + 1] == WideTail
+
+    /** OSC 8 로 이 칸에 붙은 주소. 전각 글자는 두 칸 모두 같은 주소다. */
+    fun linkAt(column: Int): String? = links?.get(column)
 
     /** 그릴 글자. 빈칸과 전각의 둘째 칸은 빈 문자열이다. */
     fun textAt(column: Int): String {
@@ -46,10 +51,15 @@ class TerminalLine internal constructor(columns: Int, fill: TerminalStyle) {
         }
     }.trimEnd()
 
-    internal fun set(column: Int, codePoint: Int, style: TerminalStyle) {
+    internal fun set(column: Int, codePoint: Int, style: TerminalStyle, link: String? = null) {
         codePoints[column] = codePoint
         styles[column] = style.bits
         combining?.remove(column)
+        if (link == null) {
+            links?.remove(column)
+        } else {
+            (links ?: mutableMapOf<Int, String>().also { links = it })[column] = link
+        }
     }
 
     internal fun appendCombining(column: Int, codePoint: Int) {
@@ -79,7 +89,8 @@ class TerminalLine internal constructor(columns: Int, fill: TerminalStyle) {
 
         codePoints.copyInto(codePoints, column + n, column, columns - n)
         styles.copyInto(styles, column + n, column, columns - n)
-        shiftCombining(from = column, by = n)
+        combining = shifted(combining, from = column, by = n)
+        links = shifted(links, from = column, by = n)
         clear(column, column + n, fill)
         repairEdges(fill)
     }
@@ -90,7 +101,8 @@ class TerminalLine internal constructor(columns: Int, fill: TerminalStyle) {
 
         codePoints.copyInto(codePoints, column, column + n, columns)
         styles.copyInto(styles, column, column + n, columns)
-        shiftCombining(from = column + n, by = -n, dropFrom = column)
+        combining = shifted(combining, from = column + n, by = -n, dropFrom = column)
+        links = shifted(links, from = column + n, by = -n, dropFrom = column)
         clear(columns - n, columns, fill)
         repairEdges(fill)
     }
@@ -103,6 +115,7 @@ class TerminalLine internal constructor(columns: Int, fill: TerminalStyle) {
         styles = styles.copyOf(newColumns)
         for (column in old until newColumns) styles[column] = fill.bits
         combining?.keys?.removeAll { it >= newColumns }
+        links?.keys?.removeAll { it >= newColumns }
         repairEdges(fill)
     }
 
@@ -122,11 +135,13 @@ class TerminalLine internal constructor(columns: Int, fill: TerminalStyle) {
         return last > 0 && terminalCharWidth(last) == 2
     }
 
-    private fun shiftCombining(from: Int, by: Int, dropFrom: Int = from) {
-        val map = combining ?: return
+    private fun shifted(map: MutableMap<Int, String>?, from: Int, by: Int, dropFrom: Int = from): MutableMap<Int, String>? {
+        if (map == null) return null
         val moved = map.filterKeys { it >= from }.mapKeys { it.key + by }
         map.keys.removeAll { it >= dropFrom }
         moved.filterKeys { it in 0 until columns }.forEach { (k, v) -> map[k] = v }
+
+        return map
     }
 
     companion object {

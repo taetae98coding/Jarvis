@@ -188,7 +188,7 @@
     <tr><td>CSI 모드</td><td><code>?1</code> 애플리케이션 커서 키, <code>?7</code> 자동 줄바꿈, <code>?25</code> 커서 표시, <code>?47 ?1047 ?1049</code> 대체 화면, <code>?2004</code> 괄호 붙여넣기(기억만 한다), <code>4</code> 삽입 모드</td></tr>
     <tr><td>CSI 기타</td><td><code>r</code> 스크롤 영역, <code>m</code> SGR, <code>n</code> DSR(5·6 에 응답), <code>c</code> DA(응답 <code>ESC[?1;2c</code>), <code>g</code> 탭 지우기(무시), <code>t</code>·<code>q</code>(무시)</td></tr>
     <tr><td>SGR</td><td>0, 1 굵게, 2 흐리게, 3 기울임, 4 밑줄, 7 반전, 8 숨김, 9 취소선과 그 해제(22–29), 30–37·90–97·39 글자색, 40–47·100–107·49 배경색, <code>38;5;n</code>·<code>38;2;r;g;b</code>(콜론 표기 포함)</td></tr>
-    <tr><td>OSC</td><td>0·2 제목(R13). 나머지는 버린다. BEL 과 <code>ESC \</code> 둘 다 종결자로 받는다</td></tr>
+    <tr><td>OSC</td><td>0·2 제목(R13), 8 하이퍼링크(칸에 URI 를 붙인다, <a href="terminal-link.html">링크 열기</a>). 나머지는 버린다. BEL 과 <code>ESC \</code> 둘 다 종결자로 받는다</td></tr>
     <tr><td>DCS·APC·PM·SOS</td><td>종결자까지 버린다</td></tr>
     <tr><td>문자</td><td>UTF-8 을 덩어리 경계와 무관하게 복원한다. 전각(한글·한자·가나·전각 기호·이모지)은 두 칸, 결합 문자(한글 중성·종성 자모, 발음 구별 기호)는 앞 칸에 붙는다</td></tr>
   </tbody>
