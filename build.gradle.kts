@@ -40,3 +40,13 @@ val checkIosAppVersion by tasks.registering {
 tasks.check {
     dependsOn(checkIosAppVersion)
 }
+
+// :desktopApp:run 은 각 모듈의 build/libs/*.jar 를 그대로 classpath 에 올리고, JVM 은 jar 를 연 채 클래스를 처음 쓸 때 읽는다.
+// Gradle 의 Jar 태스크는 기존 파일을 같은 inode 에 잘라 다시 쓰므로, 앱을 띄워 둔 채 다시 빌드하면(main 에 머지한 뒤의 빌드,
+// 다른 세션의 jvmTest) 돌고 있던 앱이 아직 읽지 않은 클래스를 NoClassDefFoundError 로 잃는다. 쓰기 전에 지워 새 inode 에 쓰면
+// 열어 둔 옛 파일은 그대로 읽힌다(docs/platform/jvm.html#dev-run-rebuild).
+subprojects {
+    tasks.withType<Jar>().configureEach {
+        doFirst { archiveFile.get().asFile.delete() }
+    }
+}

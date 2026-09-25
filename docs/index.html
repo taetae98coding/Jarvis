@@ -92,7 +92,8 @@
 │   ├── mcp-server.html              Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버, 워크트리에 탭)
 │   ├── device-lease.html            Claude 기기 할당 (워크트리마다 기기 하나, 없으면 에뮬레이터 만들기)
 │   ├── design-system.html           디자인 시스템 (JarvisTheme, Defaults·Style, 아이콘)
-│   └── release-build.html           release 빌드와 배포 준비 (서명, R8, DMG, 아이콘, 버전)
+│   ├── release-build.html           release 빌드와 배포 준비 (서명, R8, DMG, 아이콘, 버전)
+│   └── dev-run-rebuild.html         실행 중 다시 빌드해도 앱이 살아 있기 (Jar 태스크가 옛 파일을 지우고 새 inode 에 쓴다)
 ├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
 │   ├── index.html                   플랫폼 스펙 읽는 법과 공통 판정 기준
 │   ├── android.html
@@ -457,6 +458,13 @@
       <td class="center"><a href="platform/jvm.html#release-build"><span class="badge partial">조건부</span></a></td>
       <td class="center"><a href="platform/web.html#release-build"><span class="badge ok">구현</span></a></td>
     </tr>
+    <tr>
+      <td><a href="common/dev-run-rebuild.html">실행 중 다시 빌드해도 앱이 살아 있기</a></td>
+      <td class="center"><a href="platform/android.html#dev-run-rebuild"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#dev-run-rebuild"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#dev-run-rebuild"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#dev-run-rebuild"><span class="badge ok">구현</span></a></td>
+    </tr>
   </tbody>
 </table>
 
@@ -512,6 +520,7 @@
   <li><a href="common/terminal-worktree.html">패널에서 git 워크트리 추가·지우기</a><p>git 저장소 폴더의 패널에 + 가 붙고, 브랜치와 기준 브랜치를 받아 <code>git worktree add</code> 로 만든 워크트리를 그 패널 아래 들여쓴 패널로 열어 그 폴더에서 Claude 탭을 띄우고, 줄에 <code>기준 → 현재</code> 브랜치를 보인다. 워크트리 패널의 ✕ 는 워크트리·브랜치와 폴더를 지울지 묻는다. JVM(macOS)</p></li>
   <li><a href="common/terminal-claude-status.html">패널 줄의 Claude 상태 표시</a><p>패널 줄마다 그 패널 Claude 탭의 상태를 작업 중·응답 대기·확인함·모니터링 중 네 표시 중 하나로 보인다. 응답 대기는 끝난 결과를 사용자가 아직 보지 않은 것이다. JVM(macOS)</p></li>
   <li><a href="common/release-build.html">release 빌드와 배포 준비</a><p>네 플랫폼의 release 산출물(서명된 APK·AAB, iOS 아카이브, macOS DMG, Web 정적 번들)과 앱 아이콘·버전·서명 설정. 스토어 업로드는 스코프 밖</p></li>
+  <li><a href="common/dev-run-rebuild.html">실행 중 다시 빌드해도 앱이 살아 있기</a><p><code>:desktopApp:run</code> 으로 띄운 앱이 돌고 있는 동안 같은 체크아웃의 빌드가 jar 를 다시 써도 <code>NoClassDefFoundError</code> 로 죽지 않는다. <code>Jar</code> 태스크가 쓰기 전에 옛 파일을 지운다. JVM(macOS)</p></li>
 </ul>
 
 <h2 id="platform">플랫폼 스펙</h2>
