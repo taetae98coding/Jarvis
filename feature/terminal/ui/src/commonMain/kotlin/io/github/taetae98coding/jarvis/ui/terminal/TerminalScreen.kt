@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.ui.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.codeLanguageOf
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -312,6 +313,7 @@ private fun TerminalGroup(
             val fileEdits by viewModel.fileEditStates.collectAsStateWithLifecycle()
             val sourceViewTabs by viewModel.sourceViewTabs.collectAsStateWithLifecycle()
             val fileReading by viewModel.fileReading.collectAsStateWithLifecycle()
+            val codeReveals by viewModel.codeReveals.collectAsStateWithLifecycle()
             if (tab.program == TerminalProgram.Device) {
                 key(tab.id) {
                     TerminalDevice(
@@ -348,6 +350,9 @@ private fun TerminalGroup(
                         diffLabel = "커밋 ${tab.shortCommitHash}",
                         lineComments = null,
                         editing = null,
+                        code = null,
+                        reveal = null,
+                        onRevealed = {},
                         webPreviewSupported = viewModel.isBrowserSupported,
                         webPreviewHidden = drag.coversPages,
                         sourceView = tab.id in sourceViewTabs,
@@ -379,6 +384,9 @@ private fun TerminalGroup(
                                 onReadingChange = { viewModel.setFileReading(tab.id, it) },
                             )
                         },
+                        code = tab.filePath?.let { path -> fileCode(path, viewModel) },
+                        reveal = tab.filePath?.let(codeReveals::get),
+                        onRevealed = { id -> tab.filePath?.let { viewModel.consumeCodeReveal(it, id) } },
                         webPreviewSupported = viewModel.isBrowserSupported,
                         webPreviewHidden = drag.coversPages,
                         sourceView = tab.id in sourceViewTabs,
@@ -694,4 +702,21 @@ private fun SplitPane(
             PaneTree(node.second, panel, viewModel, drag, devices, Modifier.weight(1f - ratio).fillMaxWidth())
         }
     }
+}
+
+/** 코드 파일이면 자동완성·선언·사용처(docs/common/terminal-code-navigation.html). 보이는 동안 분석 상태를 모은다. */
+@Composable
+private fun fileCode(path: String, viewModel: TerminalViewModel): FileCode? {
+    val language = codeLanguageOf(path) ?: return null
+    val status by viewModel.codeAnalysis(path).collectAsStateWithLifecycle()
+
+    return FileCode(
+        language = language,
+        status = status,
+        complete = { text, offset -> viewModel.completeCode(path, text, offset) },
+        applyCompletion = { text, offset, item -> viewModel.applyCodeCompletion(path, text, offset, item) },
+        goToDeclaration = { text, offset -> viewModel.goToDeclaration(path, text, offset) },
+        findUsages = { text, offset -> viewModel.findUsages(path, text, offset) },
+        onOpen = viewModel::openCodeLocation,
+    )
 }

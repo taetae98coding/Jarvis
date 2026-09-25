@@ -2,6 +2,7 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.automation.AgentTabs
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivityRepository
+import io.github.taetae98coding.jarvis.domain.terminal.CodeIntelRepository
 import io.github.taetae98coding.jarvis.domain.terminal.FileRepository
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangesRepository
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeRepository
@@ -19,6 +20,7 @@ val terminalDataModule = module {
     single<GitWorktreeRepository> { DefaultGitWorktreeRepository(get()) }
     single<GitChangesRepository> { DefaultGitChangesRepository(get()) }
     single<FileRepository> { DefaultFileRepository(createFileDataSource(get())) }
+    single<CodeIntelRepository> { createCodeIntelRepository() }
     single<AgentTabs> { WorkspaceAgentTabs(get()) }
     single<ClaudeActivityRepository> { DefaultClaudeActivityRepository(createClaudeActivityDataSource()) }
 }

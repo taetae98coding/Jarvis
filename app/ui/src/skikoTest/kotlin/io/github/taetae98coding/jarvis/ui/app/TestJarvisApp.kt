@@ -51,6 +51,13 @@ import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivity
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivityRepository
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeNotification
+import io.github.taetae98coding.jarvis.domain.terminal.CodeAnalysisStatus
+import io.github.taetae98coding.jarvis.domain.terminal.CodeCompletion
+import io.github.taetae98coding.jarvis.domain.terminal.CodeCompletions
+import io.github.taetae98coding.jarvis.domain.terminal.CodeEdit
+import io.github.taetae98coding.jarvis.domain.terminal.CodeIntelRepository
+import io.github.taetae98coding.jarvis.domain.terminal.CodeLocations
+import io.github.taetae98coding.jarvis.domain.terminal.CodeSource
 import io.github.taetae98coding.jarvis.domain.terminal.FileContent
 import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
 import io.github.taetae98coding.jarvis.domain.terminal.FileRepository
@@ -133,6 +140,7 @@ internal fun TestJarvisApp(
     gitWorktree: GitWorktreeRepository = FakeGitWorktreeRepository(),
     claudeActivity: ClaudeActivityRepository = FakeClaudeActivityRepository(),
     files: FileRepository = FakeFileRepository(),
+    codeIntel: CodeIntelRepository = FakeCodeIntelRepository(),
     gitChanges: GitChangesRepository = FakeGitChangesRepository(),
     projectRun: ProjectRunRepository = FakeProjectRunRepository(),
     theme: ThemeSettingsRepository = FakeThemeSettingsRepository(),
@@ -167,6 +175,7 @@ internal fun TestJarvisApp(
             single<GitWorktreeRepository> { gitWorktree }
             single<ClaudeActivityRepository> { claudeActivity }
             single<FileRepository> { files }
+            single<CodeIntelRepository> { codeIntel }
             single<GitChangesRepository> { gitChanges }
             single<ProjectRunRepository> { projectRun }
             single<ThemeSettingsRepository> { theme }
@@ -580,6 +589,38 @@ internal class FakeFileRepository(
         files.update { it + (path to FileContent.Text(text, truncated = false)) }
         return Result.success(Unit)
     }
+}
+
+/**
+ * 코드 파일의 자동완성·선언·사용처(docs/common/terminal-code-navigation.html). 기본값은 분석이 준비됐고 결과가 없는 것이다.
+ * 넣기는 접두사를 항목 이름으로 바꾸고 요청을 기록한다.
+ */
+internal class FakeCodeIntelRepository(
+    status: CodeAnalysisStatus = CodeAnalysisStatus.Ready,
+    var completions: List<CodeCompletion> = emptyList(),
+    var definitions: CodeLocations = CodeLocations(emptyList(), CodeSource.Analysis),
+    var usages: CodeLocations = CodeLocations(emptyList(), CodeSource.Analysis),
+) : CodeIntelRepository {
+    val status = MutableStateFlow(status)
+
+    val applied = mutableListOf<String>()
+
+    override fun observeAnalysis(path: String): Flow<CodeAnalysisStatus> = status
+
+    override suspend fun complete(path: String, text: String, offset: Int): CodeCompletions = CodeCompletions(completions, CodeSource.Analysis)
+
+    override suspend fun applyCompletion(path: String, text: String, offset: Int, item: CodeCompletion): CodeEdit {
+        applied += item.label
+        var start = offset
+        while (start > 0 && text[start - 1].isLetterOrDigit()) start--
+        val result = text.substring(0, start) + item.label + text.substring(offset)
+
+        return CodeEdit(result, start + item.label.length)
+    }
+
+    override suspend fun definition(path: String, text: String, offset: Int): CodeLocations = definitions
+
+    override suspend fun usages(path: String, text: String, offset: Int): CodeLocations = usages
 }
 
 /**

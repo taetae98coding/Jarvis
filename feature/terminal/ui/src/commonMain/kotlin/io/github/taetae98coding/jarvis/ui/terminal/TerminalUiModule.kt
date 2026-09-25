@@ -17,6 +17,7 @@ import org.koin.dsl.navigation3.navigation
 val terminalUiModule = module {
     viewModelOf(::TerminalCardViewModel)
     factoryOf(::ProjectRunner)
+    factoryOf(::CodeIntelUseCases)
     viewModelOf(::TerminalViewModel)
     viewModelOf(::TerminalSideBarViewModel)
     viewModelOf(::ClaudeNotificationEffectViewModel)

@@ -94,6 +94,23 @@ import io.github.taetae98coding.jarvis.domain.terminal.resolveRelativePath
 import io.github.taetae98coding.jarvis.domain.terminal.syntaxLanguageOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextLayoutResult
+import io.github.taetae98coding.jarvis.domain.terminal.CodeCompletion
+import io.github.taetae98coding.jarvis.domain.terminal.completionPrefix
+import io.github.taetae98coding.jarvis.domain.terminal.identifierAt
+import io.github.taetae98coding.jarvis.domain.terminal.isIdentifierChar
+import io.github.taetae98coding.jarvis.domain.terminal.lineStarts
+import io.github.taetae98coding.jarvis.domain.terminal.offsetOf
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 const val TerminalFileViewerNoticeTestTag = "terminal:file-viewer:notice"
 
@@ -155,6 +172,11 @@ fun terminalFileViewerCommentTargetTestTag(tabId: Long): String = "terminal:file
 
 private val FileToolbarHeight = 40.dp
 
+private val CodeStatusMaxWidth = 360.dp
+
+// 옮겨 간 줄 위로 남길 줄 수. 맨 위에 붙이면 앞뒤 맥락이 안 보인다.
+private const val RevealContextLines = 3
+
 /** 코멘트를 보낼 수 있는 Claude 탭 하나. */
 internal data class ClaudeTabChoice(val tabId: Long, val name: String)
 
@@ -195,7 +217,8 @@ internal class FileEditing(
  * 커밋 파일 탭은 docs/common/terminal-commit-file.html). [lineComments] 가 null 이면 줄 코멘트를 남길 수 없다.
  * 미리보기가 있는 파일(마크다운, [webPreviewSupported] 일 때 HTML·SVG)은 [sourceView] 가 아니면 미리보기로 보이고
  * (docs/common/terminal-file-preview.html), [editing] 이 있으면 원문이 열자마자 편집 보기로 고쳐 알아서 저장한다
- * (docs/common/terminal-file-editor.html). [onOpenFile] 은 마크다운 미리보기의 상대 경로 링크가 연다.
+ * (docs/common/terminal-file-editor.html). [onOpenFile] 은 마크다운 미리보기의 상대 경로 링크가 연다. [code] 가 있으면 코드
+ * 파일의 자동완성·선언·사용처 이동을 하고, [reveal] 이 오면 그 줄로 간다(docs/common/terminal-code-navigation.html).
  */
 @Composable
 internal fun TerminalFileViewer(
@@ -205,6 +228,9 @@ internal fun TerminalFileViewer(
     diffLabel: String,
     lineComments: FileLineComments?,
     editing: FileEditing?,
+    code: FileCode?,
+    reveal: CodeReveal?,
+    onRevealed: (id: Long) -> Unit,
     webPreviewSupported: Boolean,
     webPreviewHidden: Boolean,
     sourceView: Boolean,
@@ -225,6 +251,7 @@ internal fun TerminalFileViewer(
     val showsSource = preview == null || sourceView
     val editorShown = canEdit && showsSource && !editing.reading
     val uriHandler = LocalUriHandler.current
+    val navigator = code?.let { rememberCodeNavigator(it) }
 
     if (editorShown && edit == null) {
         LaunchedEffect(Unit) { editing.onStart(text.text) }
@@ -264,6 +291,7 @@ internal fun TerminalFileViewer(
             onRead = if (editorShown) ({ editing.onReadingChange(true) }) else null,
             onSave = { editing?.onSave?.invoke() },
             onRevert = { editing?.onRevert?.invoke() },
+            codeStatus = code?.let { navigator?.statusText(it) },
         )
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -273,6 +301,10 @@ internal fun TerminalFileViewer(
                     FileEditor(
                         edit = edit,
                         language = language,
+                        code = code,
+                        navigator = navigator,
+                        reveal = reveal,
+                        onRevealed = onRevealed,
                         onChange = editing.onChange,
                         onSave = editing.onSave,
                         modifier = Modifier.fillMaxSize(),
@@ -287,6 +319,9 @@ internal fun TerminalFileViewer(
                     language = language,
                     diff = changes,
                     lineComments = lineComments,
+                    navigator = null,
+                    reveal = null,
+                    onRevealed = onRevealed,
                     modifier = Modifier.fillMaxSize(),
                 )
                 content == FileContent.Unreadable -> FileViewerNotice("파일을 읽을 수 없습니다", Modifier.align(Alignment.Center))
@@ -316,6 +351,9 @@ internal fun TerminalFileViewer(
                             language = language,
                             diff = changes,
                             lineComments = lineComments,
+                            navigator = navigator,
+                            reveal = reveal,
+                            onRevealed = onRevealed,
                             modifier = Modifier.fillMaxWidth().weight(1f),
                         )
                     }
@@ -325,6 +363,8 @@ internal fun TerminalFileViewer(
 
         if (!editorShown && lineComments != null && lineComments.total > 0) LineCommentBar(lineComments)
     }
+
+    navigator?.results?.let { results -> CodeLocationsPopup(navigation = results, onOpen = navigator::open, onDismiss = navigator::dismiss) }
 }
 
 @Composable
@@ -352,8 +392,9 @@ private fun FileToolbar(
     onRead: (() -> Unit)?,
     onSave: () -> Unit,
     onRevert: () -> Unit,
+    codeStatus: String?,
 ) {
-    if (edit == null && summary == null && !hasPreview && onEdit == null && onRead == null) return
+    if (edit == null && summary == null && !hasPreview && onEdit == null && onRead == null && codeStatus == null) return
 
     val labelStyle = JarvisTheme.typography.labelMedium
     Row(
@@ -417,6 +458,16 @@ private fun FileToolbar(
             }
         }
 
+        if (codeStatus != null) {
+            Text(
+                text = codeStatus,
+                style = JarvisTheme.typography.labelSmall,
+                color = JarvisTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = CodeStatusMaxWidth).testTag(TerminalFileViewerCodeStatusTestTag),
+            )
+        }
         if (edit != null && edit.needsManualSave) {
             if (edit.diskChanged) {
                 TextButton(onClick = onRevert, enabled = !edit.saving, modifier = Modifier.testTag(TerminalFileViewerRevertTestTag)) {
@@ -466,11 +517,16 @@ private fun ModeButton(text: String, selected: Boolean, tag: String, onClick: ()
 /**
  * 편집 보기(E2). 줄 번호 칸과 입력 칸을 한 세로 스크롤에 넣어 같이 움직이고, 입력 칸만 가로로 스크롤한다. 입력 칸의 글은
  * [FileEditHost] 가 들고, 커서·고른 범위만 여기서 든다. 디스크를 따라 글이 바뀌면(E6) 커서를 글 길이 안으로 옮긴다.
+ * [code] 가 있으면 자동완성 목록과 ⌘B·⌥F7·⌘클릭을 받는다(docs/common/terminal-code-navigation.html C1–C5, G1).
  */
 @Composable
 private fun FileEditor(
     edit: FileEdit,
     language: SyntaxLanguage?,
+    code: FileCode?,
+    navigator: CodeNavigator?,
+    reveal: CodeReveal?,
+    onRevealed: (id: Long) -> Unit,
     onChange: (String) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
@@ -489,11 +545,85 @@ private fun FileEditor(
     val horizontal = rememberScrollState()
     val focusRequester = remember { FocusRequester() }
     val style = JarvisTheme.codeTextStyle
+    val scope = rememberCoroutineScope()
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var completion by remember { mutableStateOf<CompletionState?>(null) }
+    var completionRequest by remember { mutableStateOf<CompletionRequest?>(null) }
+    val currentCode by rememberUpdatedState(code)
+    val currentShown by rememberUpdatedState(shown)
+
+    fun closeCompletion() {
+        completion = null
+        completionRequest = null
+    }
+
+    fun requestCompletion(text: String, offset: Int, immediate: Boolean) {
+        completionRequest = CompletionRequest(text, offset, immediate, (completionRequest?.id ?: 0) + 1)
+    }
+
+    // 치거나 지운 글자에 따라 목록을 열고, 다시 받고, 닫는다(C1·C3).
+    fun onEdited(old: TextFieldValue, new: TextFieldValue) {
+        val language = currentCode?.language ?: return
+        val cursor = new.selection.start
+        if (!new.selection.collapsed) return closeCompletion()
+        if (new.text == old.text) {
+            val state = completion ?: return
+            val identifierEnd = identifierAt(new.text, state.start, language)?.last?.plus(1) ?: state.start
+            if (cursor < state.start || cursor > identifierEnd) closeCompletion()
+            return
+        }
+        val typed = new.text.length == old.text.length + 1 && cursor >= 1 &&
+            new.text.regionMatches(0, old.text, 0, cursor - 1) && new.text.regionMatches(cursor, old.text, cursor - 1, old.text.length - cursor + 1)
+        val deleted = new.text.length == old.text.length - 1
+        val state = completion
+        when {
+            typed && (isIdentifierChar(new.text[cursor - 1], language) || new.text[cursor - 1] == '.') -> requestCompletion(new.text, cursor, immediate = false)
+            deleted && state != null && cursor > state.start -> requestCompletion(new.text, cursor, immediate = false)
+            else -> closeCompletion()
+        }
+    }
+
+    fun pick(item: CodeCompletion) {
+        val code = currentCode ?: return
+        val text = shown.text
+        val offset = shown.selection.start
+        closeCompletion()
+        scope.launch {
+            val result = code.applyCompletion(text, offset, item)
+            // 넣는 동안 더 쳤으면 그 글을 지키고 버린다.
+            if (value.text != text) return@launch
+            value = TextFieldValue(result.text, TextRange(result.cursor))
+            if (result.text != edit.text) onChange(result.text)
+        }
+    }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
+    LaunchedEffect(completionRequest) {
+        val request = completionRequest ?: return@LaunchedEffect
+        val code = currentCode ?: return@LaunchedEffect
+        if (!request.immediate) delay(CompletionDebounce)
+        val result = code.complete(request.text, request.offset)
+        val start = request.offset - completionPrefix(request.text, request.offset, code.language).length
+        completion = if (result.items.isEmpty()) null else CompletionState(start, result.items, result.source)
+    }
+
     BoxWithConstraints(modifier = modifier) {
         val visibleHeight = maxHeight
+        val visibleHeightPx = with(LocalDensity.current) { visibleHeight.toPx() }
+
+        // 선언·사용처로 옮겨 왔으면 커서를 그 자리에 두고 그 줄이 위에서 1/3 쯤에 오게 스크롤한다(G4).
+        LaunchedEffect(reveal?.id, layout != null) {
+            val target = reveal ?: return@LaunchedEffect
+            val textLayout = layout ?: return@LaunchedEffect
+            val offset = offsetOf(currentShown.text, target.line, target.column)
+            value = TextFieldValue(currentShown.text, TextRange(offset))
+            onRevealed(target.id)
+            focusRequester.requestFocus()
+            val top = textLayout.getLineTop(textLayout.getLineForOffset(offset.coerceAtMost(textLayout.layoutInput.text.length)))
+            vertical.animateScrollTo((top - visibleHeightPx / 3).roundToInt().coerceAtLeast(0))
+        }
+
         Row(
             horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m),
             modifier = Modifier.fillMaxSize().verticalScroll(vertical).padding(start = JarvisTheme.dimens.spacing.s),
@@ -510,12 +640,31 @@ private fun FileEditor(
                 BasicTextField(
                     value = shown,
                     onValueChange = {
+                        val old = shown
                         value = it
                         if (it.text != edit.text) onChange(it.text)
+                        onEdited(old, it)
                     },
                     textStyle = style.copy(color = JarvisTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(JarvisTheme.colorScheme.primary),
                     visualTransformation = transformation,
+                    onTextLayout = { layout = it },
+                    decorationBox = { inner ->
+                        Box {
+                            inner()
+                            val state = completion
+                            val textLayout = layout
+                            if (state != null && textLayout != null) {
+                                val rect = textLayout.getCursorRect(state.start.coerceIn(0, textLayout.layoutInput.text.length))
+                                CompletionPopup(
+                                    state = state,
+                                    offset = IntOffset(rect.left.roundToInt(), rect.bottom.roundToInt()),
+                                    onPick = ::pick,
+                                    onDismiss = ::closeCompletion,
+                                )
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .horizontalScroll(horizontal)
                         // 가로 스크롤 안에서는 fillMaxWidth 가 먹지 않는다. 글 밖을 눌러도 입력 칸이 되게 보이는 영역만큼 넓힌다.
@@ -525,10 +674,48 @@ private fun FileEditor(
                         .focusRequester(focusRequester)
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                            if (event.key != Key.S || !(event.isMetaPressed || event.isCtrlPressed)) return@onPreviewKeyEvent false
-                            onSave()
+                            val state = completion
+                            if (state != null) {
+                                val handled = when (event.key) {
+                                    Key.DirectionDown -> {
+                                        completion = state.copy(selected = (state.selected + 1).coerceAtMost(state.items.lastIndex))
+                                        true
+                                    }
+                                    Key.DirectionUp -> {
+                                        completion = state.copy(selected = (state.selected - 1).coerceAtLeast(0))
+                                        true
+                                    }
+                                    Key.Enter, Key.NumPadEnter, Key.Tab -> {
+                                        pick(state.items[state.selected])
+                                        true
+                                    }
+                                    Key.Escape -> {
+                                        closeCompletion()
+                                        true
+                                    }
+                                    else -> false
+                                }
+                                if (handled) return@onPreviewKeyEvent true
+                            }
+                            when {
+                                event.key == Key.S && (event.isMetaPressed || event.isCtrlPressed) -> onSave()
+                                code != null && event.key == Key.Spacebar && event.isCtrlPressed -> requestCompletion(shown.text, shown.selection.start, immediate = true)
+                                navigator != null && event.key == Key.B && (event.isMetaPressed || event.isCtrlPressed) ->
+                                    navigator.goToDeclaration(shown.text, shown.selection.start)
+                                navigator != null && event.key == Key.F7 && event.isAltPressed -> navigator.findUsages(shown.text, shown.selection.start)
+                                else -> return@onPreviewKeyEvent false
+                            }
                             true
                         }
+                        .then(
+                            if (navigator != null) {
+                                Modifier.codeClick { position ->
+                                    layout?.getOffsetForPosition(position)?.let { navigator.goToDeclaration(currentShown.text, it) }
+                                }
+                            } else {
+                                Modifier
+                            },
+                        )
                         .testTag(TerminalFileViewerEditorTestTag),
                 )
             }
@@ -539,6 +726,26 @@ private fun FileEditor(
         )
     }
 }
+
+/** 자동완성 목록을 받을 요청. 같은 글·자리로 다시 불러도 새로 받게 [id] 로 가른다. */
+private data class CompletionRequest(val text: String, val offset: Int, val immediate: Boolean, val id: Long)
+
+/**
+ * ⌘(Ctrl)를 누른 채 누르기(G1). 글자 고르기·커서 옮기기보다 먼저 받아 소비한다. [onClick] 은 이 modifier 가 붙은 자리
+ * 기준 위치를 받는다.
+ */
+private fun Modifier.codeClick(onClick: (Offset) -> Unit): Modifier =
+    pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val modifiers = currentEvent.keyboardModifiers
+            if (!modifiers.isMetaPressed && !modifiers.isCtrlPressed) return@awaitEachGesture
+            down.consume()
+            val up = waitForUpOrCancellation(pass = PointerEventPass.Initial) ?: return@awaitEachGesture
+            up.consume()
+            onClick(down.position)
+        }
+    }
 
 /** 고르는 중인 줄. [anchor] 는 처음 누른 줄, [extent] 는 Shift 로 넓힌 끝이다. */
 private data class LineSelection(val anchor: DiffedLine, val extent: DiffedLine)
@@ -570,6 +777,9 @@ private fun FileText(
     language: SyntaxLanguage?,
     diff: GitFileDiff?,
     lineComments: FileLineComments?,
+    navigator: CodeNavigator?,
+    reveal: CodeReveal?,
+    onRevealed: (id: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val rows = remember(lines, diff) { diffedLines(lines, diff) }
@@ -588,6 +798,23 @@ private fun FileText(
     val selectedRange = selection?.let { rows.rangeOf(it.anchor, it.extent) }
 
     val items = remember(rows, selectedRange, lineComments?.comments) { fileItems(rows, selectedRange, lineComments?.comments.orEmpty()) }
+
+    val starts = remember(text) { lineStarts(text) }
+    var revealedLine by remember { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(reveal?.id) {
+        val target = reveal ?: return@LaunchedEffect
+        val index = items.indexOfFirst { it is FileItem.Line && (it.row as? DiffedLine.Current)?.number == target.line + 1 }
+        onRevealed(target.id)
+        if (index < 0) return@LaunchedEffect
+        listState.scrollToItem((index - RevealContextLines).coerceAtLeast(0))
+        revealedLine = target.line + 1
+    }
+    LaunchedEffect(revealedLine) {
+        if (revealedLine == null) return@LaunchedEffect
+        delay(RevealHighlight)
+        revealedLine = null
+    }
 
     val onGutter: ((DiffedLine, Boolean) -> Unit)? = lineComments?.let {
         { row, shift ->
@@ -618,7 +845,13 @@ private fun FileText(
                             showMarker = showMarkers,
                             selected = item.selected,
                             commented = item.commented,
+                            revealed = revealedLine != null && (item.row as? DiffedLine.Current)?.number == revealedLine,
                             onGutter = onGutter?.let { { shift: Boolean -> it(item.row, shift) } },
+                            onCodeClick = navigator?.let { navigator ->
+                                (item.row as? DiffedLine.Current)?.let { row ->
+                                    { column: Int -> navigator.goToDeclaration(text, (starts.getOrNull(row.number - 1) ?: 0) + column) }
+                                }
+                            },
                             modifier = Modifier.widthIn(min = visibleWidth),
                         )
 
@@ -712,7 +945,9 @@ private fun FileLine(
     showMarker: Boolean,
     selected: Boolean,
     commented: Boolean,
+    revealed: Boolean,
     onGutter: ((shift: Boolean) -> Unit)?,
+    onCodeClick: ((column: Int) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val style = JarvisTheme.codeTextStyle
@@ -722,11 +957,13 @@ private fun FileLine(
     }
     val background = when {
         selected -> JarvisTheme.colorScheme.primaryContainer
+        revealed -> JarvisTheme.colorScheme.tertiaryContainer
         row is DiffedLine.Removed -> JarvisTheme.colorScheme.errorContainer
         row is DiffedLine.Current && row.added -> JarvisTheme.colors.successContainer
         else -> Color.Transparent
     }
     val tag = when {
+        revealed -> TerminalFileViewerRevealedTestTag
         row is DiffedLine.Removed -> terminalFileViewerRemovedTestTag(row.oldNumber)
         row is DiffedLine.Current && row.added -> terminalFileViewerAddedTestTag(row.number)
         else -> null
@@ -754,7 +991,18 @@ private fun FileLine(
             }
         }
         // 탭 글자는 글꼴마다 폭이 달라 칸이 어긋나므로 highlightedLine 이 공백 네 칸으로 편다.
-        Text(text = text, style = style, softWrap = false)
+        var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+        Text(
+            text = text,
+            style = style,
+            softWrap = false,
+            onTextLayout = { layout = it },
+            modifier = if (onCodeClick != null && row is DiffedLine.Current) {
+                Modifier.codeClick { position -> layout?.let { onCodeClick(sourceColumn(row.text, it.getOffsetForPosition(position))) } }
+            } else {
+                Modifier
+            },
+        )
     }
 }
 
