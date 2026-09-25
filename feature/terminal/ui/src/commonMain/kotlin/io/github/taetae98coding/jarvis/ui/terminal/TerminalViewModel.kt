@@ -315,9 +315,9 @@ internal class TerminalViewModel(
 
     fun removeCommand(commandId: Long) = updateSelectedPanel { workspace, panelId -> workspace.removeCommand(panelId, commandId) }
 
-    /** 패널의 폴더(없으면 포커스된 탭의 폴더)에서 [command] 를 새 탭으로 돌린다(R16). */
+    /** 패널의 폴더(없으면 포커스된 탭의 폴더)에서 새 셸 탭을 열고 [command] 를 쳐 넣어 돌린다(R16). */
     fun runCommand(groupId: Long?, command: TerminalCommand) =
-        update { it.runInGroup(groupId, it.sideBarDirectory, command.command, command.label) }
+        update { it.runInGroup(groupId, it.sideBarDirectory, command.command, command.label, typed = true) }
 
     fun runAndroid(groupId: Long?, request: AndroidRunRequest) {
         val panelId = workspace.value?.selectedPanelId ?: return

@@ -86,6 +86,7 @@ internal data class TerminalTabDto(
     val commitHash: String? = null,
     val command: String? = null,
     val commandTitle: String? = null,
+    val commandTyped: Boolean = false,
 )
 
 @Serializable
@@ -196,6 +197,7 @@ private fun PaneNode.toDto(): PaneNodeDto =
                     commitHash = tab.commitHash,
                     command = tab.command,
                     commandTitle = tab.commandTitle,
+                    commandTyped = tab.commandTyped,
                 )
             },
             selectedTabId = selectedTabId,
@@ -256,5 +258,6 @@ private fun TerminalTabDto.toDomain(): TerminalTab =
         )
         program == FileProgram && filePath != null -> TerminalTab(id, TerminalProgram.File, filePath = filePath, commitHash = commitHash?.ifEmpty { null })
 
-        else -> TerminalTab(id, directory = directory)
+        // 명령은 그대로 읽는다. 앱을 다시 켰을 때만 지우는 것은 저장소의 몫이다(docs/common/terminal-run.html R18).
+        else -> TerminalTab(id, directory = directory, command = command?.ifEmpty { null }, commandTitle = commandTitle, commandTyped = commandTyped)
     }.copy(name = name?.trim()?.ifEmpty { null })

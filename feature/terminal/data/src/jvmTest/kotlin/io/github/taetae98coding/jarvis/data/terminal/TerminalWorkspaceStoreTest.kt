@@ -147,6 +147,19 @@ class TerminalWorkspaceStoreTest {
     }
 
     @Test
+    fun commandTabsKeepTheirCommandWhileTheAppIsRunning() = runTest {
+        val repository = repository(newPath())
+        val change = repository.updateWorkspace { it.runInGroup(null, "/repo", "make", "빌드", typed = true) }
+
+        val tab = repository.observeWorkspace().first().tabs.last()
+        assertEquals(change.after.tabs.last(), tab)
+        assertEquals("make", tab.command)
+        assertEquals("빌드", tab.commandTitle)
+        assertEquals(true, tab.commandTyped)
+        assertEquals("make", repository.updateWorkspace { it }.after.tabs.last().command)
+    }
+
+    @Test
     fun commandsAndRunChoicesAreReadBackButCommandTabsBecomeShells() = runTest {
         val path = newPath()
         val change = repository(path).updateWorkspace { workspace ->
@@ -155,7 +168,7 @@ class TerminalWorkspaceStoreTest {
                 .addCommand(1, null, "make")
                 .rememberAndroidRun(1, AndroidRunChoice(":androidApp", "debug", "avd:Pixel_9"))
                 .rememberIosRun(1, IosRunChoice("iosApp", "Debug", "UDID"))
-                .runInGroup(null, "/repo", "make", "make")
+                .runInGroup(null, "/repo", "make", "make", typed = true)
         }
 
         val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()

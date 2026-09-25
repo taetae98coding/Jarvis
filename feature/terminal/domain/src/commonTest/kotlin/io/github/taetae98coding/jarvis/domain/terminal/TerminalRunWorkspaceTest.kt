@@ -65,6 +65,29 @@ class TerminalRunWorkspaceTest {
         assertEquals("빌드", tab.commandTitle)
         assertEquals("/repo", tab.directory)
         assertEquals(TerminalTabKind.Run, tab.kind)
+        assertEquals(false, tab.commandTyped)
+    }
+
+    @Test
+    fun userCommandsAreTypedIntoTheShell() {
+        val run = workspace.selectPanel(1).runInGroup(null, "/repo", "make", "make", typed = true)
+
+        assertEquals(true, run.focusedTab!!.commandTyped)
+    }
+
+    @Test
+    fun withoutCommandsTurnsEveryRunTabIntoAShellTab() {
+        val run = workspace.selectPanel(1)
+            .runInGroup(null, "/repo", "make", "빌드", typed = true)
+            .runInGroup(null, "/repo", "gradle", "debug · Pixel 9", RunMirror("emulator-5554", "Pixel 9", DevicePlatform.Android))
+
+        val restored = run.withoutCommands()
+
+        assertEquals(run.tabs.map { it.id }, restored.tabs.map { it.id })
+        assertEquals(emptyList(), restored.tabs.filter { it.command != null || it.commandTitle != null || it.commandTyped })
+        assertEquals(listOf("/repo", "/repo"), restored.tabs.filter { it.program == TerminalProgram.Shell && it.directory == "/repo" }.map { it.directory })
+        assertEquals(1, restored.tabs.count { it.program == TerminalProgram.Device })
+        assertSame(restored, restored.withoutCommands())
     }
 
     @Test
