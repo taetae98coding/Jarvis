@@ -65,6 +65,10 @@ include(":feature:terminal:domain")
 include(":feature:terminal:data")
 include(":feature:terminal:ui")
 
+include(":feature:theme:domain")
+include(":feature:theme:data")
+include(":feature:theme:ui")
+
 include(":feature:mcp:domain")
 include(":feature:mcp:data")
 

@@ -67,6 +67,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | 에뮬레이터 목록·화면·제스처 | `EmulatorDevice`, `EmulatorGesture`, 유스케이스 3개 | `EmulatorDataSource`, 호스트 에이전트 | `EmulatorListScreen`, `EmulatorStreamScreen` |
 | Wi-Fi 기기 페어링 | `DevicePairingRepository`, `PairingQrCode`, 유스케이스 4개 | `DevicePairingDataSource`, 호스트 에이전트 | `WifiPairingScreen`, `QrCode` |
 | 화면 꺼짐 방지 | `ScreenAwakeSettingsRepository`, 유스케이스 7개 | `SettingsStore`, `IdleInhibitor`, `SystemScreenAwakeDataSource` | `ScreenAwakeCard`, `SystemScreenAwakeCard` |
+| 화면 테마 | `ThemeMode`, `ThemeSettingsRepository`, `ThemeAppearanceRepository`, 유스케이스 3개 | `SettingsStore`(문자열), `ThemeAppearance` | `ThemeModeCard`, `appDarkTheme()` |
 
 ## 의존성 주입 · ViewModel · 화면 이동
 

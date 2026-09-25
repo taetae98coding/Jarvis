@@ -44,6 +44,7 @@
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
     <li><a href="#settings">설정 영구 저장</a></li>
+    <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -420,6 +421,38 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>ScreenAwakeSettingsRepositoryTest</code>와 <code>JarvisAppTest</code>의 저장 테스트가 <code>InMemorySettingsStore</code>로 돈다. <code>NSUserDefaults</code> 왕복 자체는 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="theme-mode">
+<h2>화면 테마 (라이트·다크·시스템) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/theme-mode.html">화면 테마</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>UIWindow.overrideUserInterfaceStyle</code> (iOS 13+)</td><td>채택. 창 아래 모든 뷰 컨트롤러의 trait 이 바뀌어 상태 막대(<code>UIStatusBarStyle.default</code> 는 trait 의 <code>userInterfaceStyle</code> 을 따른다)와 Compose 의 <code>isSystemInDarkTheme()</code>(<code>ComposeHostingViewController.userInterfaceStyleDidChange</code>) 이 함께 따라간다. <code>Unspecified</code> 로 되돌리면 시스템 설정을 다시 따른다</td></tr>
+    <tr><td><code>UIViewController.overrideUserInterfaceStyle</code></td><td>버렸다. Compose 의 뷰 컨트롤러는 SwiftUI <code>UIHostingController</code> 의 자식이라 상태 막대 스타일은 부모가 정한다(<code>childForStatusBarStyle</code> 을 넘기지 않는다). 창에 걸어야 둘 다 맞는다</td></tr>
+    <tr><td><code>Info.plist</code> <code>UIUserInterfaceStyle</code></td><td>버렸다. 빌드 시점에 고정되어 런타임에 고를 수 없다</td></tr>
+    <tr><td>창을 얻는 길</td><td><code>UIApplication.sharedApplication.connectedScenes</code> 의 <code>UIWindowScene.windows</code>. iOS 15 에서 deprecated 된 <code>UIApplication.windows</code> 대신이다. 이 앱은 창이 하나다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/theme/data/src/iosMain/.../theme/ThemeAppearance.ios.kt</code></dd>
+  <dt>동작</dt><dd>연결된 모든 <code>UIWindow</code> 에 <code>overrideUserInterfaceStyle</code> 을 건다. <code>SYSTEM → Unspecified</code>, <code>LIGHT → Light</code>, <code>DARK → Dark</code></dd>
+  <dt>실패</dt><dd>창이 아직 없으면 아무 데도 걸지 못하고 넘어간다. 다음 설정 변경 때 다시 건다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>첫 컴포지션 이후에야 창에 오버라이드가 걸린다. 그 전 런치 스크린과 상태 막대는 시스템 외관이다. 앱 안의 색은 <code>readThemeMode()</code> 로 첫 프레임부터 맞다.</li>
+  <li>SwiftUI 가 창을 다시 만들면(<code>MainViewController()</code> 재호출) 새 창은 오버라이드가 없다. 설정을 다시 수집하는 <code>ThemeEffectViewModel</code> 이 새 루트와 함께 만들어져 다시 건다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:theme:domain</code>·<code>:feature:theme:data</code> 의 <code>iosSimulatorArm64Test</code> 와 <code>:app:ui</code> 의 <code>JarvisAppTest</code> 가 돈다. <code>overrideUserInterfaceStyle</code> 왕복은 <span class="badge untested">미검증</span>이라 시뮬레이터에서 카드를 누르고 상태 막대 글자색을 본다.</p>
 </section>
 
 <section class="feature" id="state-observation">

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화면 테마 (라이트·다크·시스템) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>화면 테마</span></nav>
+
+<header>
+  <h1>화면 테마 (라이트·다크·시스템)</h1>
+  <p class="lead">홈 카드에서 라이트·다크·시스템 중 하나를 고르면 앱 전체가 그 색으로 바뀌고, 앱을 껐다 켜도 고른 값이 남는다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>lightMode, darkMode, systemMode 3ㄱㅐ 지원해서 선택할 수 있도록 Home에 추가해줘. 이 값은 앱 재시작해도 유지해야해.</p>
+  <footer>2026-09-25 대화.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 홈 기능 그리드에 "화면 테마" 카드가 있고, <em>시스템 설정</em>·<em>라이트</em>·<em>다크</em> 셋 중 하나만 고를 수 있다. 기본값은 시스템 설정이다.</li>
+  <li><strong>R2.</strong> 고르는 즉시 앱 전체(모든 화면·다이얼로그)가 그 모드의 색으로 바뀐다. 라이트는 항상 라이트 색, 다크는 항상 다크 색이다.</li>
+  <li><strong>R3.</strong> 시스템 설정 모드는 OS 의 다크 모드 설정을 따르고, 앱이 떠 있는 동안 OS 설정이 바뀌면 다시 켜지 않아도 따라간다(<a href="design-system.html">디자인 시스템</a> R3 과 같다).</li>
+  <li><strong>R4.</strong> 고른 값은 <a href="settings-persistence.html">설정 영구 저장</a>을 거쳐 앱을 완전히 껐다 켜도 복원된다. 다음 실행의 첫 프레임부터 저장된 모드로 그린다.</li>
+  <li><strong>R5.</strong> 저장소가 앱 밖에서 바뀌어도 카드와 색이 따라간다. 저장된 문자열을 모드로 해석할 수 없으면 시스템 설정으로 본다.</li>
+  <li><strong>R6.</strong> 앱이 직접 그리지 않는 표면(Android 상태 막대·내비게이션 막대 아이콘, iOS 상태 막대, macOS 창 제목 막대, Web 페이지 배경·스크롤바)도 가능한 플랫폼에서는 고른 모드를 따른다. 어디까지 가능한지는 <a href="#platforms">플랫폼별 판정</a>에 있다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>시간대별 자동 전환(해 지면 다크). OS 가 이미 제공하므로 시스템 설정 모드로 대신한다.</li>
+    <li>모드마다 다른 팔레트(다크 색을 여러 벌 두는 것). 색은 <a href="design-system.html#tokens">디자인 시스템</a>의 라이트·다크 두 벌뿐이다.</li>
+    <li>터미널 글자 영역. 셸 프로그램이 어두운 배경을 가정하므로 라이트 모드에서도 터미널 창은 어둡다(<a href="terminal.html">터미널</a>).</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>화면 테마</td></tr>
+    <tr><td>아이콘</td><td><code>JarvisIcons.Moon</code> (새 아이콘. 초승달 윤곽선)</td></tr>
+    <tr><td>설명</td><td>앱의 밝은 색과 어두운 색을 고릅니다. 시스템 설정은 OS 의 다크 모드를 따릅니다.</td></tr>
+    <tr><td>컨트롤</td><td>Material3 <code>RadioButton</code> 세 줄. 줄 전체가 <code>selectable(role = RadioButton)</code> 이라 라벨을 눌러도 골라진다. 라디오 버튼 자체는 표시 역할만 한다. 라벨은 위에서부터 "시스템 설정" · "라이트" · "다크"</td></tr>
+    <tr><td>테스트 태그</td><td>카드 <code>feature:themeMode</code>, 줄 <code>feature:themeMode:system</code> / <code>feature:themeMode:light</code> / <code>feature:themeMode:dark</code></td></tr>
+  </tbody>
+</table>
+
+<ul>
+  <li>줄을 누르면 즉시 저장소에 쓴다. 화면 상태의 원본은 메모리가 아니라 저장소다(설정 영구 저장의 동작과 같다). 저장소가 알려 준 값이 카드의 선택과 루트 테마 양쪽에 돌아온다.</li>
+  <li>루트 <code>JarvisTheme</code> 은 <code>darkTheme</code> 을 인자로 받는다. 시스템 설정 모드면 <code>isSystemInDarkTheme()</code>, 라이트면 <code>false</code>, 다크면 <code>true</code> 다.</li>
+  <li>모드가 바뀌면 플랫폼에도 알린다(R6). 무엇을 하는지는 플랫폼마다 다르고, 아무것도 못 하는 플랫폼은 조용히 no-op 이다.</li>
+</ul>
+
+<aside class="decision">
+  <strong>결정: 세그먼트 버튼이 아니라 라디오 줄이다</strong>
+  M3 <code>SingleChoiceSegmentedButtonRow</code> 가 이런 삼지선다의 표준 컨트롤이지만, 홈 그리드의 카드 최소 폭이 220dp(<code>gridMinCellWidth</code>)라 내용 폭이 188dp 다. 세 칸이면 칸당 62dp 인데 M3 기본 여백 24dp 를 빼면 38dp 라 "시스템" 세 글자(14sp, 약 42dp)가 잘린다. 카드 폭은 화면에 따라 달라지므로 폭에 무관한 세로 라디오 줄을 택했다. <code>FilterChip</code> 을 <code>FlowRow</code> 에 놓는 안은 좁으면 두 줄로 접혀 카드 높이가 흔들려서 버렸다.
+</aside>
+
+<h2 id="implementation">공통 구현</h2>
+
+<p>기능 하나가 <code>:feature:theme:domain</code> · <code>:feature:theme:data</code> · <code>:feature:theme:ui</code> 셋을 갖는다(<a href="module-architecture.html">모듈 구조</a> R1). 패키지는 <code>domain.theme</code> · <code>data.theme</code> · <code>ui.theme</code> 다.</p>
+
+<dl class="meta">
+  <dt>모델</dt><dd><code>domain/theme/ThemeMode.kt</code> — <code>enum class ThemeMode { SYSTEM, LIGHT, DARK }</code> 와 <code>fun isDark(systemInDark: Boolean): Boolean</code>. 모드를 실제 다크 여부로 푸는 규칙은 이 한 함수에만 있다</dd>
+  <dt>계약</dt><dd><code>domain/theme/ThemeSettingsRepository.kt</code>(설정. <code>observeThemeMode()</code> · <code>readThemeMode()</code> · <code>setThemeMode(mode)</code>), <code>domain/theme/ThemeAppearanceRepository.kt</code>(플랫폼 표면. <code>applyThemeMode(mode)</code>)</dd>
+  <dt>유스케이스</dt><dd><code>ObserveThemeModeUseCase(scope): StateFlow&lt;ThemeMode&gt;</code>, <code>SetThemeModeUseCase(mode)</code>, <code>ApplyThemeModeUseCase()</code>(설정을 수집해 플랫폼 표면에 넘긴다)</dd>
+  <dt>상태</dt><dd><code>data/theme/DefaultThemeSettingsRepository.kt</code>. 키 <code>theme_mode</code>, 값은 <code>"system"</code> · <code>"light"</code> · <code>"dark"</code> 문자열. 모르는 값은 <code>SYSTEM</code></dd>
+  <dt>공급</dt><dd><code>internal expect fun createThemeAppearance(context: PlatformContext): ThemeAppearance</code> (<code>data.theme</code>). <code>ThemeAppearance.apply(mode)</code> 하나를 가진 인터페이스다</dd>
+  <dt>UI</dt><dd><code>ui/theme/ThemeModeCard.kt</code>(카드), <code>ui/theme/ThemeModeViewModel.kt</code>(카드), <code>ui/theme/AppTheme.kt</code> 의 <code>@Composable fun appDarkTheme(): Boolean</code> 과 <code>ThemeEffectViewModel</code>(앱 루트)</dd>
+</dl>
+
+<pre><code>// :feature:theme:ui — 앱 셸이 루트에 쓰는 한 줄
+JarvisTheme(darkTheme = appDarkTheme()) { … }
+
+@Composable
+fun appDarkTheme(): Boolean {
+    val viewModel = koinViewModel&lt;ThemeEffectViewModel&gt;()   // init 에서 ApplyThemeModeUseCase 를 띄운다
+    val mode by viewModel.themeMode.collectAsStateWithLifecycle()
+    return mode.isDark(isSystemInDarkTheme())
+}</code></pre>
+
+<pre><code>// :feature:theme:domain — 언제 플랫폼에 알리는지
+class ApplyThemeModeUseCase(settings, appearance) {
+    suspend operator fun invoke() {
+        settings.observeThemeMode().collect(appearance::applyThemeMode)
+    }
+}</code></pre>
+
+<aside class="decision">
+  <strong>결정: <code>SettingsStore</code> 에 문자열을 더한다</strong>
+  모드는 셋이라 boolean 하나로 적을 수 없다. 후보는 셋이었다.
+  <ul>
+    <li><strong>채택.</strong> <code>SettingsStore</code> 에 <code>getString</code> · <code>putString</code> · <code>observeString</code> 을 더하고, 네 <code>actual</code> 이 각자 저장소의 문자열 API 를 부른다. 설정 영구 저장 스펙이 "다른 타입이 필요하면 인터페이스에 메서드를 추가하고 네 actual 을 함께 늘린다" 고 정해 둔 길이다.</li>
+    <li>boolean 두 개(<code>dark_forced</code>, <code>light_forced</code>)로 쪼개는 안. 둘 다 true 인 상태가 표현 가능해져서 버렸다.</li>
+    <li>Int(서수)로 적는 안. 문자열이 필요한 건 마찬가지고, 서수는 enum 순서를 바꾸면 저장값이 뒤바뀐다. 문자열 이름은 그 위험이 없다.</li>
+  </ul>
+  값은 enum 이름의 소문자다. 저장값 해석은 <code>ThemeMode.fromStored(value)</code> 가 맡고, 모르는 값은 <code>SYSTEM</code> 이다(R5).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 플랫폼 표면은 <code>data</code> 의 <code>expect</code> 로 적용한다</strong>
+  <a href="keep-screen-awake.html">화면 꺼짐 방지</a>는 Compose 의 Modifier 가 플랫폼 API 를 대신 불러서 <code>ui</code> 에 예외를 두었지만, 여기서는 네 플랫폼 모두 애플리케이션 단위 핸들(Android <code>UiModeManager</code>, iOS <code>UIApplication</code> 의 창, JVM 시스템 프로퍼티, Web <code>document</code>)로 닿을 수 있어 <a href="module-architecture.html">모듈 구조</a> R5 대로 <code>data</code> 에 둔다. Android 에서 Activity 를 요구하는 <code>enableEdgeToEdge</code> 재호출 안(<code>ui</code> 예외가 필요했다)은 <code>UiModeManager.setApplicationNightMode</code> 가 앱의 <code>uiMode</code> 를 통째로 바꿔 시스템 막대까지 맞춰 주므로 버렸다. 자세한 후보는 각 플랫폼 스펙에 있다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 첫 프레임의 다크 여부는 저장소를 동기로 읽어 정한다</strong>
+  <code>ObserveThemeModeUseCase</code> 는 <code>observeThemeMode().stateIn(scope, WhileSubscribed(), readThemeMode())</code> 다. Flow 의 첫 방출을 기다리면 첫 프레임이 시스템 색으로 그려졌다가 바뀌어 깜빡인다(R4 "첫 프레임부터"). <a href="settings-persistence.html">설정 영구 저장</a>의 <code>read*</code> 규칙 그대로다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: JVM 은 시작 시점에 한 번 더 적용한다</strong>
+  macOS 창 제목 막대의 외관은 AWT 가 뜰 때 시스템 프로퍼티 <code>apple.awt.application.appearance</code> 를 한 번만 읽는다. 그래서 <code>:shared</code> 의 JVM <code>startJarvisKoin()</code> 이 첫 창보다 먼저 <code>ThemeAppearanceRepository.applyThemeMode(ThemeSettingsRepository.readThemeMode())</code> 를 부른다. 다른 세 플랫폼은 런타임 적용만으로 충분해서 이 호출이 없다. 자세한 것은 <a href="../platform/jvm.html#theme-mode">jvm.html</a>.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<p>앱 안의 색(R1–R5)은 네 플랫폼 모두 commonMain Compose 코드로 같다. 갈리는 것은 R6, 앱 밖 표면이다.</p>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>앱 밖 표면</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>UiModeManager.setApplicationNightMode</code>. 앱의 <code>uiMode</code> 가 바뀌어 상태 막대 아이콘 색도 따라간다. <code>MainActivity</code> 가 <code>onConfigurationChanged</code> 에서 <code>enableEdgeToEdge()</code> 를 다시 부른다</td><td><a href="../platform/android.html#theme-mode">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td><code>UIWindow.overrideUserInterfaceStyle</code>. 상태 막대와 <code>isSystemInDarkTheme()</code> 이 함께 따라간다</td><td><a href="../platform/ios.html#theme-mode">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge workaround">우회</span></td><td>창 제목 막대는 시작 때 <code>apple.awt.application.appearance</code> 로만 정해진다. 모드를 바꾸면 내용은 즉시, 제목 막대는 다음 실행부터 따라간다</td><td><a href="../platform/jvm.html#theme-mode">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td><code>document.documentElement.style.colorScheme</code>. 캔버스 밖 페이지 배경·스크롤바가 따라간다</td><td><a href="../platform/web.html#theme-mode">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.themeModeDefaultsToSystem</code></td><td>R1. 기본값 시스템 설정</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.themeModeSelectsOneOfThree</code></td><td>R1. 다크를 누르면 다크만 골라진다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTest.themeModeIsPersisted</code></td><td>R4. 누르면 설정 리포지토리에 쓰인다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTest.themeModeIsRestoredOnRelaunch</code></td><td>R4. 저장된 값으로 시작한다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTest.themeModeFollowsChangesMadeOutsideTheApp</code></td><td>R5. 저장소를 직접 바꾸면 카드가 따라간다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTest.themeModeReachesThePlatform</code></td><td>R6. 고른 모드가 <code>ThemeAppearanceRepository</code> 에 닿는다</td><td>같음</td></tr>
+    <tr><td><code>ThemeModeTest</code> (3개)</td><td>R2, R3, R5. <code>isDark</code> 의 세 모드 규칙, <code>fromStored</code> 의 왕복과 모르는 값</td><td><code>:feature:theme:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ApplyThemeModeUseCaseTest</code></td><td>R6. 설정이 바뀔 때마다 플랫폼 표면에 넘긴다</td><td>같음</td></tr>
+    <tr><td><code>ThemeSettingsRepositoryTest</code> (5개)</td><td>R4, R5. 기본값·저장값 읽기·쓰기·외부 변경·수집 중에만 리스너</td><td><code>:feature:theme:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisThemeTest.darkThemeSwapsColors</code></td><td>R2. <code>darkTheme = true</code> 면 다크 색이 공급된다(<a href="design-system.html#verification">디자인 시스템</a>)</td><td><code>:core:designsystem</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisKoinTest.everyDefinitionResolves</code></td><td>새 정의 다섯(리포지토리 둘, 유스케이스 셋)이 해석된다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>R6 의 실제 시각 결과(상태 막대 아이콘 색, 창 제목 막대)는 자동 테스트가 보지 못한다. 플랫폼 스펙의 검증 항목에 수동 확인 방법을 적었다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>Android 창 배경(<code>Theme.Material.Light.NoActionBar</code>)은 첫 프레임 전에 잠깐 밝다. 다크 모드를 골라도 앱을 켤 때 흰 화면이 한 프레임 보일 수 있다. <a href="design-system.html#limits">디자인 시스템</a>에 이미 적힌 한계다.</li>
+  <li>iOS 는 창에 오버라이드가 걸리기 전(첫 컴포지션 이전)의 상태 막대가 시스템 외관을 따른다. 앱 안의 색은 첫 프레임부터 맞다.</li>
+  <li>JVM 은 창 제목 막대가 다음 실행부터 따라간다(<a href="../platform/jvm.html#theme-mode">우회</a>). 라이트·다크로 켠 프로세스에서 시스템 설정으로 되돌리면 내용도 다음 실행까지 그 외관에 머문다. skiko 가 OS 설정이 아니라 앱의 유효 외관을 읽기 때문이다. Linux·Windows 는 프로퍼티가 무시되고 예외는 없다.</li>
+  <li>Web 은 캔버스가 그려지기 전 잠깐의 페이지 배경이 브라우저 기본이다. <code>color-scheme</code> 은 캔버스가 그려진 뒤 적용된다.</li>
+</ul>
+
+<footer class="page">
+  <a href="design-system.html">← 디자인 시스템</a> · <a href="settings-persistence.html">설정 영구 저장 →</a>
+</footer>
+
+</body>
+</html>

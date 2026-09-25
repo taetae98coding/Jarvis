@@ -22,6 +22,13 @@ private object UserDefaultsSettingsStore : SettingsStore {
         defaults.setBool(value, key)
     }
 
+    override fun getString(key: String, defaultValue: String): String =
+        defaults.stringForKey(key) ?: defaultValue
+
+    override fun putString(key: String, value: String) {
+        defaults.setObject(value, key)
+    }
+
     override val changes: Flow<Unit> = callbackFlow {
         val center = NSNotificationCenter.defaultCenter
         val observer = center.addObserverForName(

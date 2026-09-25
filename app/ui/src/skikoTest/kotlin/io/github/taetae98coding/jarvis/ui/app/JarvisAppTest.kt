@@ -8,6 +8,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -53,6 +55,8 @@ import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationLockTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationNotificationTestTag
 import io.github.taetae98coding.jarvis.ui.rotation.deviceRotationAngleTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepScreenAwakeTestTag
+import io.github.taetae98coding.jarvis.domain.theme.ThemeMode
+import io.github.taetae98coding.jarvis.ui.theme.themeModeOptionTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeNotificationTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeToggleTestTag
@@ -189,6 +193,64 @@ class JarvisAppTest {
     }
 
     // 전역 화면 유지는 Android 만 지원한다. Skiko 로 렌더링하는 타깃에서는 토글이 잠겨 있어야 한다.
+    @Test
+    fun themeModeDefaultsToSystem() = runComposeUiTest {
+        setContent { TestJarvisApp() }
+
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.SYSTEM)).assertIsSelected()
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.LIGHT)).assertIsNotSelected()
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.DARK)).assertIsNotSelected()
+    }
+
+    @Test
+    fun themeModeSelectsOneOfThree() = runComposeUiTest {
+        setContent { TestJarvisApp() }
+
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.DARK)).performClick().assertIsSelected()
+
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.SYSTEM)).assertIsNotSelected()
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.LIGHT)).assertIsNotSelected()
+    }
+
+    @Test
+    fun themeModeIsPersisted() = runComposeUiTest {
+        val theme = FakeThemeSettingsRepository()
+        setContent { TestJarvisApp(theme = theme) }
+
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.LIGHT)).performClick()
+
+        assertEquals(ThemeMode.LIGHT, theme.themeMode.value)
+    }
+
+    @Test
+    fun themeModeIsRestoredOnRelaunch() = runComposeUiTest {
+        setContent { TestJarvisApp(theme = FakeThemeSettingsRepository(mode = ThemeMode.DARK)) }
+
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.DARK)).assertIsSelected()
+    }
+
+    @Test
+    fun themeModeFollowsChangesMadeOutsideTheApp() = runComposeUiTest {
+        val theme = FakeThemeSettingsRepository()
+        setContent { TestJarvisApp(theme = theme) }
+
+        theme.themeMode.value = ThemeMode.LIGHT
+        waitForIdle()
+
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.LIGHT)).assertIsSelected()
+    }
+
+    @Test
+    fun themeModeReachesThePlatform() = runComposeUiTest {
+        val applied = mutableListOf<ThemeMode>()
+        setContent { TestJarvisApp(themeAppearance = { applied += it }) }
+
+        onNodeWithTag(themeModeOptionTestTag(ThemeMode.DARK)).performClick()
+        waitForIdle()
+
+        assertEquals(listOf(ThemeMode.SYSTEM, ThemeMode.DARK), applied)
+    }
+
     @Test
     fun systemScreenAwakeIsLockedWhereItIsNotSupported() = runComposeUiTest {
         val settings = FakeScreenAwakeSettingsRepository()

@@ -43,7 +43,7 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> boolean 설정을 키로 읽고 쓸 수 있다. 키가 없으면 호출자가 준 기본값을 돌려준다.</li>
+  <li><strong>R1.</strong> boolean 과 문자열 설정을 키로 읽고 쓸 수 있다. 키가 없으면 호출자가 준 기본값을 돌려준다. (문자열은 2026-09-25 <a href="theme-mode.html">화면 테마</a>가 더했다.)</li>
   <li><strong>R2.</strong> 값은 프로세스 종료 후에도 남는다. 다음 실행의 첫 프레임부터 저장된 값이 보인다.</li>
   <li><strong>R3.</strong> 저장소가 바뀌면(이 앱이 썼든, 밖에서 썼든) 화면이 따라간다.</li>
   <li><strong>R4.</strong> 플랫폼별 저장소의 차이는 <code>SettingsStore</code> 뒤에 숨긴다. 공용 코드는 어떤 저장소인지 모른다.</li>
@@ -69,12 +69,16 @@
 <pre><code>interface SettingsStore {
     fun getBoolean(key: String, defaultValue: Boolean): Boolean
     fun putBoolean(key: String, value: Boolean)
+    fun getString(key: String, defaultValue: String): String
+    fun putString(key: String, value: String)
     val changes: Flow&lt;Unit&gt;?
 
     fun observeBoolean(key: String, defaultValue: Boolean): Flow&lt;Boolean&gt; =
         observeSystemState(signals = changes, interval = SettingsPollInterval) {
             getBoolean(key, defaultValue)
         }
+
+    fun observeString(key: String, defaultValue: String): Flow&lt;String&gt; = …   // 같은 꼴
 }</code></pre>
 
 <aside class="decision">
@@ -96,7 +100,7 @@
   예전에는 리포지토리가 앱 수명 스코프에서 <code>Eagerly</code> 로 <code>StateFlow</code> 를 만들어 R2 를 지켰다. 그러면 저장소 리스너가 앱이 끝날 때까지 풀리지 않는다. <a href="state-observation.html">상태 조회 규칙</a> R9·R11·R12 에 따라 리포지토리는 cold Flow 만 내놓고, 첫 프레임 초기값은 <code>stateIn</code> 의 초기값으로만 쓰는 스냅샷으로 따로 준다. <code>StateFlow</code> 는 ViewModel 의 스코프에서 만들어진다.
 </aside>
 
-<p>키는 기능이 소유한다. <code>keep_screen_awake</code>·<code>keep_system_screen_awake</code>는 <code>DefaultScreenAwakeSettingsRepository</code> 안에 있고, 다른 기능이 설정을 갖게 되면 같은 <code>SettingsStore</code>를 쓰는 자기 리포지토리를 만든다. 모든 설정을 한 클래스에 모으면 그 클래스가 <a href="module-architecture.html">분리 전의 <code>:shared</code>처럼</a> 기능 수만큼 커진다.</p>
+<p>키는 기능이 소유한다. <code>keep_screen_awake</code>·<code>keep_system_screen_awake</code>는 <code>DefaultScreenAwakeSettingsRepository</code> 안에, 문자열 키 <code>theme_mode</code> 는 <code>DefaultThemeSettingsRepository</code>(<a href="theme-mode.html">화면 테마</a>) 안에 있고, 다른 기능이 설정을 갖게 되면 같은 <code>SettingsStore</code>를 쓰는 자기 리포지토리를 만든다. 모든 설정을 한 클래스에 모으면 그 클래스가 <a href="module-architecture.html">분리 전의 <code>:shared</code>처럼</a> 기능 수만큼 커진다.</p>
 
 <h2 id="platforms">플랫폼별 판정</h2>
 
@@ -124,14 +128,14 @@
   </tbody>
 </table>
 
-<p><code>:feature:screen:data</code> 테스트는 <code>InMemorySettingsStore</code>를, <code>ui</code> 테스트는 가짜 <code>ScreenAwakeSettingsRepository</code>를 쓴다. 플랫폼 저장소 구현은 <a href="index.html#limit-store-untested">자동 테스트가 없다</a>.</p>
+<p><code>:feature:screen:data</code>·<code>:feature:theme:data</code> 테스트는 각자 가진 <code>InMemorySettingsStore</code>(같은 내용의 사본. 테스트 소스는 모듈 사이에서 공유되지 않는다)를, <code>ui</code> 테스트는 가짜 리포지토리를 쓴다. 플랫폼 저장소 구현은 <a href="index.html#limit-store-untested">자동 테스트가 없다</a>.</p>
 
 <h2 id="limits">한계</h2>
 
 <ul>
   <li><a href="index.html#limit-sync-store">동기 API다.</a> 값이 늘면 DataStore로 갈아끼운다.</li>
   <li>쓰기 실패를 알리지 않는다. Web의 시크릿 모드처럼 저장소 접근이 예외를 던지는 경우 지금은 잡지 않는다.</li>
-  <li>boolean만 지원한다. 다른 타입이 필요하면 인터페이스에 메서드를 추가하고 네 <code>actual</code>을 함께 늘린다. 이미 그 벽에 부딪힌 곳이 하나 있다. <a href="system-keep-screen-awake.html">시스템 전역 화면 유지</a>가 되돌릴 화면 꺼짐 시간(Int)을 여기 넣지 못하고 Android 전용 <code>SharedPreferences</code> 파일에 따로 보관한다.</li>
+  <li>boolean 과 문자열만 지원한다. 다른 타입이 필요하면 인터페이스에 메서드를 추가하고 네 <code>actual</code>을 함께 늘린다. 문자열이 그렇게 들어왔다(<a href="theme-mode.html">화면 테마</a>). 그 전에 벽에 부딪힌 곳이 하나 있다. <a href="system-keep-screen-awake.html">시스템 전역 화면 유지</a>가 되돌릴 화면 꺼짐 시간(Int)을 여기 넣지 못하고 Android 전용 <code>SharedPreferences</code> 파일에 따로 보관한다.</li>
 </ul>
 
 <footer class="page">

@@ -17,6 +17,7 @@ import io.github.taetae98coding.jarvis.ui.navigation.LocalNavigator
 import io.github.taetae98coding.jarvis.ui.navigation.Navigator
 import io.github.taetae98coding.jarvis.ui.screen.appScreenAwake
 import io.github.taetae98coding.jarvis.ui.terminal.ClaudeTurnNotifications
+import io.github.taetae98coding.jarvis.ui.theme.appDarkTheme
 import org.koin.compose.navigation3.koinEntryProvider
 import org.koin.core.annotation.KoinExperimentalAPI
 
@@ -26,7 +27,8 @@ fun JarvisApp(modifier: Modifier = Modifier) {
     val backStack = rememberNavBackStack(rememberJarvisSavedStateConfiguration(), HomeRoute)
     val navigator = remember(backStack) { Navigator(backStack) }
 
-    JarvisTheme {
+    // 어느 모드를 골랐는지는 :feature:theme:ui 가 안다. 앱 셸은 다크 여부만 받는다.
+    JarvisTheme(darkTheme = appDarkTheme()) {
         // 루트 Surface 에 붙여서 특정 화면의 수명과 무관하게 효과가 유지되도록 한다. 무엇을
         // 적용하는지는 :feature:screen:ui 가 안다.
         Surface(

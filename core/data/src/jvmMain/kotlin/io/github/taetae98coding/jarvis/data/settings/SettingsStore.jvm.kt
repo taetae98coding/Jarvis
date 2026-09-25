@@ -21,6 +21,13 @@ private object PreferencesSettingsStore : SettingsStore {
         preferences.putBoolean(key, value)
     }
 
+    override fun getString(key: String, defaultValue: String): String =
+        preferences.get(key, defaultValue)
+
+    override fun putString(key: String, value: String) {
+        preferences.put(key, value)
+    }
+
     override val changes: Flow<Unit> = callbackFlow {
         val listener = PreferenceChangeListener { trySend(Unit) }
         preferences.addPreferenceChangeListener(listener)

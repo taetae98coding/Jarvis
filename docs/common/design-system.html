@@ -56,7 +56,7 @@
 <ol>
   <li><strong>R1.</strong> 앱의 루트는 <code>MaterialTheme</code> 대신 <code>JarvisTheme</code> 로 감싼다. <code>JarvisTheme</code> 은 안에서 <code>MaterialTheme(colorScheme, typography, shapes)</code> 를 부르므로, Material 3 컴포넌트(<code>Switch</code>, <code>FilterChip</code>, <code>OutlinedButton</code> …)는 인자를 따로 받지 않아도 Jarvis 값으로 그려진다.</li>
   <li><strong>R2.</strong> <code>JarvisTheme</code> 은 여섯 가지 토큰을 공급한다: <code>colorScheme</code>(M3 색 역할), <code>colors</code>(M3 에 없는 역할: success·warning·terminal), <code>typography</code>(M3 글꼴 단계), <code>codeTextStyle</code>(고정폭), <code>shapes</code>(M3 모서리 단계), <code>dimens</code>(간격·아이콘 크기·선 굵기·레이아웃). 값은 <a href="#tokens">토큰 표</a>와 같다.</li>
-  <li><strong>R3.</strong> 색은 라이트·다크 두 벌이고, 기본값은 시스템 설정(<code>isSystemInDarkTheme()</code>)을 따른다. 시스템 설정이 바뀌면 앱을 다시 켜지 않아도 따라간다.</li>
+  <li><strong>R3.</strong> 색은 라이트·다크 두 벌이고, 기본값은 시스템 설정(<code>isSystemInDarkTheme()</code>)을 따른다. 시스템 설정이 바뀌면 앱을 다시 켜지 않아도 따라간다. 사용자가 고른 모드를 넘기는 자리가 <code>JarvisTheme(darkTheme = …)</code> 이고, 그 값은 <a href="theme-mode.html">화면 테마</a>가 정한다.</li>
   <li><strong>R4.</strong> 기능 코드(<code>feature/*/ui</code>, <code>app/ui</code>, <code>core/ui</code>)는 dp·sp 숫자와 <code>Color(…)</code> 리터럴을 직접 쓰지 않고 <code>JarvisTheme</code> 토큰이나 컴포넌트의 <code>*Defaults</code> 를 거친다. 예외는 <a href="#decision-literals">결정</a>에 적은 세 가지뿐이다.</li>
   <li><strong>R5.</strong> 기본값을 가진 컴포넌트는 모두 같은 이름의 <code>&lt;컴포넌트&gt;Defaults</code> object 를 가진다. 기본값은 <code>JarvisTheme</code> 토큰에서 오고, 호출하는 쪽은 인자로 Defaults 와 다른 값을 넘겨 그 컴포넌트만의 값을 가진다. 기능 하나에서만 쓰는 컴포넌트는 그 기능 모듈이 자기 Defaults 를 소유한다.</li>
   <li><strong>R6.</strong> 컨테이너의 여백·배경·모양·테두리·크기와 상태(선택·hover·눌림)에 따른 변화는 Compose Foundation 1.12 의 Style API(<code>Style { … }</code>, <code>Modifier.styleable</code>)로 정의한다. 그런 컴포넌트는 <code>style: Style = Style</code> 인자를 받고, 넘긴 Style 은 Defaults 의 Style 위에 <em>속성 단위로</em> 덮어쓴다. 넘기지 않은 속성은 기본값이 남는다.</li>
@@ -69,7 +69,7 @@
   <ul>
     <li>Android 12+ 동적 색(배경화면에서 뽑는 색). 네 타깃의 모양을 같게 두려고 쓰지 않는다.</li>
     <li>글꼴 파일 번들. 플랫폼 기본 글꼴을 그대로 쓴다(<a href="#decision-font">결정</a>).</li>
-    <li>앱 안에서 라이트/다크를 고르는 설정 화면. <code>JarvisTheme(darkTheme = …)</code> 인자로 받을 자리만 둔다.</li>
+    <li>앱 안에서 라이트/다크를 고르는 설정 화면. 이 문서에서는 <code>JarvisTheme(darkTheme = …)</code> 인자로 받을 자리만 두었고, 2026-09-25 <a href="theme-mode.html">화면 테마</a>가 그 자리를 채웠다.</li>
     <li>터미널 글자 영역의 색. 셸 프로그램은 어두운 배경을 가정하므로 라이트 테마에서도 터미널 창은 어둡다(<a href="terminal.html">터미널</a>).</li>
   </ul>
 </aside>
@@ -142,6 +142,7 @@
     <tr><td><code>Check</code></td><td>터미널 패널 줄의 Claude 상태 표시 "확인함"(<a href="terminal-claude-status.html">Claude 상태 표시</a>). 꺾인 체크 표시</td><td>Claude 확인함</td></tr>
     <tr><td><code>Play</code></td><td>기기 줄의 실행 버튼</td><td>실행</td></tr>
     <tr><td><code>Sun</code></td><td>기기 줄의 화면 켜기 버튼</td><td>화면 켜기</td></tr>
+    <tr><td><code>Moon</code></td><td><a href="theme-mode.html">화면 테마</a> 카드 머리. 초승달 윤곽선</td><td>없음 — 장식</td></tr>
     <tr><td><code>Wifi</code></td><td>기기 목록 상단 막대의 <a href="wireless-pairing.html">Wi-Fi 페어링</a> 버튼</td><td>Wi-Fi 로 페어링</td></tr>
     <tr><td><code>RotateLeft</code>, <code>RotateRight</code></td><td>화면 회전 카드의 -90° / +90° 버튼(글자 옆), 회전 카드 머리(<code>RotateRight</code>), 터미널 브라우저 탭의 새로 고침(<code>RotateRight</code>, contentDescription "새로 고침")</td><td>없음 — 버튼에 글자가 함께 있다</td></tr>
     <tr><td><code>Eye</code>, <code>Monitor</code>, <code>Smartphone</code>, <code>Terminal</code></td><td>기능 카드 머리: 화면 꺼짐 방지 / 시스템 전역 / 에뮬레이터 / 터미널. <code>Smartphone</code> 은 기기 줄의 상태 표시와 터미널 새 탭 메뉴의 기기 줄 앞(<a href="terminal-device.html">기기 화면</a>)도 겸한다. <code>Eye</code> 는 터미널 패널 줄의 Claude 상태 표시 "모니터링 중"(contentDescription "Claude 모니터링 중", <a href="terminal-claude-status.html">Claude 상태 표시</a>)도 겸한다</td><td>없음 — 장식</td></tr>

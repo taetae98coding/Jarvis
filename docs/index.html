@@ -57,6 +57,7 @@
 │   ├── keep-screen-awake.html       화면 꺼짐 방지
 │   ├── system-keep-screen-awake.html   화면 꺼짐 방지 (시스템 전역)
 │   ├── settings-persistence.html    설정 영구 저장
+│   ├── theme-mode.html              화면 테마 (라이트·다크·시스템)
 │   ├── state-observation.html       상태 조회 규칙
 │   ├── emulator-count.html          에뮬레이터 개수
 │   ├── emulator-control.html        기기 목록·화면·제스처 (가상 기기 + 실물 기기)
@@ -203,6 +204,13 @@
       <td class="center"><a href="platform/ios.html#settings"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/jvm.html#settings"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/web.html#settings"><span class="badge ok">구현</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/theme-mode.html">화면 테마 (라이트·다크·시스템)</a></td>
+      <td class="center"><a href="platform/android.html#theme-mode"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#theme-mode"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#theme-mode"><span class="badge workaround">우회</span></a></td>
+      <td class="center"><a href="platform/web.html#theme-mode"><span class="badge ok">구현</span></a></td>
     </tr>
     <tr>
       <td><a href="common/state-observation.html">상태 조회 규칙</a></td>
@@ -535,6 +543,7 @@
   <li><a href="common/keep-screen-awake.html">화면 꺼짐 방지</a><p>토글이 켜져 있는 동안 화면이 꺼지지 않게 한다</p></li>
   <li><a href="common/system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a><p>앱이 없는 동안에도 화면이 꺼지지 않게 한다. Android만 가능하다</p></li>
   <li><a href="common/settings-persistence.html">설정 영구 저장</a><p>토글 값이 앱을 껐다 켜도 남고, 외부 변경도 따라간다</p></li>
+  <li><a href="common/theme-mode.html">화면 테마 (라이트·다크·시스템)</a><p>홈 카드에서 고른 모드로 앱 전체 색이 바뀌고, 앱을 껐다 켜도 남는다</p></li>
   <li><a href="common/state-observation.html">상태 조회 규칙</a><p>콜백이 있으면 콜백으로, 없으면 N초마다 다시 읽는다</p></li>
   <li><a href="common/emulator-count.html">에뮬레이터 개수</a><p>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터를 실행 중/전체로 센다</p></li>
   <li><a href="common/emulator-control.html">기기 목록·화면·제스처</a><p>가상 기기와 연결된 실물 기기 목록을 보고, 화면을 보면서 탭·스와이프를 보낸다</p></li>

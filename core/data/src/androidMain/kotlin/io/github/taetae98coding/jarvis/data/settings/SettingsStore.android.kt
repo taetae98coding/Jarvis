@@ -21,6 +21,13 @@ private class SharedPreferencesSettingsStore(context: Context) : SettingsStore {
         preferences.edit().putBoolean(key, value).apply()
     }
 
+    override fun getString(key: String, defaultValue: String): String =
+        preferences.getString(key, null) ?: defaultValue
+
+    override fun putString(key: String, value: String) {
+        preferences.edit().putString(key, value).apply()
+    }
+
     override val changes: Flow<Unit> = callbackFlow {
         // SharedPreferences 는 리스너를 약한 참조로만 잡는다. awaitClose 람다가 리스너를 붙들고 있어야
         // 수집 중에 GC 로 사라지지 않는다.

@@ -10,6 +10,10 @@ interface SettingsStore {
 
     fun putBoolean(key: String, value: Boolean)
 
+    fun getString(key: String, defaultValue: String): String
+
+    fun putString(key: String, value: String)
+
     /**
      * 저장소가 변경을 알려주는 신호. 알려주지 않는 저장소는 null 을 두고 폴링으로 대체한다.
      *
@@ -21,6 +25,11 @@ interface SettingsStore {
     fun observeBoolean(key: String, defaultValue: Boolean): Flow<Boolean> =
         observeSystemState(signals = changes, interval = SettingsPollInterval) {
             getBoolean(key, defaultValue)
+        }
+
+    fun observeString(key: String, defaultValue: String): Flow<String> =
+        observeSystemState(signals = changes, interval = SettingsPollInterval) {
+            getString(key, defaultValue)
         }
 }
 

@@ -23,6 +23,14 @@ private object LocalStorageSettingsStore : SettingsStore {
         localChanges.tryEmit(Unit)
     }
 
+    override fun getString(key: String, defaultValue: String): String =
+        localStorage.getItem(key.namespaced()) ?: defaultValue
+
+    override fun putString(key: String, value: String) {
+        localStorage.setItem(key.namespaced(), value)
+        localChanges.tryEmit(Unit)
+    }
+
     // `storage` 이벤트는 같은 오리진의 다른 문서(탭)가 쓴 변경에만 발생한다. 이 문서 자신이 쓴 변경은
     // 이벤트가 없어서 putBoolean 에서 직접 신호를 낸다.
     private val localChanges = MutableSharedFlow<Unit>(

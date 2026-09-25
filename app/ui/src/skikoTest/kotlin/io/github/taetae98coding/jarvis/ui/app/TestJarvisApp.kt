@@ -65,12 +65,17 @@ import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspaceChange
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspaceRepository
 import io.github.taetae98coding.jarvis.domain.terminal.terminalDomainModule
+import io.github.taetae98coding.jarvis.domain.theme.ThemeAppearanceRepository
+import io.github.taetae98coding.jarvis.domain.theme.ThemeMode
+import io.github.taetae98coding.jarvis.domain.theme.ThemeSettingsRepository
+import io.github.taetae98coding.jarvis.domain.theme.themeDomainModule
 import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
 import io.github.taetae98coding.jarvis.ui.terminal.terminalUiModule
+import io.github.taetae98coding.jarvis.ui.theme.themeUiModule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.channels.Channel
@@ -118,6 +123,8 @@ internal fun TestJarvisApp(
     files: FileRepository = FakeFileRepository(),
     gitChanges: GitChangesRepository = FakeGitChangesRepository(),
     projectRun: ProjectRunRepository = FakeProjectRunRepository(),
+    theme: ThemeSettingsRepository = FakeThemeSettingsRepository(),
+    themeAppearance: ThemeAppearanceRepository = ThemeAppearanceRepository { },
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -146,6 +153,8 @@ internal fun TestJarvisApp(
             single<FileRepository> { files }
             single<GitChangesRepository> { gitChanges }
             single<ProjectRunRepository> { projectRun }
+            single<ThemeSettingsRepository> { theme }
+            single<ThemeAppearanceRepository> { themeAppearance }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -160,6 +169,7 @@ internal fun TestJarvisApp(
                 screenDomainModule, screenUiModule,
                 rotationDomainModule, rotationUiModule,
                 terminalDomainModule, terminalUiModule,
+                themeDomainModule, themeUiModule,
                 appUiModule,
             )
         }
@@ -237,6 +247,20 @@ internal class FakeScreenAwakeSettingsRepository(
 }
 
 // 기본값은 Skiko 로 렌더링하는 세 타깃의 실제 상태와 같다. 셋 다 시스템 전역 화면 유지를 지원하지 않는다.
+internal class FakeThemeSettingsRepository(
+    mode: ThemeMode = ThemeMode.SYSTEM,
+) : ThemeSettingsRepository {
+    val themeMode = MutableStateFlow(mode)
+
+    override fun observeThemeMode() = themeMode
+
+    override fun readThemeMode() = themeMode.value
+
+    override fun setThemeMode(mode: ThemeMode) {
+        themeMode.value = mode
+    }
+}
+
 internal class FakeSystemScreenAwakeRepository(
     initial: SystemScreenAwakeStatus = SystemScreenAwakeStatus(),
 ) : SystemScreenAwakeRepository {

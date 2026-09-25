@@ -39,6 +39,11 @@ import io.github.taetae98coding.jarvis.domain.terminal.OpenTerminalSessionUseCas
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspaceRepository
 import io.github.taetae98coding.jarvis.domain.terminal.UpdateTerminalWorkspaceUseCase
+import io.github.taetae98coding.jarvis.domain.theme.ApplyThemeModeUseCase
+import io.github.taetae98coding.jarvis.domain.theme.ObserveThemeModeUseCase
+import io.github.taetae98coding.jarvis.domain.theme.SetThemeModeUseCase
+import io.github.taetae98coding.jarvis.domain.theme.ThemeAppearanceRepository
+import io.github.taetae98coding.jarvis.domain.theme.ThemeSettingsRepository
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.koinApplication
@@ -79,6 +84,8 @@ class JarvisKoinTest {
         assertNotNull(koin.get<TerminalRepository>())
         // 만들기만 하고 읽지 않는다. 읽으면 개발자의 실제 작업 공간 파일을 연다.
         assertNotNull(koin.get<TerminalWorkspaceRepository>())
+        assertNotNull(koin.get<ThemeSettingsRepository>())
+        assertNotNull(koin.get<ThemeAppearanceRepository>())
 
         assertNotNull(koin.get<GetAppInfoUseCase>())
         assertNotNull(koin.get<ObserveEmulatorStatusUseCase>())
@@ -108,6 +115,9 @@ class JarvisKoinTest {
         assertNotNull(koin.get<OpenTerminalSessionUseCase>())
         assertNotNull(koin.get<ObserveTerminalWorkspaceUseCase>())
         assertNotNull(koin.get<UpdateTerminalWorkspaceUseCase>())
+        assertNotNull(koin.get<ObserveThemeModeUseCase>())
+        assertNotNull(koin.get<SetThemeModeUseCase>())
+        assertNotNull(koin.get<ApplyThemeModeUseCase>())
 
         assertNotNull(koin.get<PlatformContext>())
     }
