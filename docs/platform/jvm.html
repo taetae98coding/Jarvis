@@ -70,6 +70,7 @@
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
     <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
+    <li><a href="#terminal-code-navigation">파일 탭 코드 자동완성·선언·사용처 이동</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-selection">터미널 글자 끌어 선택·복사</a></li>
@@ -1698,6 +1699,49 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>SyntaxHighlightTest</code>·<code>MarkdownParserTest</code>, <code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>OkioFileDataSourceTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalFileEditorTest</code>. 색·끌기·IME 는 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-code-navigation">
+<h2>파일 탭 코드 자동완성·선언·사용처 이동 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-code-navigation.html">파일 탭 코드 자동완성·선언·사용처 이동</a></p>
+
+<h3>기술 조사</h3>
+<p>2026-09-25 이 Mac(macOS 26.6, Apple Silicon)에서 파이썬으로 짠 작은 LSP 클라이언트로 두 서버에 직접 물어 확인했다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Kotlin: JetBrains <code>kotlin-lsp</code> 263.4702(Homebrew cask <code>kotlin-lsp</code>, 실행 파일 <code>bin/intellij-server --stdio</code>)</td><td>채택. 서버 안에 JBR 25 가 들어 있다. <code>initialize</code> 3초, 루트의 Gradle 임포트 약 20초(<code>--system-path</code> 캐시가 있으면 몇 초). 작은 JVM Gradle 프로젝트에서 hover·정의·사용처·완성이 모두 됐다. 이 저장소(KMP)에서는 같은 모듈의 심볼만 되고 다른 모듈·라이브러리 심볼은 빈 결과였다 — 모듈 의존성을 아직 빌드되지 않은 <code>build/intermediates/full_jar/androidMain/…/full.jar</code> 로 풀기 때문이다(로그 <code>Couldn't resolve some dependencies</code>)</td></tr>
+    <tr><td><code>kotlin-lsp</code> 완성 항목</td><td><code>textEdit.newText</code> 가 빈 문자열이고 <code>command: jetbrains.kotlin.completion.apply</code> 가 붙는다. <code>completionItem/resolve</code> 도 글을 채워 주지 않는다. <code>workspace/executeCommand</code> 로 그 명령을 부르면 서버가 <code>workspace/applyEdit</code>(넣을 글, import 줄)와 <code>window/showDocument</code>(커서 자리)를 요청으로 보낸다. 그래서 C4 는 명령을 부르고 돌아온 편집을 입력 칸에 적용한다</td></tr>
+    <tr><td><code>kotlin-lsp</code> 를 Homebrew 로 막 설치한 상태</td><td>macOS 격리 속성(<code>com.apple.quarantine</code>) 때문에 <code>libfilewatcher_jni.dylib</code> 를 읽지 못하고 <code>UnsatisfiedLinkError</code> 로 끝난다. <code>xattr -dr com.apple.quarantine /opt/homebrew/Caskroom/kotlin-lsp</code> 로 풀어야 한다(JetBrains 서명은 유효). 실패하면 N4 에 서버 stderr 의 마지막 줄을 보인다</td></tr>
+    <tr><td><code>kotlin-lsp.sh</code>(cask 가 <code>/opt/homebrew/bin/kotlin-lsp</code> 로 링크)</td><td>버렸다. 실행하면 <code>kotlin-lsp.sh is deprecated … Use bin/intellij-server</code> 를 쓰고 <code>bin/intellij-server</code> 를 부른다. 링크를 풀어 옆의 <code>bin/intellij-server</code> 를 곧장 부른다</td></tr>
+    <tr><td><code>fwcd/kotlin-language-server</code></td><td>버렸다. JetBrains <code>kotlin-lsp</code> 가 나오며 개발이 멈췄다(저장소가 보관 상태)</td></tr>
+    <tr><td>Swift: <code>xcrun sourcekit-lsp</code>(Swift 6.4)</td><td>채택. Command Line Tools 에도 있다. SwiftPM 패키지(<code>Package.swift</code>)는 서버가 스스로 빌드 설정과 백그라운드 인덱스를 만든다. Xcode 프로젝트는 빌드 설정이 없어 파일 하나만 보고, 파일 사이 정의가 <code>null</code> 이었다</td></tr>
+    <tr><td>Xcode 프로젝트: Jarvis 가 <code>compile_commands.json</code> 을 캐시 폴더에 만들고 <code>--compilation-db-search-path</code> 로 알려 주기</td><td>채택. 루트 아래 <code>.swift</code> 파일을 한 모듈로 묶고 <code>-sdk</code>(<code>project.pbxproj</code> 에 <code>SDKROOT = iphoneos</code> 가 있으면 iphonesimulator, 아니면 macosx)·<code>-target</code> 을 준다. 이것으로 <code>iosApp</code> 의 <code>ContentView()</code> 에서 다른 파일의 선언으로 갔고, 완성이 iOS SDK(<code>UIColor</code>)를 줬다. 검색 경로는 루트에서의 상대 경로여야 한다 — 절대 경로는 무시됐다</td></tr>
+    <tr><td>Xcode 프로젝트의 사용처</td><td>우회. <code>sourcekit-lsp</code> 는 compile DB 에는 백그라운드 인덱스를 만들지 않아 <code>textDocument/references</code> 가 늘 <code>[]</code> 다. <code>swiftc -typecheck -index-store-path</code> 로 인덱스를 직접 만들어 봤지만 <code>import Shared</code>(KMP 프레임워크, 빌드 전엔 없다) 오류가 나면 이 모듈의 파일을 인덱스하지 않았다. 공통 텍스트 검색(G6)으로 채운다</td></tr>
+    <tr><td>Command Line Tools 만 선택된 Mac 의 iphonesimulator SDK</td><td>CLT 에는 iOS SDK 가 없어 <code>xcrun --sdk iphonesimulator</code> 가 실패한다. <code>/Applications/Xcode.app</code> 이 있으면 <code>DEVELOPER_DIR</code> 를 그쪽으로 정해 SDK 경로와 <code>sourcekit-lsp</code> 를 둘 다 Xcode 것으로 쓴다(<code>terminal-run</code> 의 <code>xcodeEnvironment</code> 와 같은 판단)</td></tr>
+    <tr><td><code>xcode-build-server</code>(BSP)</td><td>버렸다. 따로 설치해야 하고 한 번은 <code>xcodebuild</code> 로 빌드한 로그가 있어야 한다</td></tr>
+    <tr><td>프로세스 환경</td><td>Finder 로 띄운 앱에는 로그인 셸의 <code>PATH</code>·<code>JAVA_HOME</code>·<code>ANDROID_HOME</code> 이 없다. <code>kotlin-lsp</code> 의 Gradle 임포트는 <code>ANDROID_HOME</code> 이 없으면 <code>SDK location not found</code> 로 실패했다. 로그인·대화형 셸에서 <code>env -0</code> 를 한 번 받아 서버 환경으로 쓰고, <code>ANDROID_HOME</code> 이 없으면 <code>androidSdkDirectory()</code> 를 넣는다</td></tr>
+    <tr><td>LSP 라이브러리: <code>org.eclipse.lsp4j</code></td><td>버렸다. 쓰는 메시지가 열 가지 남짓인데 Gson·JSON-RPC 의존이 딸린다. 이미 있는 <code>kotlinx.serialization.json</code> 으로 Content-Length 틀과 JSON 객체를 직접 다룬다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>jvmMain</code> 의 <code>CodeAnalysis.jvm.kt</code>(<code>LspCodeAnalysisDataSource</code>·<code>LspServerLauncher</code>, 서버 찾기), <code>LspConnection.kt</code>(Content-Length 틀, 요청·응답 짝, 서버 요청 응답), <code>LspSession.kt</code>(문서 동기화, 요청·응답 변환, 진행률), <code>LspEnvironment.kt</code>(로그인 셸 환경), <code>SwiftCompileDatabase.kt</code></dd>
+  <dt>동작</dt><dd>(언어, 루트)마다 서버 하나를 <code>shareIn(WhileSubscribed(stopTimeoutMillis = 60초, replayExpirationMillis = 0))</code> 로 나눠 쓴다. 문서는 처음 요청할 때 <code>didOpen</code>, 글이 바뀌었으면 요청 앞에 전체 글로 <code>didChange</code>, 수집이 끝나면 <code>didClose</code>. 진행률은 <code>$/progress</code> 의 <code>percentage</code>, 준비는 Kotlin 이 <code>intellij/workspaceImportState</code> 의 <code>FINISHED</code> 나 제목이 <code>Importing</code> 인 진행의 끝, Swift 는 <code>initialize</code> 응답이다. 서버를 끌 때는 <code>shutdown</code>·<code>exit</code> 를 보내고 2초 안에 끝나지 않으면 강제로 끈다. <code>bin/intellij-server</code> 는 네이티브 런처가 JVM 을 자식 프로세스로 띄우고, 임포트는 Gradle 데몬을 띄운다. 런처만 끄면 둘이 부모 없이 남아서(2026-09-25 확인) 끄기 전에 자손 프로세스를 적어 두었다가 함께 끈다. 앱을 끄면 셧다운 훅이 같은 일을 한다. 요청은 <code>RequestTimeout</code>(10초)을 넘으면 <code>$/cancelRequest</code> 를 보내고 텍스트 검색으로 간다. Kotlin 캐시는 <code>~/Library/Caches/Jarvis/kotlin-lsp</code>, Swift compile DB 는 <code>~/Library/Caches/Jarvis/sourcekit-lsp/&lt;루트 해시&gt;</code></dd>
+  <dt>실패</dt><dd>실행 파일이 없으면 <code>Unavailable("kotlin-lsp 를 찾지 못했습니다 — brew install --cask kotlin-lsp")</code>·<code>Unavailable("sourcekit-lsp 를 찾지 못했습니다")</code>. 띄우자마자 끝나면 stderr 마지막 줄로 <code>Failed</code>, 도중에 끝나면 <code>Failed("분석 서버가 멈췄습니다")</code>(N5)</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>데스크톱은 macOS 만 지원한다. 다른 OS 에서는 실행 파일을 찾지 못해 텍스트 검색만 쓴다.</li>
+  <li>Xcode 프로젝트의 compile DB 는 서버를 띄울 때 한 번 만든다. 그 뒤 새로 만든 <code>.swift</code> 파일은 서버를 다시 띄울 때까지 모른다.</li>
+  <li><code>kotlin-lsp</code> 는 EAP 빌드라 시간 제한 라이선스가 들어 있다(263.4702 은 2026-10-08 까지). 지나면 새 판으로 올려야 한다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-code-navigation.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>CodeNavigationTest</code>, <code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>TextCodeSearchTest</code>·<code>LspCodeAnalysisTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalCodeNavigationTest</code>. 실제 서버와의 동작은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
 </section>
 
 <section class="feature" id="terminal-line-comment">

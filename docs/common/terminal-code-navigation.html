@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>파일 탭 코드 자동완성·선언·사용처 이동 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>파일 탭 코드 자동완성·선언·사용처 이동</span></nav>
+
+<header>
+  <h1>파일 탭 코드 자동완성·선언·사용처 이동</h1>
+  <p class="lead">Kotlin·Swift 파일 탭에서 Android Studio 처럼 편집 중에 자동완성 목록을 띄우고, ⌘B·⌘클릭으로 선언으로 가거나 선언에서 사용하는 곳 목록을 연다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>androidStudio처럼 코드 자동완성이나 Command + B로 사용하는 곳 보기 구현 가능해?</p>
+  <footer>2026-09-25 대화. 답: 언어 서버(LSP) + 텍스트 검색 폴백으로 가능하고 데스크톱(macOS)에서만 온전히 된다.</footer>
+</blockquote>
+
+<blockquote class="instruction">
+  <p>한번 진행해줘. 일단 Swift, Kotlin 2개 언어만.</p>
+  <footer>2026-09-25 대화.</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<dl class="meta">
+  <dt>코드 파일</dt><dd>이름이 <code>.kt</code>·<code>.kts</code>(Kotlin) 또는 <code>.swift</code>(Swift)로 끝나는 파일. 이 기능은 코드 파일 탭에만 있다</dd>
+  <dt>코드 분석</dt><dd>언어 서버(LSP)가 프로젝트를 읽고 주는 정확한 결과. Kotlin 은 JetBrains <code>kotlin-lsp</code>, Swift 는 Apple <code>sourcekit-lsp</code></dd>
+  <dt>텍스트 검색</dt><dd>코드 분석이 없거나 결과가 비었을 때 쓰는 대체 방식. 같은 언어 파일에서 이름을 글자로 찾는다. 이름이 같은 다른 심볼도 섞인다</dd>
+  <dt>프로젝트 루트</dt><dd>분석과 텍스트 검색이 볼 폴더. N3 으로 정한다</dd>
+  <dt>식별자</dt><dd>글자·숫자·<code>_</code>(Swift 는 <code>$</code> 도)가 이어진 한 덩어리. 커서가 식별자 끝 바로 뒤에 있어도 그 식별자로 본다</dd>
+  <dt>선언으로 가기</dt><dd>지시의 "Command + B". 커서의 식별자가 선언된 자리로 옮긴다. 커서가 이미 선언 위에 있으면 사용하는 곳 목록을 연다(Android Studio 의 동작)</dd>
+</dl>
+
+<h2 id="requirements">요구사항</h2>
+
+<h3>코드 분석과 루트</h3>
+<ol>
+  <li><strong>N1.</strong> 작업 트리 파일 탭(커밋 파일 탭이 아닌 것)이 코드 파일이고 보이고 있으면, 그 파일의 (언어, 프로젝트 루트)에 해당하는 언어 서버를 띄운다. 같은 (언어, 루트)의 탭은 서버 하나를 같이 쓴다.</li>
+  <li><strong>N2.</strong> 그 서버를 쓰는 탭이 하나도 보이지 않은 지 <code>CodeAnalysisIdleTimeout</code>(60초)이 지나면 서버를 끈다. 그 안에 다시 보이면 이어서 쓴다. 앱을 끄면 서버도 끈다.</li>
+  <li><strong>N3.</strong> 프로젝트 루트는 파일의 폴더부터 위로 올라가며 찾는다.
+    Kotlin: <code>settings.gradle.kts</code>·<code>settings.gradle</code> 이 있는 가장 가까운 폴더. 없으면 <code>build.gradle.kts</code>·<code>build.gradle</code> 이 있는 가장 위 폴더, 그것도 없으면 <code>.git</code> 이 있는 폴더, 그것도 없으면 파일의 폴더.
+    Swift: <code>Package.swift</code> 가 있는 가장 가까운 폴더. 없으면 <code>*.xcodeproj</code> 를 가진 가장 가까운 폴더, 없으면 <code>.git</code> 이 있는 폴더, 없으면 파일의 폴더.</li>
+  <li><strong>N4.</strong> 도구 줄에 분석 상태를 보인다. 준비 중이면 "Kotlin 분석 준비 중…"(서버가 진행률을 주면 " 42%" 를 붙인다), 서버를 찾지 못했거나 띄우지 못했거나 멈췄으면 "텍스트 검색만 — &lt;이유&gt;" 이고, 준비되면 아무것도 보이지 않는다. 코드 분석이 없는 플랫폼은 늘 아무것도 보이지 않고 텍스트 검색만 쓴다.</li>
+  <li><strong>N5.</strong> 서버가 도중에 멈추면 상태를 "텍스트 검색만 — &lt;이유&gt;" 로 바꾼다. 이유는 서버가 stderr 에 남긴 마지막 줄이고, 없으면 "분석 서버가 멈췄습니다" 다. 그 서버를 쓰는 탭이 모두 가려져 N2 로 정리된 뒤 다시 보이면 다시 띄운다.</li>
+</ol>
+
+<h3>자동완성 (편집 보기)</h3>
+<ol>
+  <li><strong>C1.</strong> 코드 파일의 편집 보기(<a href="terminal-file-editor.html">E2</a>)에서, 커서 앞에 식별자 글자를 치거나 <code>.</code> 을 치면 <code>CompletionDebounce</code>(120ms) 뒤 커서 아래에 자동완성 목록을 띄운다. Ctrl+Space 는 식별자를 치지 않아도 곧장 띄운다. 고른 범위가 있으면 띄우지 않는다.</li>
+  <li><strong>C2.</strong> 목록 줄마다 종류 글자(함수 <code>f</code>, 변수·속성 <code>v</code>, 타입 <code>T</code>, 키워드 <code>k</code>, 그 밖 <code>·</code>), 이름, 오른쪽에 흐린 설명(반환 타입·패키지)을 보인다. 순서는 서버가 준 <code>sortText</code> 순이고, 커서 앞 식별자(접두사)로 시작하지 않는 항목은 뺀다(대소문자 무시). 많아야 <code>CompletionMaxItems</code>(50)개, 보이는 줄은 8줄이고 나머지는 목록 안에서 스크롤한다.</li>
+  <li><strong>C3.</strong> 목록이 떠 있는 동안 ↑·↓ 는 고른 줄을 옮기고, Enter·Tab 은 고른 항목을 넣고, Esc 는 목록만 닫는다(편집 보기는 닫지 않는다). 줄을 눌러도 넣는다. 식별자 글자를 더 치거나 지우면 목록을 다시 받는다. 식별자가 아닌 글자를 치거나 커서가 접두사 밖으로 나가면 닫는다.</li>
+  <li><strong>C4.</strong> 항목을 넣으면 접두사를 항목의 글로 바꾸고 커서를 넣은 글 끝(서버가 커서 자리를 알려 주면 그 자리)에 둔다. 서버가 넣기에 딸린 다른 수정(Kotlin 의 import 줄 추가 등)을 주면 같은 파일 안의 것은 함께 넣는다.</li>
+  <li><strong>C5.</strong> 코드 분석이 준비되지 않았거나 빈 목록을 주면 텍스트 검색으로 채운다. 이 파일에 나온 식별자 가운데 접두사로 시작하고 접두사보다 긴 것을, 커서에 가까운 순으로. 이때 목록 위에 "텍스트" 라고 적는다.</li>
+</ol>
+
+<h3>선언·사용처 이동 (읽기 보기·편집 보기)</h3>
+<ol>
+  <li><strong>G1.</strong> 편집 보기에서 ⌘B(Ctrl+B)는 커서의 식별자에서 선언으로 가기, ⌥F7 은 사용하는 곳 찾기다. 읽기 보기·편집 보기에서 ⌘(Ctrl)를 누른 채 식별자를 누르면 그 식별자에서 선언으로 가기다. 커서·누른 자리에 식별자가 없으면 아무 일도 하지 않는다.</li>
+  <li><strong>G2.</strong> 선언으로 가기의 결과가 커서의 식별자 자신이면(선언 위에서 불렀으면) 사용하는 곳 찾기로 바꾼다.</li>
+  <li><strong>G3.</strong> 결과가 한 곳이면 곧장 그 자리로 간다. 여러 곳이면 목록 창을 띄운다: 제목("선언 N곳" 또는 "사용하는 곳 N곳", 텍스트 검색이면 " · 텍스트 검색" 을 붙인다)과 줄마다 "파일이름:줄번호" 와 그 줄의 글(앞뒤 공백을 뗀 것). ↑·↓·Enter 나 누르기로 골라 가고, Esc 나 창 밖을 누르면 닫는다. 많아야 <code>NavigationMaxResults</code>(200)곳이다.</li>
+  <li><strong>G4.</strong> "그 자리로 간다" 는: 같은 파일이면 이 탭에서, 다른 파일이면 <a href="terminal-side-bar.html">R9</a> 처럼 그 파일의 파일 탭을 열거나 고른 뒤, 그 줄이 보이게 스크롤한다. 읽기 보기는 그 줄 바탕을 <code>RevealHighlight</code>(1.5초) 동안 칠하고, 편집 보기는 커서를 그 자리에 둔다. 가는 탭이 편집 중이면 편집 보기에서 옮긴다.</li>
+  <li><strong>G5.</strong> 결과가 없으면 도구 줄에 "선언을 찾지 못했습니다" 또는 "사용하는 곳이 없습니다" 를 3초 보인다. 결과가 라이브러리 안(<code>jar:</code> 처럼 파일이 아닌 주소)뿐이면 "라이브러리 안의 선언이라 열 수 없습니다" 다.</li>
+  <li><strong>G6.</strong> 코드 분석이 준비되지 않았거나 빈 결과를 주면 텍스트 검색으로 찾는다. 프로젝트 루트 아래 같은 언어 파일에서, 선언은 선언 키워드(Kotlin <code>fun val var class interface object typealias</code>, Swift <code>func var let class struct enum protocol extension actor typealias case</code>) 바로 뒤의 그 이름, 사용처는 단어 전체가 같은 자리 가운데 선언이 아닌 것. 주석·문자열 안도 찾는다. <code>build</code>·<code>.build</code>·<code>.gradle</code>·<code>.git</code>·<code>.idea</code>·<code>node_modules</code>·<code>DerivedData</code>·<code>Pods</code> 폴더와 1 MiB 넘는 파일은 보지 않고, 파일은 많아야 <code>TextSearchMaxFiles</code>(20,000)개 본다.</li>
+  <li><strong>G7.</strong> 찾는 동안 도구 줄에 "찾는 중…" 을 보이고, 새로 부르면 앞의 찾기를 버린다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  Kotlin·Swift 밖의 언어(지시가 두 언어로 한정했다), 마우스를 올려 설명 보기(hover), 오류 밑줄(diagnostics), 이름 바꾸기·서식·코드 액션, 매개변수 힌트, 뒤로 가기(⌘[), ⌘ 를 누른 채 올렸을 때의 밑줄, 커밋 파일 탭, 라이브러리·SDK 소스 열기. 자동완성의 스니펫 자리 채우기(<code>$1</code>)는 받지 않는다(<code>snippetSupport: false</code>).
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre>
+┌ 파일 탭: 편집 보기 ────────────────────────────────┐
+│ 편집 중 · 수정됨      Kotlin 분석 준비 중… 42%  [닫기] [저장] │
+│   12 │    val message = gre▌                    │
+│      │    ┌──────────────────────────────┐      │
+│      │    │ f greet(name: String)  String│ ← 고른 줄
+│      │    │ v greeting             String│      │
+│      │    └──────────────────────────────┘      │
+└──────────────────────────────────────────────────┘
+┌ 사용하는 곳 3곳 ─────────────────────┐
+│ Main.kt:4      val message = greet("a") │
+│ Main.kt:6      println(greet("b"))      │
+│ Other.kt:10    greet(name)              │
+└────────────────────────────────────┘
+</pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>분석 상태</td><td>도구 줄 오른쪽 버튼 앞 <code>labelSmall</code> <code>onSurfaceVariant</code>. "Kotlin 분석 준비 중…", "Swift 분석 준비 중… 42%", "텍스트 검색만 — kotlin-lsp 를 찾지 못했습니다" 등. 찾기 알림(G5·G7)이 있으면 그것을 먼저 보인다</td></tr>
+    <tr><td>도구 줄</td><td>코드 파일 탭은 상태·알림이 있으면 요약·버튼이 없어도 줄을 보인다</td></tr>
+    <tr><td>자동완성 목록</td><td>커서 사각형 바로 아래에 뜨는 <code>Popup</code>(포커스를 가져가지 않는다). <code>surfaceContainerHigh</code> 바탕, <code>shapes.small</code>, 폭 320~560dp, 줄 높이 24dp, <code>codeTextStyle</code>. 고른 줄은 <code>primaryContainer</code></td></tr>
+    <tr><td>위치 목록 창</td><td>파일 탭 위쪽 가운데 <code>Popup</code>(포커스를 가져간다). 폭 560dp, 많아야 12줄 보이고 스크롤. 파일이름:줄번호는 <code>labelMedium</code> <code>primary</code>, 줄 글은 <code>codeTextStyle</code></td></tr>
+    <tr><td>이동 강조</td><td>읽기 보기의 줄 바탕 <code>tertiaryContainer</code></td></tr>
+    <tr><td>테스트 태그</td><td><code>terminal:file-viewer:code-status</code>, <code>terminal:file-viewer:completion</code>, <code>terminal:file-viewer:completion:&lt;순번&gt;</code>, <code>terminal:file-viewer:locations</code>, <code>terminal:file-viewer:location:&lt;순번&gt;</code>, <code>terminal:file-viewer:revealed</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd>
+    <code>CodeLanguage</code>(Kotlin·Swift)와 <code>codeLanguageOf(path)</code>, <code>codeProjectRoot(path, language, exists)</code>(N3, 파일 있는지 묻는 함수를 받는 순수 함수).
+    <code>CodeIntelRepository</code>:
+    <code>observeAnalysis(path): Flow&lt;CodeAnalysisStatus&gt;</code>(cold. 수집하는 동안 그 파일의 서버를 붙잡고 문서를 연다 — N1·N2),
+    <code>suspend complete(path, text, offset): CodeCompletions</code>, <code>suspend applyCompletion(path, text, item): CodeEdit</code>(C4),
+    <code>suspend definition(path, text, offset)</code>·<code>suspend usages(path, text, offset): CodeLocations</code>.
+    요청마다 지금 글 전체를 넘겨서 서버 문서와 어긋나지 않게 한다. 결과에는 출처(<code>CodeSource.Analysis</code>·<code>TextSearch</code>)가 붙는다.
+    순수 함수: <code>identifierAt</code>·<code>completionPrefix</code>, <code>offsetOf(text, line, column)</code>·<code>positionOf(text, offset)</code>(줄 나누기는 <code>String.lines()</code> 와 같다),
+    <code>applyTextEdits</code>, <code>filterCompletions</code>(C2), 텍스트 검색 <code>wordCompletions</code>(C5)·<code>findDeclarations</code>·<code>findUsages</code>(G6)</dd>
+  <dt>data</dt><dd>
+    expect 팩토리 <code>createCodeIntelRepository()</code>. JVM·Android 는 <code>DefaultCodeIntelRepository</code> 가 <code>CodeAnalysisDataSource</code> 에 먼저 묻고, 준비되지 않았거나 비었으면 공통 <code>TextCodeSearch</code>(okio 로 루트를 훑는다)로 채운다.
+    Android 의 데이터 소스는 상태가 늘 <code>Unavailable(null)</code> 인 <code>UnavailableCodeAnalysisDataSource</code> 다. 파일 탭이 없는 iOS·Web 은 빈 결과만 주는 <code>UnsupportedCodeIntelRepository</code> 다</dd>
+  <dt>UI</dt><dd>
+    <code>TerminalViewModel.codeAnalysis(path)</code>(<code>WhileSubscribed</code> 로 모은 상태)와 요청 함수(유스케이스 다섯 개는 Koin <code>viewModelOf</code> 의 인자 수 한도 때문에 <code>CodeIntelUseCases</code> 로 묶는다), 이동 요청 <code>codeReveals</code>(경로 → 줄·칸, 그 파일 탭이 소비하면 지운다. 코드 파일이 아닌 탭으로 가도 줄 이동은 된다).
+    <code>TerminalFileViewer</code> 가 코드 파일일 때 <code>FileCode</code> 로 상태·요청을 받고, <code>FileEditor</code> 에 자동완성 목록·단축키, 읽기 보기 줄에 ⌘클릭, 위치 목록 창(<code>CodeLocationsPopup</code>)을 붙인다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 정확한 결과는 언어 서버(LSP)에 맡긴다.</strong>
+  Kotlin·Swift 의 타입 추론·import·확장 함수를 직접 풀 수는 없다. 두 언어 다 공식 언어 서버가 있다(JetBrains <code>kotlin-lsp</code>, Apple <code>sourcekit-lsp</code>). 둘 다 stdio JSON-RPC 이고, LSP 의 위치 단위(UTF-16)가 Kotlin <code>String</code> 인덱스와 같아서 변환이 줄·칸 계산뿐이다.
+  Android Studio·IntelliJ 를 원격으로 부리는 방식은 IDE 가 떠 있어야 하고 프로젝트마다 창이 열려야 해서 버렸다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 코드 분석이 비면 텍스트 검색으로 채운다.</strong>
+  2026-09-25 에 이 저장소(KMP, AGP <code>com.android.kotlin.multiplatform.library</code>)에서 <code>kotlin-lsp</code> 263.4702 을 돌려 보니 같은 모듈 안의 심볼은 선언·사용처·자동완성이 다 되지만, 다른 모듈(<code>:feature:terminal:domain</code>)과 라이브러리(<code>remember</code>) 심볼은 빈 결과였다. Xcode 프로젝트의 Swift 는 인덱스가 없어 사용처가 늘 비었다(<a href="../platform/jvm.html#terminal-code-navigation">JVM 스펙</a>). 빈 결과를 그대로 보이면 이 저장소에서 ⌘B 가 대부분 아무 일도 하지 않으므로, 부정확하더라도 텍스트 검색으로 채우고 출처를 목록 제목에 적는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 서버는 마지막 탭이 가려진 뒤 60초 더 붙잡는다.</strong>
+  Kotlin 서버는 Gradle 임포트에 캐시 없이 약 20초, 캐시가 있어도 몇 초가 걸린다. 탭을 오갈 때마다 끄고 켜면 매번 기다린다. 그래서 상태 조회 규약(<a href="state-observation.html">state-observation</a>)의 "비싼 조회는 <code>shareIn(WhileSubscribed)</code>" 에 <code>stopTimeoutMillis</code> 60초를 더한다. 앱 수명 동안 붙잡지 않는다 — 서버 하나가 메모리 2 GiB 까지 쓴다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 자동완성 목록은 입력 칸의 포커스를 뺏지 않는 Popup 으로 띄운다.</strong>
+  목록이 포커스를 가져가면 이어 치는 글자와 한글 조합이 입력 칸으로 가지 않는다. 방향키·Enter·Tab·Esc 는 입력 칸의 <code>onPreviewKeyEvent</code> 가 먼저 받아 목록에 쓴다. 위치는 <code>TextLayoutResult.getCursorRect</code> 로 잡는다. 문법 색의 <code>VisualTransformation</code> 은 글자를 바꾸지 않는 항등 매핑이라 원문 위치가 그대로 화면 위치다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge workaround">우회</span></td><td>기기 안에서 언어 서버를 돌릴 수 없다. 공통 텍스트 검색만 쓴다(C5·G6). 단축키·⌘클릭은 하드웨어 키보드가 있을 때만</td><td><a href="../platform/android.html#terminal-code-navigation">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-code-navigation">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. <code>kotlin-lsp</code>·<code>xcrun sourcekit-lsp</code> 를 <code>ProcessBuilder</code> 로 띄워 stdio LSP. 없으면 텍스트 검색</td><td><a href="../platform/jvm.html#terminal-code-navigation">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-code-navigation">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>CodeNavigationTest</code></td><td>N3 루트 고르기, 언어 고르기, 식별자·접두사, 줄·칸 ↔ 위치(<code>\r\n</code> 포함), 편집 여러 개 적용, C2 거르기·정렬, C5 단어 완성, G6 선언·사용처(키워드 뒤만 선언, 단어 전체만)</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TextCodeSearchTest</code></td><td>G6. 루트 아래 같은 언어 파일만, 뺄 폴더를 건너뜀, 결과 위치·줄 글</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>LspCodeAnalysisTest</code></td><td>가짜 서버(stdio 로 미리 적은 응답을 주는 스크립트)로 초기화·문서 열기·<code>didChange</code>·완성·정의·사용처·<code>workspace/applyEdit</code> 받기, 진행률 상태, 서버가 죽으면 <code>Failed</code></td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalCodeNavigationTest</code></td><td>C1·C3·C4(가짜 저장소로 목록이 뜨고 ↓·Enter 로 넣음, Esc 는 목록만 닫음), G1·G3·G4(⌘B 한 곳이면 그 줄로, 여러 곳이면 목록 창, 다른 파일이면 탭이 열림), G5 문구, N4 상태 문구</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 실제 <code>kotlin-lsp</code>·<code>sourcekit-lsp</code> 와의 결과, 한글 조합 중의 목록, 트랙패드 ⌘클릭, 목록 창의 실제 위치. <code>./gradlew :desktopApp:run</code> 으로 이 저장소의 Kotlin 파일과 <code>iosApp</code> 의 Swift 파일에서 손으로 확인한다.</p>
+<p>2026-09-25 확인한 것: 실제 서버를 붙인 <code>DefaultCodeIntelRepository</code> 를 임시 JVM 테스트로 돌려, 작은 Kotlin Gradle 프로젝트에서 정의·사용처·완성·완성 명령 적용(<code>length</code>)이 코드 분석 결과로, <code>iosApp</code> 에서 다른 파일의 <code>ContentView</code> 선언과 iOS SDK 완성이 나오고 사용처는 텍스트 검색으로 채워지며, 이 저장소의 다른 모듈 심볼(<code>syntaxLanguageOf</code>)은 텍스트 검색으로 채워지는 것을 봤다. 데스크톱 앱에서는 도구 줄이 "Kotlin 분석 준비 중…" → " 1%" … " 100%" 로 바뀌고 약 80초(캐시 없는 첫 임포트) 뒤 사라지는 것까지 봤다. 앱에서 ⌘클릭·목록 창을 눈으로 확인하는 것은 아직 하지 않았다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>텍스트 검색은 이름만 본다. 같은 이름의 다른 함수·지역 변수·주석 속 단어가 섞이고, 오버로드를 가리지 못한다.</li>
+  <li>KMP 프로젝트에서 <code>kotlin-lsp</code> 는 다른 모듈·라이브러리 심볼을 풀지 못해(결정 참고) 그런 심볼은 텍스트 검색으로 간다. <code>kotlin-lsp</code> 가 나아지면 저절로 코드 분석 결과가 나온다.</li>
+  <li>Kotlin 서버는 첫 임포트에 Gradle 을 돌린다. 임포트가 실패하는 프로젝트(Android SDK 를 못 찾는 등)는 파일 하나 안의 심볼만 안다.</li>
+  <li>편집 보기가 아닌 읽기 보기에는 커서가 없어 ⌘B·⌥F7 이 없다. ⌘클릭만 된다.</li>
+  <li>라이브러리·SDK 안의 선언은 열지 않는다(G5).</li>
+  <li>macOS 에서 Ctrl+Space 를 입력 소스 전환에 쓰고 있으면 시스템이 먼저 가져가 C1 의 즉시 띄우기가 오지 않는다. 글자를 치면 뜨는 자동 띄우기는 그대로다.</li>
+  <li>서버는 저장하지 않은 편집 중인 글을 알지만, 다른 탭에서 편집 중인 저장하지 않은 글은 모른다(그 파일은 디스크 내용으로 본다).</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

@@ -73,6 +73,7 @@
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
     <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
+    <li><a href="#terminal-code-navigation">파일 탭 코드 자동완성·선언·사용처 이동</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-selection">터미널 글자 끌어 선택·복사</a></li>
@@ -1332,6 +1333,34 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 <dl class="meta">
   <dt>파일</dt><dd>기존 <code>UnsupportedFileDataSource</code></dd>
   <dt>동작</dt><dd><code>writeFile</code> 은 늘 실패다. 화면에 들어갈 수 없으므로 보이지 않는다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>해당 없음.</li>
+</ul>
+
+<h3>검증</h3>
+<p>해당 없음.</p>
+</section>
+
+<section class="feature" id="terminal-code-navigation">
+<h2>파일 탭 코드 자동완성·선언·사용처 이동 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-code-navigation.html">파일 탭 코드 자동완성·선언·사용처 이동</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>언어 서버·텍스트 검색</td><td>불가가 아니라 쓸 데가 없다. <a href="#terminal">터미널</a> 자체가 불가라 파일 탭을 열 수 없다. 화면과 텍스트 검색은 공통 코드라 이 타깃에서도 컴파일된다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>CodeAnalysis.wasmJs.kt</code> 가 빈 결과만 주는 <code>UnsupportedCodeIntelRepository</code> 를 돌려준다</dd>
+  <dt>동작</dt><dd>화면에 들어갈 수 없으므로 보이지 않는다</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
 

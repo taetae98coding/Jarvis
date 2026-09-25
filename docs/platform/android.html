@@ -74,6 +74,7 @@
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
     <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
+    <li><a href="#terminal-code-navigation">파일 탭 코드 자동완성·선언·사용처 이동</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-selection">터미널 글자 끌어 선택·복사</a></li>
@@ -1569,6 +1570,39 @@ class JarvisApplication : Application() {
 
 <h3>검증</h3>
 <p>공통 테스트(<code>SyntaxHighlightTest</code>·<code>MarkdownParserTest</code>·<code>JarvisAppTerminalFileEditorTest</code>)와 JVM 의 <code>OkioFileDataSourceTest</code>(같은 공통 코드). 기기 확인은 하지 않았다.</p>
+</section>
+
+<section class="feature" id="terminal-code-navigation">
+<h2>파일 탭 코드 자동완성·선언·사용처 이동 <span class="badge workaround">우회</span></h2>
+<p>공통 스펙: <a href="../common/terminal-code-navigation.html">파일 탭 코드 자동완성·선언·사용처 이동</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>kotlin-lsp</code> 를 기기에서 실행</td><td>불가. 데스크톱 JVM(JBR 25)과 macOS·Linux·Windows 네이티브 라이브러리로 배포되고, Gradle 임포트에 JDK·Gradle·Android SDK 가 있어야 한다. ART 에서 돌릴 수 없다</td></tr>
+    <tr><td><code>sourcekit-lsp</code> 를 기기에서 실행</td><td>불가. Apple 플랫폼과 Linux 용 Swift 툴체인에만 있다</td></tr>
+    <tr><td>데스크톱 Jarvis 의 서버에 네트워크로 묻기</td><td>버렸다. Android 의 파일 탭은 앱 샌드박스(<code>filesDir</code>) 안 파일이라 데스크톱에 같은 파일이 없다</td></tr>
+    <tr><td>공통 텍스트 검색(<code>TextCodeSearch</code>, okio <code>FileSystem.SYSTEM</code>)</td><td>채택. 공통 코드 그대로 돈다</td></tr>
+    <tr><td>단축키·⌘클릭</td><td>조건부. 하드웨어 키보드의 Ctrl+B·Ctrl+Space·⌥F7 은 <code>onPreviewKeyEvent</code> 로, 마우스의 Ctrl+누르기는 <code>PointerEvent.keyboardModifiers</code>(<code>MotionEvent.getMetaState</code>)로 받는다. 터치만으로는 부를 방법이 없다 — 자동완성(C1)은 글자를 치면 뜨므로 소프트 키보드로도 된다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>androidMain</code> 의 <code>CodeAnalysis.android.kt</code> 가 <code>UnavailableCodeAnalysisDataSource</code> 와 <code>TextCodeSearch</code>(okio <code>FileSystem.SYSTEM</code>, <code>Dispatchers.IO</code>)로 <code>DefaultCodeIntelRepository</code> 를 만든다</dd>
+  <dt>동작</dt><dd>분석 상태는 늘 <code>Unavailable</code> 이고 N4 문구는 보이지 않는다. 완성·선언·사용처는 모두 텍스트 검색(C5·G6)이고 목록 제목에 "텍스트" 가 붙는다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>코드 분석이 없어 결과가 이름 맞추기뿐이다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-code-navigation.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 테스트(<code>CodeNavigationTest</code>·<code>JarvisAppTerminalCodeNavigationTest</code>)와 JVM 의 <code>TextCodeSearchTest</code>(같은 공통 코드). 기기 확인은 하지 않았다.</p>
 </section>
 
 <section class="feature" id="terminal-line-comment">

@@ -10,7 +10,18 @@ import io.github.taetae98coding.jarvis.domain.terminal.IosRunRequest
 import io.github.taetae98coding.jarvis.domain.terminal.ProjectKind
 import io.github.taetae98coding.jarvis.domain.terminal.ProjectLoad
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalCommand
+import io.github.taetae98coding.jarvis.domain.terminal.ApplyCodeCompletionUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
+import io.github.taetae98coding.jarvis.domain.terminal.CompleteCodeUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.FindUsagesUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.GoToDeclarationUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveCodeAnalysisUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.CodeAnalysisStatus
+import io.github.taetae98coding.jarvis.domain.terminal.CodeCompletion
+import io.github.taetae98coding.jarvis.domain.terminal.CodeCompletions
+import io.github.taetae98coding.jarvis.domain.terminal.CodeEdit
+import io.github.taetae98coding.jarvis.domain.terminal.CodeLocation
+import io.github.taetae98coding.jarvis.domain.terminal.CodeNavigation
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.DiffedLine
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
@@ -83,6 +94,7 @@ internal class TerminalViewModel(
     private val lineComments: LineCommentHost,
     private val runner: ProjectRunner,
     private val fileEdits: FileEditHost,
+    private val codeIntel: CodeIntelUseCases,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -101,6 +113,8 @@ internal class TerminalViewModel(
     private val fileContents = mutableMapOf<String, StateFlow<FileContent?>>()
 
     private val fileDiffs = mutableMapOf<String, StateFlow<GitFileDiff?>>()
+
+    private val codeAnalyses = mutableMapOf<String, StateFlow<CodeAnalysisStatus?>>()
 
     // (경로, 해시)마다 하나. 커밋은 바뀌지 않으므로 탭이 보일 때마다 한 번 읽는다.
     private val commitFiles = mutableMapOf<CommitFileKey, StateFlow<GitCommitFile?>>()
@@ -194,6 +208,39 @@ internal class TerminalViewModel(
         }
 
     fun openFile(path: String) = update { it.openFile(path) }
+
+    /**
+     * 코드 파일 탭의 분석 상태(docs/common/terminal-code-navigation.html N1·N4). null 은 아직 모르는 것이다. 탭이 보이는 동안만
+     * 언어 서버를 붙잡는다.
+     */
+    fun codeAnalysis(path: String): StateFlow<CodeAnalysisStatus?> =
+        codeAnalyses.getOrPut(path) {
+            codeIntel.observeAnalysis(path).stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), null)
+        }
+
+    suspend fun completeCode(path: String, text: String, offset: Int): CodeCompletions = codeIntel.complete(path, text, offset)
+
+    suspend fun applyCodeCompletion(path: String, text: String, offset: Int, item: CodeCompletion): CodeEdit = codeIntel.applyCompletion(path, text, offset, item)
+
+    suspend fun goToDeclaration(path: String, text: String, offset: Int): CodeNavigation? = codeIntel.goToDeclaration(path, text, offset)
+
+    suspend fun findUsages(path: String, text: String, offset: Int): CodeNavigation? = codeIntel.findUsages(path, text, offset)
+
+    private val revealRequests = MutableStateFlow<Map<String, CodeReveal>>(emptyMap())
+
+    private var nextRevealId = 0L
+
+    /** 경로마다 옮겨 갈 줄(G4). 그 파일 탭이 스크롤하고 [consumeCodeReveal] 로 지운다. */
+    val codeReveals: StateFlow<Map<String, CodeReveal>> = revealRequests.asStateFlow()
+
+    /** [location] 의 파일 탭을 열거나 고르고 그 줄로 간다(G4). */
+    fun openCodeLocation(location: CodeLocation) {
+        nextRevealId++
+        revealRequests.update { it + (location.path to CodeReveal(nextRevealId, location.line, location.column)) }
+        openFile(location.path)
+    }
+
+    fun consumeCodeReveal(path: String, id: Long) = revealRequests.update { if (it[path]?.id == id) it - path else it }
 
     /** 탭마다 편집 중인 파일(docs/common/terminal-file-editor.html E7). 여기 없는 탭은 읽기 보기다. */
     val fileEditStates: StateFlow<Map<Long, FileEdit>> = fileEdits.edits
@@ -382,6 +429,7 @@ internal class TerminalViewModel(
         val filePaths = workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath }
         fileContents.keys.retainAll(filePaths)
         fileDiffs.keys.retainAll(filePaths)
+        codeAnalyses.keys.retainAll(filePaths)
         val commitFileKeys = workspace.tabs.mapNotNullTo(mutableSetOf()) { tab -> tab.commitHash?.let { hash -> tab.filePath?.let { CommitFileKey(it, hash) } } }
         commitFiles.keys.retainAll(commitFileKeys)
         closeBrowserPages(knownTabIds - tabIds)
@@ -400,3 +448,12 @@ internal class TerminalViewModel(
 }
 
 private data class CommitFileKey(val path: String, val hash: String)
+
+/** 코드 파일 탭의 유스케이스 묶음(docs/common/terminal-code-navigation.html). Koin 의 viewModelOf 가 받는 인자 수(22)를 넘지 않게 묶는다. */
+internal class CodeIntelUseCases(
+    val observeAnalysis: ObserveCodeAnalysisUseCase,
+    val complete: CompleteCodeUseCase,
+    val applyCompletion: ApplyCodeCompletionUseCase,
+    val goToDeclaration: GoToDeclarationUseCase,
+    val findUsages: FindUsagesUseCase,
+)
