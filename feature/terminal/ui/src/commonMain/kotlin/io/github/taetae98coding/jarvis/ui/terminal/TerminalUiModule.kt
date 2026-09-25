@@ -21,6 +21,7 @@ val terminalUiModule = module {
     singleOf(::ClaudeAttention)
     singleOf(::TerminalPaneHost) withOptions { onClose { it?.close() } }
     singleOf(::WorktreeTaskHost) withOptions { onClose { it?.close() } }
+    singleOf(::LineCommentHost) withOptions { onClose { it?.close() } }
 
     navigation<TerminalRoute> {
         val navigator = LocalNavigator.current

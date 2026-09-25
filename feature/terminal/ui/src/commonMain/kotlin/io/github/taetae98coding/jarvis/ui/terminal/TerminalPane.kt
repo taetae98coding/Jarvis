@@ -112,7 +112,7 @@ internal fun TerminalPane(
                 if (composition != null || text.isEmpty()) return@collect
 
                 field.clearText()
-                state.input(committedBytes(text, state))
+                state.paste(text)
             }
     }
 
@@ -172,18 +172,6 @@ internal fun TerminalPane(
             ),
         )
     }
-}
-
-private fun committedBytes(text: String, state: TerminalPaneState): ByteArray {
-    // 소프트 키보드의 Enter 는 키 이벤트가 아니라 줄바꿈 글자로 온다.
-    val normalized = text.replace("\r\n", "\r").replace('\n', '\r')
-    val wrapped = if (normalized.length > 1 && state.emulator.bracketedPaste) {
-        "\u001b[200~$normalized\u001b[201~"
-    } else {
-        normalized
-    }
-
-    return wrapped.encodeToByteArray()
 }
 
 private fun onKey(event: KeyEvent, composing: Boolean, state: TerminalPaneState): Boolean {

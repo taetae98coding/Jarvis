@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
+import io.github.taetae98coding.jarvis.domain.terminal.DiffedLine
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.FileContent
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
@@ -63,6 +64,7 @@ internal class TerminalViewModel(
     private val claudeAttention: ClaudeAttention,
     private val observeFile: ObserveFileUseCase,
     private val observeGitFileDiff: ObserveGitFileDiffUseCase,
+    private val lineComments: LineCommentHost,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -159,6 +161,17 @@ internal class TerminalViewModel(
         }
 
     fun openFile(path: String) = update { it.openFile(path) }
+
+    /** 패널마다 모인 줄 코멘트(docs/common/terminal-line-comment.html). */
+    val panelLineComments: StateFlow<Map<Long, PanelLineComments>> = lineComments.panels
+
+    fun addLineComment(panelId: Long, path: String, lines: List<DiffedLine>, body: String) = lineComments.add(panelId, path, lines, body)
+
+    fun removeLineComment(panelId: Long, commentId: Long) = lineComments.remove(panelId, commentId)
+
+    fun clearLineComments(panelId: Long) = lineComments.clear(panelId)
+
+    fun sendLineComments(panelId: Long, target: LineCommentTarget) = lineComments.send(panelId, target)
 
     private fun viewedBrowserTitle(tabId: Long): MutableStateFlow<String?> = browserTitles.getOrPut(tabId) { MutableStateFlow(null) }
 
@@ -261,6 +274,7 @@ internal class TerminalViewModel(
     private fun reconcile(workspace: TerminalWorkspace) {
         val tabIds = workspace.tabIds.toSet()
         host.retain(tabIds)
+        lineComments.retain(workspace.panels.mapTo(mutableSetOf()) { it.id })
         browserTitles.keys.retainAll(tabIds)
         val filePaths = workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath }
         fileContents.keys.retainAll(filePaths)

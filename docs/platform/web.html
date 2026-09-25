@@ -66,6 +66,7 @@
     <li><a href="#terminal-panel-text-marquee">패널 줄 글자 흐르게</a></li>
     <li><a href="#terminal-side-bar">터미널 오른쪽 사이드 바 (파일·Git)</a></li>
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
+    <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
@@ -1084,6 +1085,34 @@
 <dl class="meta">
   <dt>파일</dt><dd>기존 <code>UnsupportedGitDataSource</code></dd>
   <dt>동작</dt><dd><code>observeFileDiff</code> 는 null 이다. 화면에 들어갈 수 없으므로 보이지 않는다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>해당 없음.</li>
+</ul>
+
+<h3>검증</h3>
+<p>해당 없음.</p>
+</section>
+
+<section class="feature" id="terminal-line-comment">
+<h2>파일 탭 줄 코멘트를 Claude 에 보내기 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-line-comment.html">파일 탭 줄 코멘트를 Claude 에 보내기</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Claude 탭에 보내기</td><td>불가가 아니라 쓸 데가 없다. <a href="#terminal">터미널</a> 자체가 불가라 파일 탭을 열 수 없다. 화면·모델은 공통 코드라 이 타깃에서도 컴파일된다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드</dd>
+  <dt>동작</dt><dd>화면에 들어갈 수 없으므로 보이지 않는다</dd>
   <dt>실패</dt><dd>해당 없음</dd>
 </dl>
 

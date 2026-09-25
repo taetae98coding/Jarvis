@@ -246,6 +246,7 @@ private fun PaneTree(
         is PaneNode.Group -> key(node.id) {
             TerminalGroup(
                 group = node,
+                panel = panel,
                 focused = node.id == panel.focusedGroup?.id,
                 showFocusBorder = panel.root is PaneNode.Split,
                 viewModel = viewModel,
@@ -263,6 +264,7 @@ private fun PaneTree(
 @Composable
 private fun TerminalGroup(
     group: PaneNode.Group,
+    panel: TerminalPanel,
     focused: Boolean,
     showFocusBorder: Boolean,
     viewModel: TerminalViewModel,
@@ -335,6 +337,7 @@ private fun TerminalGroup(
                         tab = tab,
                         content = content,
                         diff = diff,
+                        lineComments = tab.filePath?.takeIf { viewModel.isClaudeSupported }?.let { fileLineComments(it, panel, group.id, viewModel) },
                         onFocus = { viewModel.focusGroup(group.id) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
@@ -539,6 +542,26 @@ private fun DeviceMenuSection(devices: DeviceScreens, onSelect: (DeviceChoice) -
             modifier = Modifier.testTag(terminalNewDeviceTabTestTag(choice.id)),
         )
     }
+}
+
+@Composable
+private fun fileLineComments(path: String, panel: TerminalPanel, groupId: Long, viewModel: TerminalViewModel): FileLineComments {
+    val state = viewModel.panelLineComments.collectAsStateWithLifecycle().value[panel.id] ?: PanelLineComments()
+    val targets = panel.groups.flatMap { group ->
+        group.tabs.mapIndexedNotNull { index, tab -> if (tab.program == TerminalProgram.Claude) index to tab else null }
+    }.map { (index, tab) -> ClaudeTabChoice(tab.id, tabTitle(viewModel.title(tab), index, tab)) }
+
+    return FileLineComments(
+        comments = state.comments.filter { it.path == path },
+        total = state.comments.size,
+        sending = state.sending,
+        failed = state.failed,
+        targets = targets,
+        onAdd = { lines, body -> viewModel.addLineComment(panel.id, path, lines, body) },
+        onRemove = { viewModel.removeLineComment(panel.id, it) },
+        onClear = { viewModel.clearLineComments(panel.id) },
+        onSend = { tabId -> viewModel.sendLineComments(panel.id, LineCommentTarget(tabId, groupId)) },
+    )
 }
 
 @Composable
