@@ -27,7 +27,7 @@ internal actual fun createTerminalDataSource(context: PlatformContext): Terminal
         launch = { tab ->
             val directory = startDirectory(tab)
             when (tab.program) {
-                TerminalProgram.Shell -> PtyLaunch(terminalCommand(shell), directory, tracksDirectory = true)
+                TerminalProgram.Shell -> PtyLaunch(shellCommand(shell, tab.command), directory, tracksDirectory = true)
                 TerminalProgram.Claude -> PtyLaunch(claude.command(checkNotNull(tab.claudeSessionId), directory), directory)
                 TerminalProgram.Browser, TerminalProgram.Device, TerminalProgram.File -> error("브라우저·기기·파일 탭은 세션을 열지 않는다")
             }
@@ -151,6 +151,10 @@ private fun startDirectory(tab: TerminalTab): String {
  * 최소 PATH 만 물려받는다.
  */
 internal fun terminalCommand(shell: String): List<String> = listOf(shell, "-l")
+
+/** [command] 가 있으면 그 명령을 돌린 뒤 같은 pty 에서 로그인 셸로 남는다(docs/common/terminal-run.html R9·R16). */
+internal fun shellCommand(shell: String, command: String?): List<String> =
+    if (command == null) terminalCommand(shell) else interactiveCommand(shell, command, thenShell = true)
 
 /**
  * [script] 를 셸 설정이 적용된 셸에서 돌린다. zsh 는 `-c` 면 비대화형이라 `~/.zshrc` 를 읽지 않아서

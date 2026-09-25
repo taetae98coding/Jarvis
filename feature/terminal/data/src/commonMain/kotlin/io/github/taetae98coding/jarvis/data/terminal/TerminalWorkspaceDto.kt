@@ -1,8 +1,11 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.AndroidRunChoice
 import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
+import io.github.taetae98coding.jarvis.domain.terminal.IosRunChoice
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalCommand
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
@@ -37,8 +40,36 @@ internal data class TerminalPanelDto(
     val parentId: Long? = null,
     val branch: String? = null,
     val baseBranch: String? = null,
+    val commands: List<TerminalCommandDto> = emptyList(),
+    val androidRun: AndroidRunChoiceDto? = null,
+    val iosRun: IosRunChoiceDto? = null,
 )
 
+@Serializable
+internal data class TerminalCommandDto(
+    val id: Long,
+    val title: String? = null,
+    val command: String,
+)
+
+@Serializable
+internal data class AndroidRunChoiceDto(
+    val modulePath: String,
+    val variant: String,
+    val deviceId: String,
+)
+
+@Serializable
+internal data class IosRunChoiceDto(
+    val scheme: String,
+    val configuration: String,
+    val deviceId: String,
+)
+
+/**
+ * [command]·[commandTitle] 은 쓰기만 한다. 다시 켤 때 명령을 다시 돌리지 않으려고 읽을 때 버리고 셸 탭으로 읽는다
+ * (docs/common/terminal-run.html R18). 파일을 들여다볼 때 어떤 탭이었는지 알 수 있게 남겨 둔다.
+ */
 @Serializable
 internal data class TerminalTabDto(
     val id: Long,
@@ -53,6 +84,8 @@ internal data class TerminalTabDto(
     val claudeCheckedAt: Long? = null,
     val filePath: String? = null,
     val commitHash: String? = null,
+    val command: String? = null,
+    val commandTitle: String? = null,
 )
 
 @Serializable
@@ -98,6 +131,9 @@ internal fun TerminalWorkspace.toDto(): TerminalWorkspaceDto =
                 parentId = panel.parentId,
                 branch = panel.branch,
                 baseBranch = panel.baseBranch,
+                commands = panel.commands.map { TerminalCommandDto(it.id, it.title, it.command) },
+                androidRun = panel.androidRun?.let { AndroidRunChoiceDto(it.modulePath, it.variant, it.deviceId) },
+                iosRun = panel.iosRun?.let { IosRunChoiceDto(it.scheme, it.configuration, it.deviceId) },
             )
         },
         selectedPanelId = selectedPanelId,
@@ -120,6 +156,9 @@ internal fun TerminalWorkspaceDto.toDomain(): TerminalWorkspace {
             parentId = panel.parentId?.takeIf { it in topLevelIds },
             branch = panel.branch,
             baseBranch = panel.baseBranch,
+            commands = panel.commands.filter { it.command.isNotBlank() }.map { TerminalCommand(it.id, it.title?.ifBlank { null }, it.command) },
+            androidRun = panel.androidRun?.let { AndroidRunChoice(it.modulePath, it.variant, it.deviceId) },
+            iosRun = panel.iosRun?.let { IosRunChoice(it.scheme, it.configuration, it.deviceId) },
         )
     }
     if (restored.none { it.root != null }) return TerminalWorkspace.initial()
@@ -155,6 +194,8 @@ private fun PaneNode.toDto(): PaneNodeDto =
                     claudeCheckedAt = tab.claudeCheckedAt,
                     filePath = tab.filePath,
                     commitHash = tab.commitHash,
+                    command = tab.command,
+                    commandTitle = tab.commandTitle,
                 )
             },
             selectedTabId = selectedTabId,

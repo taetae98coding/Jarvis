@@ -13,6 +13,7 @@ import io.github.taetae98coding.jarvis.domain.emulator.PairingService
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.onStart
 
 // 앱 셸의 화면 테스트에도 같은 모양의 가짜가 있다. KMP 에는 테스트 코드를 모듈 사이에 공유하는
 // 깔끔한 수단이 없어서, 기능 테스트가 필요한 만큼만 여기에 따로 둔다.
@@ -31,14 +32,20 @@ internal class FakeEmulatorRepository(
 
     val gestures = mutableListOf<EmulatorGesture>()
 
+    val gestureTargets = mutableListOf<String>()
+
+    /** 화면 수집을 시작한 기기 id. 순서대로다. */
+    val screens = mutableListOf<String>()
+
     override fun observeStatus() = status
 
     override fun observeDevices() = devices
 
-    override fun observeScreen(deviceId: String) = emptyFlow<EmulatorFrame?>()
+    override fun observeScreen(deviceId: String) = emptyFlow<EmulatorFrame?>().onStart { screens += deviceId }
 
     override suspend fun sendGesture(deviceId: String, gesture: EmulatorGesture) {
         gestures += gesture
+        gestureTargets += deviceId
     }
 
     override suspend fun launch(deviceId: String) {

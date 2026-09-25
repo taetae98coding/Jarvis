@@ -28,4 +28,10 @@ val terminalDomainModule = module {
     factoryOf(::StageGitChangesUseCase)
     factoryOf(::UnstageGitChangesUseCase)
     factoryOf(::PushGitBranchUseCase)
+    factoryOf(::IsProjectRunSupportedUseCase)
+    factoryOf(::ObserveProjectKindsUseCase)
+    factoryOf(::ObserveAndroidProjectUseCase)
+    factoryOf(::ObserveIosProjectUseCase)
+    factoryOf(::RunAndroidAppUseCase)
+    factoryOf(::RunIosAppUseCase)
 }

@@ -38,7 +38,7 @@ private class PipeTerminalDataSource(
     override suspend fun open(size: TerminalSize, tab: TerminalTab): TerminalSession? {
         if (tab.program != TerminalProgram.Shell) return null
 
-        return openShell(tab.directory?.let { File(expandHome(it, home.path)) }?.takeIf { it.isDirectory } ?: home)
+        return openShell(tab.directory?.let { File(expandHome(it, home.path)) }?.takeIf { it.isDirectory } ?: home, tab.command)
     }
 
     override suspend fun stopClaude(sessionId: String) = Unit
@@ -50,13 +50,15 @@ private class PipeTerminalDataSource(
 
     override suspend fun importChromeCookies(profileDirectory: String): List<BrowserCookie> = emptyList()
 
-    private suspend fun openShell(directory: File): TerminalSession? =
+    private suspend fun openShell(directory: File, command: String?): TerminalSession? =
         withContext(Dispatchers.IO) {
             runCatching {
                 // -i 가 없으면 표준 입력이 tty 가 아니라서 mksh 가 프롬프트를 내지 않는다. 프롬프트는
                 // 표준 에러로 나오므로 합친다. 첫 줄의 pid 는 작업 디렉터리를 /proc 에서 읽는 데 쓴다 —
                 // exec 가 pid 를 물려주므로 대화형 셸의 pid 와 같다. Process.pid() 는 minSdk 에서 쓸 수 없다.
-                val process = ProcessBuilder("/system/bin/sh", "-c", "echo \$\$; exec /system/bin/sh -i")
+                // 명령 탭은 pid 다음에 명령을 돌리고 같은 셸로 남는다(docs/common/terminal-run.html R16).
+                val script = listOfNotNull("echo \$\$", command, "exec /system/bin/sh -i").joinToString("; ")
+                val process = ProcessBuilder("/system/bin/sh", "-c", script)
                     .directory(directory)
                     .redirectErrorStream(true)
                     .apply {

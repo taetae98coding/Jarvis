@@ -10,6 +10,8 @@ import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUse
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.WakeDeviceUseCase
+import io.github.taetae98coding.jarvis.domain.emulator.matches
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +19,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -35,11 +39,18 @@ internal class EmulatorScreenViewModel(
     // 목록이 첫 답을 하기 전에는 null 이다. 그동안 화면은 제목 없이 "가져오는 중" 만 보여준다.
     val device: StateFlow<EmulatorDevice?> =
         observeEmulatorDevices()
-            .map { devices -> devices.firstOrNull { it.id == deviceId } }
+            .map { devices -> devices.firstOrNull { it.id == deviceId } ?: devices.firstOrNull { it.matches(deviceId) } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), null)
 
-    /** 수집하는 동안에만 기기 화면을 찍는다. 화면을 벗어나면 촬영도 멈춘다. */
-    val frames: Flow<EmulatorFrame?> = observeEmulatorScreen(deviceId)
+    /**
+     * 수집하는 동안에만 기기 화면을 찍는다. 화면을 벗어나면 촬영도 멈춘다. `avd:<이름>` 은 목록에서 켜진 에뮬레이터의 시리얼로
+     * 풀릴 때마다 그 기기의 화면으로 갈아탄다(docs/common/terminal-run.html R11). 목록이 오기 전에는 받은 id 그대로 찍는다.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val frames: Flow<EmulatorFrame?> = device
+        .map { it?.id ?: deviceId }
+        .distinctUntilChanged()
+        .flatMapLatest { observeEmulatorScreen(it) }
 
     // 켜기를 눌렀다. 여기 남아 있다고 해서 아직 꺼져 있다는 뜻은 아니다.
     private val wakeRequested = MutableStateFlow(false)
