@@ -190,7 +190,8 @@ internal fun Modifier.terminalTabDragSource(
 
 // awaitTouchSlopOrCancellation 은 마우스에 터치 슬롭의 1/144(0.125dp)만 준다. 그러면 누르는 동안의 1px
 // 떨림에도 끌기가 시작돼 탭 선택(클릭)이 사라지므로, 마우스에도 터치 슬롭만큼 움직여야 시작한다.
-private suspend fun AwaitPointerEventScope.awaitMouseDragStart(down: PointerInputChange): PointerInputChange? {
+// 창의 글자 끌어 선택(TerminalPane)도 같은 이유로 이것을 쓴다.
+internal suspend fun AwaitPointerEventScope.awaitMouseDragStart(down: PointerInputChange): PointerInputChange? {
     val slop = viewConfiguration.touchSlop
 
     while (true) {

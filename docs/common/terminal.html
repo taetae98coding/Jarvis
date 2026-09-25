@@ -229,7 +229,7 @@
 
 <ul>
   <li>해석 범위 밖의 시퀀스를 쓰는 프로그램은 화면이 틀어질 수 있다. 마우스 리포팅을 켜는 프로그램(<code>htop</code> 의 클릭, <code>vim</code> 의 <code>mouse=a</code>)에는 휠만 가고 클릭은 가지 않는다(<a href="terminal-scroll.html">터미널 휠 스크롤</a>).</li>
-  <li>텍스트를 선택해 복사할 수 없다.</li>
+  <li>글자 선택은 끌기뿐이다(<a href="terminal-selection.html">끌어 선택·복사</a>). 두 번 눌러 낱말, ⌘C 는 없다.</li>
   <li>창 크기를 줄였다 늘려도 잘린 줄이 되살아나지 않는다(reflow 없음).</li>
   <li>앱을 끝내면 셸이 끝난다(<a href="terminal-panels.html#limits">패널 한계</a>). 긴 작업은 <code>tmux</code>·<code>nohup</code> 으로 돌려야 한다.</li>
   <li>출력이 매우 많으면 메인 스레드 해석이 화면을 끊기게 한다(<a href="#implementation">결정</a>).</li>

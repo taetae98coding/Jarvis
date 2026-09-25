@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.MouseInjectionScope
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -604,6 +605,67 @@ class JarvisAppTerminalTest {
         assertEquals(0, onAllNodesWithTag(TerminalLinkMenuUrlTestTag).fetchSemanticsNodes().size)
     }
 
+    /** 창의 첫 칸을 눌러 창 안 픽셀 [destination] 까지 마우스로 끌어 놓는다. */
+    private fun ComposeUiTest.dragFromFirstCell(destination: MouseInjectionScope.() -> Offset) {
+        onNode(pane).performMouseInput {
+            moveTo(Offset(2f, 2f))
+            press()
+            // 슬롭을 넘기는 첫 이동과 목적지까지의 이동을 나눠서, 시작 판정과 이동이 서로 다른 이벤트로 온다.
+            moveBy(Offset(DragSlop, 0f))
+            moveTo(destination())
+            release()
+        }
+    }
+
+    @Test
+    fun draggingAcrossARowCopiesItsTextWhenReleased() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val clipboard = RecordingClipboardManager()
+        setContent { TestJarvisApp(terminal = terminal, clipboard = clipboard) }
+        onNodeWithTag(TerminalTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+        val session = terminal.sessions.single()
+        emitAtFirstCell(session, "hello world")
+
+        dragFromFirstCell { Offset(width - 2f, 2f) }
+
+        assertEquals(listOf("hello world"), clipboard.copied)
+        assertEquals("", session.writtenText())
+    }
+
+    @Test
+    fun draggingDownJoinsRowsWithLineFeeds() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val clipboard = RecordingClipboardManager()
+        setContent { TestJarvisApp(terminal = terminal, clipboard = clipboard) }
+        onNodeWithTag(TerminalTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+        emitAtFirstCell(terminal.sessions.single(), "first\r\nsecond")
+
+        dragFromFirstCell { bottomRight - Offset(1f, 1f) }
+
+        assertEquals(listOf("first\nsecond"), clipboard.copied)
+    }
+
+    @Test
+    fun draggingWritesNothingToTheShellAndOpensNoLinkMenu() = runComposeUiTest {
+        val terminal = FakeTerminalRepository(isBrowserSupported = true)
+        val uriHandler = RecordingUriHandler()
+        val clipboard = RecordingClipboardManager()
+        setContent { TestJarvisApp(terminal = terminal, uriHandler = uriHandler, clipboard = clipboard) }
+        onNodeWithTag(TerminalTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { terminal.sessions.size == 1 }
+        val session = terminal.sessions.single()
+        emitAtFirstCell(session, "\u001b[?1000h\u001b[?1006hhttps://example.com")
+
+        dragFromFirstCell { Offset(width - 2f, 2f) }
+
+        assertEquals(listOf("https://example.com"), clipboard.copied)
+        assertEquals("", session.writtenText())
+        assertTrue(uriHandler.opened.isEmpty())
+        assertEquals(0, onAllNodesWithTag(TerminalLinkMenuUrlTestTag).fetchSemanticsNodes().size)
+    }
+
     @Test
     fun tabIsNamedAfterTheShellTitle() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
@@ -718,6 +780,9 @@ class JarvisAppTerminalTest {
     }
 
     private companion object {
+        /** 마우스 끌기가 시작되도록 터치 슬롭을 넘기는 첫 이동 거리. */
+        const val DragSlop = 40f
+
         const val FrameTimeoutMillis = 10_000L
     }
 }

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>터미널 글자 끌어 선택·복사 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>터미널 글자 끌어 선택·복사</span></nav>
+
+<header>
+  <h1>터미널 글자 끌어 선택·복사</h1>
+  <p class="lead">셸·Claude 탭의 창에서 마우스를 누른 채 끌면 지나간 칸이 강조되고, 놓으면 그 글자가 클립보드에 들어간다. 터치는 길게 누른 뒤 끈다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>터미널 드래그 기능 추가해서 drag 가능하게 하고 drag 끝나면 클립보드에 복사하도록 구현해줘.</p>
+  <footer>2026-09-25 대화. 브랜치 이름은 <code>claudeDrag</code> 다. "드래그" 는 셸·Claude 탭의 창(<a href="terminal.html">터미널</a>의 글자 격자)에서 마우스를 누른 채 끄는 것, "drag 가능하게" 는 끄는 동안 지나간 글자가 선택되어 보이는 것, "drag 끝나면 클립보드에 복사" 는 버튼을 놓는 순간 따로 누를 것 없이(⌘C 없이) 선택된 글자가 클립보드에 들어가는 것으로 읽었다. iTerm 의 기본 동작("Copy to pasteboard on selection")과 같다. 그때까지 이 터미널은 글자를 선택할 수 없었다(<a href="terminal.html#limits">터미널 한계</a>에 적혀 있던 것).</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<p>"칸" 은 창의 글자 격자 한 자리다. 줄 번호는 <code>TerminalEmulator.line(index)</code> 의 번호(0 이 화면 첫 줄, 음수는 스크롤백)다. "읽는 순서" 는 윗줄이 먼저, 같은 줄에서는 왼쪽이 먼저다.</p>
+
+<ol>
+  <li><strong>R1.</strong> 셸·Claude 탭의 창에서 마우스 왼쪽 버튼을 누른 채 터치 슬롭(<code>ViewConfiguration.touchSlop</code>)보다 멀리 움직이면 선택이 시작된다. 누른 자리의 칸이 <em>시작 칸</em>, 마우스가 있는 칸이 <em>끝 칸</em>이다. 슬롭 안에서 놓으면 선택이 아니라 예전처럼 누르기(창 포커스, <a href="terminal-link.html">링크</a>)다. 터치는 길게 누른 뒤 끌면 시작하고, 길게 누르기 전에 움직이면 지금처럼 스크롤(<a href="terminal-scroll.html">휠 스크롤</a>)이다.</li>
+  <li><strong>R2.</strong> 선택은 시작 칸과 끝 칸 중 읽는 순서로 앞인 것부터 뒤인 것까지 이어진 칸 전부다. 거꾸로(위로, 왼쪽으로) 끌어도 같다. 여러 줄이면 첫 줄은 앞 칸부터 줄 끝까지, 가운데 줄은 전부, 마지막 줄은 첫 칸부터 뒤 칸까지다. 전각 글자는 한쪽 칸만 닿아도 두 칸이 같이 든다.</li>
+  <li><strong>R3.</strong> 끄는 동안 선택된 칸은 강조색으로 덮여 보인다. 끝 칸은 마우스를 따라 매번 바뀐다. 마우스가 창 밖으로 나가면 가장 가까운 칸(가장자리)으로 묶는다. 스크롤백을 거슬러 보는 중에도 같다 — 화면의 줄이 아니라 그 자리에 보이는 줄의 번호가 칸이 된다.</li>
+  <li><strong>R4.</strong> 출력이 와서 줄이 위로 밀려도(스크롤백으로 올라가도) 선택은 그 글자를 따라간다. 선택된 줄이 모두 스크롤백 밖으로 나가면 선택이 사라진다. 대체 화면(<code>vim</code>, Claude Code 전체 화면 모드)에 들어가거나 나오면 선택이 사라진다. 대체 화면 안에서는 줄이 밀리지 않으므로 선택은 화면의 그 자리에 머문다.</li>
+  <li><strong>R5.</strong> 버튼을 놓으면(끌기가 끝나면) 선택된 글자가 클립보드에 들어간다. 글자는 다음 규칙으로 만든다. (a) 줄마다 선택된 칸의 글자를 이은 것이고, 빈칸(한 번도 쓰이지 않은 칸)은 공백 하나다. (b) 줄의 오른쪽 끝 공백은 뗀다. 단 자동 줄바꿈으로 다음 줄에 이어진 줄(<code>wrapped</code>)은 떼지 않고 다음 줄과 줄바꿈 없이 잇는다. (c) 그 밖의 줄 사이는 LF 하나다. (d) 끝에 이어진 빈 줄은 뺀다. (e) 결과가 비어 있으면 클립보드를 건드리지 않고 선택도 사라진다.</li>
+  <li><strong>R6.</strong> 놓은 뒤에도 강조는 남는다. 창의 아무 곳이나 누르거나(끌지 않은 누르기) 새로 끌기 시작하면 사라진다. 키 입력이나 출력만으로는 사라지지 않는다.</li>
+  <li><strong>R7.</strong> 끌기·선택은 셸에 아무것도 보내지 않는다. 프로그램이 마우스 보고를 켰어도 같다(<a href="terminal-scroll.html#requirements">휠 스크롤 R8</a>). 링크 위에서 끌기를 시작해도 메뉴는 뜨지 않는다.</li>
+  <li><strong>R8.</strong> 끌기 도중 휠을 굴리면 스크롤백이 움직이고, 끝 칸은 마우스 아래에 새로 보이는 줄의 칸이 된다. 화면 가장자리 밖으로 끌어도 스스로 스크롤하지는 않는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>⌘C 로 복사. 지시가 "drag 끝나면" 복사다. 지금 ⌘C 는 아무 일도 하지 않는다(Ctrl+C 가 인터럽트).</li>
+    <li>두 번 눌러 낱말, 세 번 눌러 줄 선택. 사각형(Option) 선택. 지시 밖이다.</li>
+    <li>선택한 글자를 끌어 놓기(drag &amp; drop), 오른쪽 클릭 메뉴, X11 식 기본 선택(가운데 버튼 붙여넣기).</li>
+    <li>가장자리 밖으로 끌 때 자동 스크롤(R8). 스크롤백을 보려면 휠을 굴린다.</li>
+    <li>파일·브라우저·기기 탭의 선택. 브라우저 탭은 페이지가 스스로 하고, 파일 탭은 편집기의 몫이다.</li>
+    <li>선택 상태를 화면을 나갔다 와도 남기기. 선택은 창 안에서만 쓰는 값이라 화면을 나가면 없어진다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>$ git log --oneline -3
+e161be1 Merge branch 'editorImprove'       ← 여기서 누르고
+6224683 파일 매니저에 빠른 스크롤 막대…
+e782835 Merge branch 'release'             ← 여기까지 끌면 세 줄이 강조되고
+$ █                                          놓는 순간 "e161be1 … 'release'" 세 줄이 클립보드에</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>강조</td><td>선택된 칸마다 <code>colorScheme.primary</code> 를 알파 0.35 로 글자 위에 덮는다(<code>TerminalPaneDefaults.SelectionAlpha</code>). 글자·배경색은 그대로다. 줄의 강조는 그 줄에서 선택된 첫 칸부터 마지막 칸까지 한 사각형이고, 가운데 줄은 첫 칸부터 마지막 칸까지다</td></tr>
+    <tr><td>커서</td><td>끄는 동안 바뀌지 않는다(기본 화살표. 링크 위에서는 손)</td></tr>
+    <tr><td>시작</td><td>마우스: 누른 채 <code>touchSlop</code> 넘게 이동. 터치: 길게 누르기(<code>viewConfiguration.longPressTimeoutMillis</code>) 뒤 이동</td></tr>
+    <tr><td>끝</td><td>버튼을 놓을 때. 셸에는 아무것도 가지 않고, 링크 메뉴도 뜨지 않는다</td></tr>
+    <tr><td>복사</td><td>놓는 순간 R5 의 글자가 클립보드로. 비어 있으면 아무 일도 없다</td></tr>
+    <tr><td>지움</td><td>끌지 않은 누르기, 새 끌기 시작, 대체 화면 전환, 선택된 줄이 전부 스크롤백 밖으로 나감</td></tr>
+    <tr><td>테스트 태그</td><td>새 태그 없음. 창은 <code>terminal:pane:&lt;id&gt;</code>(<a href="terminal.html">터미널</a>)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인 — 에뮬레이터</dt><dd>
+    <code>TerminalEmulator.scrolledLines: Long</code> — 메인 화면 맨 위에서 스크롤백으로 밀려난 줄의 누적 수. 상한을 넘어 버려진 줄과 창 높이를 줄여 올라간 줄도 센다. 대체 화면의 스크롤과 스크롤 영역(위쪽 여백이 0 이 아닐 때)의 스크롤은 스크롤백에 들어가지 않으므로 세지 않는다. 선택이 글자를 따라가는 기준이다(R4).
+  </dd>
+  <dt>도메인 — 선택</dt><dd>
+    <code>TerminalSelection.kt</code>:<br>
+    <code>data class TerminalSelection(val anchor: TerminalCell, val focus: TerminalCell, val scrolledLines: Long)</code> — 시작 칸·끝 칸(<a href="terminal-link.html#implementation">링크</a>의 <code>TerminalCell</code>, 줄 번호는 <code>line(index)</code> 의 번호)과 그 번호를 잰 시점의 <code>scrolledLines</code>.<br>
+    <code>data class TerminalSelectionBounds(val start: TerminalCell, val end: TerminalCell)</code> — 지금 화면 기준으로 정렬한 범위(R2). <code>fun columnsAt(row: Int, columns: Int): IntRange?</code> 가 그 줄에서 선택된 칸 구간을 준다.<br>
+    <code>fun TerminalEmulator.selectionBounds(selection): TerminalSelectionBounds?</code> — 두 칸의 줄 번호를 <code>scrolledLines</code> 의 차이만큼 위로 옮기고 정렬한다. 시작 칸이 전각의 둘째 칸이면 첫째 칸으로, 끝 칸이 전각의 첫째 칸이면 둘째 칸으로 넓힌다(R2). 뒤 칸까지 스크롤백 밖이면 null(R4).<br>
+    <code>fun TerminalEmulator.selectedText(selection): String</code> — R5(a)–(d). 전각의 둘째 칸은 건너뛰고 결합 문자는 <code>textAt</code> 이 붙여 준다.
+  </dd>
+  <dt>상태</dt><dd>선택은 창 안에서만 쓰는 값이라 <code>TerminalPane</code> 의 <code>remember { mutableStateOf&lt;TerminalSelection?&gt;(null) }</code> 다. ViewModel·<code>TerminalPaneState</code> 에는 들어가지 않는다</dd>
+  <dt>UI</dt><dd>
+    <code>TerminalPane.kt</code> — 끌기 제스처는 <code>pointerInput</code> 의 <code>awaitEachGesture</code> 로 받는다. <code>awaitFirstDown(requireUnconsumed = false)</code> 뒤 마우스는 <code>touchSlop</code> 을 넘는 이동, 터치는 <code>awaitLongPressOrCancellation</code> 으로 시작을 정하고(<a href="terminal-tab-groups.html">탭 끌기</a>와 같은 규칙), 그때 <code>selection = TerminalSelection(칸, 칸, emulator.scrolledLines)</code> 로 시작한다. <code>drag(id)</code> 안에서 이동을 <code>consume</code> 하며 <code>focus</code> 를 마우스 아래 칸으로 바꾸고, 끝나면 <code>selectedText</code> 를 클립보드에 넣는다(R5). 이 modifier 는 다른 <code>pointerInput</code>·<code>scrollable</code> 보다 <strong>뒤</strong>(안쪽)에 붙는다 — Main 패스에서 먼저 보고 이동을 소비해야 <code>detectTapGestures</code> 가 누르기를 취소하고(R1) <code>scrollable</code> 이 터치 끌기를 시작하지 않는다.<br>
+    칸 계산은 링크와 같다: <code>column = (x / cellWidth)</code>, <code>row = (y / cellHeight) - scrollOffset</code>. 창 밖 좌표는 <code>0 until columns</code>·<code>0 until rows</code> 로 묶은 뒤 뺀다(R3).<br>
+    <code>Canvas</code> 는 글자를 다 그린 뒤 <code>selectionBounds</code> 로 보이는 줄마다 <code>columnsAt</code> 의 사각형을 <code>colors.selection</code> 으로 덮는다. <code>TerminalPaneColors</code> 에 <code>selection: Color</code> 를 더한다.<br>
+    <code>detectTapGestures</code> 의 탭에서 <code>selection = null</code>(R6). 대체 화면 전환은 <code>snapshotFlow { revision; emulator.isAlternateScreen }</code> 으로 보고 바뀌면 지운다(R4).<br>
+    클립보드는 Compose 의 <code>LocalClipboardManager.current.setText(AnnotatedString(text))</code> 다. 플랫폼마다 어떤 API 를 부르는지는 플랫폼 문서에 있다.
+  </dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 선택은 줄 번호가 아니라 "밀려난 줄 수" 로 글자에 묶는다(R4)</strong>
+  줄 번호(<code>line(index)</code>)는 출력이 한 줄 올 때마다 같은 글자의 번호가 하나씩 줄어든다. 번호를 그대로 두면 Claude 가 답을 흘리는 동안 끌 때 놓는 순간 다른 글자가 복사된다. 에뮬레이터가 스크롤백으로 밀어낸 줄을 세는 <code>scrolledLines</code> 를 더하고, 선택은 잰 시점의 값을 함께 들고 있다가 그 차이만큼 위로 옮긴다. 버린 후보: 출력이 올 때마다 선택을 지움 — 흘리는 동안 아무것도 선택할 수 없다. 줄마다 고유 번호를 붙임 — <code>TerminalLine</code> 에 필드가 늘고 리사이즈·지우기마다 옮겨야 하는데, 누적 수 하나로 같은 결과가 난다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 클립보드는 deprecated 인 <code>LocalClipboardManager</code> 로 쓴다</strong>
+  Compose Multiplatform 1.12.1 이 권하는 <code>LocalClipboard</code>(<code>Clipboard.setClipEntry</code>)는 <code>ClipEntry</code> 를 공통 코드에서 만들 방법이 없다 — 데스크톱은 <code>ClipEntry(Transferable)</code>, Android 는 <code>ClipEntry(ClipData)</code> 뿐이고 공통 팩토리가 없다(<code>ui-desktop-1.12.1.jar</code>·<code>ui-android 1.12.1</code> 을 <code>javap</code> 로 확인). 그러면 한 줄짜리 <code>expect</code> 를 네 타깃에 두어야 한다. 예전 <code>ClipboardManager.setText(AnnotatedString)</code> 는 네 타깃 모두에 있고(JVM <code>AwtClipboardManager</code>, Android <code>AndroidClipboardManager</code>) 경고 수준 deprecated 라 <code>@Suppress("DEPRECATION")</code> 한 줄로 쓴다. 이 프로젝트는 Compose 가 플랫폼 API 를 대신 불러 주면 <code>expect</code> 를 두지 않는다(<a href="terminal-link.html#implementation">링크의 같은 결정</a>). 걷어낼 시점: <code>ClipEntry</code> 에 공통 텍스트 팩토리가 생기거나 <code>ClipboardManager</code> 가 오류 수준으로 올라가면 그때 <code>LocalClipboard</code> 로 옮긴다. 버린 후보: <code>ProcessBuilder("pbcopy")</code> — macOS 전용이고 Android 가 남는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 강조는 글자 뒤가 아니라 위에 반투명으로 덮는다</strong>
+  <code>drawLine</code> 은 SGR 배경색이 있는 칸만 배경을 그린다. 선택 배경을 글자 뒤에 깔려면 칸마다 배경을 갈아 끼우도록 그 함수를 바꿔야 하고, 프로그램이 칠한 배경(Claude Code 의 상자, <code>ls</code> 의 색)과 겹치는 규칙이 필요하다. 글자를 다 그린 뒤 알파 0.35 로 덮으면 어떤 배경 위에서도 선택이 보이고 글자도 읽힌다. 버린 후보: 반전(inverse) — 이미 반전된 칸(커서, 프롬프트 강조)과 구분이 안 된다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 놓는 순간 복사하고 ⌘C 는 두지 않는다</strong>
+  지시 그대로다. 그리고 지금 ⌘ 조합은 <code>CommandKeys</code>(← → ⌫)만 셸로 가고 나머지는 화면 단축키·붙여넣기로 남겨 두었는데, 여기에 C 를 더하면 "선택이 있으면 복사, 없으면 무시" 규칙과 테스트가 더 필요하다. 놓을 때 복사되므로 ⌘C 가 없어도 잃는 것이 없다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 오른쪽 끝 공백을 떼고 자동 줄바꿈은 잇는다(R5)</strong>
+  격자는 창 너비만큼 칸이 있어 그대로 이으면 줄마다 수십 개의 공백이 붙는다. 다만 자동 줄바꿈된 줄은 마지막 칸까지 글자라 뗄 것이 없고, 원래 한 줄이었으므로 줄바꿈을 넣지 않아야 긴 명령·주소가 붙여넣어도 한 줄이다. 프로그램이 스스로 끊은 줄(Claude Code 의 들여쓴 줄바꿈)은 잇지 않는다 — 링크(<a href="terminal-link.html#implementation">R2 의 어림</a>)와 달리 여기서는 보이는 대로 복사하는 것이 맞다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td>공통 코드. 길게 누른 뒤 끈다. 클립보드는 <code>AndroidClipboardManager</code> 의 <code>ClipboardManager.setPrimaryClip</code></td><td><a href="../platform/android.html#terminal-selection">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-selection">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 코드. 클립보드는 <code>AwtClipboardManager</code> 의 <code>Toolkit.getSystemClipboard().setContents(StringSelection)</code></td><td><a href="../platform/jvm.html#terminal-selection">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가다. 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-selection">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TerminalEmulatorTest.scrolledLinesCountsLinesPushedIntoScrollback</code></td><td><code>scrolledLines</code>. 화면을 넘는 출력, 상한을 넘어 버려진 줄, 창 높이 줄이기는 세고, 스크롤 영역 안의 스크롤과 대체 화면은 세지 않는다</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalSelectionTest</code></td><td>R2, R4, R5. 거꾸로 끈 범위의 정렬, 첫·가운데·마지막 줄의 칸 구간, 전각 두 칸, 오른쪽 공백 떼기, 자동 줄바꿈 잇기, 프로그램이 끊은 줄은 LF, 끝 빈 줄 빼기, 스크롤백 줄, 출력이 밀린 뒤 같은 글자, 전부 밖으로 나가면 null</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalTest.draggingAcrossARowCopiesItsTextWhenReleased</code></td><td>R1, R5. 가짜 셸이 첫 줄에 글자를 찍은 뒤 첫 칸에서 줄 끝까지 마우스로 끌어 놓으면 기록하는 <code>ClipboardManager</code> 가 그 글자(오른쪽 공백 없이)를 받는다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalTest.draggingDownJoinsRowsWithLineFeeds</code></td><td>R2, R5(c)(d). 두 줄을 찍고 첫 칸에서 창 오른쪽 아래까지 끌면 두 줄이 LF 로 이어지고 아래 빈 줄은 없다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalTest.draggingWritesNothingToTheShellAndOpensNoLinkMenu</code></td><td>R7. 마우스 보고를 켠 뒤 링크 위에서 끌어도 셸에 바이트가 가지 않고 링크 메뉴가 없다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalTest.clickingPlainTextOnlyFocusesThePane</code> 등 링크 테스트 셋</td><td>R1. 끌지 않은 누르기는 그대로 포커스·링크다(기존 테스트가 그대로 지나가야 한다)</td><td>같음</td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 강조 사각형이 그려지는 모양(R3, 테스트에서 <code>Canvas</code> 그리기를 볼 수단이 없다), 실제 시스템 클립보드, 터치의 길게 누르기. <code>./gradlew :desktopApp:run</code> 에서 셸 출력을 끌어 놓은 뒤 <code>pbpaste</code> 로 손으로 확인한다. 2026-09-25 에 macOS 에서 <code>printf 'alpha beta\ngamma delta\n'</code> 의 두 줄을 첫 칸에서 <code>delta</code> 뒤까지 끌어, 첫 줄은 끝까지·둘째 줄은 <code>delta</code> 까지 강조되고 <code>pbpaste</code> 가 <code>alpha beta⏎gamma delta</code> 를 주며, 창을 누르면 강조가 사라지는 것을 확인했다. 터치의 길게 누르기는 아직 손으로 확인하지 않았다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>가장자리 밖으로 끌어도 자동 스크롤하지 않는다(R8). 화면보다 긴 범위는 휠로 옮겨 가며 끈다.</li>
+  <li>대체 화면에서 프로그램이 다시 그리면 같은 자리의 새 글자가 선택된다(R4). Claude Code 전체 화면 모드에서 대화가 흐르는 동안 끌면 놓는 순간 그 자리에 보이는 글자가 복사된다.</li>
+  <li>스크롤 영역(위쪽 여백이 0 이 아닌, 상태줄을 고정한 프로그램)의 스크롤은 세지 않아, 그 안의 줄이 밀리면 선택이 다른 글자에 남는다.</li>
+  <li>창 너비를 바꾸면 줄이 다시 흐르지 않고 잘리므로(<a href="terminal.html#limits">터미널 한계</a>) 선택도 잘린 칸을 가리킨다.</li>
+  <li>프로그램이 스스로 끊어 쓴 긴 줄(Claude Code 의 들여쓴 줄바꿈)은 줄바꿈 그대로 복사된다.</li>
+  <li>터미널의 <a href="terminal.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>
