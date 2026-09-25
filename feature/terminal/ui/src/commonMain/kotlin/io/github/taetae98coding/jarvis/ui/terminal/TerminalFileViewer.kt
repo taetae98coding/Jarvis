@@ -72,7 +72,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.SolidColor
@@ -116,19 +115,19 @@ const val TerminalFileViewerEditTestTag = "terminal:file-viewer:edit"
 
 const val TerminalFileViewerEditorTestTag = "terminal:file-viewer:editor"
 
+const val TerminalFileViewerReadTestTag = "terminal:file-viewer:read"
+
 const val TerminalFileViewerSaveTestTag = "terminal:file-viewer:save"
 
-const val TerminalFileViewerCloseEditorTestTag = "terminal:file-viewer:close-editor"
+const val TerminalFileViewerRevertTestTag = "terminal:file-viewer:revert"
 
 const val TerminalFileViewerDirtyTestTag = "terminal:file-viewer:dirty"
+
+const val TerminalFileViewerSavingTestTag = "terminal:file-viewer:saving"
 
 const val TerminalFileViewerEditErrorTestTag = "terminal:file-viewer:edit-error"
 
 const val TerminalFileViewerDiskChangedTestTag = "terminal:file-viewer:disk-changed"
-
-const val TerminalFileViewerDiscardTestTag = "terminal:file-viewer:discard"
-
-const val TerminalFileViewerKeepEditingTestTag = "terminal:file-viewer:keep-editing"
 
 const val TerminalFileViewerPreviewTestTag = "terminal:file-viewer:preview"
 
@@ -172,24 +171,26 @@ internal class FileLineComments(
 )
 
 /**
- * 파일 탭의 편집(docs/common/terminal-file-editor.html E1–E8). [edit] 가 null 이면 읽기 보기다. 커밋 파일 탭처럼 고칠 수 없는
- * 탭은 이 값 자체가 null 이다.
+ * 파일 탭의 편집(docs/common/terminal-file-editor.html E1–E8). [edit] 가 null 이면 아직 편집을 시작하지 않았다. [reading] 은
+ * 사용자가 읽기 보기를 고른 것이다(E5). 커밋 파일 탭처럼 고칠 수 없는 탭은 이 값 자체가 null 이다.
  */
 internal class FileEditing(
     val edit: FileEdit?,
+    val reading: Boolean,
     val onStart: (text: String) -> Unit,
     val onChange: (text: String) -> Unit,
     val onDiskChanged: (text: String) -> Unit,
     val onSave: () -> Unit,
-    val onDiscard: () -> Unit,
+    val onRevert: () -> Unit,
+    val onReadingChange: (Boolean) -> Unit,
 )
 
 /**
  * 파일 탭. 줄바꿈 없이 가로·세로로 스크롤하고, 파일 이름으로 고른 언어의 문법 색을 칠한다. [content] 가 null 이면 아직 읽는
  * 중이다. [diff] 가 있으면 더한·지운 줄을 내용에 겹치고 요약을 "[diffLabel] +n −m" 으로 붙인다(docs/common/terminal-file-diff.html,
  * 커밋 파일 탭은 docs/common/terminal-commit-file.html). [lineComments] 가 null 이면 줄 코멘트를 남길 수 없다.
- * 마크다운 파일은 [markdownSource] 가 아니면 미리보기로 보이고, [editing] 이 있으면 고쳐 저장할 수 있다
- * (docs/common/terminal-file-editor.html). [onOpenFile] 은 미리보기의 상대 경로 링크가 연다.
+ * 마크다운 파일은 [markdownSource] 가 아니면 미리보기로 보이고, [editing] 이 있으면 열자마자 편집 보기로 고쳐 알아서
+ * 저장한다(docs/common/terminal-file-editor.html). [onOpenFile] 은 미리보기의 상대 경로 링크가 연다.
  */
 @Composable
 internal fun TerminalFileViewer(
@@ -212,15 +213,15 @@ internal fun TerminalFileViewer(
     val edit = editing?.edit
     val text = content as? FileContent.Text
     val canEdit = editing != null && text != null && !text.truncated
-    var confirmDiscard by remember { mutableStateOf(false) }
+    val showsSource = !isMarkdown || markdownSource
+    val editorShown = canEdit && showsSource && !editing.reading
     val uriHandler = LocalUriHandler.current
 
+    if (editorShown && edit == null) {
+        LaunchedEffect(Unit) { editing.onStart(text.text) }
+    }
     if (edit != null && text != null) {
         LaunchedEffect(text.text) { editing.onDiskChanged(text.text) }
-    }
-
-    val closeEditor: () -> Unit = {
-        if (edit?.dirty == true) confirmDiscard = true else editing?.onDiscard?.invoke()
     }
     val onLink = { url: String ->
         when {
@@ -245,28 +246,29 @@ internal fun TerminalFileViewer(
             },
     ) {
         FileToolbar(
-            summary = changes?.takeIf { edit == null }?.let { "$diffLabel +${it.added} −${it.removed}" },
-            edit = edit,
-            isMarkdown = isMarkdown && edit == null && text != null,
+            summary = changes?.let { "$diffLabel +${it.added} −${it.removed}" },
+            edit = edit?.takeIf { editorShown },
+            isMarkdown = isMarkdown && text != null,
             markdownSource = markdownSource,
             onMarkdownSourceChange = onMarkdownSourceChange,
-            onEdit = if (canEdit && edit == null) ({ editing?.onStart?.invoke(text.text) }) else null,
+            onEdit = if (canEdit && showsSource && !editorShown) ({ editing.onReadingChange(false) }) else null,
+            onRead = if (editorShown) ({ editing.onReadingChange(true) }) else null,
             onSave = { editing?.onSave?.invoke() },
-            onClose = closeEditor,
+            onRevert = { editing?.onRevert?.invoke() },
         )
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             when {
-                edit != null && editing != null -> FileEditor(
-                    edit = edit,
-                    language = language,
-                    // 버리기 창이 떠 있는 동안 창이 포커스를 가져가므로, 창이 닫히면 입력 칸이 다시 가져온다.
-                    focused = !confirmDiscard,
-                    onChange = editing.onChange,
-                    onSave = editing.onSave,
-                    onClose = closeEditor,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                // 편집을 시작하는 한 프레임 동안은 읽기 보기를 비치지 않고 비워 둔다.
+                editorShown -> if (edit != null) {
+                    FileEditor(
+                        edit = edit,
+                        language = language,
+                        onChange = editing.onChange,
+                        onSave = editing.onSave,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
                 content == null -> Unit
                 content == FileContent.Binary -> FileViewerNotice("텍스트가 아닌 파일이라 보일 수 없습니다", Modifier.align(Alignment.Center))
                 // 디스크에서 지운 파일은 HEAD 의 줄을 모두 지운 줄로 보인다.
@@ -298,30 +300,7 @@ internal fun TerminalFileViewer(
             }
         }
 
-        if (edit == null && lineComments != null && lineComments.total > 0) LineCommentBar(lineComments)
-    }
-
-    if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            title = { Text("저장하지 않은 변경을 버릴까요?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmDiscard = false
-                        editing?.onDiscard?.invoke()
-                    },
-                    modifier = Modifier.testTag(TerminalFileViewerDiscardTestTag),
-                ) {
-                    Text("버리기")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDiscard = false }, modifier = Modifier.testTag(TerminalFileViewerKeepEditingTestTag)) {
-                    Text("계속 편집")
-                }
-            },
-        )
+        if (!editorShown && lineComments != null && lineComments.total > 0) LineCommentBar(lineComments)
     }
 }
 
@@ -336,8 +315,8 @@ private fun FileViewerNotice(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * 탭 내용 위 한 줄. 읽기 보기는 diff 요약과 미리보기·원문·편집 버튼, 편집 보기는 편집 상태와 닫기·저장 버튼이다. 보일 것이
- * 없으면 줄이 없다([onEdit] 이 null 이면 편집할 수 없다).
+ * 탭 내용 위 한 줄. 왼쪽은 diff 요약과 편집 상태, 오른쪽은 미리보기·원문과 편집·읽기 보기 버튼이다. [edit] 는 편집 보기일 때만
+ * 있고, 자동 저장이 멈췄을 때(E4, E6)만 저장 버튼을 보인다. 보일 것이 없으면 줄이 없다.
  */
 @Composable
 private fun FileToolbar(
@@ -347,10 +326,11 @@ private fun FileToolbar(
     markdownSource: Boolean,
     onMarkdownSourceChange: (Boolean) -> Unit,
     onEdit: (() -> Unit)?,
+    onRead: (() -> Unit)?,
     onSave: () -> Unit,
-    onClose: () -> Unit,
+    onRevert: () -> Unit,
 ) {
-    if (edit == null && summary == null && !isMarkdown && onEdit == null) return
+    if (edit == null && summary == null && !isMarkdown && onEdit == null && onRead == null) return
 
     val labelStyle = JarvisTheme.typography.labelMedium
     Row(
@@ -366,10 +346,25 @@ private fun FileToolbar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
         ) {
+            if (summary != null) {
+                Text(
+                    text = summary,
+                    style = labelStyle,
+                    color = JarvisTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.testTag(TerminalFileViewerDiffSummaryTestTag),
+                )
+            }
             if (edit != null) {
-                Text(text = "편집 중", style = labelStyle, color = JarvisTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                if (edit.dirty) {
-                    Text(
+                when {
+                    edit.saving -> Text(
+                        text = "저장 중…",
+                        style = labelStyle,
+                        color = JarvisTheme.colorScheme.primary,
+                        maxLines = 1,
+                        modifier = Modifier.testTag(TerminalFileViewerSavingTestTag),
+                    )
+                    edit.dirty -> Text(
                         text = "수정됨",
                         style = labelStyle,
                         color = JarvisTheme.colorScheme.primary,
@@ -396,39 +391,38 @@ private fun FileToolbar(
                         modifier = Modifier.testTag(TerminalFileViewerDiskChangedTestTag),
                     )
                 }
-            } else if (summary != null) {
-                Text(
-                    text = summary,
-                    style = labelStyle,
-                    color = JarvisTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    modifier = Modifier.testTag(TerminalFileViewerDiffSummaryTestTag),
-                )
             }
         }
 
-        if (edit != null) {
-            TextButton(onClick = onClose, modifier = Modifier.testTag(TerminalFileViewerCloseEditorTestTag)) { Text("닫기") }
-            Button(
-                onClick = onSave,
-                enabled = edit.dirty && !edit.saving,
-                modifier = Modifier.testTag(TerminalFileViewerSaveTestTag),
-            ) {
-                Text(if (edit.saving) "저장 중…" else "저장")
+        if (edit != null && edit.needsManualSave) {
+            if (edit.diskChanged) {
+                TextButton(onClick = onRevert, enabled = !edit.saving, modifier = Modifier.testTag(TerminalFileViewerRevertTestTag)) {
+                    Text("디스크 내용으로")
+                }
             }
-        } else {
-            if (isMarkdown) {
-                ModeButton(text = "미리보기", selected = !markdownSource, tag = TerminalFileViewerPreviewTestTag) { onMarkdownSourceChange(false) }
-                ModeButton(text = "원문", selected = markdownSource, tag = TerminalFileViewerSourceTestTag) { onMarkdownSourceChange(true) }
+            Button(onClick = onSave, enabled = !edit.saving, modifier = Modifier.testTag(TerminalFileViewerSaveTestTag)) {
+                Text("저장")
             }
-            if (onEdit != null) {
-                JarvisIconButton(
-                    icon = JarvisIcons.Edit,
-                    contentDescription = "편집",
-                    onClick = onEdit,
-                    modifier = Modifier.testTag(TerminalFileViewerEditTestTag),
-                )
-            }
+        }
+        if (isMarkdown) {
+            ModeButton(text = "미리보기", selected = !markdownSource, tag = TerminalFileViewerPreviewTestTag) { onMarkdownSourceChange(false) }
+            ModeButton(text = "원문", selected = markdownSource, tag = TerminalFileViewerSourceTestTag) { onMarkdownSourceChange(true) }
+        }
+        if (onRead != null) {
+            JarvisIconButton(
+                icon = JarvisIcons.Eye,
+                contentDescription = "읽기 보기",
+                onClick = onRead,
+                modifier = Modifier.testTag(TerminalFileViewerReadTestTag),
+            )
+        }
+        if (onEdit != null) {
+            JarvisIconButton(
+                icon = JarvisIcons.Edit,
+                contentDescription = "편집",
+                onClick = onEdit,
+                modifier = Modifier.testTag(TerminalFileViewerEditTestTag),
+            )
         }
     }
 }
@@ -454,10 +448,8 @@ private fun ModeButton(text: String, selected: Boolean, tag: String, onClick: ()
 private fun FileEditor(
     edit: FileEdit,
     language: SyntaxLanguage?,
-    focused: Boolean,
     onChange: (String) -> Unit,
     onSave: () -> Unit,
-    onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var value by remember { mutableStateOf(TextFieldValue(edit.text)) }
@@ -475,7 +467,7 @@ private fun FileEditor(
     val focusRequester = remember { FocusRequester() }
     val style = JarvisTheme.codeTextStyle
 
-    LaunchedEffect(focused) { if (focused) focusRequester.requestFocus() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     BoxWithConstraints(modifier = modifier) {
         val visibleHeight = maxHeight
@@ -510,11 +502,8 @@ private fun FileEditor(
                         .focusRequester(focusRequester)
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                            when {
-                                event.key == Key.S && (event.isMetaPressed || event.isCtrlPressed) -> onSave()
-                                event.key == Key.Escape -> onClose()
-                                else -> return@onPreviewKeyEvent false
-                            }
+                            if (event.key != Key.S || !(event.isMetaPressed || event.isCtrlPressed)) return@onPreviewKeyEvent false
+                            onSave()
                             true
                         }
                         .testTag(TerminalFileViewerEditorTestTag),

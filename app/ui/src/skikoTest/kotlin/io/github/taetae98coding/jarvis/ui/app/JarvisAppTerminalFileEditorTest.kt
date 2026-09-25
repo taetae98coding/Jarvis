@@ -6,8 +6,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -27,16 +25,15 @@ import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
-import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerCloseEditorTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerDirtyTestTag
-import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerDiscardTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerDiskChangedTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerEditErrorTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerEditTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerEditorTestTag
-import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerKeepEditingTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerMarkdownTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerPreviewTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerReadTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerRevertTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerSaveTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerScrollerTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerSourceTestTag
@@ -49,6 +46,8 @@ import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerTestTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /** docs/common/terminal-file-editor.html */
 @OptIn(ExperimentalTestApi::class)
@@ -93,6 +92,9 @@ class JarvisAppTerminalFileEditorTest {
         val long = (1..500).joinToString("\n") { "line $it" }
         openTerminal(files(main.path to text(long), entries = many + main))
         awaitTag(TerminalFilesRootTestTag)
+        // 줄 번호 칸이 따로 있는 읽기 보기에서 어느 줄이 보이는지 센다.
+        awaitTag(TerminalFileViewerReadTestTag)
+        onNodeWithTag(TerminalFileViewerReadTestTag).performClick()
 
         awaitTag(TerminalFilesScrollerTestTag)
         awaitTag(TerminalFileViewerScrollerTestTag)
@@ -124,93 +126,78 @@ class JarvisAppTerminalFileEditorTest {
         assertEquals(0, count(TerminalFilesScrollerTestTag))
     }
 
-    // E1, E2, E3, E8
+    // E1, E2, E3, E5, E8
     @Test
-    fun editingSavesWithTheButtonAndTheShortcut() = runComposeUiTest {
+    fun filesOpenInTheEditorAndSaveByThemselves() = runComposeUiTest {
         val files = files(main.path to text("fun main() {}\n"))
         openTerminal(files)
 
-        onNodeWithTag(TerminalFileViewerEditTestTag).performClick()
         awaitTag(TerminalFileViewerEditorTestTag)
         assertEquals("fun main() {}\n", editorText())
-        onNodeWithTag(TerminalFileViewerSaveTestTag).assertIsNotEnabled()
+        assertEquals(0, count(TerminalFileViewerEditTestTag))
+        assertEquals(0, count(TerminalFileViewerSaveTestTag))
         assertEquals(0, count(TerminalFileViewerDirtyTestTag))
 
         onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("fun main() = Unit\n")
         awaitTag(TerminalFileViewerDirtyTestTag)
-        onNodeWithTag(TerminalFileViewerSaveTestTag).assertIsEnabled().performClick()
+        assertTrue(files.written.isEmpty())
 
         waitUntil(timeoutMillis = FrameTimeoutMillis) { files.written == listOf(main.path to "fun main() = Unit\n") }
         awaitTag(TerminalFileViewerDirtyTestTag, count = 0)
         onNodeWithTag(TerminalFileViewerEditorTestTag).assertIsDisplayed()
 
+        // 단축키는 기다리지 않는다.
         onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("fun main() = println()\n")
-        awaitTag(TerminalFileViewerDirtyTestTag)
         onNodeWithTag(TerminalFileViewerEditorTestTag).performKeyInput { withKeyDown(Key.CtrlLeft) { pressKey(Key.S) } }
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { files.written.size == 2 }
-        assertEquals(main.path to "fun main() = println()\n", files.written.last())
+        waitForIdle()
+        assertEquals(listOf(main.path to "fun main() = Unit\n", main.path to "fun main() = println()\n"), files.written)
 
-        onNodeWithTag(TerminalFileViewerCloseEditorTestTag).performClick()
+        // 읽기 보기로 바꾸면 기다리던 변경을 곧장 저장한다.
+        onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("fun main() = TODO()\n")
+        onNodeWithTag(TerminalFileViewerReadTestTag).performClick()
+        waitForIdle()
+        assertEquals(main.path to "fun main() = TODO()\n", files.written.last())
         awaitTag(TerminalFileViewerEditorTestTag, count = 0)
-        onNodeWithText("fun main() = println()").assertIsDisplayed()
+        onNodeWithText("fun main() = TODO()").assertIsDisplayed()
+
+        onNodeWithTag(TerminalFileViewerEditTestTag).performClick()
+        awaitTag(TerminalFileViewerEditorTestTag)
+        assertEquals("fun main() = TODO()\n", editorText())
+        assertEquals(3, files.written.size)
     }
 
     // E4
     @Test
-    fun aFailedSaveKeepsTheTextAndSaysWhy() = runComposeUiTest {
+    fun aFailedSaveKeepsTheTextSaysWhyAndCanBeRetried() = runComposeUiTest {
         val files = files(main.path to text("a")).apply { writeFailure = "권한 없음" }
         openTerminal(files)
-        onNodeWithTag(TerminalFileViewerEditTestTag).performClick()
         awaitTag(TerminalFileViewerEditorTestTag)
 
         onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("b")
-        onNodeWithTag(TerminalFileViewerSaveTestTag).performClick()
-
         awaitTag(TerminalFileViewerEditErrorTestTag)
         onNodeWithTag(TerminalFileViewerEditErrorTestTag).assertTextEquals("저장하지 못했습니다: 권한 없음")
         onNodeWithTag(TerminalFileViewerDirtyTestTag).assertIsDisplayed()
         assertEquals("b", editorText())
 
+        // 다음 편집이 문구를 지우고 다시 자동 저장한다.
         onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("bc")
         awaitTag(TerminalFileViewerEditErrorTestTag, count = 0)
-    }
+        awaitTag(TerminalFileViewerEditErrorTestTag)
+        assertEquals(listOf(main.path to "b", main.path to "bc"), files.written)
 
-    // E5
-    @Test
-    fun closingWithChangesAsksBeforeDiscarding() = runComposeUiTest {
-        val files = files(main.path to text("원래"))
-        openTerminal(files)
-
-        onNodeWithTag(TerminalFileViewerEditTestTag).performClick()
-        awaitTag(TerminalFileViewerEditorTestTag)
-        onNodeWithTag(TerminalFileViewerCloseEditorTestTag).performClick()
-        awaitTag(TerminalFileViewerEditorTestTag, count = 0)
-
-        onNodeWithTag(TerminalFileViewerEditTestTag).performClick()
-        awaitTag(TerminalFileViewerEditorTestTag)
-        onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("바꿈")
-        onNodeWithTag(TerminalFileViewerCloseEditorTestTag).performClick()
-        awaitTag(TerminalFileViewerKeepEditingTestTag)
-        onNodeWithText("저장하지 않은 변경을 버릴까요?").assertIsDisplayed()
-
-        onNodeWithTag(TerminalFileViewerKeepEditingTestTag).performClick()
-        awaitTag(TerminalFileViewerKeepEditingTestTag, count = 0)
-        assertEquals("바꿈", editorText())
-
-        onNodeWithTag(TerminalFileViewerEditorTestTag).performKeyInput { pressKey(Key.Escape) }
-        awaitTag(TerminalFileViewerDiscardTestTag)
-        onNodeWithTag(TerminalFileViewerDiscardTestTag).performClick()
-        awaitTag(TerminalFileViewerEditorTestTag, count = 0)
-        onNodeWithText("원래").assertIsDisplayed()
-        assertTrue(files.written.isEmpty())
+        files.writeFailure = null
+        onNodeWithTag(TerminalFileViewerSaveTestTag).performClick()
+        awaitTag(TerminalFileViewerDirtyTestTag, count = 0)
+        assertEquals(0, count(TerminalFileViewerEditErrorTestTag))
+        assertEquals(0, count(TerminalFileViewerSaveTestTag))
+        assertEquals(main.path to "bc", files.written.last())
     }
 
     // E6
     @Test
-    fun diskChangesReplaceACleanBufferAndWarnOverADirtyOne() = runComposeUiTest {
+    fun diskChangesReplaceACleanBufferAndStopAutoSaveOverADirtyOne() = runComposeUiTest {
         val files = files(main.path to text("v1"))
         openTerminal(files)
-        onNodeWithTag(TerminalFileViewerEditTestTag).performClick()
         awaitTag(TerminalFileViewerEditorTestTag)
 
         files.files.value = mapOf(main.path to text("v2"))
@@ -221,22 +208,34 @@ class JarvisAppTerminalFileEditorTest {
         files.files.value = mapOf(main.path to text("v3"))
         awaitTag(TerminalFileViewerDiskChangedTestTag)
         assertEquals("mine", editorText())
+        waitPastAutoSave()
+        assertTrue(files.written.isEmpty())
+
+        onNodeWithTag(TerminalFileViewerRevertTestTag).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { editorText() == "v3" }
+        assertEquals(0, count(TerminalFileViewerDiskChangedTestTag))
+        assertEquals(0, count(TerminalFileViewerDirtyTestTag))
+
+        onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("mine again")
+        files.files.value = mapOf(main.path to text("v4"))
+        awaitTag(TerminalFileViewerDiskChangedTestTag)
 
         // 자기 저장 결과가 돌아와도 바뀐 것으로 치지 않는다.
         onNodeWithTag(TerminalFileViewerSaveTestTag).performClick()
         awaitTag(TerminalFileViewerDiskChangedTestTag, count = 0)
         awaitTag(TerminalFileViewerDirtyTestTag, count = 0)
-        assertEquals("mine", editorText())
+        assertEquals("mine again", editorText())
+        assertEquals(listOf(main.path to "mine again"), files.written)
     }
 
     // E7
     @Test
-    fun theDraftSurvivesSwitchingTabsAndIsDroppedWhenTheTabCloses() = runComposeUiTest {
+    fun theDraftSurvivesSwitchingTabsAndIsSavedWhenTheTabCloses() = runComposeUiTest {
         val workspace = workspace()
-        openTerminal(files(main.path to text("a")), workspace = workspace)
+        val files = files(main.path to text("a"))
+        openTerminal(files, workspace = workspace)
         val fileTab = workspace.workspace.value.focusedTab!!
         val shellTab = workspace.workspace.value.selectedPanel!!.tabs.first { it.program != TerminalProgram.File }
-        onNodeWithTag(TerminalFileViewerEditTestTag).performClick()
         awaitTag(TerminalFileViewerEditorTestTag)
         onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("초안")
 
@@ -245,63 +244,73 @@ class JarvisAppTerminalFileEditorTest {
         workspace.workspace.value = workspace.workspace.value.selectTab(fileTab.id)
         awaitTag(TerminalFileViewerEditorTestTag)
         assertEquals("초안", editorText())
-        onNodeWithTag(TerminalFileViewerDirtyTestTag).assertIsDisplayed()
 
-        workspace.workspace.value = workspace.workspace.value.closeTab(fileTab.id).openFile(main.path)
-        awaitTag(TerminalFileViewerEditTestTag)
-        assertEquals(0, count(TerminalFileViewerEditorTestTag))
+        onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("초안 둘")
+        workspace.workspace.value = workspace.workspace.value.closeTab(fileTab.id)
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { files.written.lastOrNull() == main.path to "초안 둘" }
+
+        workspace.workspace.value = workspace.workspace.value.openFile(main.path)
+        awaitTag(TerminalFileViewerEditorTestTag)
+        assertEquals("초안 둘", editorText())
+        assertEquals(0, count(TerminalFileViewerDirtyTestTag))
     }
 
     // E1
     @Test
-    fun truncatedFilesAndCommitFileTabsCannotBeEdited() = runComposeUiTest {
+    fun truncatedFilesAndCommitFileTabsOnlyHaveTheReadView() = runComposeUiTest {
         val git = FakeGitChangesRepository(
             commitFileContents = mapOf((main.path to "h1") to GitCommitFile(text("old"), GitFileDiff(emptyList()))),
         )
         val workspace = workspace()
         openTerminal(files(main.path to FileContent.Text("앞부분", truncated = true)), workspace = workspace, git = git)
         onNodeWithText("앞부분").assertIsDisplayed()
+        assertEquals(0, count(TerminalFileViewerEditorTestTag))
         assertEquals(0, count(TerminalFileViewerEditTestTag))
 
         workspace.workspace.value = workspace.workspace.value.openCommitFile(main.path, "h1")
         waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("old").fetchSemanticsNodes().size == 1 }
+        assertEquals(0, count(TerminalFileViewerEditorTestTag))
         assertEquals(0, count(TerminalFileViewerEditTestTag))
     }
 
     // M1, M3, M5
     @Test
-    fun markdownOpensAsAPreviewWhoseLinksOpenBrowsersAndFiles() = runComposeUiTest {
+    fun markdownOpensAsAPreviewAndItsSourceIsTheEditor() = runComposeUiTest {
         val uriHandler = RecordingUriHandler()
         val workspace = workspace(readme.path)
-        val files = files(
-            readme.path to text("# 제목\n\n[사이트](https://x.io) 와 [가이드](docs/guide.md)\n"),
-            guide.path to text("가이드 본문"),
-        )
+        val source = "# 제목\n\n[사이트](https://x.io) 와 [가이드](docs/guide.md)\n"
+        val files = files(readme.path to text(source), guide.path to text("가이드 본문"))
         openTerminal(files, workspace = workspace, uriHandler = uriHandler)
 
         // 미리보기는 기본 디스패처에서 해석한 뒤 그린다.
         waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("제목", useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
         assertEquals(0, onAllNodesWithText("# 제목").fetchSemanticsNodes().size)
+        assertEquals(0, count(TerminalFileViewerEditTestTag))
+        assertEquals(0, count(TerminalFileViewerEditorTestTag))
 
         onNodeWithTag(TerminalFileViewerSourceTestTag).performClick()
-        awaitTag(TerminalFileViewerMarkdownTestTag, count = 0)
-        onNodeWithText("# 제목").assertIsDisplayed()
-
-        // 편집을 마치면 들어가기 전의 보기로 돌아간다.
-        onNodeWithTag(TerminalFileViewerPreviewTestTag).performClick()
-        awaitTag(TerminalFileViewerMarkdownTestTag)
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("제목", useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
-        onNodeWithTag(TerminalFileViewerEditTestTag).performClick()
         awaitTag(TerminalFileViewerEditorTestTag)
-        onNodeWithTag(TerminalFileViewerCloseEditorTestTag).performClick()
+        assertEquals(source, editorText())
+
+        // 미리보기로 돌아가면 기다리던 변경을 곧장 저장한다.
+        onNodeWithTag(TerminalFileViewerEditorTestTag).performTextReplacement("# 새 제목\n\n[사이트](https://x.io) 와 [가이드](docs/guide.md)\n")
+        onNodeWithTag(TerminalFileViewerPreviewTestTag).performClick()
+        waitForIdle()
+        assertEquals(1, files.written.size)
         awaitTag(TerminalFileViewerMarkdownTestTag)
-        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("사이트", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("새 제목", useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
 
         onNodeWithText("사이트", substring = true, useUnmergedTree = true).performTouchInput { click(Offset(1f, centerY)) }
         waitUntil(timeoutMillis = FrameTimeoutMillis) { uriHandler.opened == listOf("https://x.io") }
 
         onNodeWithText("가이드", substring = true, useUnmergedTree = true).performTouchInput { click(Offset(width - 1f, centerY)) }
         waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.filePath == guide.path }
+    }
+
+    /** 자동 저장이 돌았을 만큼 기다린다. 앱의 FileAutoSaveDelay(1초)보다 넉넉하게 잡는다. */
+    private fun ComposeUiTest.waitPastAutoSave() {
+        val until = TimeSource.Monotonic.markNow() + 1_500.milliseconds
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { until.hasPassedNow() }
     }
 
     private companion object {
