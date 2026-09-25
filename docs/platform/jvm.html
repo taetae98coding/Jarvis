@@ -63,6 +63,7 @@
     <li><a href="#terminal-panel-text-marquee">패널 줄 글자 흐르게</a></li>
     <li><a href="#terminal-side-bar">터미널 오른쪽 사이드 바 (파일·Git)</a></li>
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
+    <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
@@ -1378,6 +1379,38 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>GitStatusParserTest</code>·<code>GitDataSourceTest</code>(임시 저장소에서 진짜 <code>git</code>), <code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>DiffedLinesTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalSideBarTest</code>. 색은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-line-comment">
+<h2>파일 탭 줄 코멘트를 Claude 에 보내기 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-line-comment.html">파일 탭 줄 코멘트를 Claude 에 보내기</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>pty4j 창에 <code>ESC[200~</code> + 글 + <code>ESC[201~</code>, 잠깐 뒤 <code>\r</code></td><td>채택. 사용자가 붙여넣고 Enter 를 친 것과 같은 바이트다. Claude Code 2.1.282 는 시작할 때 <code>ESC[?2004h ESC[?2031h ESC[?1004h</code> 를 쓴다(<code>script -q out claude</code> 로 받은 출력에서 확인). 붙여넣기 안의 줄바꿈은 터미널이 붙여넣을 때처럼 <code>\r</code> 로 바꾼다</td></tr>
+    <tr><td><code>claude</code> CLI 로 백그라운드 세션에 메시지 넣기</td><td>버렸다. 2.1.282 의 명령은 <code>agents</code>·<code>attach</code>·<code>logs</code>·<code>stop</code>·<code>rm</code>·<code>respawn</code> 뿐이고 입력을 넣는 명령이 없다</td></tr>
+    <tr><td>붙여넣기 없이 글자를 그대로 쓰기</td><td>버렸다. 글 안의 줄바꿈(<code>\r</code>)마다 Claude 가 제출한다</td></tr>
+    <tr><td>붙여넣기 끝과 <code>\r</code> 를 한 번에 쓰기</td><td>버렸다. 한 번에 읽히면 Claude Code 가 <code>\r</code> 를 붙여넣기에 이어진 입력으로 볼 수 있어 <code>ClaudeSubmitDelay</code>(300ms)를 두고 따로 쓴다</td></tr>
+    <tr><td>bracketed paste(2004)만 보고 준비로 보기</td><td>버렸다. Claude 가 끝나고 이어진 로그인 셸(zsh 의 ZLE, bash 5.1+ 의 readline)도 2004 를 켜서, 코멘트 글이 셸 명령으로 실행된다. 셸은 1004 를 켜지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드만. <code>feature/terminal/ui/.../LineCommentHost.kt</code>, <code>TerminalPaneState.paste</code>, <code>TerminalEmulator.focusReporting</code>. 창은 기존 <code>PtyTerminalDataSource</code></dd>
+  <dt>동작</dt><dd>보낼 곳 탭을 고르고 창을 얻은 뒤 에뮬레이터가 2004 ∧ 1004 가 될 때까지 기다려 쓴다. 한 번도 보이지 않은 Claude 탭은 그때 <code>claude attach</code> 셸을 띄우므로 로그인 셸 설정이 도는 만큼(보통 1–3초) 늦다</dd>
+  <dt>실패</dt><dd>30초 안에 준비되지 않으면 쓰지 않는다(C9)</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>공통 스펙의 <a href="../common/terminal-line-comment.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>LineCommentTest</code>·<code>TerminalEmulatorTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalLineCommentTest</code>. 실제 Claude 가 한 메시지로 받는지는 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
 </section>
 
 <section class="feature" id="chrome-cookie-import">
