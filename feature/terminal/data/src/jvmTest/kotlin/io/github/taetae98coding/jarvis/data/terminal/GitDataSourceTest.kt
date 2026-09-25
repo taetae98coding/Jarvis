@@ -358,6 +358,68 @@ class GitDataSourceTest {
         assertEquals(emptyList(), source.observeGraph(unborn.path).first())
     }
 
+    private fun head(directory: File): String = revision(directory, "HEAD")
+
+    @Test
+    fun commitFilesAreTheChangesAgainstTheFirstParentInPathOrder() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newDirectory().also { git(it, "init", "-q", "-b", "main") }
+        File(repository, "a.txt").writeText("a")
+        File(repository, "old.txt").writeText("old")
+        git(repository, "add", "-A")
+        commit(repository, "root")
+        val root = head(repository)
+
+        File(repository, "a.txt").writeText("changed")
+        git(repository, "mv", "old.txt", "new.txt")
+        File(repository, "dir").mkdirs()
+        File(repository, "dir/b.txt").writeText("b")
+        git(repository, "add", "-A")
+        commit(repository, "work")
+        val work = head(repository)
+
+        // 첫 커밋은 빈 트리 대비라 모두 추가다.
+        assertEquals(
+            listOf(GitChange("a.txt", GitChangeKind.Added), GitChange("old.txt", GitChangeKind.Added)),
+            source.observeCommitFiles(repository.path, root).first(),
+        )
+        assertEquals(
+            listOf(
+                GitChange("a.txt", GitChangeKind.Modified),
+                GitChange("dir/b.txt", GitChangeKind.Added),
+                GitChange("new.txt", GitChangeKind.Renamed, "old.txt"),
+            ),
+            source.observeCommitFiles(File(repository, "dir").path, work).first(),
+        )
+    }
+
+    @Test
+    fun aMergeCommitListsWhatItBroughtInAndAnEmptyCommitNothing() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        git(repository, "switch", "-q", "-c", "side")
+        File(repository, "side.txt").writeText("side")
+        git(repository, "add", "-A")
+        commit(repository, "side work")
+        git(repository, "switch", "-q", "main")
+        File(repository, "main.txt").writeText("main")
+        git(repository, "add", "-A")
+        commit(repository, "main work")
+        git(repository, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+
+        assertEquals(listOf(GitChange("side.txt", GitChangeKind.Added)), source.observeCommitFiles(repository.path, head(repository)).first())
+        assertEquals(emptyList(), source.observeCommitFiles(repository.path, revision(repository, "main~2")).first())
+    }
+
+    @Test
+    fun anUnknownCommitOrAFolderOutsideARepositoryHasNoCommitFiles() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+
+        assertNull(source.observeCommitFiles(repository.path, "0123456789012345678901234567890123456789").first())
+        assertNull(source.observeCommitFiles(newDirectory().path, head(repository)).first())
+    }
+
     /** [repository] 에 `origin` 으로 붙인 빈 bare 저장소. */
     private fun addRemote(repository: File, name: String = "origin"): File =
         newDirectory().also {

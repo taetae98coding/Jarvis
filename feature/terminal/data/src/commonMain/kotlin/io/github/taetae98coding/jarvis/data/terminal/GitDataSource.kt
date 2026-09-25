@@ -21,6 +21,8 @@ internal interface GitDataSource {
 
     fun observeGraph(directory: String): Flow<List<GitGraphLine>>
 
+    fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?>
+
     fun observeFileDiff(path: String): Flow<GitFileDiff?>
 
     suspend fun stage(root: String, changes: List<GitChange>): Result<Unit>
@@ -42,6 +44,8 @@ internal object UnsupportedGitDataSource : GitDataSource {
     override fun observeStatus(directory: String): Flow<GitStatus?> = flowOf(null)
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = flowOf(emptyList())
+
+    override fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?> = flowOf(null)
 
     override fun observeFileDiff(path: String): Flow<GitFileDiff?> = flowOf(null)
 

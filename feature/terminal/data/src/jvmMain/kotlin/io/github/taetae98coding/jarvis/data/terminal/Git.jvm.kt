@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.runInterruptible
@@ -118,6 +119,10 @@ internal class ProcessGitDataSource(
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> =
         observeOnSignals(changeSignals()) { readGraph(directory) }.flowOn(Dispatchers.IO)
 
+    // 커밋은 바뀌지 않으므로 틱·신호 없이 한 번 읽고 끝난다(docs/common/terminal-side-bar.html 결정).
+    override fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?> =
+        flow { emit(readCommitFiles(directory, hash)) }.flowOn(Dispatchers.IO)
+
     override fun observeFileDiff(path: String): Flow<GitFileDiff?> =
         observeOnSignals(changeSignals()) { readFileDiff(path) }.flowOn(Dispatchers.IO)
 
@@ -207,6 +212,19 @@ internal class ProcessGitDataSource(
         if (result.exitCode != 0) return emptyList()
 
         return parseGitGraph(result.output)
+    }
+
+    // --root 가 없으면 첫 커밋이, --diff-merges 가 없으면 병합 커밋이 빈 출력이다. `-m --first-parent` 는 log 와 달리
+    // diff-tree 에서는 모든 부모와의 diff 를 이어 붙여서 못 쓴다. -M 은 plumbing 이라 diff.renames 를 따르지 않아 직접 준다
+    // (docs/platform/jvm.html#terminal-side-bar).
+    private suspend fun readCommitFiles(directory: String, hash: String): List<GitChange>? {
+        val folder = File(expandHome(directory, home))
+        if (!folder.isDirectory || !hasGitAncestor(folder)) return null
+
+        val result = run(git(folder, "diff-tree", "--no-commit-id", "-r", "-M", "--name-status", "-z", "--root", "--diff-merges=first-parent", hash))
+        if (result.exitCode != 0) return null
+
+        return parseGitNameStatus(result.output)
     }
 
     // 경로를 있는 가장 가까운 폴더 기준으로 주면 최상위를 따로 읽지 않는다. 폴더째 지운 파일도 그 위 폴더에서 읽는다

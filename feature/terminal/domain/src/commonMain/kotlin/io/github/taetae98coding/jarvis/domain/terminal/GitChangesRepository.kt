@@ -84,6 +84,12 @@ interface GitChangesRepository {
     fun observeGraph(directory: String): Flow<List<GitGraphLine>>
 
     /**
+     * [directory] 를 담은 저장소에서 커밋 [hash] 가 첫 부모와 비교해 바꾼 파일. 경로 순이고 이름 바꿈은 새 경로가 [GitChange.path] 다.
+     * 커밋은 바뀌지 않으므로 한 번 내보내고 끝난다. 저장소 밖이거나 커밋이 없거나 git 을 쓸 수 없으면 null 이다. cold.
+     */
+    fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?>
+
+    /**
      * [path] 파일의 HEAD 대비 차이. 추적하지 않는 파일은 모든 줄을 더한 것이고, 같거나 무시된 파일은 빈 diff 다. 저장소
      * 밖이거나 git 을 쓸 수 없으면 null 이다. cold.
      */
@@ -109,6 +115,12 @@ class ObserveGitGraphUseCase(
     private val repository: GitChangesRepository,
 ) {
     operator fun invoke(directory: String): Flow<List<GitGraphLine>> = repository.observeGraph(directory)
+}
+
+class ObserveGitCommitFilesUseCase(
+    private val repository: GitChangesRepository,
+) {
+    operator fun invoke(directory: String, hash: String): Flow<List<GitChange>?> = repository.observeCommitFiles(directory, hash)
 }
 
 class ObserveGitFileDiffUseCase(

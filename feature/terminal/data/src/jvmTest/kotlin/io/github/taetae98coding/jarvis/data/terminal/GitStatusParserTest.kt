@@ -116,6 +116,23 @@ class GitStatusParserTest {
     }
 
     @Test
+    fun nameStatusListsCommitFilesByPathWithRenamesOnTheNewPath() {
+        val output = listOf("M", "z.kt", "A", "app/New.kt", "R094", "old/Name.kt", "app/Name.kt", "D", "gone.txt", "T", "link").joinToString("\u0000", postfix = "\u0000")
+
+        assertEquals(
+            listOf(
+                GitChange("app/Name.kt", GitChangeKind.Renamed, "old/Name.kt"),
+                GitChange("app/New.kt", GitChangeKind.Added),
+                GitChange("gone.txt", GitChangeKind.Deleted),
+                GitChange("link", GitChangeKind.TypeChanged),
+                GitChange("z.kt", GitChangeKind.Modified),
+            ),
+            parseGitNameStatus(output),
+        )
+        assertEquals(emptyList(), parseGitNameStatus(""))
+    }
+
+    @Test
     fun aDetachedHeadIsStillTheHeadCommit() {
         val line = parseGitGraph("* \u001fh\u001fa\u001fHEAD, main\u001fdev\u001fd\u001fs").single()
 

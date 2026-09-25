@@ -8,6 +8,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveDirectoryUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitCommitFilesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitGraphUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitStatusUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.PushGitBranchUseCase
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -70,6 +72,20 @@ internal sealed interface GitPanelState {
     data class Loaded(val status: GitStatus) : GitPanelState
 }
 
+/** 커밋 그래프에서 누른 커밋 [hash] 와 그 커밋의 파일 목록(docs/common/terminal-side-bar.html R25–R26). */
+internal data class ExpandedGitCommit(
+    val hash: String,
+    val files: GitCommitFilesState,
+)
+
+internal sealed interface GitCommitFilesState {
+    data object Loading : GitCommitFilesState
+
+    data object Unreadable : GitCommitFilesState
+
+    data class Loaded(val files: List<GitChange>) : GitCommitFilesState
+}
+
 /**
  * 오른쪽 사이드 바의 파일 트리와 Git 구획. 기준 폴더는 화면이 [setDirectory] 로 넘긴다. 모든 조회는 구획이 보이는
  * 동안만 돈다 — 가려지면 구독이 끝나고, 다시 보이면 이전 값 대신 처음부터 읽는다(docs/common/terminal-side-bar.html R6).
@@ -79,6 +95,7 @@ internal class TerminalSideBarViewModel(
     private val observeDirectory: ObserveDirectoryUseCase,
     observeGitStatus: ObserveGitStatusUseCase,
     observeGitGraph: ObserveGitGraphUseCase,
+    observeGitCommitFiles: ObserveGitCommitFilesUseCase,
     private val stageGitChanges: StageGitChangesUseCase,
     private val unstageGitChanges: UnstageGitChangesUseCase,
     private val pushGitBranch: PushGitBranchUseCase,
@@ -117,6 +134,26 @@ internal class TerminalSideBarViewModel(
         .flatMapLatest { root -> if (root == null) flowOf(emptyList()) else observeGitGraph(root) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), null)
 
+    private val selectedCommit = MutableStateFlow<String?>(null)
+
+    /** 누른 커밋과 그 파일 목록. 아무 커밋도 펼치지 않았으면 null 이다. 한 번에 하나만 펼친다(R25). */
+    val expandedCommit: StateFlow<ExpandedGitCommit?> = directory
+        .flatMapLatest { root ->
+            if (root == null) return@flatMapLatest flowOf(null)
+
+            selectedCommit.flatMapLatest { hash ->
+                if (hash == null) {
+                    flowOf(null)
+                } else {
+                    observeGitCommitFiles(root, hash)
+                        .map<List<GitChange>?, GitCommitFilesState> { files -> files?.let { GitCommitFilesState.Loaded(it) } ?: GitCommitFilesState.Unreadable }
+                        .onStart { emit(GitCommitFilesState.Loading) }
+                        .map { ExpandedGitCommit(hash, it) }
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), null)
+
     private val mutableGitError = MutableStateFlow<String?>(null)
 
     /** 마지막 stage·unstage·push 가 실패했으면 git 의 오류 문구. */
@@ -126,8 +163,14 @@ internal class TerminalSideBarViewModel(
 
     val pushing: StateFlow<Boolean> = mutablePushing.asStateFlow()
 
+    // 다른 저장소의 커밋일 수 있으므로 기준 폴더가 바뀌면 펼친 커밋을 접는다(R27).
     fun setDirectory(value: String?) {
+        if (directory.value != value) selectedCommit.value = null
         directory.value = value
+    }
+
+    fun toggleCommit(hash: String) {
+        selectedCommit.update { if (it == hash) null else hash }
     }
 
     fun toggle(path: String) {

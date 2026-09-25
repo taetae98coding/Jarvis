@@ -10,9 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -51,6 +51,9 @@ const val TerminalGitStageAllTestTag = "terminal:git:stage-all"
 const val TerminalGitUnstageAllTestTag = "terminal:git:unstage-all"
 const val TerminalGitGraphTestTag = "terminal:git:graph"
 const val TerminalGitNoCommitsTestTag = "terminal:git:no-commits"
+const val TerminalGitCommitFilesTestTag = "terminal:git:commit-files"
+const val TerminalGitCommitFilesEmptyTestTag = "terminal:git:commit-files:empty"
+const val TerminalGitCommitFilesUnreadableTestTag = "terminal:git:commit-files:unreadable"
 
 fun terminalGitStagedTestTag(path: String): String = "terminal:git:staged:$path"
 
@@ -62,16 +65,20 @@ fun terminalGitUnstageTestTag(path: String): String = "terminal:git:unstage:$pat
 
 fun terminalGitCommitTestTag(hash: String): String = "terminal:git:commit:$hash"
 
+fun terminalGitCommitFileTestTag(path: String): String = "terminal:git:commit-file:$path"
+
 /** 위 절반은 두 변경 목록, 아래 절반은 커밋 그래프다. 둘은 따로 스크롤된다. */
 @Composable
 internal fun TerminalGitPanel(
     state: GitPanelState,
     graph: List<GitGraphLine>?,
+    expandedCommit: ExpandedGitCommit?,
     error: String?,
     pushing: Boolean,
     onStage: (root: String, changes: List<GitChange>) -> Unit,
     onUnstage: (root: String, changes: List<GitChange>) -> Unit,
     onPush: (root: String, target: GitPushTarget) -> Unit,
+    onToggleCommit: (hash: String) -> Unit,
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -110,7 +117,7 @@ internal fun TerminalGitPanel(
 
             HorizontalDivider()
 
-            GitGraph(lines = graph, modifier = Modifier.fillMaxWidth().weight(1f))
+            GitGraph(lines = graph, expanded = expandedCommit, onToggleCommit = onToggleCommit, modifier = Modifier.fillMaxWidth().weight(1f))
         }
     }
 }
@@ -261,8 +268,6 @@ private fun GitChangeItem(
     actionModifier: Modifier = Modifier,
 ) {
     val spacing = JarvisTheme.dimens.spacing
-    val name = change.path.substringAfterLast('/')
-    val parent = change.path.substringBeforeLast('/', missingDelimiterValue = "")
 
     Row(
         modifier = modifier
@@ -273,6 +278,26 @@ private fun GitChangeItem(
         horizontalArrangement = Arrangement.spacedBy(spacing.s),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        GitChangeLabel(change = change, modifier = Modifier.weight(1f))
+        Box(
+            modifier = actionModifier
+                .clip(JarvisTheme.shapes.small)
+                .clickable(onClick = onAction)
+                .padding(spacing.xs),
+        ) {
+            Icon(imageVector = actionIcon, contentDescription = actionLabel, modifier = Modifier.size(JarvisTheme.dimens.iconSize.small))
+        }
+    }
+}
+
+/** 상태 글자, 파일 이름, 상위 폴더. 변경 줄과 커밋의 파일 줄이 같이 쓴다. */
+@Composable
+private fun GitChangeLabel(change: GitChange, modifier: Modifier = Modifier) {
+    val spacing = JarvisTheme.dimens.spacing
+    val name = change.path.substringAfterLast('/')
+    val parent = change.path.substringBeforeLast('/', missingDelimiterValue = "")
+
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(spacing.s), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = change.kind.symbol.toString(),
             style = JarvisTheme.codeTextStyle,
@@ -291,19 +316,16 @@ private fun GitChangeItem(
                 )
             }
         }
-        Box(
-            modifier = actionModifier
-                .clip(JarvisTheme.shapes.small)
-                .clickable(onClick = onAction)
-                .padding(spacing.xs),
-        ) {
-            Icon(imageVector = actionIcon, contentDescription = actionLabel, modifier = Modifier.size(JarvisTheme.dimens.iconSize.small))
-        }
     }
 }
 
 @Composable
-private fun GitGraph(lines: List<GitGraphLine>?, modifier: Modifier = Modifier) {
+private fun GitGraph(
+    lines: List<GitGraphLine>?,
+    expanded: ExpandedGitCommit?,
+    onToggleCommit: (hash: String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier) {
         Text(
             text = "커밋 그래프",
@@ -326,13 +348,65 @@ private fun GitGraph(lines: List<GitGraphLine>?, modifier: Modifier = Modifier) 
                 .horizontalScroll(rememberScrollState())
                 .testTag(TerminalGitGraphTestTag),
         ) {
-            items(lines) { line -> GitGraphItem(line) }
+            // 펼친 커밋의 파일 목록은 그 커밋의 둘째 줄 바로 아래 한 항목이다(R25).
+            lines.forEach { line ->
+                val commit = line.commit
+                item {
+                    GitGraphItem(
+                        line = line,
+                        selected = commit != null && commit.hash == expanded?.hash,
+                        onClick = commit?.let { { onToggleCommit(it.hash) } },
+                    )
+                }
+                if (line.isDetail && expanded != null && commit?.hash == expanded.hash) {
+                    item { GitCommitFiles(expanded.files) }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun GitGraphItem(line: GitGraphLine) {
+private fun GitCommitFiles(state: GitCommitFilesState) {
+    val spacing = JarvisTheme.dimens.spacing
+
+    // 그래프 줄과 달리 사이드 바 폭에 맞춰 긴 경로를 말줄임한다. 가로 스크롤 안에서는 폭을 정해야 말줄임이 된다.
+    Column(
+        modifier = Modifier
+            .width(TerminalSideBarDefaults.width)
+            .padding(start = spacing.l, end = spacing.s, bottom = spacing.xs)
+            .testTag(TerminalGitCommitFilesTestTag),
+    ) {
+        when (state) {
+            GitCommitFilesState.Loading -> Unit
+
+            GitCommitFilesState.Unreadable -> Text(
+                text = "커밋을 읽을 수 없습니다",
+                style = JarvisTheme.typography.labelMedium,
+                color = JarvisTheme.colorScheme.error,
+                modifier = Modifier.testTag(TerminalGitCommitFilesUnreadableTestTag),
+            )
+
+            is GitCommitFilesState.Loaded -> {
+                Text(
+                    text = if (state.files.isEmpty()) "바뀐 파일이 없습니다" else "파일 ${state.files.size}개",
+                    style = JarvisTheme.typography.labelMedium,
+                    color = JarvisTheme.colorScheme.onSurfaceVariant,
+                    modifier = if (state.files.isEmpty()) Modifier.testTag(TerminalGitCommitFilesEmptyTestTag) else Modifier,
+                )
+                state.files.forEach { change ->
+                    GitChangeLabel(
+                        change = change,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = spacing.xxs).testTag(terminalGitCommitFileTestTag(change.path)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GitGraphItem(line: GitGraphLine, selected: Boolean, onClick: (() -> Unit)?) {
     val commit = line.commit
     val graph = remember(line.graph) { graphText(line.graph) }
     val spacing = JarvisTheme.dimens.spacing
@@ -340,6 +414,8 @@ private fun GitGraphItem(line: GitGraphLine) {
     Row(
         modifier = Modifier
             .widthIn(min = TerminalSideBarDefaults.width)
+            .then(if (selected) Modifier.background(JarvisTheme.colorScheme.surfaceVariant) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = spacing.s)
             .then(if (commit != null && !line.isDetail) Modifier.testTag(terminalGitCommitTestTag(commit.hash)) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(spacing.xs),

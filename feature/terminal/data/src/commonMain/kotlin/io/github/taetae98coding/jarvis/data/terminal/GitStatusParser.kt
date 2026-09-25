@@ -136,6 +136,34 @@ private const val FieldSeparator = '\u001f'
 private const val DetailMarker = '\u001e'
 
 /**
+ * `git diff-tree --name-status -z` 의 출력. 항목은 `<상태>\0<경로>\0` 이고, 상태가 R·C 면 점수가 붙고(`R094`) 옛 경로·새 경로
+ * 순으로 두 필드다. porcelain 과 달리 옛 경로가 먼저다. 커밋에는 충돌·추적 안 함이 없어 그 글자는 건너뛴다.
+ */
+internal fun parseGitNameStatus(output: String): List<GitChange> {
+    val fields = output.split('\u0000')
+    val changes = mutableListOf<GitChange>()
+
+    var index = 0
+    while (index < fields.size) {
+        val status = fields[index++]
+        if (status.isEmpty()) continue
+        val code = status[0]
+        val kind = changeKind(code)?.takeUnless { it == GitChangeKind.Conflicted }
+
+        if (code in RenameCodes) {
+            val original = fields.getOrNull(index++) ?: break
+            val path = fields.getOrNull(index++) ?: break
+            kind?.let { changes += GitChange(path, it, original) }
+        } else {
+            val path = fields.getOrNull(index++) ?: break
+            kind?.let { changes += GitChange(path, it) }
+        }
+    }
+
+    return changes.sortedBy { it.path }
+}
+
+/**
  * 파일 하나의 `git diff -U0` 출력. `@@ -a[,b] +c[,d] @@` 머리마다 덩어리 하나이고, 수가 빠지면 1 이다. 머리 앞의
  * `diff --git`·`---`·`+++` 줄과 `\ No newline at end of file` 는 건너뛴다. 더한 줄의 글자는 파일 탭이 디스크에서 읽으므로
  * 지운 줄만 모은다.

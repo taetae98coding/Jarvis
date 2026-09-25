@@ -15,6 +15,8 @@ internal class DefaultGitChangesRepository(
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = dataSource.observeGraph(directory)
 
+    override fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?> = dataSource.observeCommitFiles(directory, hash)
+
     override fun observeFileDiff(path: String): Flow<GitFileDiff?> = dataSource.observeFileDiff(path)
 
     override suspend fun stage(root: String, changes: List<GitChange>): Result<Unit> = dataSource.stage(root, changes)

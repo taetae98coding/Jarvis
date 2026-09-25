@@ -449,6 +449,7 @@ internal class FakeGitChangesRepository(
     statuses: Map<String, GitStatus> = emptyMap(),
     graphs: Map<String, List<GitGraphLine>> = emptyMap(),
     diffs: Map<String, GitFileDiff> = emptyMap(),
+    commitFiles: Map<String, List<GitChange>> = emptyMap(),
     var failure: String? = null,
 ) : GitChangesRepository {
     val statuses = MutableStateFlow(statuses)
@@ -456,6 +457,9 @@ internal class FakeGitChangesRepository(
     val graphs = MutableStateFlow(graphs)
 
     val diffs = MutableStateFlow(diffs)
+
+    /** 해시마다 커밋의 파일. 없는 해시는 읽을 수 없는 커밋이다. */
+    val commitFiles = MutableStateFlow(commitFiles)
 
     val staged = mutableListOf<Pair<String, List<GitChange>>>()
 
@@ -468,6 +472,8 @@ internal class FakeGitChangesRepository(
     override fun observeStatus(directory: String): Flow<GitStatus?> = statuses.map { it[directory] }
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = graphs.map { it[directory].orEmpty() }
+
+    override fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?> = commitFiles.map { it[hash] }
 
     override fun observeFileDiff(path: String): Flow<GitFileDiff?> = diffs.map { it[path] }
 
