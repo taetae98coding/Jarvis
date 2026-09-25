@@ -65,16 +65,15 @@ Android / iOS / Web 은 전부 구현한다. **데스크톱은 macOS 만** 구�
 printf 'sdk.dir=%s\n' "$HOME/Library/Android/sdk" > local.properties
 CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-  ./gradlew build        # 전 타깃 컴파일·lint·테스트·iOS release 링크·checkIosAppVersion (20분 남짓)
+  ./gradlew build        # 전 타깃 컴파일·lint·테스트·iOS release 링크·checkIosAppVersion (처음부터면 1시간 안팎)
 ./gradlew jvmTest        # 빠른 확인
 ```
 
 - `jvmTest` 만으로는 `compileCommonMainKotlinMetadata` 오류가 잡히지 않는다. commonMain 은 모든 타깃 stdlib 에 있는 API 만 쓴다
   (예: `MatchGroup.range` 는 플랫폼마다 있지만 common 에는 없다). `:<모듈>:compileCommonMainKotlinMetadata` 로 확인한다.
-- `:app:ui:wasmJsBrowserTest` 는 Chrome ping timeout 으로 수십 개째에서 끊기고, 실패하는 테스트가 실행마다 바뀐다
-  (2026-09-25, 바꾸기 전 커밋에서도 같다). 실패하면 코드를 고치기 전에 `--tests '<클래스>'` 로 따로 돌려 재현되는지부터 본다.
-- `build` 가 `:shared:linkReleaseFrameworkIosArm64` 에서 `Java heap space` 로 죽으면, 링크가 다른 태스크와 Gradle 데몬 힙(4 GB)을
-  나눠 쓴 것이다. 그 태스크만 따로 돌리면 통과한다.
+- Wasm UI 테스트에서 `waitUntil` 은 하나뿐인 이벤트 루프를 막는다. 그동안 `delay`·`withTimeout`·`Dispatchers.Default` 로 넘긴 일은
+  끝나지 못하므로, 그것을 기다리는 테스트는 `@IgnoreOnWasm` 을 붙이고 이유를 적는다([웹 테스트](docs/platform/web.html#test)).
+- 머신 부하가 높으면 UI 테스트가 시간 초과로 흔들린다. 실패하면 코드를 고치기 전에 `--tests '<클래스>'` 로 따로 돌려 재현되는지부터 본다.
 
 - 앱 버전은 `gradle/libs.versions.toml` 의 `appVersion` 과 `iosApp/Configuration/Config.xcconfig` 두 곳을 함께 고친다(`checkIosAppVersion`).
 - 커밋 메시지는 한국어로, 제목은 사용자가 겪는 변화를 한 문장으로("~하게 함", "~을 고침") 쓴다.

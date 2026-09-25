@@ -277,7 +277,7 @@ Android 서명 키는 저장소 밖에 두고 `~/.gradle/gradle.properties`의 `
 | `feature/emulator/data/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복 | jvm |
 | `feature/emulator/ui/src/jvmTest` | `EmulatorDevicesViewModelTest` — 실행 잠금 규칙 (`viewModelScope`) | jvm |
 | `app/ui/src/skikoTest` | `JarvisAppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 반영, 화면 이동, 에뮬레이터 목록·화면·제스처 | jvm / wasmJs / ios |
-| `app/ui/src/skikoTest` | `@IgnoreOnWasm` — 실제 시간(`delay`)을 기다리는 줄 코멘트 보내기 테스트 둘만 Wasm 에서 건너뛴다. Wasm 도 JVM 처럼 테스트의 `Dispatchers.Main` 을 `Unconfined` 로 둔다 | jvm / ios |
+| `app/ui/src/skikoTest` | `@IgnoreOnWasm` — 이벤트 루프가 막힌 동안 끝나야 하는 일(`delay`, `Dispatchers.Default`, 휠)을 기다리는 터미널 테스트 아홉만 Wasm 에서 건너뛴다([웹 테스트](docs/platform/web.html#test)). Wasm 도 JVM 처럼 테스트의 `Dispatchers.Main` 을 `Unconfined` 로 둔다 | jvm / ios |
 | `app/ui/src/jvmTest` | `JarvisAppLaunchLockTest` — 실행 잠금이 화면에 그려지는 것 (Wasm 에서는 이벤트 루프가 막혀 JVM 에만 둔다) | jvm |
 | `shared/src/jvmTest` | `JarvisKoinTest` — 기능들의 Koin 모듈을 합친 그래프가 모든 정의를 해석한다 | jvm |
 

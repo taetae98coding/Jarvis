@@ -131,6 +131,8 @@ class JarvisAppTerminalFileEditorTest {
 
     // E1, E2, E3, E5, E8
     @Test
+    // 자동 저장이 실제 시간(FileAutoSaveDelay)을 기다린다.
+    @IgnoreOnWasm
     fun filesOpenInTheEditorAndSaveByThemselves() = runComposeUiTest {
         val files = files(main.path to text("fun main() {}\n"))
         openTerminal(files)
@@ -171,6 +173,8 @@ class JarvisAppTerminalFileEditorTest {
 
     // E4
     @Test
+    // 자동 저장이 실제 시간(FileAutoSaveDelay)을 기다린다.
+    @IgnoreOnWasm
     fun aFailedSaveKeepsTheTextSaysWhyAndCanBeRetried() = runComposeUiTest {
         val files = files(main.path to text("a")).apply { writeFailure = "권한 없음" }
         openTerminal(files)
@@ -278,6 +282,8 @@ class JarvisAppTerminalFileEditorTest {
 
     // M1, M3, M5
     @Test
+    // 마크다운 파싱이 Dispatchers.Default 에서 돈다. Wasm 에서는 waitUntil 이 막은 이벤트 루프와 같다.
+    @IgnoreOnWasm
     fun markdownOpensAsAPreviewAndItsSourceIsTheEditor() = runComposeUiTest {
         val uriHandler = RecordingUriHandler()
         val workspace = workspace(readme.path)

@@ -1779,6 +1779,13 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
   위 제약 때문에 <code>0440c28</code> 까지 <code>:app:ui:wasmJsBrowserTest</code> 가 실패하고 있었다. <code>JarvisAppTerminalClaudeStatusTest</code> 에서 창 포커스를 바꾸면 <code>setWindowFocused</code> 는 불렸지만 <code>viewModelScope</code> 의 <code>combine</code> 이 다시 돌지 않았다(임시 로그로 확인) — Main 이 곧 막힌 이벤트 루프라서다. 앞 테스트가 끝나지 못하면 Karma 가 나머지를 돌리지 않아 172개 중 수십 개만 돌고 있었다. JVM 처럼 <code>installTestMainDispatcher()</code> 가 <code>Dispatchers.setMain(Dispatchers.Unconfined)</code> 을 하자 이벤트 루프를 기다리지 않고 그 자리에서 이어져 172개가 끝까지 돈다. 남는 제약은 실제 시간 타이머(<code>delay</code>, <code>withTimeout</code>)다 — 이벤트 루프가 막혀 끝나지 못하므로, 그것을 기다리는 줄 코멘트 보내기 테스트 둘에만 <code>@IgnoreOnWasm</code>(Wasm 에서만 <code>kotlin.test.Ignore</code>)을 붙였다. 패널 줄 흐르기 테스트는 한글 폰트가 없는 Wasm 에서 한글 폭이 작게 재져 실패해서, 폭을 라틴 글자로 채웠다(<a href="#release-build">release 빌드</a>의 한글 폰트와 같은 원인).
 </aside>
 
+<aside class="decision">
+  <strong>결정: Karma·mocha 제한 시간을 늘리고, 터미널 UI 테스트 일곱은 Wasm 에서 건너뛴다 (2026-09-25)</strong>
+  테스트가 220개를 넘기자 <code>:app:ui:wasmJsBrowserTest</code> 가 다시 수십 개째에서 <code>Disconnected … reconnect failed before timeout of 2000ms (ping timeout)</code> 로 끊겼다. 앱 전체를 띄우는 테스트 하나가 이벤트 루프를 2초 넘게 잡으면 Karma(<code>browserDisconnectTimeout</code>)와 mocha(테스트마다)의 기본 2초에 걸린다. <code>app/ui/karma.config.d/timeouts.js</code> 가 둘을 늘리자 221개가 끝까지 돈다.
+  끝까지 돌자 결정적으로 실패하는 일곱이 드러났다. 모두 이벤트 루프가 막힌 동안 끝나야 하는 일을 기다린다. 파일 탭 자동 저장 둘은 <code>delay(FileAutoSaveDelay)</code> 를, 마크다운 미리보기를 여는 둘(<code>markdownOpensAsAPreview…</code>, 사이드 바의 <code>clickingAFileOpens…</code>)은 <code>withContext(Dispatchers.Default)</code> 의 파싱·색칠을 기다린다(Wasm 에서는 Default 도 같은 이벤트 루프다). 휠 셋은 휠 입력이 <code>scrollBy</code> 에 닿기를 기다리다 10초·<code>waitForIdle</code> 1분 제한에 걸린다. 휠 쪽의 정확한 원인은 <span class="badge untested">미검증</span>이다.
+  웹에서는 <a href="#terminal">터미널</a> 자체가 불가라 이 화면들이 뜨지 않으므로 앱 코드를 Wasm 에 맞춰 바꾸지 않고 <code>@IgnoreOnWasm</code> 을 붙였다. 같은 테스트는 JVM·iOS 에서 돈다.
+</aside>
+
 <p>Compose 를 쓰는 모듈의 <code>wasmJs</code> 타깃에 <code>binaries.executable()</code>이 있는 이유도 이 테스트 때문이다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 UI 테스트가 렌더링하지 못한다.</p>
 </section>
 

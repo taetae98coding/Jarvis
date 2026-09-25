@@ -271,6 +271,8 @@ class JarvisAppTerminalSideBarTest {
     }
 
     @Test
+    // 마크다운 파싱이 Dispatchers.Default 에서 돈다. Wasm 에서는 waitUntil 이 막은 이벤트 루프와 같다.
+    @IgnoreOnWasm
     fun clickingAFileOpensItInANewTabAndClickingAgainSelectsThatTab() = runComposeUiTest {
         val workspace = FakeTerminalWorkspaceRepository(initial)
         openTerminal(workspace = workspace, files = files(readme.path to FileContent.Text("# Jarvis\n\n끝", truncated = false)))
