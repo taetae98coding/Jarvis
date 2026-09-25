@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>파일 탭 줄 코멘트를 Claude 에 보내기 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>파일 탭 줄 코멘트를 Claude 에 보내기</span></nav>
+
+<header>
+  <h1>파일 탭 줄 코멘트를 Claude 에 보내기</h1>
+  <p class="lead">파일 탭(diff 가 겹친 것 포함)에서 줄 번호를 눌러 그 줄에 코멘트를 남기고, 패널에 모인 코멘트를 "Claude 에 보내기" 한 번으로 그 패널의 Claude 탭에 한 메시지로 보낸다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>터미널 화면 git diff와 fileDirectory에서 라인넘버를 선택해서 comment를 남기고 claude에게 보낼 수 있는 기능 추가해줘. 한번에 보낼 수 있도록 comment들을 남겼다가 전송버튼 같은 걸로 한번에 보내도록 해줘.</p>
+  <footer>2026-09-25 대화. "git diff" 는 사이드 바 "Git" 구획에서 연 파일 탭(<a href="terminal-file-diff.html">diff 가 겹친 것</a>), "fileDirectory" 는 "파일" 구획에서 연 파일 탭으로 읽었다. 둘은 같은 파일 탭이다. "claude" 는 같은 패널의 Claude 탭으로 읽었다.</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<dl class="meta">
+  <dt>파일 탭</dt><dd><a href="terminal-side-bar.html">사이드 바</a> R9·R17 로 여는 읽기 전용 탭. 줄은 <a href="terminal-file-diff.html">diff</a> D1 의 <code>DiffedLine</code> — 지금 파일의 줄과 끼워 넣은 지운 줄이다</dd>
+  <dt>줄 번호 칸</dt><dd>줄 앞의 번호와 표시 칸("+", "−", 빈칸). 지운 줄은 번호가 비어 있어도 칸은 있다</dd>
+  <dt>코멘트</dt><dd>고른 줄(한 줄 또는 이어진 여러 줄)과 사용자가 적은 글 하나</dd>
+  <dt>모인 코멘트</dt><dd>한 패널에서 남기고 아직 보내지 않은 코멘트 전부. 그 패널의 어느 파일 탭에서 남겼든 함께 모인다</dd>
+  <dt>보낼 곳</dt><dd>그 패널의 Claude 탭(<code>TerminalProgram.Claude</code>). 하위 워크트리 패널의 탭은 들지 않는다</dd>
+</dl>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>C1.</strong> 파일 탭의 줄 번호 칸을 누르면 그 줄이 골라져 바탕이 <code>primaryContainer</code> 가 되고, 그 줄 바로 아래에 코멘트 입력 칸이 열려 포커스를 받는다. 지운 줄도 같다. 입력 칸이 열린 채 다른 줄 번호 칸을 누르면 고른 줄이 그 줄로 바뀐다(적던 글은 남는다).</li>
+  <li><strong>C2.</strong> 한 줄을 고른 뒤 Shift 를 누른 채 다른 줄 번호 칸을 누르면 두 줄 사이(둘 포함)의 모든 줄이 골라지고, 입력 칸은 고른 범위의 마지막 줄 아래로 간다. 범위에는 지운 줄이 섞일 수 있다.</li>
+  <li><strong>C3.</strong> 입력 칸은 여러 줄 글을 받는다. "코멘트 추가" 버튼이나 ⌘Enter(macOS 밖에서는 Ctrl+Enter)로 추가하고, "취소" 버튼이나 Esc 로 닫는다. 앞뒤 공백을 뺀 글이 비어 있으면 추가할 수 없다. 추가하면 입력 칸이 닫히고 고른 줄이 풀린다.</li>
+  <li><strong>C4.</strong> 추가한 코멘트는 그 범위의 마지막 줄 아래에 카드로 보인다 — 줄 범위 이름("12–14행", 지운 줄만이면 "HEAD 5행 (지운 줄)")과 글, 삭제(✕) 버튼. 코멘트가 걸린 줄은 번호 칸이 <code>primary</code> 색이다. ✕ 를 누르면 그 코멘트만 지워진다.</li>
+  <li><strong>C5.</strong> 모인 코멘트가 하나라도 있으면 그 패널의 모든 파일 탭 아래에 막대가 붙는다: "코멘트 N개"(N 은 패널 전체), "모두 지우기", "Claude 에 보내기". 모두 지우면 막대가 사라진다.</li>
+  <li><strong>C6.</strong> "Claude 에 보내기" 의 보낼 곳: 패널에 Claude 탭이 하나면 곧바로 그 탭이다. 둘 이상이면 버튼 아래 메뉴에 탭 이름이 패널의 탭 순서로 나오고 고른 탭이다. 하나도 없으면 버튼 글이 "새 Claude 탭에 보내기" 이고, 누르면 그 파일 탭이 있는 그룹에 새 Claude 탭(<a href="terminal-claude.html">Claude</a> R2 와 같은 탭, 작업 디렉터리는 패널 폴더)을 열어 거기로 보낸다.</li>
+  <li><strong>C7.</strong> 보내면 보낼 곳 탭이 선택되어 보인다. 그 탭의 Claude 가 입력을 받을 수 있게 되면(<a href="#claude-ready">Claude 준비</a>) C8 의 글을 붙여넣기(bracketed paste)로 입력 칸에 넣고 Enter 를 보내 제출한다. 제출하면 보낸 코멘트가 모인 코멘트에서 빠진다. 기다리는 동안 추가한 코멘트는 남는다.</li>
+  <li><strong>C8.</strong> 보내는 글은 첫 줄 "아래 코드 줄에 남긴 코멘트 N개를 반영해 주세요." 뒤에 코멘트마다 빈 줄, "<i>k</i>. <i>경로</i>:<i>줄 범위</i>", 고른 줄을 담은 코드 블록, 코멘트 글이다. 코멘트는 파일(처음 코멘트를 남긴 순서)끼리 모으고 파일 안에서는 남긴 순서다. 경로는 보낼 곳 탭의 작업 디렉터리 아래면 그 기준 상대 경로, 아니면 절대 경로다. 줄 범위는 지금 파일의 줄 번호 "12" 또는 "12-14"(지운 줄은 세지 않는다), 지운 줄만이면 " (HEAD 5-6, 지운 줄)" 이다. 코드 블록의 줄은 "번호 표시 글자"이고, 표시 칸("+", "−")은 고른 줄 중 더한·지운 줄이 있을 때만 붙는다. 코드 블록의 울타리는 글자 안의 가장 긴 백틱 연속보다 하나 길다(최소 3).</li>
+  <li><strong>C9.</strong> 보낸 뒤 <code>ClaudeReadyTimeout</code>(30초) 안에 Claude 가 준비되지 않으면 아무것도 입력하지 않고, 코멘트를 그대로 둔 채 막대에 "Claude 가 준비되지 않아 보내지 못했습니다" 를 보인다. 다시 보내거나 코멘트를 고치면 이 문구가 사라진다. 보내는 동안 버튼은 "보내는 중…" 이고 누를 수 없다.</li>
+  <li><strong>C10.</strong> 모인 코멘트는 앱이 켜져 있는 동안 남는다. 탭을 닫거나 터미널 화면을 떠났다 돌아와도 그대로고, 같은 파일을 다시 열면 다시 보인다. 패널을 닫으면 그 패널의 코멘트가 사라진다. 앱을 끄면 사라진다(저장하지 않는다).</li>
+  <li><strong>C11.</strong> 코멘트는 줄 번호에 붙는다 — 지금 줄은 지금 파일의 번호, 지운 줄은 HEAD 의 번호. 파일이 바뀌어 번호가 옮겨 가도 같은 번호의 줄 아래에 보이고, 그 번호의 줄이 없으면 파일 끝에 보인다. 보내는 글(C8)의 코드 블록은 코멘트를 남길 때의 줄 글자다.</li>
+  <li><strong>C12.</strong> Claude 를 띄울 수 없는 타깃(<a href="terminal-claude.html">Claude</a> R6)에서는 줄 번호 칸을 눌러도 아무 일도 없고 막대도 없다. 파일 탭은 이 기능 이전과 같다. 글자 고르기·복사(사이드 바 R11, diff D8)는 줄 번호 칸 밖에서 그대로다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  코멘트 고치기(지우고 다시 남긴다), 코멘트 저장·복원, 다른 패널의 Claude 에 보내기, 줄 번호 칸을 끌어 범위 고르기, 보내기 전에 글 미리 보기·다듬기, 보낸 코멘트 기록, 클립보드로 복사. 지시는 "남겼다가 한번에 보내기" 까지다.
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌ 파일 탭 ─────────────────────────────────────┐
+│ HEAD 대비 +2 −1                                │
+│    1   a                                       │
+│      − b         ← primaryContainer (고름)      │
+│    2 + B         ← primaryContainer (고름)      │
+│  ┌ 입력 칸 ─────────────────────────────┐       │
+│  │ 이 이름은 너무 짧다                    │       │
+│  └──────────────────── [취소] [코멘트 추가] ┘   │
+│    3   c                                       │
+│    4   d         ← 번호가 primary (코멘트 있음)  │
+│  ┌ 4행 ──────────────────────────── ✕ ┐        │
+│  │ 여기 null 이면?                        │       │
+│  └────────────────────────────────────┘        │
+│    5 + e                                       │
+├────────────────────────────────────────────────┤
+│ 코멘트 3개          [모두 지우기] [Claude 에 보내기] │
+└────────────────────────────────────────────────┘</code></pre>
+
+<pre><code>아래 코드 줄에 남긴 코멘트 2개를 반영해 주세요.
+
+1. src/Foo.kt:2
+```
+  − b
+2 + B
+```
+이 이름은 너무 짧다
+
+2. src/Foo.kt:4
+```
+4 d
+```
+여기 null 이면?</code></pre>
+
+<p>위 예의 첫 코멘트처럼 지금 줄과 지운 줄이 섞이면 줄 범위는 지금 줄 번호만이다.</p>
+
+<table>
+  <thead><tr><th>고른 줄</th><th>제목 줄</th></tr></thead>
+  <tbody>
+    <tr><td>지금 줄 12</td><td><code>1. src/Foo.kt:12</code></td></tr>
+    <tr><td>지금 줄 12–14 (사이에 지운 줄이 있어도)</td><td><code>1. src/Foo.kt:12-14</code></td></tr>
+    <tr><td>지운 줄 HEAD 5–6 만</td><td><code>1. src/Foo.kt (HEAD 5-6, 지운 줄)</code></td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>줄 번호 칸</td><td>누를 수 있다(마우스 포인터 손 모양). 고른 줄은 줄 전체 바탕 <code>primaryContainer</code>(diff 색 대신). 코멘트가 걸린 줄은 번호 글자 <code>primary</code></td></tr>
+    <tr><td>입력 칸·카드</td><td>보이는 영역 폭으로 왼쪽에 붙는다 — 가로로 스크롤해도 따라온다. 카드 바탕 <code>surfaceContainerHigh</code>, 제목 <code>labelMedium</code>, 글 <code>bodyMedium</code></td></tr>
+    <tr><td>막대</td><td>파일 탭 맨 아래. "코멘트 N개" <code>labelLarge</code>, 실패 문구 <code>error</code> 색, 오른쪽에 <code>TextButton</code> "모두 지우기" 와 <code>Button</code> "Claude 에 보내기"</td></tr>
+    <tr><td>테스트 태그</td><td>
+      <code>terminal:file-viewer:gutter:&lt;줄 번호&gt;</code>, <code>terminal:file-viewer:gutter:removed:&lt;HEAD 줄 번호&gt;</code>,
+      <code>terminal:file-viewer:comment-field</code>, <code>terminal:file-viewer:comment-add</code>, <code>terminal:file-viewer:comment-cancel</code>,
+      <code>terminal:file-viewer:comment:&lt;id&gt;</code>, <code>terminal:file-viewer:comment-delete:&lt;id&gt;</code>,
+      <code>terminal:file-viewer:comment-bar</code>, <code>terminal:file-viewer:comment-clear</code>, <code>terminal:file-viewer:comment-send</code>, <code>terminal:file-viewer:comment-target:&lt;탭 id&gt;</code>
+    </td></tr>
+  </tbody>
+</table>
+
+<h3 id="claude-ready">Claude 준비</h3>
+
+<p>Claude 탭의 창은 셸이 <code>claude attach</code> 를 돌리다 끝나면 로그인 셸로 이어진다(<a href="terminal-claude.html">Claude</a> R4). 셸에 글을 붙여넣고 Enter 를 보내면 코멘트 글이 명령으로 실행되므로, 창이 지금 Claude 를 보이고 있을 때만 보낸다. 창의 에뮬레이터가 <b>bracketed paste(DECSET 2004) 와 포커스 보고(DECSET 1004)를 둘 다 켰을 때</b>를 준비로 본다. Claude Code 는 입력을 받기 시작할 때 <code>ESC[?2004h ESC[?2031h ESC[?1004h</code> 를 쓰고(2.1.282 로 확인), zsh·bash 의 줄 편집기는 2004 만 켠다. 창이 아직 없으면(한 번도 보이지 않은 탭, 새 탭) 보낼 때 연다.</p>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd>
+    <code>LineComment(id, path, lines: List&lt;DiffedLine&gt;, body)</code> — <code>lines</code> 는 남길 때의 줄. <code>DiffedLine.sameLine(other)</code> 는 지금 줄끼리 번호, 지운 줄끼리 HEAD 번호가 같은지(C11).
+    순수 함수 <code>lineCommentsPrompt(comments, directory): String</code>(C8), <code>LineComment.rangeLabel</code>(C4 카드 제목).
+    <code>TerminalEmulator.focusReporting</code>(DECSET 1004)을 <code>bracketedPaste</code> 처럼 든다</dd>
+  <dt>UI 상태</dt><dd>
+    <code>LineCommentHost</code> — 패널 id 마다 <code>PanelLineComments(comments, sending, failed)</code> 를 <code>StateFlow</code> 로 든다. 추가·지우기·모두 지우기·보내기, 사라진 패널 치우기(<code>retain</code>).
+    보내기는 <code>UpdateTerminalWorkspaceUseCase</code> 로 보낼 곳 탭을 고르거나(없으면 새 Claude 탭을 열고), <code>TerminalPaneHost.acquire</code> 로 창을 얻어 <code>TerminalPaneState.revision</code> 이 <code>readyForPaste</code>(2004 ∧ 1004)가 될 때까지 <code>ClaudeReadyTimeout</code> 만큼 기다리고, <code>TerminalPaneState.paste(text)</code> 뒤 <code>ClaudeSubmitDelay</code> 를 두고 <code>"\r"</code> 를 보낸다.
+    앱 수명 스코프 단일 객체로 Koin 에 둔다</dd>
+  <dt>UI</dt><dd>
+    <code>TerminalViewModel</code> 이 host 의 상태와 명령을 넘기고, <code>TerminalFileViewer</code> 가 <code>FileLineComments</code>(이 파일의 코멘트, 패널 전체 수, 보내는 중·실패, 보낼 곳 목록, 콜백)를 받아 줄 번호 칸·입력 칸·카드·막대를 그린다. <code>null</code> 이면 C12 다. 고른 줄과 입력 중인 글은 화면 안에서만 쓰는 값이라 <code>remember</code> 로 둔다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 창에 붙여넣기로 입력하고 Enter 를 보낸다.</strong>
+  후보: (1) Claude Code 에 백그라운드 세션으로 메시지를 넣는 명령 — 2.1.282 의 <code>claude --help</code> 에 <code>attach</code>·<code>logs</code>·<code>stop</code>·<code>rm</code>·<code>respawn</code> 만 있고 넣는 명령이 없다. 버렸다. (2) 앱의 <a href="mcp-server.html">MCP 서버</a>에 도구를 두고 Claude 가 가져가게 — 사용자가 Claude 에게 "가져가" 라고 따로 말해야 해서 "한 번에 보내기" 가 아니다. 버렸다. (3) 채택: 사용자가 붙여넣고 Enter 를 친 것과 같은 바이트를 창에 쓴다. 여러 줄 글이 한 입력으로 들어가려면 bracketed paste 여야 하고, Enter 는 붙여넣기 끝 뒤에 따로 보내야 줄바꿈이 아니라 제출로 읽힌다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 코멘트는 패널마다 모으고 저장하지 않는다.</strong>
+  파일마다 보내면 "한번에" 가 아니고, 앱 전체로 모으면 다른 저장소의 코멘트가 한 Claude 에 섞인다. 패널은 폴더(워크트리) 하나와 그 Claude 탭들이라 단위가 맞다. 보내기 전의 초안이라 앱을 끄면 버려도 되고, 저장하면 줄이 옮겨 간 뒤 다시 켰을 때 엉뚱한 줄에 붙는다. ViewModel 에 두면 터미널 화면을 떠날 때 사라지므로 <code>TerminalPaneHost</code> 처럼 앱 수명 객체에 둔다 — 관측이 아니라 사용자가 만든 초안을 드는 것이다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 범위는 Shift+누름으로 고른다.</strong>
+  줄 번호 칸을 끌어 고르기는 칸이 <code>SelectionContainer</code> 안에 있어 글자 고르기 끌기와 겹치고, 손을 떼는 자리를 찾는 코드가 는다. 파일 탭은 데스크톱에서만 열 수 있어(C12) Shift 가 늘 있다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>Claude 를 띄울 수 없다(<a href="terminal-claude.html">Claude</a> R6). 파일 탭은 열리지만 줄 번호 칸이 눌리지 않는다(C12)</td><td><a href="../platform/android.html#terminal-line-comment">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-line-comment">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. pty4j 창에 <code>ESC[200~…ESC[201~</code> 뒤 <code>\r</code></td><td><a href="../platform/jvm.html#terminal-line-comment">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-line-comment">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>LineCommentTest</code></td><td>C4, C8, C11. 글 모양(첫 줄, 번호, 상대·절대 경로, 줄 범위 세 가지, 표시 칸 유무, 백틱 울타리 늘이기, 파일끼리 모으기), <code>rangeLabel</code>, <code>sameLine</code></td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TerminalEmulatorTest</code></td><td>DECSET/DECRST 1004 가 <code>focusReporting</code> 을 켜고 끈다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalLineCommentTest</code></td><td>C1–C7, C9(준비 전에는 쓰지 않음·"보내는 중…"), C10, C12. 줄 번호 칸을 눌러 입력 칸, Shift 범위, 추가·취소·빈 글, 카드·✕, 막대의 수와 모두 지우기, 다른 파일 탭과 함께 세기, 보내면 Claude 탭이 선택되고 준비된 뒤에만 붙여넣기+Enter 가 쓰이고 코멘트가 사라짐, 셸만 켠 창(2004 만)에는 쓰지 않고 실패 문구, Claude 탭이 여럿이면 메뉴, 없으면 새 Claude 탭, 탭을 닫았다 다시 열어도 남음, Claude 가 없는 타깃에서 눌러도 아무 일 없음</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: C9 의 30초 뒤 실패 문구(테스트가 30초를 기다리지 않는다), 실제 Claude Code 가 붙여넣은 글을 한 메시지로 받아 제출하는지. 뒤의 것은 2026-09-25 에 Claude Code 2.1.282 를 pty 로 띄워 같은 바이트(붙여넣기 + 300ms 뒤 <code>\r</code>)를 써서, "[Pasted text #1]" 한 메시지로 제출되고 답이 오는 것을 확인했다. 버전이 바뀌면 <code>./gradlew :desktopApp:run</code> 으로 다시 확인한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>준비 판정(2004 ∧ 1004)은 Claude Code 2.1.282 의 동작을 기준으로 한다. Claude 가 끝나고 이어진 셸에서 vim 처럼 두 모드를 다 켜는 프로그램이 돌고 있으면 그 프로그램에 붙여넣는다.</li>
+  <li><code>claude attach</code> 에서 ← 로 agent view 에 나가 있으면 그 화면도 Claude Code 라 준비로 보이고, 글은 agent view 의 입력 칸에 들어간다.</li>
+  <li>Claude 가 차례를 진행하는 중이면 글은 Claude Code 의 대기열에 들어가 차례가 끝난 뒤 처리된다.</li>
+  <li>긴 글은 Claude Code 가 입력 칸에 "[Pasted text #1 +N lines]" 로 접어 보이지만 제출되는 글은 전부다.</li>
+  <li>파일이 바뀐 뒤에는 카드가 붙은 줄의 글자가 코멘트를 남길 때와 다를 수 있다(C11). 보내는 글은 남길 때의 글자다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

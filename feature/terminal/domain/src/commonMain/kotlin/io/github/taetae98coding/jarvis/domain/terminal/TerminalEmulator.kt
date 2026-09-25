@@ -36,6 +36,10 @@ class TerminalEmulator(
     var bracketedPaste: Boolean = false
         private set
 
+    /** DECSET 1004. 셸의 줄 편집기는 켜지 않고 Claude Code 는 켠다(docs/common/terminal-line-comment.html#claude-ready). */
+    var focusReporting: Boolean = false
+        private set
+
     val isAlternateScreen: Boolean get() = screen === alternate
 
     /** 대체 화면에서는 스크롤백을 보여주지 않는다. `vim` 을 나가기 전의 화면이 섞이면 안 된다. */
@@ -544,6 +548,7 @@ class TerminalEmulator(
                 restoreCursor()
             }
 
+            1004 -> focusReporting = enabled
             2004 -> bracketedPaste = enabled
         }
     }
@@ -669,6 +674,7 @@ class TerminalEmulator(
         cursorVisible = true
         applicationCursorKeys = false
         bracketedPaste = false
+        focusReporting = false
         autoWrap = true
         insertMode = false
         lineDrawing = false

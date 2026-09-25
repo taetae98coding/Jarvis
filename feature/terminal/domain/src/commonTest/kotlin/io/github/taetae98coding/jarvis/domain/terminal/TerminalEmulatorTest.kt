@@ -263,6 +263,18 @@ class TerminalEmulatorTest {
     }
 
     @Test
+    fun focusReportingModeIsTracked() {
+        val e = emulator()
+
+        e.feed("\u001b[?2004h\u001b[?2031h\u001b[?1004h")
+        assertTrue(e.focusReporting)
+        assertTrue(e.bracketedPaste)
+
+        e.feed("\u001b[?1004l")
+        assertFalse(e.focusReporting)
+    }
+
+    @Test
     fun lineDrawingCharsetMapsToBoxCharacters() {
         val e = emulator()
 

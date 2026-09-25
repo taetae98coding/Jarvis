@@ -110,6 +110,18 @@ internal class TerminalPaneState(
         if (result.send.isNotEmpty()) writes.trySend(result.send)
     }
 
+    /** 붙여넣기. 여러 글자면 셸·프로그램이 bracketed paste 를 켰을 때 그 표시로 감싼다. */
+    fun paste(text: String) {
+        input(pastedBytes(text, emulator.bracketedPaste))
+    }
+
+    /**
+     * 창이 지금 Claude Code 의 입력을 보이고 있는지. 셸의 줄 편집기도 bracketed paste 는 켜므로 포커스 보고까지 본다
+     * (docs/common/terminal-line-comment.html#claude-ready).
+     */
+    val readyForClaudeInput: Boolean
+        get() = emulator.bracketedPaste && emulator.focusReporting
+
     fun resize(columns: Int, rows: Int) {
         if (columns == emulator.columns && rows == emulator.rows) return
 
@@ -145,4 +157,12 @@ internal class TerminalPaneState(
     private fun invalidate() {
         _revision.update { it + 1 }
     }
+}
+
+internal fun pastedBytes(text: String, bracketedPaste: Boolean): ByteArray {
+    // 소프트 키보드의 Enter 는 키 이벤트가 아니라 줄바꿈 글자로 온다. 붙여넣기도 터미널처럼 줄바꿈을 CR 로 보낸다.
+    val normalized = text.replace("\r\n", "\r").replace('\n', '\r')
+    val wrapped = if (normalized.length > 1 && bracketedPaste) "\u001b[200~$normalized\u001b[201~" else normalized
+
+    return wrapped.encodeToByteArray()
 }
