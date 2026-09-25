@@ -2,6 +2,7 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangesRepository
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
@@ -16,6 +17,8 @@ internal class DefaultGitChangesRepository(
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = dataSource.observeGraph(directory)
 
     override fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?> = dataSource.observeCommitFiles(directory, hash)
+
+    override fun observeCommitFile(path: String, hash: String): Flow<GitCommitFile?> = dataSource.observeCommitFile(path, hash)
 
     override fun observeFileDiff(path: String): Flow<GitFileDiff?> = dataSource.observeFileDiff(path)
 

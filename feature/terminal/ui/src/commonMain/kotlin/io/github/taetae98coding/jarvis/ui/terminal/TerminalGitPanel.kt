@@ -80,6 +80,7 @@ internal fun TerminalGitPanel(
     onPush: (root: String, target: GitPushTarget) -> Unit,
     onToggleCommit: (hash: String) -> Unit,
     onOpen: (String) -> Unit,
+    onOpenCommitFile: (path: String, hash: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (state) {
@@ -117,7 +118,13 @@ internal fun TerminalGitPanel(
 
             HorizontalDivider()
 
-            GitGraph(lines = graph, expanded = expandedCommit, onToggleCommit = onToggleCommit, modifier = Modifier.fillMaxWidth().weight(1f))
+            GitGraph(
+                lines = graph,
+                expanded = expandedCommit,
+                onToggleCommit = onToggleCommit,
+                onOpenFile = { hash, change -> onOpenCommitFile("${state.status.root.trimEnd('/')}/${change.path}", hash) },
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
         }
     }
 }
@@ -324,6 +331,7 @@ private fun GitGraph(
     lines: List<GitGraphLine>?,
     expanded: ExpandedGitCommit?,
     onToggleCommit: (hash: String) -> Unit,
+    onOpenFile: (hash: String, change: GitChange) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -359,7 +367,7 @@ private fun GitGraph(
                     )
                 }
                 if (line.isDetail && expanded != null && commit?.hash == expanded.hash) {
-                    item { GitCommitFiles(expanded.files) }
+                    item { GitCommitFiles(state = expanded.files, onOpen = { onOpenFile(expanded.hash, it) }) }
                 }
             }
         }
@@ -367,7 +375,7 @@ private fun GitGraph(
 }
 
 @Composable
-private fun GitCommitFiles(state: GitCommitFilesState) {
+private fun GitCommitFiles(state: GitCommitFilesState, onOpen: (GitChange) -> Unit) {
     val spacing = JarvisTheme.dimens.spacing
 
     // 그래프 줄과 달리 사이드 바 폭에 맞춰 긴 경로를 말줄임한다. 가로 스크롤 안에서는 폭을 정해야 말줄임이 된다.
@@ -397,7 +405,12 @@ private fun GitCommitFiles(state: GitCommitFilesState) {
                 state.files.forEach { change ->
                     GitChangeLabel(
                         change = change,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = spacing.xxs).testTag(terminalGitCommitFileTestTag(change.path)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(JarvisTheme.shapes.small)
+                            .clickable { onOpen(change) }
+                            .padding(horizontal = spacing.xs, vertical = spacing.xxs)
+                            .testTag(terminalGitCommitFileTestTag(change.path)),
                     )
                 }
             }

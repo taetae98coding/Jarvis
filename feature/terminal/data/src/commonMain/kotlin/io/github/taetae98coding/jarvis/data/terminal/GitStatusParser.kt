@@ -202,3 +202,24 @@ internal fun parseGitDiff(output: String): GitFileDiff {
 }
 
 private val HunkHeader = Regex("""@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@""")
+
+/**
+ * 여러 파일이 섞인 `git diff-tree -p` 출력에서 [path] 파일의 diff 만 읽는다. 구획은 `diff --git` 줄로 나뉘고, 새 경로가 [path] 인 구획
+ * (`+++ b/<path>`)이거나 지운 파일이라 새 경로가 없는 구획(`--- a/<path>` 와 `+++ /dev/null`)이다. 공백이 든 경로 뒤에는 git 이 탭을
+ * 붙이므로 끝 탭을 떼고 견준다. 없으면 빈 diff 다. `core.quotePath=false` 로 받은 출력이어야 한글 경로가 그대로 온다.
+ */
+internal fun parseGitCommitDiff(output: String, path: String): GitFileDiff {
+    val sections = output.split(Regex("(?m)^(?=diff --git )")).filter { it.startsWith(DiffHeader) }
+    val newHeader = "+++ b/$path"
+    val oldHeader = "--- a/$path"
+
+    val section = sections.firstOrNull { section ->
+        val lines = section.lineSequence().takeWhile { !it.startsWith("@@ ") }.map { it.trimEnd('\t') }.toList()
+        newHeader in lines || (oldHeader in lines && DeletedHeader in lines)
+    } ?: return GitFileDiff(emptyList())
+
+    return parseGitDiff(section)
+}
+
+private const val DiffHeader = "diff --git "
+private const val DeletedHeader = "+++ /dev/null"

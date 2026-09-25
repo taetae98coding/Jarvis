@@ -44,6 +44,7 @@ internal fun TerminalSideBar(
     viewModel: TerminalSideBarViewModel,
     directory: String?,
     onOpenFile: (String) -> Unit,
+    onOpenCommitFile: (path: String, hash: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(true) }
@@ -84,6 +85,7 @@ internal fun TerminalSideBar(
                             onPush = viewModel::push,
                             onToggleCommit = viewModel::toggleCommit,
                             onOpen = onOpenFile,
+                            onOpenCommitFile = onOpenCommitFile,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

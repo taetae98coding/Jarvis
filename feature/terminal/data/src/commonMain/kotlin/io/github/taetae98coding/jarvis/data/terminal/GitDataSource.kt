@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
@@ -22,6 +23,8 @@ internal interface GitDataSource {
     fun observeGraph(directory: String): Flow<List<GitGraphLine>>
 
     fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?>
+
+    fun observeCommitFile(path: String, hash: String): Flow<GitCommitFile?>
 
     fun observeFileDiff(path: String): Flow<GitFileDiff?>
 
@@ -46,6 +49,8 @@ internal object UnsupportedGitDataSource : GitDataSource {
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = flowOf(emptyList())
 
     override fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?> = flowOf(null)
+
+    override fun observeCommitFile(path: String, hash: String): Flow<GitCommitFile?> = flowOf(null)
 
     override fun observeFileDiff(path: String): Flow<GitFileDiff?> = flowOf(null)
 

@@ -778,6 +778,32 @@ class TerminalWorkspaceTest {
         assertEquals(opened.panels.last().id, opened.selectedPanelId)
     }
 
+    // docs/common/terminal-commit-file.html K1
+    @Test
+    fun openingACommitFileAppendsAFileTabWithTheHashAndReusesOnlyTheSamePathAndHash() {
+        val opened = TerminalWorkspace.initial().openCommitFile("/work/a.txt", "abc1234def")
+        val tab = opened.focusedTab!!
+        assertEquals(TerminalProgram.File, tab.program)
+        assertEquals("/work/a.txt", tab.filePath)
+        assertEquals("abc1234def", tab.commitHash)
+        assertEquals("abc1234", tab.shortCommitHash)
+
+        val withShell = opened.addTab()
+        val again = withShell.openCommitFile("/work/a.txt", "abc1234def")
+        assertEquals(withShell.tabIds, again.tabIds)
+        assertEquals(tab.id, again.focusedTab!!.id)
+
+        val otherHash = opened.openCommitFile("/work/a.txt", "fff")
+        assertEquals(2, otherHash.tabs.count { it.filePath == "/work/a.txt" })
+
+        // 같은 경로의 보통 파일 탭과 커밋 파일 탭은 서로 고르지 않는다.
+        val plain = opened.openFile("/work/a.txt")
+        assertEquals(2, plain.tabs.count { it.filePath == "/work/a.txt" })
+        assertNull(plain.focusedTab!!.commitHash)
+        assertEquals(plain.focusedTab!!.id, plain.openFile("/work/a.txt").focusedTab!!.id)
+        assertEquals(tab.id, plain.openCommitFile("/work/a.txt", "abc1234def").focusedTab!!.id)
+    }
+
     @Test
     fun sideBarFollowsThePanelFolderThenTheFocusedTabDirectory() {
         val withFolder = TerminalWorkspace.initial().addPanel(directory = "/work").addTab(directory = "/work/app")

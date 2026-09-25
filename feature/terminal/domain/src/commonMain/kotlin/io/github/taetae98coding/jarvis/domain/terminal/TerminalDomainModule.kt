@@ -23,6 +23,7 @@ val terminalDomainModule = module {
     factoryOf(::ObserveGitStatusUseCase)
     factoryOf(::ObserveGitGraphUseCase)
     factoryOf(::ObserveGitCommitFilesUseCase)
+    factoryOf(::ObserveGitCommitFileUseCase)
     factoryOf(::ObserveGitFileDiffUseCase)
     factoryOf(::StageGitChangesUseCase)
     factoryOf(::UnstageGitChangesUseCase)

@@ -8,7 +8,9 @@ import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.DiffedLine
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.FileContent
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitCommitFileUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.ImportChromeCookiesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.IsBrowserSupportedUseCase
@@ -64,6 +66,7 @@ internal class TerminalViewModel(
     private val claudeAttention: ClaudeAttention,
     private val observeFile: ObserveFileUseCase,
     private val observeGitFileDiff: ObserveGitFileDiffUseCase,
+    private val observeGitCommitFile: ObserveGitCommitFileUseCase,
     private val lineComments: LineCommentHost,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
@@ -80,6 +83,9 @@ internal class TerminalViewModel(
     private val fileContents = mutableMapOf<String, StateFlow<FileContent?>>()
 
     private val fileDiffs = mutableMapOf<String, StateFlow<GitFileDiff?>>()
+
+    // (경로, 해시)마다 하나. 커밋은 바뀌지 않으므로 탭이 보일 때마다 한 번 읽는다.
+    private val commitFiles = mutableMapOf<CommitFileKey, StateFlow<GitCommitFile?>>()
 
     // 이 ViewModel 이 본 적 있는 탭. 사라진 것만 닫는다 — Claude 가 막 붙인 탭의 페이지를, 그 탭이 아직 없는
     // 옛 배치로 닫지 않게 한다(docs/common/mcp-server.html R5).
@@ -161,6 +167,19 @@ internal class TerminalViewModel(
         }
 
     fun openFile(path: String) = update { it.openFile(path) }
+
+    /**
+     * 커밋 파일 탭의 내용과 첫 부모 대비 diff(docs/common/terminal-commit-file.html). null 은 아직 읽지 못한 것이고, 읽지 못하는
+     * 커밋·저장소 밖은 [FileContent.Unreadable] 에 빈 diff 다.
+     */
+    fun commitFile(path: String, hash: String): StateFlow<GitCommitFile?> =
+        commitFiles.getOrPut(CommitFileKey(path, hash)) {
+            observeGitCommitFile(path, hash)
+                .map { it ?: GitCommitFile(FileContent.Unreadable, GitFileDiff(emptyList())) }
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), null)
+        }
+
+    fun openCommitFile(path: String, hash: String) = update { it.openCommitFile(path, hash) }
 
     /** 패널마다 모인 줄 코멘트(docs/common/terminal-line-comment.html). */
     val panelLineComments: StateFlow<Map<Long, PanelLineComments>> = lineComments.panels
@@ -279,6 +298,8 @@ internal class TerminalViewModel(
         val filePaths = workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath }
         fileContents.keys.retainAll(filePaths)
         fileDiffs.keys.retainAll(filePaths)
+        val commitFileKeys = workspace.tabs.mapNotNullTo(mutableSetOf()) { tab -> tab.commitHash?.let { hash -> tab.filePath?.let { CommitFileKey(it, hash) } } }
+        commitFiles.keys.retainAll(commitFileKeys)
         closeBrowserPages(knownTabIds - tabIds)
         knownTabIds = tabIds
 
@@ -293,3 +314,5 @@ internal class TerminalViewModel(
         visible.forEach { host.acquire(it, size) }
     }
 }
+
+private data class CommitFileKey(val path: String, val hash: String)

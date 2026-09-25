@@ -17,6 +17,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitDiffHunk
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
@@ -24,6 +25,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerCommentFieldTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerDiffSummaryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerNoticeTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFilesRootTestTag
@@ -47,6 +49,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarToggleTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileEntryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerAddedTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerGutterTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerRemovedTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalGitCommitFileTestTag
@@ -407,6 +410,53 @@ class JarvisAppTerminalSideBarTest {
         assertEquals(0, count(terminalGitCommitFileTestTag(foo.path)))
         assertEquals(1, count(TerminalGitCommitFilesTestTag))
         onNodeWithText("바뀐 파일이 없습니다").assertIsDisplayed()
+    }
+
+    // docs/common/terminal-commit-file.html K1, K2, K4, K5, K7
+    @Test
+    fun clickingACommitFileOpensATabWithThatCommitsContentAndDiff() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        git.commitFileContents.value = mapOf(
+            ("$Root/${foo.path}" to head.hash) to GitCommitFile(
+                FileContent.Text("a\nB\nc", truncated = false),
+                GitFileDiff(listOf(GitDiffHunk(oldStart = 2, oldCount = 1, newStart = 2, newCount = 1, removed = listOf("b")))),
+            ),
+            ("$Root/${renamed.path}" to head.hash) to GitCommitFile(
+                FileContent.Unreadable,
+                GitFileDiff(listOf(GitDiffHunk(oldStart = 1, oldCount = 1, newStart = 0, newCount = 0, removed = listOf("gone")))),
+            ),
+        )
+        openTerminal(workspace = workspace, git = git)
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(terminalGitCommitTestTag(head.hash))
+        onNodeWithTag(terminalGitCommitTestTag(head.hash)).performClick()
+        awaitTag(terminalGitCommitFileTestTag(foo.path))
+
+        onNodeWithTag(terminalGitCommitFileTestTag(foo.path)).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.commitHash == head.hash }
+        val tab = workspace.workspace.value.focusedTab!!
+        assertEquals("$Root/${foo.path}", tab.filePath)
+        awaitTag(TerminalFileViewerDiffSummaryTestTag)
+        onNodeWithTag(terminalTabTitleTestTag(tab.id)).assertTextEquals("Foo.kt @ h1")
+        onNodeWithTag(TerminalFileViewerDiffSummaryTestTag).assertTextEquals("커밋 h1 +1 −1")
+        onNodeWithTag(terminalFileViewerAddedTestTag(2)).assertIsDisplayed()
+        onNodeWithTag(terminalFileViewerRemovedTestTag(2)).assertIsDisplayed()
+        onNodeWithText("b").assertIsDisplayed()
+
+        // 줄 번호를 눌러도 코멘트 입력 칸이 열리지 않는다(K7).
+        onNodeWithTag(terminalFileViewerGutterTestTag(1)).performClick()
+        assertEquals(0, count(TerminalFileViewerCommentFieldTestTag))
+
+        // 다시 누르면 같은 탭이고, 지운 파일은 지운 줄만 보인다(K5).
+        onNodeWithTag(terminalGitCommitFileTestTag(foo.path)).performClick()
+        assertEquals(2, workspace.workspace.value.selectedPanel!!.tabs.size)
+        onNodeWithTag(terminalGitCommitFileTestTag(renamed.path)).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.selectedPanel!!.tabs.size == 3 }
+        awaitTag(terminalFileViewerRemovedTestTag(1))
+        onNodeWithText("gone").assertIsDisplayed()
+        onNodeWithTag(TerminalFileViewerDiffSummaryTestTag).assertTextEquals("커밋 h1 +0 −1")
     }
 
     @Test

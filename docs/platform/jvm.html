@@ -63,6 +63,7 @@
     <li><a href="#terminal-panel-text-marquee">패널 줄 글자 흐르게</a></li>
     <li><a href="#terminal-side-bar">터미널 오른쪽 사이드 바 (파일·Git)</a></li>
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
+    <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
@@ -1386,6 +1387,39 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>GitStatusParserTest</code>·<code>GitDataSourceTest</code>(임시 저장소에서 진짜 <code>git</code>), <code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>DiffedLinesTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalSideBarTest</code>. 색은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-commit-file">
+<h2>커밋 파일 탭 (커밋의 파일 diff) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-commit-file.html">커밋 파일 탭 (커밋의 파일 diff)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>내용: <code>git -C &lt;최상위&gt; show &lt;해시&gt;:&lt;경로&gt;</code></td><td>채택. blob 을 그대로 stdout 에 쓴다. 경로는 최상위 기준이다(<code>./</code> 로 시작하지 않으면). 그 커밋에 없는 경로(지운 파일)는 <code>fatal: path '…' does not exist in '…'</code> 로 128 이라 그것을 <code>Unreadable</code> 로 읽는다(git 2.54 로 확인). 출력을 바이트로 받아 파일 읽기와 같은 판정(앞 8 KiB 의 NUL, 512 KiB 자르기)을 한다</td></tr>
+    <tr><td><code>git cat-file -p &lt;해시&gt;:&lt;경로&gt;</code></td><td>버렸다. 결과는 같지만 <code>show</code> 가 이미 쓰는 명령이라 얻는 것이 없다. <code>cat-file --batch</code> 로 크기를 먼저 보는 것도 프로세스만 는다 — 자르기는 읽은 뒤 하면 된다</td></tr>
+    <tr><td>diff: <code>git -C &lt;최상위&gt; -c core.quotePath=false diff-tree --no-commit-id -r -M --root --diff-merges=first-parent -p -U0 --no-color --no-ext-diff &lt;해시&gt; -- &lt;경로&gt; [&lt;옛 경로&gt;]</code></td><td>채택. <a href="#terminal-side-bar">커밋의 파일</a> 목록과 같은 옵션에 <code>-p -U0</code> 만 더해 같은 기준(첫 부모)이다. pathspec 으로 파일 하나로 줄이면 출력이 그 파일 것만이다. 이름 바꿈은 새 경로만 주면 짝을 못 찾아 새 파일(모두 더한 줄)로 나오고, 옛 경로도 함께 주면 <code>rename from/to</code> 한 구획으로 짝지어진다(확인) — 그래서 먼저 <code>--name-status</code> 로 그 커밋의 파일 목록을 읽어 옛 경로를 얻는다. 유사도가 모자라 짝이 안 되면 새 파일 구획과 지운 파일 구획이 따로 나오므로 구획을 나눠 새 경로 것만 쓴다. <code>core.quotePath=false</code> 를 주면 한글 경로가 <code>"\354\203\210…"</code> 로 이스케이프되지 않고 그대로 온다. 공백이 든 경로는 <code>+++ b/새 이름.txt</code> 뒤에 탭이 붙는다(확인) — 맞출 때 끝 탭을 뗀다</td></tr>
+    <tr><td><code>git diff -U0 &lt;해시&gt;^:&lt;옛 경로&gt; &lt;해시&gt;:&lt;경로&gt;</code>(blob 둘 비교)</td><td>버렸다. 첫 커밋은 <code>^</code> 을 풀지 못하고, 지운·더한 파일은 한쪽 blob 이 없어 갈라야 한다. diff-tree 한 줄이 네 경우를 다 덮는다</td></tr>
+    <tr><td><code>git show -p &lt;해시&gt; -- &lt;경로&gt;</code></td><td>버렸다. 병합 커밋에 기본 <code>--cc</code> 가 붙고 커밋 머리가 섞인다. 같은 옵션을 주면 diff-tree 와 같다</td></tr>
+    <tr><td><code>git log -1 -p --follow</code> 로 이름 바꿈 따라가기</td><td>버렸다. <code>--follow</code> 는 경로 하나에만 되고 diff-tree 에는 없다. 옛 경로는 목록에서 이미 안다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../Git.jvm.kt</code>(<code>ProcessGitDataSource.observeCommitFile</code>), 공통 <code>GitStatusParser.kt</code>(<code>parseGitCommitDiff</code>), <code>FileDataSource.kt</code>(<code>fileContentOf</code>)</dd>
+  <dt>동작</dt><dd>경로의 가장 가까운 있는 위 폴더에서 <code>.git</code> 을 찾고 <code>rev-parse --show-toplevel</code> 로 최상위를 읽어 경로를 최상위 기준으로 바꾼다. 그 뒤 <code>diff-tree --name-status</code>(옛 경로), <code>show</code>(내용), <code>diff-tree -p</code>(diff) 순으로 프로세스 셋이다. 커밋은 바뀌지 않으므로 수집할 때 한 번 내보내고 끝나는 cold Flow 다. <code>show</code> 의 stdout 은 바이트로 받아 <code>fileContentOf</code> 로 판정한다 — <code>GitResult</code> 가 stdout 바이트를 들고 문자열은 그것을 UTF-8 로 푼 것이다</dd>
+  <dt>실패</dt><dd><code>.git</code> 이 없거나 <code>rev-parse</code>·<code>diff-tree</code> 가 0 이 아니면(없는 해시 포함) null 이라 "파일을 읽을 수 없습니다". <code>show</code> 만 실패하면 지운 파일로 보고 <code>Unreadable</code> + diff 다. 명령마다 <code>GitCommandTimeout</code>(30초)</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>공통 스펙의 <a href="../common/terminal-commit-file.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>GitStatusParserTest</code>·<code>GitDataSourceTest</code>(임시 저장소에서 진짜 <code>git</code>)·<code>TerminalWorkspaceStoreTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalSideBarTest</code>. 실제 화면은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
 </section>
 
 <section class="feature" id="terminal-line-comment">

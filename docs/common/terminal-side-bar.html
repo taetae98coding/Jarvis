@@ -128,14 +128,14 @@
 <h3>커밋의 파일</h3>
 <ol start="25">
   <li><strong>R25.</strong> 커밋 그래프의 커밋 줄(제목 줄이든 둘째 줄이든)을 누르면 그 커밋의 둘째 줄 아래에 커밋의 파일 목록이 펼쳐지고, 그 커밋의 두 줄은 선택된 배경이 된다. 같은 커밋을 다시 누르면 접힌다. 다른 커밋을 누르면 먼저 것은 접히고 그 커밋이 펼쳐진다 — 펼쳐진 커밋은 한 번에 하나다. 선만 있는 줄은 눌러도 아무 일도 없다.</li>
-  <li><strong>R26.</strong> 목록은 머리 "파일 n개" 와 파일 줄이다. 파일 줄은 R15 의 변경 줄과 같이 상태 글자(A 추가, M 수정, D 삭제, R 이름 바꿈, T 종류 바뀜), 파일 이름, 저장소 최상위 기준 상위 폴더를 보이고 경로 순이다. 이름 바꿈은 새 경로로 보인다. 바꾼 파일이 없는 커밋(<code>--allow-empty</code>)은 머리 대신 "바뀐 파일이 없습니다" 다. 읽는 동안은 비어 있고, 읽지 못하면(커밋이 사라짐, git 실패) "커밋을 읽을 수 없습니다" 다. 파일 줄은 누를 수 없다.</li>
+  <li><strong>R26.</strong> 목록은 머리 "파일 n개" 와 파일 줄이다. 파일 줄은 R15 의 변경 줄과 같이 상태 글자(A 추가, M 수정, D 삭제, R 이름 바꿈, T 종류 바뀜), 파일 이름, 저장소 최상위 기준 상위 폴더를 보이고 경로 순이다. 이름 바꿈은 새 경로로 보인다. 바꾼 파일이 없는 커밋(<code>--allow-empty</code>)은 머리 대신 "바뀐 파일이 없습니다" 다. 읽는 동안은 비어 있고, 읽지 못하면(커밋이 사라짐, git 실패) "커밋을 읽을 수 없습니다" 다. 파일 줄을 누르면 그 커밋의 <a href="terminal-commit-file.html">커밋 파일 탭</a>이 열린다.</li>
   <li><strong>R27.</strong> 펼친 커밋은 기준 폴더가 바뀌면 접힌다. 그래프가 다시 읽혀 그 커밋이 없어지면(rebase·reset) 목록도 함께 사라진다. 접힘·구획과 같이 저장하지 않는다.</li>
 </ol>
 
 <aside class="warn">
   <strong>스코프에서 뺀 것</strong>
   지시에 없는 것: 커밋 만들기, pull·fetch, 강제 push, 올릴 원격·브랜치 고르기, 줄 단위(hunk) stage, 브랜치 전환, 파일 편집·만들기·지우기·이름 바꾸기, 사이드 바 폭 조절, 접힘·구획·펼친 폴더 저장. 지시가 "일단 2가지" 라고 해서 나중 기능으로 둔다. 커밋은 셸이나 Claude 탭에서 하면 그래프가 따라온다(R19). 파일 탭의 diff 는 뒤에 <a href="terminal-file-diff.html">파일 탭에 git diff 표시</a>로 더했다.
-  커밋의 파일(R25–R27)에서 뺀 것: 커밋 시점의 파일 내용·그 커밋의 diff 보기, 커밋 본문(message body) 보기, 파일 줄을 눌러 파일 탭 열기 — 파일 탭은 작업 트리의 지금 내용이라 지운 파일은 열 수 없고 옛 커밋의 파일은 다른 내용이 보인다.
+  커밋의 파일(R25–R27)에서 뺀 것: 커밋 본문(message body) 보기, 파일 줄을 눌러 작업 트리의 파일 탭 열기 — 파일 탭은 지금 내용이라 지운 파일은 열 수 없고 옛 커밋의 파일은 다른 내용이 보인다. 커밋 시점의 내용과 diff 는 뒤에 <a href="terminal-commit-file.html">커밋 파일 탭</a>으로 더했다.
 </aside>
 
 <h2 id="behavior">화면·동작</h2>
@@ -190,7 +190,7 @@ Git 구획
     <tr><td>push 버튼</td><td>브랜치 줄 오른쪽 <code>TextButton</code>, 글자 <code>labelSmall</code>. "push ↑n"(+" ↓m") / "push"(누를 수 없음) / "새 브랜치 push" / "push 중…"(누를 수 없음). 올릴 곳 줄은 <code>labelSmall</code> <code>onSurfaceVariant</code> 로 "origin/main" 또는 "origin 에 없음"</td></tr>
     <tr><td>변경 줄</td><td>상태 글자(고정폭, 색: A·? success, D·U error, 나머지 warning), 이름, 상위 폴더(<code>onSurfaceVariant</code>), 오른쪽 <code>Add</code> "stage" 또는 <code>Remove</code> "unstage"</td></tr>
     <tr><td>그래프 줄</td><td>선 그림(<code>codeTextStyle</code>, 글자 칸 두 개마다 다른 색 6가지를 돈다), ref 는 <code>labelSmall</code> 배경 칩(HEAD 는 <code>primaryContainer</code>, 나머지 <code>secondaryContainer</code>), 제목은 <code>bodySmall</code>, 둘째 줄의 짧은 해시·작성자·날짜는 <code>labelSmall</code> <code>onSurfaceVariant</code>. 커밋이 있는 줄은 <code>clickable</code> 이고 펼친 커밋의 두 줄은 <code>surfaceVariant</code> 배경</td></tr>
-    <tr><td>커밋의 파일</td><td>펼친 커밋의 둘째 줄 아래, 사이드 바 폭(280dp)에 <code>spacing.l</code> 만큼 들여쓴 세로 목록. 머리 "파일 n개" 는 <code>labelMedium</code> <code>onSurfaceVariant</code>, 파일 줄은 변경 줄과 같은 상태 글자·이름·상위 폴더(오른쪽 버튼 없음), "커밋을 읽을 수 없습니다" 는 <code>error</code> 색</td></tr>
+    <tr><td>커밋의 파일</td><td>펼친 커밋의 둘째 줄 아래, 사이드 바 폭(280dp)에 <code>spacing.l</code> 만큼 들여쓴 세로 목록. 머리 "파일 n개" 는 <code>labelMedium</code> <code>onSurfaceVariant</code>, 파일 줄은 변경 줄과 같은 상태 글자·이름·상위 폴더(오른쪽 버튼 없음)로 <code>clickable</code> 이고 누르면 커밋 파일 탭(<a href="terminal-commit-file.html">K1</a>), "커밋을 읽을 수 없습니다" 는 <code>error</code> 색</td></tr>
     <tr><td>문구</td><td>"폴더가 없는 패널입니다", "폴더를 읽을 수 없습니다", "git 저장소가 아닙니다", "HEAD (detached)", "스테이지된 변경 (n)", "변경 (n)", "모두 stage", "모두 unstage", "push ↑n ↓m", "push", "새 브랜치 push", "push 중…", "&lt;원격&gt; 에 없음", "커밋 그래프", "커밋이 없습니다", "파일 n개", "바뀐 파일이 없습니다", "커밋을 읽을 수 없습니다", "앞 512 KiB 만 보입니다", "텍스트가 아닌 파일이라 보일 수 없습니다", "파일을 읽을 수 없습니다"</td></tr>
     <tr><td>테스트 태그</td><td>
       <code>terminal:side-bar</code>, <code>terminal:side-bar:toggle</code>, <code>terminal:side-bar:content</code>,
@@ -313,7 +313,7 @@ Git 구획
 <ul>
   <li>파일 탭은 앞 512 KiB 만 보이고 UTF-8 이 아닌 인코딩은 글자가 깨진다(잘못된 바이트는 U+FFFD).</li>
   <li>그래프는 최근 200개 커밋까지다. 그보다 오래된 커밋은 셸에서 본다.</li>
-  <li>커밋의 파일은 첫 부모 대비 이름 목록뿐이다. 병합 커밋에서 둘째 부모 쪽 변경, 파일마다의 diff·더한 줄 수, 복사 감지(C)는 셸에서 <code>git show</code> 로 본다.</li>
+  <li>커밋의 파일 목록은 첫 부모 대비 이름뿐이고 파일마다의 diff 는 <a href="terminal-commit-file.html">커밋 파일 탭</a>에서 본다. 병합 커밋에서 둘째 부모 쪽 변경, 더한 줄 수, 복사 감지(C)는 셸에서 <code>git show</code> 로 본다.</li>
   <li>push 의 앞선·뒤진 커밋 수는 마지막 fetch 기준이다. 원격이 앞서 있으면 셸에서 pull 한 뒤 올린다.</li>
   <li>push 는 원격을 고르지 않는다(upstream 의 원격 → <code>origin</code> → 첫 원격). <code>remote.pushDefault</code>·<code>pushRemote</code> 설정과 다른 이름의 원격 브랜치로 올리기는 셸에서 한다.</li>
   <li>push 는 인증을 묻지 않는다. 암호·passphrase 를 물어야 하는 원격은 실패 문구만 남는다.</li>

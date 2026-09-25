@@ -22,8 +22,9 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  *
  * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
  * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만, [url] 은 [TerminalProgram.Browser] 탭에만,
- * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만, [filePath] 는 [TerminalProgram.File] 탭에만 있다. [deviceName]·[devicePlatform] 은
+ * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만, [filePath]·[commitHash] 는 [TerminalProgram.File] 탭에만 있다. [deviceName]·[devicePlatform] 은
  * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다.
+ * [commitHash] 가 있으면 디스크가 아니라 그 커밋 시점의 파일을 보이는 커밋 파일 탭이다(docs/common/terminal-commit-file.html).
  *
  * [claudeCheckedAt] 은 사용자가 본 마지막 끝난 결과의 [ClaudeActivity.Finished.at] 이다(docs/common/terminal-claude-status.html).
  *
@@ -41,7 +42,12 @@ data class TerminalTab(
     val name: String? = null,
     val claudeCheckedAt: Long? = null,
     val filePath: String? = null,
+    val commitHash: String? = null,
 ) {
+    /** 커밋 파일 탭의 제목·요약에 쓰는 해시 앞 7자리. */
+    val shortCommitHash: String?
+        get() = commitHash?.take(ShortHashLength)
+
     val kind: TerminalTabKind
         get() = when (program) {
             TerminalProgram.Shell -> TerminalTabKind.Terminal
@@ -57,6 +63,8 @@ data class TerminalTab(
 
     companion object {
         const val DefaultBrowserUrl = "https://www.google.com"
+
+        const val ShortHashLength = 7
     }
 }
 
@@ -271,12 +279,13 @@ data class TerminalWorkspace(
         deviceName: String? = null,
         devicePlatform: DevicePlatform? = null,
         filePath: String? = null,
+        commitHash: String? = null,
     ): TerminalWorkspace {
         val panel = (if (groupId == null) selectedPanel else findPanel { panel -> panel.groups.any { it.id == groupId } })
             ?: return this
         val group = if (groupId == null) panel.focusedGroup else panel.groups.first { it.id == groupId }
         val tabId = nextId
-        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform, filePath = filePath)
+        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform, filePath = filePath, commitHash = commitHash)
 
         if (group == null) {
             val newGroupId = nextId + 1
@@ -295,9 +304,19 @@ data class TerminalWorkspace(
      * 다른 패널의 같은 파일 탭은 보지 않는다(docs/common/terminal-side-bar.html#implementation).
      */
     fun openFile(path: String): TerminalWorkspace {
-        val opened = selectedPanel?.tabs?.firstOrNull { it.program == TerminalProgram.File && it.filePath == path }
+        val opened = selectedPanel?.tabs?.firstOrNull { it.program == TerminalProgram.File && it.filePath == path && it.commitHash == null }
 
         return if (opened != null) selectTab(opened.id) else addTab(program = TerminalProgram.File, filePath = path)
+    }
+
+    /**
+     * [openFile] 과 같되 커밋 [hash] 시점의 [path] 를 보이는 커밋 파일 탭이다. 같은 경로·같은 해시의 탭만 다시 고르고, 같은 경로의
+     * 보통 파일 탭이나 다른 해시의 탭은 따로 연다(docs/common/terminal-commit-file.html K1).
+     */
+    fun openCommitFile(path: String, hash: String): TerminalWorkspace {
+        val opened = selectedPanel?.tabs?.firstOrNull { it.program == TerminalProgram.File && it.filePath == path && it.commitHash == hash }
+
+        return if (opened != null) selectTab(opened.id) else addTab(program = TerminalProgram.File, filePath = path, commitHash = hash)
     }
 
     /** 사이드 바가 보이는 폴더. 선택된 패널의 폴더, 없으면 포커스된 탭의 작업 디렉터리다. */
