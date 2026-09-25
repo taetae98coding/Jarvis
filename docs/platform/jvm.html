@@ -68,6 +68,7 @@
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-scroll">터미널 휠 스크롤</a></li>
+    <li><a href="#terminal-run">터미널에서 실행</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
@@ -1592,6 +1593,50 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>TerminalWheelTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalTest</code>(휠 셋). Claude Code 가 이 바이트로 스크롤하는 것은 pty 로 확인했다(<a href="../common/terminal-scroll.html#verification">공통 검증</a>). 앱 창에서의 실제 휠·트랙패드는 <code>./gradlew :desktopApp:run</code> → <code>"tui": "fullscreen"</code> 인 Claude 탭에서 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-run">
+<h2>터미널에서 실행 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-run.html">터미널에서 실행</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Gradle init script + <code>androidComponents.onVariants</code></td><td>채택(변형 읽기). <code>./gradlew -q --no-configuration-cache -I &lt;script&gt; help</code> 가 모듈 경로·변형 이름·<code>applicationId</code>(suffix 포함)를 <code>JARVIS_VARIANT\t…</code> 줄로 찍는다. AGP 9.4.1 에서 onVariants 안의 <code>applicationId.getOrElse("")</code> 읽기가 된다(이 저장소에서 확인). 설정 캐시가 켜져 있으면 적중 때 콜백이 돌지 않아 끈다. 타임아웃 5분</td></tr>
+    <tr><td>Gradle Tooling API(<code>org.gradle:gradle-tooling-api</code>) + AGP 모델</td><td>버림. AGP 의 IDE 모델(<code>com.android.builder.model.v2</code>)은 공개 계약이 아니고 AGP 버전마다 바뀐다. 의존성(수 MB)도 늘어난다</td></tr>
+    <tr><td><code>./gradlew tasks --all</code> 의 <code>install*</code> 태스크 이름</td><td>버림. 변형 이름은 나오지만 applicationId 가 없어 실행 단계에서 다시 알아내야 하고, 모든 태스크를 실체화해 더 느리다</td></tr>
+    <tr><td><code>build.gradle(.kts)</code> 정규식</td><td>버림. 공통 스펙 결정 참고</td></tr>
+    <tr><td><code>ANDROID_SERIAL</code> 환경 변수 + <code>install&lt;Variant&gt;</code></td><td>채택(설치). AGP 의 <code>ConnectedDeviceProvider</code> 가 이 변수가 있으면 그 시리얼 기기 하나에만 설치한다</td></tr>
+    <tr><td><code>adb shell monkey -p &lt;id&gt; -c android.intent.category.LAUNCHER 1</code></td><td>채택(실행). 런처 액티비티 이름을 몰라도 된다. <code>cmd package resolve-activity</code> + <code>am start -n</code> 은 한 단계 더 걸려 버렸다</td></tr>
+    <tr><td><code>emulator -avd &lt;이름&gt;</code> + <code>adb -s … emu avd name</code> + <code>getprop sys.boot_completed</code></td><td>채택(AVD 부팅 대기). <code>adb wait-for-device</code> 만으로는 어느 에뮬레이터가 그 AVD 인지 모른다. 스크립트가 1초마다 켜진 에뮬레이터의 AVD 이름을 물어 시리얼을 찾고, 부팅 완료까지 기다린다(최대 180초)</td></tr>
+    <tr><td><code>xcodebuild -list -json</code></td><td>채택(스킴·구성). 프로젝트는 <code>project.schemes/configurations</code>, 워크스페이스는 <code>workspace.schemes</code> 만 준다. <code>xcode-select</code> 가 Command Line Tools 를 가리키면 실패하므로 <code>/Applications/Xcode.app</code> 이 있으면 <code>DEVELOPER_DIR</code> 을 그리로 준다(<a href="#emulator-control">기기 목록</a>과 같은 대비)</td></tr>
+    <tr><td><code>xcodebuild build -destination id=&lt;UDID&gt; -derivedDataPath …</code> + <code>simctl install/launch</code></td><td>채택(시뮬레이터). 산출물은 <code>&lt;derivedData&gt;/Build/Products/&lt;구성&gt;-iphonesimulator/*.app</code>, 번들 id 는 <code>PlistBuddy -c 'Print :CFBundleIdentifier'</code>. derivedData 는 <code>~/Library/Developer/Xcode/DerivedData/Jarvis-&lt;폴더 해시&gt;</code> 라 워크트리마다 따로다</td></tr>
+    <tr><td><code>xcodebuild … -allowProvisioningUpdates</code> + <code>devicectl device install app / process launch</code></td><td>채택(실물 iOS). <code>ios-deploy</code> 는 따로 설치해야 하고 Xcode 15 이후 불안정해 버렸다</td></tr>
+    <tr><td>실물 iOS 화면: CoreMediaIO <code>kCMIOHardwarePropertyAllowScreenCaptureDevices</code> + AVFoundation</td><td>버림(이번 스코프). QuickTime 이 쓰는 경로로 실물 iPhone 화면을 캡처 장치로 받을 수 있지만 JNA/네이티브 브리지와 H.264 가 아닌 CMSampleBuffer 처리가 필요하다. 실물 iOS 는 기기 탭을 열지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../ProjectRun.jvm.kt</code>(판정·읽기·캐시), <code>ProjectRunScripts.kt</code>(스크립트 문자열, 순수 함수), <code>Terminal.jvm.kt</code>(명령 탭 띄우기)</dd>
+  <dt>동작</dt><dd>
+    판정은 파일 존재만 본다(<code>File.isFile</code>, 폴더와 바로 아래 폴더의 목록). 변형은 위 init script 를 임시 파일로 써서 돌리고, 결과를 폴더 + 빌드 파일(<code>settings.gradle*</code>, 폴더와 바로 아래 폴더의 <code>build.gradle*</code>, <code>gradle/libs.versions.toml</code>) 수정 시각 목록을 키로 메모리에 둔다.
+    실행 탭 명령은 <code>/bin/sh -c '&lt;스크립트&gt;'</code> 이고 이것이 다시 <code>zsh -l -i -c "…; exec zsh -l"</code> 로 감싸진다.
+    Android SDK 는 <code>ANDROID_HOME</code> → <code>ANDROID_SDK_ROOT</code> → <code>~/Library/Android/sdk</code> 순으로 찾아 <code>adb</code>·<code>emulator</code> 절대 경로를 스크립트에 넣는다.
+  </dd>
+  <dt>실패</dt><dd>Gradle·xcodebuild 가 실패하거나 시간을 넘기면 <code>ProjectLoad.Failed</code>(창의 "읽지 못했습니다"). 실행 스크립트의 각 단계가 실패하면 <code>set -e</code> 로 멈추고 "✕ 실패" 를 찍은 뒤 셸로 남는다. SDK 가 없으면 스크립트가 "Android SDK 를 찾지 못했습니다" 를 찍고 끝난다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>Gradle 은 사용자의 로그인 셸 환경이 아니라 앱의 환경에서 돈다(변형 읽기). Finder 로 띄운 앱은 <code>JAVA_HOME</code> 이 없을 수 있어, 이때는 <code>gradlew</code> 가 <code>/usr/libexec/java_home</code> 을 못 찾으면 실패한다. 읽기도 로그인 셸(<code>$SHELL -l -c</code>)로 돌려 이를 피한다.</li>
+  <li>실물 iOS 는 Apple Development 인증서와 팀이 프로젝트에 설정되어 있어야 빌드된다. 기기가 잠겨 있으면 <code>devicectl process launch</code> 가 실패한다.</li>
+  <li>Linux·Windows 는 새로 분기하지 않는다. <code>xcodebuild</code>·macOS SDK 경로가 없어 iOS 판정은 늘 실패하고, Android 는 <code>gradlew</code> 가 있으면 동작할 수 있으나 확인하지 않는다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>ProjectRunScriptsTest</code>, <code>TerminalCommandTest</code>, <code>TerminalWorkspaceStoreTest</code>(<code>:feature:terminal:data:jvmTest</code>), <code>JarvisAppTerminalRunTest</code>(<code>:app:ui:jvmTest</code>). 수동: 이 저장소를 패널로 열어 Galaxy 실물·에뮬레이터·iPhone 시뮬레이터에 실행.</p>
 </section>
 
 <section class="feature" id="chrome-cookie-import">

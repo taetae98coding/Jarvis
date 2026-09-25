@@ -2,7 +2,14 @@ package io.github.taetae98coding.jarvis.ui.terminal
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.taetae98coding.jarvis.domain.terminal.AndroidProject
+import io.github.taetae98coding.jarvis.domain.terminal.AndroidRunRequest
 import io.github.taetae98coding.jarvis.domain.terminal.BrowserCookie
+import io.github.taetae98coding.jarvis.domain.terminal.IosProject
+import io.github.taetae98coding.jarvis.domain.terminal.IosRunRequest
+import io.github.taetae98coding.jarvis.domain.terminal.ProjectKind
+import io.github.taetae98coding.jarvis.domain.terminal.ProjectLoad
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalCommand
 import io.github.taetae98coding.jarvis.domain.terminal.ChromeProfile
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.DiffedLine
@@ -35,6 +42,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.claudeStatuses
 import io.github.taetae98coding.jarvis.domain.terminal.newClaudeSessionId
 import io.github.taetae98coding.jarvis.ui.device.DeviceChoice
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -71,12 +79,16 @@ internal class TerminalViewModel(
     private val observeGitFileDiff: ObserveGitFileDiffUseCase,
     private val observeGitCommitFile: ObserveGitCommitFileUseCase,
     private val lineComments: LineCommentHost,
+    private val runner: ProjectRunner,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
     val isBrowserSupported: Boolean = isBrowserSupported()
 
     val isChromeImportSupported: Boolean = isChromeImportSupported()
+
+    /** 실행 메뉴에 Android·iOS 앱 줄을 둘 수 있는지(docs/common/terminal-run.html R2). */
+    val isProjectRunSupported: Boolean = runner.isSupported
 
     // 페이지 제목은 저장하지 않는다. 엔진이 탭마다 제목을 알면(JVM) 그것을, 모르면(Android 의 웹뷰는 떠 있을 때만)
     // 마지막으로 본 제목을 보인다.
@@ -264,6 +276,38 @@ internal class TerminalViewModel(
                 devicePlatform = choice.devicePlatform,
             )
         }
+
+    /** [directory] 가 어떤 프로젝트인지. 실행 메뉴가 떠 있는 동안만 수집한다(docs/common/terminal-run.html R5). */
+    fun projectKinds(directory: String?): Flow<Set<ProjectKind>> = runner.observeProjectKinds(directory)
+
+    /** 실행 창이 떠 있는 동안만 수집한다. 다시 수집하면 다시 읽는다(R6 의 "다시 시도"). */
+    fun androidProject(directory: String): Flow<ProjectLoad<AndroidProject>> = runner.observeAndroidProject(directory)
+
+    fun iosProject(directory: String): Flow<ProjectLoad<IosProject>> = runner.observeIosProject(directory)
+
+    fun addCommand(title: String, command: String) = updateSelectedPanel { workspace, panelId -> workspace.addCommand(panelId, title, command) }
+
+    fun editCommand(commandId: Long, title: String, command: String) =
+        updateSelectedPanel { workspace, panelId -> workspace.editCommand(panelId, commandId, title, command) }
+
+    fun removeCommand(commandId: Long) = updateSelectedPanel { workspace, panelId -> workspace.removeCommand(panelId, commandId) }
+
+    /** 패널의 폴더(없으면 포커스된 탭의 폴더)에서 [command] 를 새 탭으로 돌린다(R16). */
+    fun runCommand(groupId: Long?, command: TerminalCommand) =
+        update { it.runInGroup(groupId, it.sideBarDirectory, command.command, command.label) }
+
+    fun runAndroid(groupId: Long?, request: AndroidRunRequest) {
+        val panelId = workspace.value?.selectedPanelId ?: return
+        viewModelScope.launch { runner.runAndroidApp(panelId, groupId, request) }
+    }
+
+    fun runIos(groupId: Long?, request: IosRunRequest) {
+        val panelId = workspace.value?.selectedPanelId ?: return
+        viewModelScope.launch { runner.runIosApp(panelId, groupId, request) }
+    }
+
+    private fun updateSelectedPanel(transform: (TerminalWorkspace, Long) -> TerminalWorkspace) =
+        update { workspace -> workspace.selectedPanelId?.let { transform(workspace, it) } ?: workspace }
 
     /** 드롭다운을 열 때 지금 Chrome 프로필 목록을 읽는다(명령이 지금 값을 읽음). */
     suspend fun chromeProfiles(): List<ChromeProfile> = observeChromeProfiles().first()

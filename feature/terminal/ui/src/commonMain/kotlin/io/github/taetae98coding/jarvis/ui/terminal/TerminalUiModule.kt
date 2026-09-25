@@ -6,6 +6,7 @@ import kotlinx.serialization.modules.subclass
 import org.koin.compose.viewmodel.dsl.viewModelOf
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.annotation.KoinExperimentalAPI
+import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.onClose
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.withOptions
@@ -15,6 +16,7 @@ import org.koin.dsl.navigation3.navigation
 @OptIn(KoinExperimentalAPI::class)
 val terminalUiModule = module {
     viewModelOf(::TerminalCardViewModel)
+    factoryOf(::ProjectRunner)
     viewModelOf(::TerminalViewModel)
     viewModelOf(::TerminalSideBarViewModel)
     viewModelOf(::ClaudeNotificationEffectViewModel)

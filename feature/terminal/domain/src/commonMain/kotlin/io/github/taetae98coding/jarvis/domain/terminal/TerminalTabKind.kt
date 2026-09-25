@@ -15,6 +15,9 @@ enum class TerminalTabKind {
     IOS,
     File,
 
+    /** 명령으로 시작한 셸 탭(docs/common/terminal-run.html R9·R16). */
+    Run,
+
     /** 플랫폼을 모르는 기기 탭. */
     Device,
 }

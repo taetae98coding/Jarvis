@@ -22,6 +22,12 @@ class TerminalCommandTest {
     }
 
     @Test
+    fun commandTabsRunTheCommandThenStayAsALoginShell() {
+        assertEquals(listOf("/bin/zsh", "-l"), shellCommand("/bin/zsh", null))
+        assertEquals(listOf("/bin/zsh", "-l", "-i", "-c", "make test; exec '/bin/zsh' -l"), shellCommand("/bin/zsh", "make test"))
+    }
+
+    @Test
     fun shellPathIsQuoted() {
         val command = interactiveCommand("/opt/it's here/zsh", "true", thenShell = true)
 

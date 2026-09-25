@@ -25,6 +25,8 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만, [filePath]·[commitHash] 는 [TerminalProgram.File] 탭에만 있다. [deviceName]·[devicePlatform] 은
  * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다.
  * [commitHash] 가 있으면 디스크가 아니라 그 커밋 시점의 파일을 보이는 커밋 파일 탭이다(docs/common/terminal-commit-file.html).
+ * [command] 가 있는 셸 탭은 로그인 셸 대신 그 명령으로 시작하고 끝나면 셸로 남는 실행 탭이다. [commandTitle] 이 자동 제목이다
+ * (docs/common/terminal-run.html R9·R16).
  *
  * [claudeCheckedAt] 은 사용자가 본 마지막 끝난 결과의 [ClaudeActivity.Finished.at] 이다(docs/common/terminal-claude-status.html).
  *
@@ -43,6 +45,8 @@ data class TerminalTab(
     val claudeCheckedAt: Long? = null,
     val filePath: String? = null,
     val commitHash: String? = null,
+    val command: String? = null,
+    val commandTitle: String? = null,
 ) {
     /** 커밋 파일 탭의 제목·요약에 쓰는 해시 앞 7자리. */
     val shortCommitHash: String?
@@ -50,7 +54,7 @@ data class TerminalTab(
 
     val kind: TerminalTabKind
         get() = when (program) {
-            TerminalProgram.Shell -> TerminalTabKind.Terminal
+            TerminalProgram.Shell -> if (command != null) TerminalTabKind.Run else TerminalTabKind.Terminal
             TerminalProgram.Claude -> TerminalTabKind.Claude
             TerminalProgram.Browser -> TerminalTabKind.Browser
             TerminalProgram.File -> TerminalTabKind.File
@@ -112,6 +116,8 @@ val PaneNode.tabs: List<TerminalTab>
  * [directory] 는 만들 때 정한 폴더다. 탭의 작업 디렉터리를 모를 때 새 탭이 여기서 시작한다.
  * [parentId] 가 있으면 그 패널 아래 들여쓰는 워크트리 패널이다. 부모는 늘 최상위 패널이라 한 단계뿐이다.
  * [branch]·[baseBranch] 는 워크트리 패널이 만들 때 기억한 브랜치와 기준 브랜치다. 이름을 바꿔도 그대로다.
+ * [commands]·[androidRun]·[iosRun] 은 최상위 패널에만 의미가 있다. 워크트리 패널은 부모의 것을 쓴다
+ * (docs/common/terminal-run.html R14·R17).
  */
 data class TerminalPanel(
     val id: Long,
@@ -122,6 +128,9 @@ data class TerminalPanel(
     val parentId: Long? = null,
     val branch: String? = null,
     val baseBranch: String? = null,
+    val commands: List<TerminalCommand> = emptyList(),
+    val androidRun: AndroidRunChoice? = null,
+    val iosRun: IosRunChoice? = null,
 ) {
     val groups: List<PaneNode.Group>
         get() = root?.groups.orEmpty()
@@ -280,12 +289,14 @@ data class TerminalWorkspace(
         devicePlatform: DevicePlatform? = null,
         filePath: String? = null,
         commitHash: String? = null,
+        command: String? = null,
+        commandTitle: String? = null,
     ): TerminalWorkspace {
         val panel = (if (groupId == null) selectedPanel else findPanel { panel -> panel.groups.any { it.id == groupId } })
             ?: return this
         val group = if (groupId == null) panel.focusedGroup else panel.groups.first { it.id == groupId }
         val tabId = nextId
-        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform, filePath = filePath, commitHash = commitHash)
+        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform, filePath = filePath, commitHash = commitHash, command = command, commandTitle = commandTitle)
 
         if (group == null) {
             val newGroupId = nextId + 1
@@ -473,6 +484,91 @@ data class TerminalWorkspace(
         return group?.selectedTab?.directory ?: selectedPanel?.directory
     }
 
+    /** [panelId] 의 명령·실행 선택을 가진 패널. 워크트리 패널이면 부모다. */
+    fun runOwner(panelId: Long): TerminalPanel? {
+        val panel = findPanel { it.id == panelId } ?: return null
+
+        return panel.parentId?.let { parentId -> findPanel { it.id == parentId } } ?: panel
+    }
+
+    fun commandsOf(panelId: Long): List<TerminalCommand> = runOwner(panelId)?.commands.orEmpty()
+
+    /** 앞뒤 공백을 떼고 목록 끝에 붙인다. 명령이 비면 그대로다. 이름이 비면 null 이다. */
+    fun addCommand(panelId: Long, title: String?, command: String): TerminalWorkspace {
+        val owner = runOwner(panelId) ?: return this
+        val trimmed = command.trim().ifEmpty { return this }
+        val added = TerminalCommand(nextId, title?.trim()?.ifEmpty { null }, trimmed)
+
+        return replacePanel(owner.id) { it.copy(commands = it.commands + added) }.copy(nextId = nextId + 1)
+    }
+
+    /** [addCommand] 와 같은 규칙으로 고친다. 명령이 비거나 모르는 id 면 그대로다. */
+    fun editCommand(panelId: Long, commandId: Long, title: String?, command: String): TerminalWorkspace {
+        val owner = runOwner(panelId) ?: return this
+        val trimmed = command.trim().ifEmpty { return this }
+        if (owner.commands.none { it.id == commandId }) return this
+
+        return replacePanel(owner.id) { panel ->
+            panel.copy(commands = panel.commands.map { if (it.id == commandId) TerminalCommand(commandId, title?.trim()?.ifEmpty { null }, trimmed) else it })
+        }
+    }
+
+    fun removeCommand(panelId: Long, commandId: Long): TerminalWorkspace {
+        val owner = runOwner(panelId) ?: return this
+
+        return replacePanel(owner.id) { panel -> panel.copy(commands = panel.commands.filterNot { it.id == commandId }) }
+    }
+
+    fun rememberAndroidRun(panelId: Long, choice: AndroidRunChoice): TerminalWorkspace {
+        val owner = runOwner(panelId) ?: return this
+
+        return replacePanel(owner.id) { it.copy(androidRun = choice) }
+    }
+
+    fun rememberIosRun(panelId: Long, choice: IosRunChoice): TerminalWorkspace {
+        val owner = runOwner(panelId) ?: return this
+
+        return replacePanel(owner.id) { it.copy(iosRun = choice) }
+    }
+
+    /**
+     * [groupId] 그룹(null 이면 포커스된 그룹, 없으면 새 그룹)의 끝에 [command] 로 시작하는 실행 탭을 붙여 고르고 포커스한다.
+     * [mirror] 가 있으면 그 패널에 같은 기기의 기기 탭이 있을 때 그 탭을 그 그룹에서 고르고, 없으면 실행 탭의 그룹을 좌우로
+     * 나눠 오른쪽에 기기 탭 하나짜리 그룹을 둔다. 포커스는 실행 탭의 그룹에 남는다(docs/common/terminal-run.html R9·R10).
+     */
+    fun runInGroup(groupId: Long?, directory: String?, command: String, title: String, mirror: RunMirror? = null): TerminalWorkspace {
+        val runTabId = nextId
+        val added = addTab(groupId, directory = directory, command = command, commandTitle = title)
+        if (mirror == null || added === this) return added
+
+        val panel = added.findPanel { panel -> panel.tabs.any { it.id == runTabId } } ?: return added
+        val runGroup = panel.groups.first { group -> group.tabs.any { it.id == runTabId } }
+        val existing = panel.groups.firstNotNullOfOrNull { group ->
+            group.tabs.firstOrNull { it.program == TerminalProgram.Device && it.deviceId == mirror.deviceId }?.let { group to it }
+        }
+        if (existing != null) {
+            val (group, tab) = existing
+            return added.replaceGroup(group.id) { it.copy(selectedTabId = tab.id) }
+        }
+
+        val splitId = added.nextId
+        val deviceGroupId = added.nextId + 1
+        val deviceTabId = added.nextId + 2
+        val deviceTab = TerminalTab(
+            id = deviceTabId,
+            program = TerminalProgram.Device,
+            deviceId = mirror.deviceId,
+            deviceName = mirror.deviceName,
+            devicePlatform = mirror.platform,
+        )
+
+        return added
+            .replaceGroup(runGroup.id) { group ->
+                PaneNode.Split(splitId, SplitDirection.SideBySide, first = group, second = PaneNode.Group(deviceGroupId, listOf(deviceTab), deviceTabId), ratio = RunRatio)
+            }
+            .copy(nextId = added.nextId + 3)
+    }
+
     fun setDirectory(tabId: Long, directory: String): TerminalWorkspace = replaceTab(tabId) { it.copy(directory = directory) }
 
     fun setUrl(tabId: Long, url: String): TerminalWorkspace = replaceTab(tabId) { it.copy(url = url) }
@@ -535,6 +631,9 @@ data class TerminalWorkspace(
         const val MaxRatio = 0.9f
 
         const val DefaultPanelName = "패널"
+
+        /** 실행 탭 그룹이 기기 탭 그룹과 나눌 때 차지하는 몫(docs/common/terminal-run.html R10). */
+        const val RunRatio = 0.6f
 
         /**
          * 처음 켰을 때. 패널 하나, 그룹 하나, 셸 탭 하나. 창으로 만드는 패널과 달리 Claude 가 아니다 — data 계층이

@@ -55,6 +55,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.GitBranch
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeRepository
+import io.github.taetae98coding.jarvis.domain.terminal.ProjectRunRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalRepository
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSession
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalSize
@@ -114,6 +115,7 @@ internal fun TestJarvisApp(
     claudeActivity: ClaudeActivityRepository = FakeClaudeActivityRepository(),
     files: FileRepository = FakeFileRepository(),
     gitChanges: GitChangesRepository = FakeGitChangesRepository(),
+    projectRun: ProjectRunRepository = FakeProjectRunRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -139,6 +141,7 @@ internal fun TestJarvisApp(
             single<ClaudeActivityRepository> { claudeActivity }
             single<FileRepository> { files }
             single<GitChangesRepository> { gitChanges }
+            single<ProjectRunRepository> { projectRun }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {

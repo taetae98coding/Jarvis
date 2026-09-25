@@ -37,3 +37,13 @@ data class EmulatorDevice(
     val canLaunch: Boolean = false,
     val connection: DeviceConnection? = null,
 )
+
+/**
+ * [deviceId] 가 이 기기를 가리키는지. `avd:<이름>` 은 꺼진 AVD 자신과, 켜진 뒤 그 이름으로 뜬 에뮬레이터를 모두 가리킨다 —
+ * 실행 메뉴가 꺼진 AVD 로 연 기기 탭이 켜진 뒤의 화면으로 이어지게 한다(docs/common/terminal-run.html R11).
+ */
+fun EmulatorDevice.matches(deviceId: String): Boolean =
+    id == deviceId ||
+        (deviceId.startsWith(StoppedAvdPrefix) && platform == EmulatorPlatform.ANDROID && !isPhysical && isRunning && name == deviceId.removePrefix(StoppedAvdPrefix))
+
+private const val StoppedAvdPrefix = "avd:"

@@ -154,7 +154,7 @@
 <h2 id="limits">한계</h2>
 
 <ul>
-  <li>AVD 의 식별자는 adb 시리얼(<code>emulator-5554</code>)이다. 에뮬레이터를 끄고 다른 것과 함께 다시 켜면 시리얼이 바뀔 수 있고, 그러면 저장된 기기 탭은 "화면을 가져올 수 없습니다." 로 남는다. 닫고 메뉴에서 다시 연다.</li>
+  <li>AVD 의 식별자는 adb 시리얼(<code>emulator-5554</code>)이다. 에뮬레이터를 끄고 다른 것과 함께 다시 켜면 시리얼이 바뀔 수 있고, 그러면 저장된 기기 탭은 "화면을 가져올 수 없습니다." 로 남는다. 닫고 메뉴에서 다시 연다. 실행 메뉴가 꺼진 AVD 로 연 기기 탭은 <code>avd:&lt;이름&gt;</code> 을 가리켜 켜질 때마다 그 이름의 에뮬레이터를 따라간다(<a href="terminal-run.html#requirements">터미널에서 실행 R11</a>).</li>
   <li>같은 기기를 두 탭에 띄우면 JVM 은 스트림 하나를 나눠 쓴다(<a href="device-mirroring.html#requirements">영상 스트림 R5</a>). 다른 타깃은 탭마다 따로 폴링한다.</li>
   <li>보이는 기기 탭마다 기기 목록도 5초마다 센다(<code>EmulatorScreenViewModel</code> 이 이름·능력 플래그를 목록에서 찾는다).</li>
   <li>프레임률·지연은 <a href="device-mirroring.html#limits">영상 스트림의 한계</a>를 따른다. 디스플레이가 둘인 접이식 기기는 첫 디스플레이만 보인다(<a href="../platform/jvm.html#emulator-control">JVM</a>).</li>

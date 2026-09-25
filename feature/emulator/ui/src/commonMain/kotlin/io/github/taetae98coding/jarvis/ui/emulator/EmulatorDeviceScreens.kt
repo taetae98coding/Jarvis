@@ -16,6 +16,10 @@ internal object EmulatorDeviceScreens : DeviceScreens {
     override fun choices(): List<DeviceChoice>? =
         koinViewModel<DeviceChoicesViewModel>().choices.collectAsStateWithLifecycle().value
 
+    @Composable
+    override fun runTargets(): List<DeviceChoice>? =
+        koinViewModel<DeviceChoicesViewModel>().runTargets.collectAsStateWithLifecycle().value
+
     // 한 화면에 여러 기기 탭이 함께 보인다. key 가 없으면 모두 처음 만든 기기의 ViewModel 을 받는다.
     @Composable
     override fun Screen(deviceId: String, modifier: Modifier) {

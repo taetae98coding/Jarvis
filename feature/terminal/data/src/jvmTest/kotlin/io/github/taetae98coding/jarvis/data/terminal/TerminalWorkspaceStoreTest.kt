@@ -1,7 +1,9 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.AndroidRunChoice
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeActivity
 import io.github.taetae98coding.jarvis.domain.terminal.DevicePlatform
+import io.github.taetae98coding.jarvis.domain.terminal.IosRunChoice
 import io.github.taetae98coding.jarvis.domain.terminal.PaneNode
 import io.github.taetae98coding.jarvis.domain.terminal.SplitDirection
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
@@ -142,6 +144,28 @@ class TerminalWorkspaceStoreTest {
         )
 
         assertEquals(listOf(TerminalProgram.Shell, TerminalProgram.File), dto.toDomain().tabs.map { it.program })
+    }
+
+    @Test
+    fun commandsAndRunChoicesAreReadBackButCommandTabsBecomeShells() = runTest {
+        val path = newPath()
+        val change = repository(path).updateWorkspace { workspace ->
+            workspace
+                .addCommand(1, "테스트", "./gradlew test")
+                .addCommand(1, null, "make")
+                .rememberAndroidRun(1, AndroidRunChoice(":androidApp", "debug", "avd:Pixel_9"))
+                .rememberIosRun(1, IosRunChoice("iosApp", "Debug", "UDID"))
+                .runInGroup(null, "/repo", "make", "make")
+        }
+
+        val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
+
+        val panel = reopened.panels.single()
+        assertEquals(change.after.panels.single().commands, panel.commands)
+        assertEquals(AndroidRunChoice(":androidApp", "debug", "avd:Pixel_9"), panel.androidRun)
+        assertEquals(IosRunChoice("iosApp", "Debug", "UDID"), panel.iosRun)
+        val restored = reopened.tabs.last()
+        assertEquals(TerminalTab(change.after.tabs.last().id, directory = "/repo"), restored)
     }
 
     @Test

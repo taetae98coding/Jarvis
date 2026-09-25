@@ -201,6 +201,7 @@ private fun EmptyPanel(viewModel: TerminalViewModel, devices: DeviceScreens?, mo
                 devices = devices,
                 onNewDeviceTab = { viewModel.addDeviceTab(null, it) },
             )
+            TerminalRunButton(groupId = null, viewModel = viewModel, devices = devices)
         }
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag(TerminalEmptyPanelTestTag), contentAlignment = Alignment.Center) {
@@ -303,6 +304,7 @@ private fun TerminalGroup(
                 devices = devices,
                 onNewDeviceTab = { viewModel.addDeviceTab(group.id, it) },
                 onMenuExpandedChange = { drag.menuOpen = it },
+                runButton = { TerminalRunButton(groupId = group.id, viewModel = viewModel, devices = devices, onExpandedChange = { drag.menuOpen = it }) },
             )
 
             val tab = group.selectedTab
@@ -395,6 +397,7 @@ private fun TerminalTabRow(
     devices: DeviceScreens?,
     onNewDeviceTab: (DeviceChoice) -> Unit,
     onMenuExpandedChange: (Boolean) -> Unit,
+    runButton: @Composable () -> Unit,
 ) {
     var editingTabId by remember { mutableStateOf<Long?>(null) }
 
@@ -441,6 +444,8 @@ private fun TerminalTabRow(
             onNewDeviceTab = onNewDeviceTab,
             onExpandedChange = onMenuExpandedChange,
         )
+
+        runButton()
     }
 }
 
@@ -590,7 +595,8 @@ private fun tabTitle(source: StateFlow<String?>?, index: Int, tab: TerminalTab):
         TerminalProgram.File -> tab.filePath?.trimEnd('/')?.substringAfterLast('/')?.let { name ->
             tab.shortCommitHash?.let { "$name @ $it" } ?: name
         }
-        else -> source?.collectAsStateWithLifecycle()?.value
+        // 실행 탭은 셸이 정한 제목 대신 실행한 것의 이름이다(docs/common/terminal-run.html R9·R16).
+        else -> tab.commandTitle ?: source?.collectAsStateWithLifecycle()?.value
     }
     val title = tab.name ?: automatic
     val fallback = when (tab.program) {

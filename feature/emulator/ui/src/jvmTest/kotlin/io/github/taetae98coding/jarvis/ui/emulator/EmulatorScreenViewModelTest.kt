@@ -1,5 +1,7 @@
 package io.github.taetae98coding.jarvis.ui.emulator
 
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
+import io.github.taetae98coding.jarvis.domain.emulator.EmulatorPlatform
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorDevicesUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
@@ -117,14 +119,39 @@ class EmulatorScreenViewModelTest {
     private fun touch(action: TouchAction, x: Int, y: Int) =
         EmulatorGesture.Touch(action = action, x = x, y = y, frameWidth = 1080, frameHeight = 2400)
 
+    @Test
+    fun aStoppedAvdAliasFollowsTheEmulatorOnceItBoots() {
+        val stopped = EmulatorDevice(id = "avd:Pixel_9", name = "Pixel_9", platform = EmulatorPlatform.ANDROID, canLaunch = true)
+        val emulator = FakeEmulatorRepository(devices = listOf(stopped))
+
+        viewModelTest(emulator, deviceId = "avd:Pixel_9") { viewModel ->
+            backgroundScope.launch { viewModel.frames.collect() }
+            runCurrent()
+
+            emulator.devices.value = listOf(
+                EmulatorDevice(id = "emulator-5556", name = "Pixel_9", platform = EmulatorPlatform.ANDROID, isRunning = true, canStream = true, canControl = true),
+            )
+            runCurrent()
+
+            assertEquals(listOf("avd:Pixel_9", "emulator-5556"), emulator.screens.toList())
+            assertEquals("emulator-5556", viewModel.device.value?.id)
+
+            viewModel.onGesture(touch(TouchAction.DOWN, 1, 1))
+            runCurrent()
+
+            assertEquals(listOf("emulator-5556"), emulator.gestureTargets.toList())
+        }
+    }
+
     private fun viewModelTest(
         emulator: FakeEmulatorRepository,
+        deviceId: String = SleepingAndroidDevice.id,
         body: suspend TestScope.(EmulatorScreenViewModel) -> Unit,
     ) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
 
         val viewModel = EmulatorScreenViewModel(
-            deviceId = SleepingAndroidDevice.id,
+            deviceId = deviceId,
             observeEmulatorDevices = ObserveEmulatorDevicesUseCase(emulator),
             observeEmulatorScreen = ObserveEmulatorScreenUseCase(emulator),
             sendEmulatorGesture = SendEmulatorGestureUseCase(emulator),
