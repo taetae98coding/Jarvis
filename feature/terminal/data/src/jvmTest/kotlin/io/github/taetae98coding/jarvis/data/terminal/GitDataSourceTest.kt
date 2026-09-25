@@ -324,11 +324,14 @@ class GitDataSourceTest {
     }
 
     @Test
-    fun graphShowsBranchesMergesAndTheHeadCommit() = runTest {
+    fun graphShowsOnlyCommitsReachableFromHead() = runTest {
         if (!gitAvailable) return@runTest
         val repository = newRepository()
         git(repository, "switch", "-q", "-c", "side")
         commit(repository, "side work")
+        git(repository, "switch", "-q", "-c", "unmerged", "main")
+        commit(repository, "unmerged work")
+        git(repository, "tag", "unreachable-tag")
         git(repository, "switch", "-q", "main")
         commit(repository, "main work")
         git(repository, "-c", "user.name=test", "-c", "user.email=test@example.com", "merge", "-q", "--no-ff", "side", "-m", "merge side")
@@ -337,6 +340,7 @@ class GitDataSourceTest {
         val titles = lines.filter { it.commit != null && !it.isDetail }
 
         // 같은 초에 만든 두 가지 커밋은 날짜순이 정해지지 않는다. 처음과 끝, 모인 것만 본다.
+        // 다른 브랜치·태그에서만 닿는 "unmerged work" 는 없다(R18).
         assertEquals(setOf("merge side", "main work", "side work", "init"), titles.map { it.commit!!.subject }.toSet())
         assertEquals("merge side", titles.first().commit!!.subject)
         assertEquals("init", titles.last().commit!!.subject)

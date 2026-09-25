@@ -209,13 +209,14 @@ internal class ProcessGitDataSource(
         return GitPushTarget(remote, branch, exists = true, ahead = numbers[1], behind = numbers[0])
     }
 
-    // 커밋이 없는 저장소는 HEAD 를 풀지 못해 git log 가 128 로 끝난다. 그것도 빈 그래프다.
+    // 시작점은 HEAD 하나다 — 현재 브랜치에서 닿는 커밋만 그린다(공통 R18). `--branches --remotes --tags` 를 주면 다른 워크트리의
+    // 커밋까지 섞인다. 커밋이 없는 저장소는 HEAD 를 풀지 못해 git log 가 128 로 끝난다. 그것도 빈 그래프다.
     private suspend fun readGraph(directory: String): List<GitGraphLine> {
         val root = readRoot(directory) ?: return emptyList()
         val result = run(
             git(
                 File(root),
-                "log", "--graph", "--date-order", "--color=never", "--branches", "--remotes", "--tags", "HEAD",
+                "log", "--graph", "--date-order", "--color=never", "HEAD",
                 "-n", GitGraphMaxCommits.toString(), "--date=format:%Y-%m-%d %H:%M", "--format=$GitGraphFormat",
             ),
         )
