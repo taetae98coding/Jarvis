@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.GitBranch
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
@@ -13,6 +14,8 @@ import kotlinx.coroutines.flow.flowOf
 
 internal interface GitDataSource {
     fun observeWorktree(directory: String): Flow<GitWorktree?>
+
+    fun observeBranches(directory: String): Flow<List<GitBranch>>
 
     suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree>
 
@@ -38,6 +41,8 @@ internal interface GitDataSource {
 /** git 을 실행할 수 없는 타깃. 어떤 폴더도 저장소가 아니라서 패널에 + 가 없고 사이드 바의 Git 구획은 "git 저장소가 아닙니다", 파일 탭에는 diff 가 없다. */
 internal object UnsupportedGitDataSource : GitDataSource {
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = flowOf(null)
+
+    override fun observeBranches(directory: String): Flow<List<GitBranch>> = flowOf(emptyList())
 
     override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> =
         unsupported()

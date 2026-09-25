@@ -51,6 +51,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
+import io.github.taetae98coding.jarvis.domain.terminal.GitBranch
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeException
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktreeRepository
@@ -409,6 +410,9 @@ internal class FakeGitWorktreeRepository(
 
     val worktrees = MutableStateFlow(worktrees)
 
+    /** main 워크트리 경로마다 기준 브랜치 후보. */
+    val branches = MutableStateFlow<Map<String, List<GitBranch>>>(emptyMap())
+
     class Removed(val directory: String, val deleteDirectory: Boolean)
 
     val added = mutableListOf<Added>()
@@ -416,6 +420,8 @@ internal class FakeGitWorktreeRepository(
     val removed = mutableListOf<Removed>()
 
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = worktrees.map { it[directory] }
+
+    override fun observeBranches(directory: String): Flow<List<GitBranch>> = branches.map { it[directory].orEmpty() }
 
     override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> {
         added += Added(repositoryDirectory, branch, path, baseBranch)

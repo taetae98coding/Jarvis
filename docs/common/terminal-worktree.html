@@ -124,7 +124,6 @@
     <li>저장소에 이미 있는 워크트리를 목록에 불러오기(<code>git worktree list</code>). 지시는 "+ 로 새로 만들기" 다. 기존 워크트리는 "새 패널" 에서 그 폴더를 골라 연다.</li>
     <li>두 단계 이상의 중첩. 워크트리의 워크트리는 git 에서도 같은 저장소의 형제라 한 단계로 충분하다(R8).</li>
     <li>워크트리 패널 목록 접기·펼치기. 지시에 없다.</li>
-    <li>기준 브랜치의 자동 완성·목록(<code>git branch --list</code>). 지시는 "설정할 수 있도록" 이다. 입력란 하나로 받고 틀리면 git 의 오류를 보인다(R5).</li>
     <li>이미 있는 브랜치를 기준 브랜치로 옮겨 붙이기(rebase). 기준 브랜치는 새 브랜치의 시작점일 뿐이고, 있는 브랜치는 그대로 체크아웃한다(R5).</li>
     <li>최상위(main) 패널 줄의 현재 브랜치 표시. 지시는 "워크트리 만들면" 이다. 관측 값은 있으므로(<code>GitWorktree.branch</code>) 필요해지면 줄만 더한다.</li>
   </ul>
@@ -183,7 +182,7 @@
     <tr><td>브랜치 줄</td><td>폴더 줄과 같은 <code>labelSmall</code>·색, 한 줄, 넘치면 옆으로 흐른다(<a href="terminal-panel-text-marquee.html">글자 흐르게</a>. 그 전에는 끝의 현재 브랜치를 보이려고 앞을 줄였다). 글자는 <code>"&lt;기준&gt; → &lt;현재&gt;"</code>(화살표 앞뒤 공백 하나) 또는 <code>"&lt;현재&gt;"</code>(R8b)</td></tr>
     <tr><td>창</td><td>M3 <code>AlertDialog</code>. 제목 "새 워크트리"</td></tr>
     <tr><td>브랜치 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "브랜치". 창이 뜨면 포커스</td></tr>
-    <tr><td>기준 브랜치 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "기준 브랜치". 초깃값은 + 를 누른 패널의 현재 브랜치(없으면 빈 칸, placeholder "HEAD"). 브랜치 입력란 아래, 폴더 입력란 위(R2b)</td></tr>
+    <tr><td>기준 브랜치 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "기준 브랜치". 초깃값은 + 를 누른 패널의 현재 브랜치(없으면 빈 칸, placeholder "HEAD"). 브랜치 입력란 아래, 폴더 입력란 위(R2b). 저장소의 로컬·원격 브랜치를 후보로 펴는 자동 완성이 붙는다(<a href="terminal-worktree-base-branch.html">기준 브랜치 자동 완성</a>)</td></tr>
     <tr><td>폴더 입력란</td><td><code>OutlinedTextField</code>, 한 줄. label "폴더". 초깃값·따라가기는 R4</td></tr>
     <tr><td>오류</td><td>입력란 아래 <code>bodySmall</code>, <code>error</code> 색. git 의 stderr 마지막 줄들(앞뒤 공백 뗀 전체)</td></tr>
     <tr><td>버튼</td><td>"취소"(<code>TextButton</code>), "확인"(<code>Button</code>). 브랜치가 비었으면 "확인" 은 <code>enabled = false</code>. 창 안에 진행 표시는 없다(R6a)</td></tr>

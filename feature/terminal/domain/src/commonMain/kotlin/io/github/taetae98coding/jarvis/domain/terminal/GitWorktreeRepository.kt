@@ -10,6 +10,12 @@ interface GitWorktreeRepository {
     fun observeWorktree(directory: String): Flow<GitWorktree?>
 
     /**
+     * [directory] 가 속한 저장소의 로컬 브랜치와 원격 추적 브랜치. 로컬이 먼저이고 각 무리 안에서는 끝 커밋이 최근인 것이
+     * 먼저다. 원격의 HEAD 심볼릭 ref 는 없다. 저장소가 아니거나 git 을 쓸 수 없으면 빈 목록이다. 수집하는 동안만 다시 읽는다(cold).
+     */
+    fun observeBranches(directory: String): Flow<List<GitBranch>>
+
+    /**
      * [repositoryDirectory] 가 속한 저장소에 [branch] 브랜치의 워크트리를 [path] 에 만든다. 브랜치가 없으면
      * [baseBranch](null 이면 지금 HEAD)에서 새로 만들고, 있으면 [baseBranch] 와 무관하게 그 브랜치를 체크아웃한다.
      * 실패는 [GitWorktreeException] 이다.

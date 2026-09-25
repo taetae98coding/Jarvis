@@ -8,6 +8,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
 import io.github.taetae98coding.jarvis.domain.terminal.DiffedLine
 import io.github.taetae98coding.jarvis.domain.terminal.DockEdge
 import io.github.taetae98coding.jarvis.domain.terminal.FileContent
+import io.github.taetae98coding.jarvis.domain.terminal.GitBranch
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitCommitFileUseCase
@@ -19,6 +20,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.IsClaudeSupportedUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveChromeProfilesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveClaudeActivitiesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveFileUseCase
+import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitBranchesUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitFileDiffUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveGitWorktreeUseCase
 import io.github.taetae98coding.jarvis.domain.terminal.ObserveTerminalWorkspaceUseCase
@@ -61,6 +63,7 @@ internal class TerminalViewModel(
     private val observeChromeProfiles: ObserveChromeProfilesUseCase,
     private val importChromeCookies: ImportChromeCookiesUseCase,
     private val observeGitWorktree: ObserveGitWorktreeUseCase,
+    private val observeGitBranches: ObserveGitBranchesUseCase,
     private val worktreeTasks: WorktreeTaskHost,
     observeClaudeActivities: ObserveClaudeActivitiesUseCase,
     private val claudeAttention: ClaudeAttention,
@@ -86,6 +89,9 @@ internal class TerminalViewModel(
 
     // (경로, 해시)마다 하나. 커밋은 바뀌지 않으므로 탭이 보일 때마다 한 번 읽는다.
     private val commitFiles = mutableMapOf<CommitFileKey, StateFlow<GitCommitFile?>>()
+
+    // main 워크트리 경로마다 하나. 같은 저장소의 워크트리들은 ref 를 함께 쓴다.
+    private val gitBranches = mutableMapOf<String, StateFlow<List<GitBranch>>>()
 
     // 이 ViewModel 이 본 적 있는 탭. 사라진 것만 닫는다 — Claude 가 막 붙인 탭의 페이지를, 그 탭이 아직 없는
     // 옛 배치로 닫지 않게 한다(docs/common/mcp-server.html R5).
@@ -164,6 +170,12 @@ internal class TerminalViewModel(
     fun fileDiff(path: String): StateFlow<GitFileDiff?> =
         fileDiffs.getOrPut(path) {
             observeGitFileDiff(path).stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), null)
+        }
+
+    /** "새 워크트리" 창의 기준 브랜치 후보(docs/common/terminal-worktree-base-branch.html). 창이 떠 있는 동안만 git 을 따라간다. */
+    fun gitBranches(repository: String): StateFlow<List<GitBranch>> =
+        gitBranches.getOrPut(repository) {
+            observeGitBranches(repository).stateIn(viewModelScope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), emptyList())
         }
 
     fun openFile(path: String) = update { it.openFile(path) }

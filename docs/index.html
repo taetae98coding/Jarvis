@@ -87,6 +87,7 @@
 │   ├── device-mirroring.html        기기 화면 영상 스트림·호버 (scrcpy-server + FFmpeg, 마우스 호버)
 │   ├── terminal-panel-create.html   새 패널 제목·폴더 (확인이 Claude 탭으로 패널을 만든다)
 │   ├── terminal-worktree.html       패널에서 git 워크트리 추가·지우기 (패널의 +, 기준 브랜치, git worktree add, 들여쓴 빈 하위 패널, ✕ 의 지우기 창)
+│   ├── terminal-worktree-base-branch.html 기준 브랜치 자동 완성 (로컬·원격 브랜치 후보, local/origin 라벨)
 │   ├── terminal-claude-status.html  패널 줄의 Claude 상태 표시 (작업 중·응답 대기·확인함·모니터링 중)
 │   ├── chrome-cookie-import.html    Chrome 쿠키 가져오기 (프로필 골라 모든 쿠키를 웹뷰로)
 │   ├── mcp-server.html              Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버, 워크트리에 탭)
@@ -424,6 +425,13 @@
       <td class="center"><a href="platform/web.html#terminal-worktree"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/terminal-worktree-base-branch.html">기준 브랜치 자동 완성</a></td>
+      <td class="center"><a href="platform/android.html#terminal-worktree-base-branch"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-worktree-base-branch"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-worktree-base-branch"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-worktree-base-branch"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/terminal-claude-status.html">패널 줄의 Claude 상태 표시</a></td>
       <td class="center"><a href="platform/android.html#terminal-claude-status"><span class="badge no">불가</span></a></td>
       <td class="center"><a href="platform/ios.html#terminal-claude-status"><span class="badge no">불가</span></a></td>
@@ -518,6 +526,7 @@
   <li><a href="common/mcp-server.html">Claude 에게 브라우저·기기 조작 맡기기</a><p>데스크톱 앱이 MCP 서버가 되어 Jarvis 의 Claude 탭이 앱 안 브라우저 탭과 Android·iOS 기기를 보고 누르고 입력한다. 쓴 브라우저·기기는 그 Claude 의 패널에 선택하지 않은 탭으로 붙는다. JVM(macOS)</p></li>
   <li><a href="common/device-lease.html">Claude 기기 할당</a><p>MCP 서버가 Android·iOS 기기를 패널(워크트리)마다 하나씩 할당해서 다른 워크트리의 Claude 가 같은 기기를 조작하지 못하게 하고, 빌려 줄 기기가 없으면 에뮬레이터·시뮬레이터를 새로 만들어 준다. JVM(macOS)</p></li>
   <li><a href="common/terminal-worktree.html">패널에서 git 워크트리 추가·지우기</a><p>git 저장소 폴더의 패널에 + 가 붙고, 브랜치와 기준 브랜치를 받아 <code>git worktree add</code> 로 만든 워크트리를 그 패널 아래 들여쓴 패널로 열어 그 폴더에서 Claude 탭을 띄우고, 줄에 <code>기준 → 현재</code> 브랜치를 보인다. 워크트리 패널의 ✕ 는 워크트리·브랜치와 폴더를 지울지 묻는다. JVM(macOS)</p></li>
+  <li><a href="common/terminal-worktree-base-branch.html">기준 브랜치 자동 완성</a><p>"새 워크트리" 창의 기준 브랜치 입력란 아래에 저장소의 로컬 브랜치와 원격 추적 브랜치를 후보로 펴고, 줄마다 <code>local</code>·원격 이름 라벨을 붙인다. 누르면 입력란이 그 이름이 된다. JVM(macOS)</p></li>
   <li><a href="common/terminal-claude-status.html">패널 줄의 Claude 상태 표시</a><p>패널 줄마다 그 패널 Claude 탭의 상태를 작업 중·응답 대기·확인함·모니터링 중 네 표시 중 하나로 보인다. 응답 대기는 끝난 결과를 사용자가 아직 보지 않은 것이다. JVM(macOS)</p></li>
   <li><a href="common/release-build.html">release 빌드와 배포 준비</a><p>네 플랫폼의 release 산출물(서명된 APK·AAB, iOS 아카이브, macOS DMG, Web 정적 번들)과 앱 아이콘·버전·서명 설정. 스토어 업로드는 스코프 밖</p></li>
   <li><a href="common/dev-run-rebuild.html">실행 중 다시 빌드해도 앱이 살아 있기</a><p><code>:desktopApp:run</code> 으로 띄운 앱이 돌고 있는 동안 같은 체크아웃의 빌드가 jar 를 다시 써도 <code>NoClassDefFoundError</code> 로 죽지 않는다. <code>Jar</code> 태스크가 쓰기 전에 옛 파일을 지운다. JVM(macOS)</p></li>
