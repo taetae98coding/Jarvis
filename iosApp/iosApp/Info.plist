@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<!--
 		에뮬레이터 개수를 물어보는 로컬 에이전트는 평문 HTTP 다. ATS 는 기본적으로 평문을 막지만
 		NSAllowsLocalNetworking 은 루프백과 로컬 네트워크에만 예외를 열어 준다.
@@ -27,6 +27,13 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!--
+		Compose Multiplatform 1.12.1 은 이 키가 없으면 120Hz iPhone(ProMotion)에서 시작하자마자
+		"Info.plist doesn't have a valid CADisableMinimumFrameDurationOnPhone entry" 로 앱을 죽인다(PlistSanityCheck).
+		없으면 60Hz 로 묶이기 때문이다.
+	-->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchScreen</key>
@@ -39,6 +46,14 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<!-- iPad 도 대상이다(TARGETED_DEVICE_FAMILY 1,2). 멀티태스킹을 지원하는 iPad 앱은 네 방향을 다 선언해야 App Store 검증을 통과한다. -->
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>

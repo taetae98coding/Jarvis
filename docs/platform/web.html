@@ -73,6 +73,7 @@
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
     <li><a href="#device-lease">Claude 기기 할당</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
+    <li><a href="#release-build">release 빌드와 배포 준비</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -1290,6 +1291,41 @@
 <p><code>:core:designsystem:wasmJsBrowserTest</code> 가 테마·Style·아이콘 테스트를 돌린다. 다크 모드 전환은 <span class="badge untested">미검증</span>이라 개발자 도구의 Rendering → <code>prefers-color-scheme</code> 에뮬레이션으로 본다.</p>
 </section>
 
+<section class="feature" id="release-build">
+<h2>release 빌드와 배포 준비 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/release-build.html">release 빌드와 배포 준비</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>:webApp:wasmJsBrowserDistribution</code></td><td>채택. production 컴파일에 Binaryen 최적화(<code>compileProductionExecutableKotlinWasmJsOptimize</code>)가 붙고, webpack 이 <code>webApp.js</code> 와 해시 이름의 <code>.wasm</code> 둘(앱, Skiko)을 낸다. 합쳐 약 15 MB</td></tr>
+    <tr><td>한글 폰트: Noto Sans KR 을 <code>composeResources/font</code> 에 싣고 <code>FontFamily.Resolver.preload</code></td><td>채택. Skiko wasm 은 브라우저·OS 폰트에 닿지 못하고 Compose 가 기본으로 싣는 폰트에는 한글이 없어서, 번들을 띄우면 한글이 전부 □ 로 나왔다(headless Chrome 153 에서 확인, 폰트 문제라 브라우저와 무관하다). <code>preload</code> 한 폰트는 Skia 의 대체 폰트 목록에 들어가 기본 글꼴에 없는 글자를 채운다. 폰트가 올라오기 전에 그리면 □ 가 한 번 보였다가 바뀌므로, 올라올 때까지 <code>App()</code> 을 그리지 않는다</td></tr>
+    <tr><td>폰트 크기 줄이기</td><td>google/fonts 의 <code>NotoSansKR[wght].ttf</code>(10.4 MB, 가변)를 <code>pyftsubset</code> 으로 라틴·한글 음절·자모·기호·전각 범위만 남기고(4.8 MB), <code>varLib.instancer wght=400</code> 로 Regular 한 벌로 고정했다(2.8 MB). 굵은 글씨는 Skia 가 Regular 를 굵게 합성한다. Bold 를 한 벌 더 실으면 2.8 MB 가 늘어서 뺐다. 한자(U+4E00–9FFF)는 화면에 쓰지 않아 뺐다. 다시 만드는 명령은 <code>branding/subset-web-font.sh</code></td></tr>
+    <tr><td><code>@font-face</code> 로 CSS 에 폰트 선언</td><td>버렸다. canvas 에 그리는 Skia 는 CSS 폰트를 보지 않는다</td></tr>
+    <tr><td>favicon: <code>resources/favicon.png</code> + <code>&lt;link rel="icon"&gt;</code></td><td>채택. <code>wasmJsMain/resources</code> 는 배포 폴더에 그대로 복사된다. 180px PNG 하나를 <code>apple-touch-icon</code> 으로도 쓴다</td></tr>
+    <tr><td>호스팅(GitHub Pages 등) 자동 배포</td><td>스코프 밖(<a href="../common/release-build.html#requirements">공통 스펙</a>). 올리기만 하면 되는 정적 파일이다. 서버는 <code>.wasm</code> 을 <code>application/wasm</code> 으로 보내야 스트리밍 컴파일이 된다</td></tr>
+    <tr><td>HTTPS 호스팅</td><td>올릴 수는 있지만 에이전트 요청(<code>http://localhost:47890</code>)이 혼합 콘텐츠로 막혀 에뮬레이터·기기 기능이 "셀 수 없음"이 된다(<a href="#emulator">에뮬레이터 개수</a>). 그 기능까지 쓰려면 평문 HTTP 로 서빙한다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>webApp/src/wasmJsMain/kotlin/.../main.kt</code>(폰트 preload), <code>webApp/src/wasmJsMain/composeResources/font/noto_sans_kr_regular.ttf</code>, <code>webApp/src/wasmJsMain/resources/index.html</code>, <code>…/favicon.png</code>, <code>webApp/NOTICE-fonts.txt</code>(OFL)</dd>
+  <dt>동작</dt><dd><code>webApp/build/dist/wasmJs/productionExecutable/</code> 를 정적 서버의 루트로 올린다</dd>
+  <dt>실패</dt><dd>WasmGC 를 지원하지 않는 브라우저에서는 빈 화면이다(<a href="#build">빌드·실행</a> 한계)</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><a href="#build">빌드·실행</a>의 한계(WasmGC, 첫 로딩 크기)가 그대로 든다. 한글 폰트 2.8 MB 가 더해져 첫 화면은 약 17 MB 를 받은 뒤에 그려진다.</li>
+  <li>폰트에서 뺀 글자(한자, 이모지 등)는 □ 로 나온다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>python3 -m http.server</code> 로 배포 폴더를 띄우고 브라우저로 연다. 서버 로그에서 <code>favicon.png</code> 와 <code>composeResources/jarvis.webapp.generated.resources/font/noto_sans_kr_regular.ttf</code> 요청이 200 인지, <code>.wasm</code> 이 <code>Content-type: application/wasm</code> 인지 본다. 2026-09-25 에 Jarvis 의 브라우저 탭(JCEF Chromium 146)에서 홈 화면의 한글·굵은 제목, 버전 1.0.0, 데스크톱 에이전트에서 받은 기기 개수가 그려지는 것을 확인했다. headless Chrome 153 의 <code>--screenshot</code> 은 첫 프레임만 믿을 수 있다 — 폰트를 싣기 전 빌드에서는 □ 로 된 홈 화면이 찍혔지만, 폰트를 기다렸다 그리는 지금 빌드는 빈 화면만 찍힌다(로그에 <code>CVDisplayLinkCreateWithCGDisplay failed</code> 가 찍히고 다음 프레임이 오지 않는 것으로 보인다. 원인은 확인하지 않았다). <code>--virtual-time-budget</code> 은 5초 폴링이 끝나지 않아 멈춘다.</p>
+</section>
+
 <section class="feature" id="build">
 <h2>빌드·실행</h2>
 <pre><code>./gradlew :webApp:wasmJsBrowserDevelopmentRun   # http://localhost:8080
@@ -1342,6 +1378,11 @@
 <aside class="warn">
   <strong>UI 테스트에서 <code>waitUntil</code> 로 Flow 전파를 기다리지 않는다</strong>
   스레드가 하나뿐이라 <code>waitUntil</code> 의 폴링 루프가 이벤트 루프를 잡고 있으면, 그동안 <code>stateIn</code> 같은 중간 단계를 거치는 <code>Flow</code> 가 화면까지 전파되지 못한다. 가짜 저장소의 값을 바꾸고 그 결과가 목록에 나타나기를 <code>waitUntil</code> 로 기다리는 테스트가 세 번에 한 번꼴로 10초 타임아웃에 걸렸다. 그런 규칙은 화면을 그리지 않는 <code>EmulatorDevicesViewModelTest</code>(<a href="jvm.html#view-model">JVM</a>)에서 <code>runTest</code> 로 확인한다. 프레임 디코딩에 같은 제약이 걸리는 이야기는 <a href="../common/emulator-control.html#implementation">기기 목록·화면·제스처</a>에 있다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: <code>:app:ui</code> 의 Wasm 테스트도 <code>Dispatchers.Main</code> 을 <code>Unconfined</code> 로 둔다</strong>
+  위 제약 때문에 <code>0440c28</code> 까지 <code>:app:ui:wasmJsBrowserTest</code> 가 실패하고 있었다. <code>JarvisAppTerminalClaudeStatusTest</code> 에서 창 포커스를 바꾸면 <code>setWindowFocused</code> 는 불렸지만 <code>viewModelScope</code> 의 <code>combine</code> 이 다시 돌지 않았다(임시 로그로 확인) — Main 이 곧 막힌 이벤트 루프라서다. 앞 테스트가 끝나지 못하면 Karma 가 나머지를 돌리지 않아 172개 중 수십 개만 돌고 있었다. JVM 처럼 <code>installTestMainDispatcher()</code> 가 <code>Dispatchers.setMain(Dispatchers.Unconfined)</code> 을 하자 이벤트 루프를 기다리지 않고 그 자리에서 이어져 172개가 끝까지 돈다. 남는 제약은 실제 시간 타이머(<code>delay</code>, <code>withTimeout</code>)다 — 이벤트 루프가 막혀 끝나지 못하므로, 그것을 기다리는 줄 코멘트 보내기 테스트 둘에만 <code>@IgnoreOnWasm</code>(Wasm 에서만 <code>kotlin.test.Ignore</code>)을 붙였다. 패널 줄 흐르기 테스트는 한글 폰트가 없는 Wasm 에서 한글 폭이 작게 재져 실패해서, 폭을 라틴 글자로 채웠다(<a href="#release-build">release 빌드</a>의 한글 폰트와 같은 원인).
 </aside>
 
 <p>Compose 를 쓰는 모듈의 <code>wasmJs</code> 타깃에 <code>binaries.executable()</code>이 있는 이유도 이 테스트 때문이다. 실행 바이너리가 없으면 webpack 번들에 Skiko 런타임이 들어가지 않아 UI 테스트가 렌더링하지 못한다.</p>

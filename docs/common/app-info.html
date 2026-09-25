@@ -67,7 +67,7 @@
   <dt>플랫폼 이름</dt><dd><code>internal expect val platformName: String</code> (<code>data/appinfo/PlatformName.kt</code>)</dd>
 </dl>
 
-<p>iOS 번들 버전(<code>MARKETING_VERSION</code>)만 Gradle과 연동되지 않는다. 화면에 보이는 값은 공용 <code>APP_VERSION</code>이고, 번들 버전은 <code>iosApp/Configuration/Config.xcconfig</code>에서 따로 관리한다. 자세한 내용은 <a href="../platform/ios.html#build">iOS 빌드</a>에 있다.</p>
+<p>iOS 번들 버전(<code>MARKETING_VERSION</code>·<code>CURRENT_PROJECT_VERSION</code>)만 Gradle 이 쓰지 못해 <code>iosApp/Configuration/Config.xcconfig</code> 에 따로 적는다. 화면에 보이는 값은 공용 <code>APP_VERSION</code>이고, 둘이 어긋나면 <code>./gradlew check</code> 의 <code>checkIosAppVersion</code> 이 실패한다. 자세한 내용은 <a href="../platform/ios.html#release-build">iOS release 빌드</a>에 있다.</p>
 
 <h2 id="platforms">플랫폼별 판정</h2>
 

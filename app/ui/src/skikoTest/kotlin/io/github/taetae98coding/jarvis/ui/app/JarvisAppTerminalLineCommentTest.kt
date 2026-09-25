@@ -107,6 +107,8 @@ class JarvisAppTerminalLineCommentTest {
 
     // C1, C3, C4, C5, C7, C8
     @Test
+    // 보내기가 붙여넣은 뒤 실제 시간(ClaudeSubmitDelay)을 기다려 Enter 를 친다.
+    @IgnoreOnWasm
     fun commentsOnLineNumbersAreSentToTheClaudeTabOnceItIsReady() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         val workspace = workspace()
@@ -252,6 +254,8 @@ class JarvisAppTerminalLineCommentTest {
 
     // C6
     @Test
+    // 보내기가 붙여넣은 뒤 실제 시간(ClaudeSubmitDelay)을 기다려 Enter 를 친다.
+    @IgnoreOnWasm
     fun withoutAClaudeTabANewOneIsOpenedInTheFileTabsGroup() = runComposeUiTest {
         val terminal = FakeTerminalRepository()
         val workspace = workspace(claudeTabs = 0)

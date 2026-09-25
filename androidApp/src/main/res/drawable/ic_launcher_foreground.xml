@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- branding/icon-square.svg 와 같은 도형이다. 고리 바깥 반지름 25 가 적응형 아이콘의 안전 영역(반지름 33) 안에 든다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M54,32a22,22 0,1 1,0 44a22,22 0,1 1,0 -44z"
+        android:strokeWidth="6"
+        android:strokeColor="#4FC3F7" />
+    <path
+        android:fillColor="#E1F5FE"
+        android:pathData="M54,45a9,9 0,1 1,0 18a9,9 0,1 1,0 -18z" />
+</vector>

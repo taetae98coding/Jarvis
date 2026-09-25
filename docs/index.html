@@ -90,7 +90,8 @@
 │   ├── chrome-cookie-import.html    Chrome 쿠키 가져오기 (프로필 골라 모든 쿠키를 웹뷰로)
 │   ├── mcp-server.html              Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버, 워크트리에 탭)
 │   ├── device-lease.html            Claude 기기 할당 (워크트리마다 기기 하나, 없으면 에뮬레이터 만들기)
-│   └── design-system.html           디자인 시스템 (JarvisTheme, Defaults·Style, 아이콘)
+│   ├── design-system.html           디자인 시스템 (JarvisTheme, Defaults·Style, 아이콘)
+│   └── release-build.html           release 빌드와 배포 준비 (서명, R8, DMG, 아이콘, 버전)
 ├── platform/                     ← 플랫폼 스펙: 플랫폼 하나에 문서 하나
 │   ├── index.html                   플랫폼 스펙 읽는 법과 공통 판정 기준
 │   ├── android.html
@@ -441,6 +442,13 @@
       <td class="center"><a href="platform/jvm.html#test"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/web.html#test"><span class="badge ok">구현</span></a></td>
     </tr>
+    <tr>
+      <td><a href="common/release-build.html">release 빌드와 배포 준비</a></td>
+      <td class="center"><a href="platform/android.html#release-build"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#release-build"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/jvm.html#release-build"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/web.html#release-build"><span class="badge ok">구현</span></a></td>
+    </tr>
   </tbody>
 </table>
 
@@ -494,6 +502,7 @@
   <li><a href="common/device-lease.html">Claude 기기 할당</a><p>MCP 서버가 Android·iOS 기기를 패널(워크트리)마다 하나씩 할당해서 다른 워크트리의 Claude 가 같은 기기를 조작하지 못하게 하고, 빌려 줄 기기가 없으면 에뮬레이터·시뮬레이터를 새로 만들어 준다. JVM(macOS)</p></li>
   <li><a href="common/terminal-worktree.html">패널에서 git 워크트리 추가·지우기</a><p>git 저장소 폴더의 패널에 + 가 붙고, 브랜치와 기준 브랜치를 받아 <code>git worktree add</code> 로 만든 워크트리를 그 패널 아래 들여쓴 패널로 열어 그 폴더에서 Claude 탭을 띄우고, 줄에 <code>기준 → 현재</code> 브랜치를 보인다. 워크트리 패널의 ✕ 는 워크트리·브랜치와 폴더를 지울지 묻는다. JVM(macOS)</p></li>
   <li><a href="common/terminal-claude-status.html">패널 줄의 Claude 상태 표시</a><p>패널 줄마다 그 패널 Claude 탭의 상태를 작업 중·응답 대기·확인함·모니터링 중 네 표시 중 하나로 보인다. 응답 대기는 끝난 결과를 사용자가 아직 보지 않은 것이다. JVM(macOS)</p></li>
+  <li><a href="common/release-build.html">release 빌드와 배포 준비</a><p>네 플랫폼의 release 산출물(서명된 APK·AAB, iOS 아카이브, macOS DMG, Web 정적 번들)과 앱 아이콘·버전·서명 설정. 스토어 업로드는 스코프 밖</p></li>
 </ul>
 
 <h2 id="platform">플랫폼 스펙</h2>
