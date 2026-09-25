@@ -36,6 +36,9 @@ interface FileRepository {
 
     /** [path] 파일의 내용. 수집하는 동안만 디스크를 따라간다(cold). */
     fun observeFile(path: String): Flow<FileContent>
+
+    /** [path] 파일을 [text] 의 UTF-8 로 덮어쓴다. 끝나면 그 경로를 보고 있는 [observeFile] 이 곧장 다시 읽는다. */
+    suspend fun writeFile(path: String, text: String): Result<Unit>
 }
 
 class ObserveDirectoryUseCase(
@@ -48,4 +51,10 @@ class ObserveFileUseCase(
     private val repository: FileRepository,
 ) {
     operator fun invoke(path: String): Flow<FileContent> = repository.observeFile(path)
+}
+
+class WriteFileUseCase(
+    private val repository: FileRepository,
+) {
+    suspend operator fun invoke(path: String, text: String): Result<Unit> = repository.writeFile(path, text)
 }

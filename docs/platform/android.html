@@ -70,6 +70,7 @@
     <li><a href="#terminal-side-bar">터미널 오른쪽 사이드 바 (파일·Git)</a></li>
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
+    <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-scroll">터미널 휠 스크롤</a></li>
@@ -1423,6 +1424,41 @@ class JarvisApplication : Application() {
 
 <h3>검증</h3>
 <p>해당 없음.</p>
+</section>
+
+<section class="feature" id="terminal-file-editor">
+<h2>파일 탭 편집·꾸며 보기·빠른 스크롤 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-file-editor.html">파일 탭 편집·꾸며 보기·빠른 스크롤</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>okio <code>FileSystem.SYSTEM.write(path)</code></td><td>채택. 내부는 <code>java.io.FileOutputStream</code> 이라 파일을 비우고 쓴다. 대상은 셸 탭과 같은 앱 샌드박스(<code>filesDir</code>) 안이라 권한이 필요 없다. 심볼릭 링크는 따라가 대상에 쓴다</td></tr>
+    <tr><td>임시 파일 + <code>atomicMove</code></td><td>버렸다. 공통 스펙의 결정대로 링크·권한을 잃는다. inode 가 바뀌어 <code>FileObserver</code> 의 파일 감시(<code>MODIFY</code>)가 끊기고 부모 폴더 감시로만 알게 된다</td></tr>
+    <tr><td>Storage Access Framework(<code>ACTION_OPEN_DOCUMENT</code>)</td><td>버렸다. 파일 트리가 보이는 것은 샌드박스 안 경로뿐이라 문서 제공자를 거칠 일이 없다</td></tr>
+    <tr><td>빠른 스크롤: Compose <code>VerticalScrollbar</code></td><td>불가. <code>desktopMain</code> 에만 있어 Android 에서 쓸 수 없다. 공통 <code>JarvisFastScroller</code> 는 <code>pointerInput</code> 이 받는 <code>MotionEvent</code>(<code>AndroidComposeView.dispatchTouchEvent</code>)로 끈다</td></tr>
+    <tr><td>빠른 스크롤: <code>RecyclerView</code> 의 <code>fastScrollEnabled</code></td><td>버렸다. View 시스템 목록이라 Compose <code>LazyColumn</code> 에 붙일 수 없다</td></tr>
+    <tr><td>편집: Compose <code>BasicTextField</code></td><td>채택. 내부는 <code>PlatformTextInputModifierNode</code> 가 여는 <code>InputConnection</code> 으로 IME(한글 조합)를 받고, 복사·붙여넣기는 <code>ClipboardManager</code> 다. 하드웨어 키보드의 Ctrl+S·Esc 는 <code>onPreviewKeyEvent</code> 로 받는다</td></tr>
+    <tr><td>링크 열기: <code>LocalUriHandler</code></td><td>채택. Compose 의 <code>AndroidUriHandler</code> 가 <code>Intent.ACTION_VIEW</code> 로 연다. 받을 앱이 없으면 예외라 <code>runCatching</code> 으로 삼킨다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 <code>FileDataSource.kt</code>(<code>OkioFileDataSource.writeFile</code>), <code>File.android.kt</code> 는 바꾸지 않는다. 화면은 모두 commonMain</dd>
+  <dt>동작</dt><dd>저장은 <code>Dispatchers.IO</code> 에서 쓴다. 쓰고 나면 데이터 소스 안 신호로 곧장 다시 읽는다(E8). <code>FileObserver</code> 도 같은 변경을 알리지만, 내용은 크기·수정 시각이 같으면 다시 읽지 않으므로 두 번 그리지 않는다</dd>
+  <dt>실패</dt><dd><code>IOException</code> 이면 <code>Result.failure</code> 로 E4 문구</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>터치로는 올리기(hover)가 없어 막대가 끄는 동안에만 짙어진다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-file-editor.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 테스트(<code>SyntaxHighlightTest</code>·<code>MarkdownParserTest</code>·<code>JarvisAppTerminalFileEditorTest</code>)와 JVM 의 <code>OkioFileDataSourceTest</code>(같은 공통 코드). 기기 확인은 하지 않았다.</p>
 </section>
 
 <section class="feature" id="terminal-line-comment">

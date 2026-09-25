@@ -309,6 +309,8 @@ private fun TerminalGroup(
 
             val tab = group.selectedTab
             val pane = viewModel.pane(tab.id)
+            val fileEdits by viewModel.fileEditStates.collectAsStateWithLifecycle()
+            val markdownSource by viewModel.markdownSource.collectAsStateWithLifecycle()
             if (tab.program == TerminalProgram.Device) {
                 key(tab.id) {
                     TerminalDevice(
@@ -343,6 +345,10 @@ private fun TerminalGroup(
                         diff = commitFile?.diff,
                         diffLabel = "커밋 ${tab.shortCommitHash}",
                         lineComments = null,
+                        editing = null,
+                        markdownSource = tab.id in markdownSource,
+                        onMarkdownSourceChange = { viewModel.setMarkdownSource(tab.id, it) },
+                        onOpenFile = viewModel::openFile,
                         onFocus = { viewModel.focusGroup(group.id) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
@@ -357,6 +363,19 @@ private fun TerminalGroup(
                         diff = diff,
                         diffLabel = "HEAD 대비",
                         lineComments = tab.filePath?.takeIf { viewModel.isClaudeSupported }?.let { fileLineComments(it, panel, group.id, viewModel) },
+                        editing = tab.filePath?.let { path ->
+                            FileEditing(
+                                edit = fileEdits[tab.id],
+                                onStart = { viewModel.startFileEdit(tab.id, path, it) },
+                                onChange = { viewModel.changeFileEdit(tab.id, it) },
+                                onDiskChanged = { viewModel.fileEditDiskChanged(tab.id, it) },
+                                onSave = { viewModel.saveFileEdit(tab.id) },
+                                onDiscard = { viewModel.discardFileEdit(tab.id) },
+                            )
+                        },
+                        markdownSource = tab.id in markdownSource,
+                        onMarkdownSourceChange = { viewModel.setMarkdownSource(tab.id, it) },
+                        onOpenFile = viewModel::openFile,
                         onFocus = { viewModel.focusGroup(group.id) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )

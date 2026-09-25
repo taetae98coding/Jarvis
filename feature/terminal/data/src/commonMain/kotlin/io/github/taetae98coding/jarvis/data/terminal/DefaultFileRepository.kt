@@ -11,4 +11,6 @@ internal class DefaultFileRepository(
     override fun observeDirectory(directory: String): Flow<List<FileEntry>?> = dataSource.observeDirectory(directory)
 
     override fun observeFile(path: String): Flow<FileContent> = dataSource.observeFile(path)
+
+    override suspend fun writeFile(path: String, text: String): Result<Unit> = dataSource.writeFile(path, text)
 }

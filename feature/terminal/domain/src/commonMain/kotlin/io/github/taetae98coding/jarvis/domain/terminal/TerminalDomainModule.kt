@@ -21,6 +21,7 @@ val terminalDomainModule = module {
     factoryOf(::NotifyClaudeTurnEndsUseCase)
     factoryOf(::ObserveDirectoryUseCase)
     factoryOf(::ObserveFileUseCase)
+    factoryOf(::WriteFileUseCase)
     factoryOf(::ObserveGitStatusUseCase)
     factoryOf(::ObserveGitGraphUseCase)
     factoryOf(::ObserveGitCommitFilesUseCase)

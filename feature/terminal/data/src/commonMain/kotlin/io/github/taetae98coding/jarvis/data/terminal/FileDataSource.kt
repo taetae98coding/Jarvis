@@ -9,8 +9,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.withContext
 import okio.Buffer
 import okio.FileSystem
 import okio.IOException
@@ -24,6 +29,8 @@ internal interface FileDataSource {
     fun observeDirectory(directory: String): Flow<List<FileEntry>?>
 
     fun observeFile(path: String): Flow<FileContent>
+
+    suspend fun writeFile(path: String, text: String): Result<Unit>
 }
 
 /** 파일을 볼 수 없는 타깃(터미널 화면에 들어갈 수 없는 iOS·Web). */
@@ -31,6 +38,8 @@ internal object UnsupportedFileDataSource : FileDataSource {
     override fun observeDirectory(directory: String): Flow<List<FileEntry>?> = flowOf(null)
 
     override fun observeFile(path: String): Flow<FileContent> = flowOf(FileContent.Unreadable)
+
+    override suspend fun writeFile(path: String, text: String): Result<Unit> = Result.failure(UnsupportedOperationException("파일을 쓸 수 없는 플랫폼입니다"))
 }
 
 /** 판정 근거는 docs/common/terminal-side-bar.html#platforms 에 있다. */
@@ -47,6 +56,9 @@ internal class OkioFileDataSource(
     private val dispatcher: CoroutineDispatcher,
     private val changes: (path: Path, isDirectory: Boolean) -> Flow<Unit>,
 ) : FileDataSource {
+    // 쓴 경로. 폴링 간격을 기다리지 않고 그 파일을 보고 있는 observeFile 이 곧장 다시 읽게 한다(docs/common/terminal-file-editor.html E8).
+    private val written = MutableSharedFlow<Path>(extraBufferCapacity = 16)
+
     override fun observeDirectory(directory: String): Flow<List<FileEntry>?> {
         val path = expandHome(directory, home).toPath()
 
@@ -57,9 +69,29 @@ internal class OkioFileDataSource(
     override fun observeFile(path: String): Flow<FileContent> {
         val file = expandHome(path, home).toPath()
 
-        return observeOnSignals(changes(file, false)) { stamp(file) }
+        val signals = merge(changes(file, false), written.filter { it == file }.map { })
+
+        return observeOnSignals(signals) { stamp(file) }
             .map { stamp -> if (stamp == null) FileContent.Unreadable else read(file) }
+            // 쓰는 도중(크기만 바뀌고 시각은 그대로)에 한 번, 다 쓴 뒤에 한 번 읽으면 같은 내용이 두 번 나온다.
+            .distinctUntilChanged()
             .flowOn(dispatcher)
+    }
+
+    // 임시 파일을 옮겨 놓지 않고 그 파일에 바로 쓴다. 심볼릭 링크·권한·inode 를 그대로 둔다(공통 스펙의 결정).
+    override suspend fun writeFile(path: String, text: String): Result<Unit> {
+        val file = expandHome(path, home).toPath()
+        val result = withContext(dispatcher) {
+            try {
+                fileSystem.write(file) { writeUtf8(text) }
+                Result.success(Unit)
+            } catch (e: IOException) {
+                Result.failure(e)
+            }
+        }
+        if (result.isSuccess) written.emit(file)
+
+        return result
     }
 
     private fun list(directory: Path): List<FileEntry>? {
