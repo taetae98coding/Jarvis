@@ -3,6 +3,7 @@ package io.github.taetae98coding.jarvis.data.terminal
 import io.github.taetae98coding.jarvis.data.state.observeByPolling
 import io.github.taetae98coding.jarvis.data.state.observeOnSignals
 import io.github.taetae98coding.jarvis.domain.terminal.FileContent
+import io.github.taetae98coding.jarvis.domain.terminal.GitBranch
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
@@ -32,6 +33,9 @@ internal actual fun createGitDataSource(): GitDataSource = ProcessGitDataSource(
 
 /** 저장소가 되고 안 되는 일은 드물다. + 하나가 이만큼 늦게 뜬다(docs/platform/jvm.html#terminal-worktree). */
 internal val GitWorktreePollInterval: Duration = 10.seconds
+
+/** "새 워크트리" 창이 떠 있는 동안 셸에서 한 fetch·브랜치 작업을 따라가는 간격(docs/platform/jvm.html#terminal-worktree-base-branch). */
+internal val GitBranchesPollInterval: Duration = 5.seconds
 
 /** 사이드 바의 Git 구획이 보이는 동안 셸에서 한 git 작업을 따라가는 간격(docs/platform/jvm.html#terminal-side-bar). */
 internal val GitChangesPollInterval: Duration = 3.seconds
@@ -73,6 +77,9 @@ internal class ProcessGitDataSource(
 
     override fun observeWorktree(directory: String): Flow<GitWorktree?> =
         observeByPolling(interval = GitWorktreePollInterval) { readWorktree(directory) }.flowOn(Dispatchers.IO)
+
+    override fun observeBranches(directory: String): Flow<List<GitBranch>> =
+        observeByPolling(interval = GitBranchesPollInterval) { readBranches(directory) }.flowOn(Dispatchers.IO)
 
     override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> =
         withContext(Dispatchers.IO) {
@@ -187,10 +194,7 @@ internal class ProcessGitDataSource(
     private suspend fun readPushTarget(root: String, header: GitBranchHeader): GitPushTarget? {
         val branch = header.branch?.takeUnless { header.unborn } ?: return null
         val repository = File(root)
-        val remotes = run(git(repository, "remote"))
-            .takeIf { it.exitCode == 0 }
-            ?.output?.lines()?.map { it.trim() }?.filter { it.isNotEmpty() }
-            .orEmpty()
+        val remotes = readRemotes(repository)
         // 원격 이름에 `/` 가 들어갈 수 있어서 upstream 앞부분과 겹치는 가장 긴 이름이 그 원격이다.
         val remote = remotes.filter { header.upstream?.startsWith("$it/") == true }.maxByOrNull { it.length }
             ?: DefaultRemote.takeIf { it in remotes }
@@ -207,6 +211,24 @@ internal class ProcessGitDataSource(
         if (counts.exitCode != 0 || numbers.size != 2) return GitPushTarget(remote, branch, exists = false)
 
         return GitPushTarget(remote, branch, exists = true, ahead = numbers[1], behind = numbers[0])
+    }
+
+    private suspend fun readRemotes(repository: File): List<String> =
+        run(git(repository, "remote"))
+            .takeIf { it.exitCode == 0 }
+            ?.output?.lines()?.map { it.trim() }?.filter { it.isNotEmpty() }
+            .orEmpty()
+
+    // 원격 추적 브랜치는 마지막 fetch 로 받아 둔 것만 본다. 창이 원격에 접속하지 않는다(docs/common/terminal-worktree-base-branch.html R9).
+    private suspend fun readBranches(directory: String): List<GitBranch> {
+        val root = readRoot(directory) ?: return emptyList()
+        val repository = File(root)
+        val refs = run(
+            git(repository, "for-each-ref", "--sort=-committerdate", "--format=%(refname)%00%(symref)", "refs/heads", "refs/remotes"),
+        )
+        if (refs.exitCode != 0) return emptyList()
+
+        return parseGitBranches(refs.output, readRemotes(repository))
     }
 
     // 시작점은 HEAD 하나다 — 현재 브랜치에서 닿는 커밋만 그린다(공통 R18). `--branches --remotes --tags` 를 주면 다른 워크트리의

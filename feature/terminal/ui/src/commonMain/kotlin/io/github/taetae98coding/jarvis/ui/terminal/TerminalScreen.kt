@@ -142,6 +142,7 @@ internal fun TerminalScreen(
                     selectedPanelId = current.selectedPanelId,
                     nextPanelName = current.nextPanelName,
                     worktrees = worktrees,
+                    gitBranches = viewModel::gitBranches,
                     pendingWorktrees = pendingWorktrees,
                     removingPanelIds = removingWorktreePanels,
                     worktreeFailures = worktreeFailures,

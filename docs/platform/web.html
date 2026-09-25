@@ -58,6 +58,7 @@
     <li><a href="#terminal-tab-groups">분할 그룹마다 탭 줄</a></li>
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
     <li><a href="#terminal-worktree">패널에서 git 워크트리 추가</a></li>
+    <li><a href="#terminal-worktree-base-branch">기준 브랜치 자동 완성</a></li>
     <li><a href="#terminal-claude-status">패널 줄의 Claude 상태 표시</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
@@ -889,6 +890,35 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p>화면에 들어갈 수 없으므로 확인할 동작이 없다. 컴파일만 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-worktree-base-branch">
+<h2>기준 브랜치 자동 완성 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-worktree-base-branch.html">기준 브랜치 자동 완성</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>git for-each-ref</code></td><td>불가. <a href="#terminal-worktree">워크트리</a>와 같다 — 브라우저에서는 프로세스를 띄울 수 없다</td></tr>
+    <tr><td>드롭다운(<code>ExposedDropdownMenuBox</code>)</td><td>공통 코드라 이 타깃에서도 그려지지만, "새 워크트리" 창이 뜨지 않으므로(+ 가 없다) 볼 일이 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/wasmJsMain/.../data/terminal/Git.wasmJs.kt</code>(<code>UnsupportedGitDataSource</code>)</dd>
+  <dt>동작</dt><dd><code>observeBranches</code> 는 <code>flowOf(emptyList())</code> 다. 창이 떠도 후보가 없어 목록이 펴지지 않는다(공통 R6)</dd>
+  <dt>실패</dt><dd>해당 없음. 예외 없이 빈 목록이다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>이 타깃에서는 워크트리를 만들 수 없어 기준 브랜치를 넣을 일도 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동 테스트 없음. <code>UnsupportedGitDataSource</code> 는 상수 흐름이고, 창이 뜨지 않는 것은 <a href="#terminal-worktree">워크트리</a> 섹션이 본다.</p>
 </section>
 
 <section class="feature" id="terminal-claude-status">

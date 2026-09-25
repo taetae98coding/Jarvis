@@ -55,6 +55,7 @@
     <li><a href="#terminal-tab-groups">분할 그룹마다 탭 줄</a></li>
     <li><a href="#terminal-panel-create">새 패널 제목·폴더</a></li>
     <li><a href="#terminal-worktree">패널에서 git 워크트리 추가</a></li>
+    <li><a href="#terminal-worktree-base-branch">기준 브랜치 자동 완성</a></li>
     <li><a href="#terminal-claude-status">패널 줄의 Claude 상태 표시</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
@@ -1110,6 +1111,44 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p>모델·유스케이스는 <code>TerminalWorkspaceTest</code>·<code>GitWorktreeTest</code>·<code>AddWorktreePanelUseCaseTest</code>·<code>CloseWorktreePanelUseCaseTest</code>(<code>jvmTest</code>), 저장은 <code>TerminalWorkspaceStoreTest</code>, 실제 <code>git</code> 은 임시 저장소를 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다 — 현재 브랜치·detached·unborn, 기준 브랜치에서 갈라지는지, 지우기의 세 경우와 변경이 있는 폴더의 거부도 여기서 본다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 실제 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → 저장소 폴더의 패널 → + → 브랜치·기준 브랜치 → "확인" → 창이 곧바로 닫히고 흐린 만드는 중 줄이 도는지 → 워크트리 패널에 뜬 Claude 탭과 + 로 연 터미널이 워크트리 폴더에서 시작하는지 손으로 확인하고, 그 패널의 ✕ → 체크박스 조합 → "확인" → 줄이 흐려지고 진행 표시가 도는지 → 끝난 뒤 <code>git worktree list</code>·<code>git branch</code>·폴더를 셸에서 본다.</p>
+</section>
+
+<section class="feature" id="terminal-worktree-base-branch">
+<h2>기준 브랜치 자동 완성 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-worktree-base-branch.html">기준 브랜치 자동 완성</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>git for-each-ref --sort=-committerdate --format=%(refname)%00%(symref) refs/heads refs/remotes</code></td><td>채택. plumbing 이라 출력 형식이 버전·설정(<code>color.branch</code>, <code>column.ui</code>)에 흔들리지 않는다. 한 줄에 전체 ref 이름과 심볼릭 ref 의 대상이 NUL 로 갈려 온다 — 형식의 <code>%00</code> 은 git 이 NUL 로 바꾼다. <code>refs/heads/</code> 로 시작하면 로컬, <code>refs/remotes/</code> 면 원격이고, 두 번째 칸이 비어 있지 않은 것(<code>refs/remotes/origin/HEAD</code>)은 뺀다(공통 R1). <code>--sort=-committerdate</code> 는 끝 커밋의 커밋 시각이 최근인 것부터다(공통 R3). 워크트리 폴더에서 불러도 ref 는 저장소가 함께 쓰므로 같은 목록이다</td></tr>
+    <tr><td><code>git remote</code></td><td>채택. 원격 ref <code>refs/remotes/&lt;나머지&gt;</code> 에서 원격 이름을 가르는 데 쓴다. 원격 이름에 <code>/</code> 가 들어갈 수 있어 <code>&lt;나머지&gt;</code> 가 <code>&lt;원격&gt;/</code> 로 시작하는 가장 긴 원격이 그 원격이다 — <a href="#terminal-side-bar">사이드 바</a>의 push 대상 고르기와 같은 규칙이다. 맞는 원격이 없으면(원격을 지웠는데 ref 가 남음) 첫 <code>/</code> 앞을 원격 이름으로 본다</td></tr>
+    <tr><td><code>git branch -a --format=%(refname)</code></td><td>버렸다. 같은 정보지만 porcelain 명령이라 <code>branch.sort</code> 같은 사용자 설정이 순서를 바꾼다. <code>for-each-ref</code> 가 같은 형식 언어를 그대로 쓴다</td></tr>
+    <tr><td><code>git ls-remote</code>·창을 열 때 <code>git fetch</code></td><td>버렸다. 원격에 접속한다 — 느리고, 인증을 묻지 못해(<code>GIT_TERMINAL_PROMPT=0</code>) 실패할 수 있다. 공통 R9</td></tr>
+    <tr><td><code>.git/refs</code>·<code>packed-refs</code> 를 직접 읽기</td><td>버렸다. packed-refs·reftable(<code>extensions.refStorage</code>) 형식을 따라가야 하고, 커밋 시각 순서는 객체를 풀어야 안다</td></tr>
+    <tr><td><code>WatchService</code> 로 ref 변경 알림</td><td>버렸다. <a href="#terminal-worktree">워크트리</a>와 같은 이유 — macOS JDK 구현이 어차피 폴링(<code>PollingWatchService</code>)이고, ref 는 <code>refs/</code> 아래 여러 폴더와 <code>packed-refs</code> 에 흩어져 있다. git 은 ref 변경을 알려 주는 API 가 없다</td></tr>
+    <tr><td>폴링 간격</td><td><code>GitBranchesPollInterval = 5초</code>. 창이 떠 있는 동안에만 돈다. 창을 열자마자 한 번 읽고, 그 사이 셸에서 fetch 한 결과가 창을 닫지 않아도 따라온다(공통 R10). 한 번에 프로세스 셋(<code>rev-parse --show-toplevel</code>, <code>for-each-ref</code>, <code>remote</code>)이다</td></tr>
+    <tr><td>JGit</td><td>버렸다. <a href="#terminal-worktree">워크트리</a>와 같은 이유</td></tr>
+    <tr><td><code>ExposedDropdownMenuBox</code> + <code>ExposedDropdownMenuAnchorType.PrimaryEditable</code></td><td>채택(Compose Material3 1.9.0). 목록은 <code>Popup</code> 이고, 편집 가능한 앵커면 팝업이 포커스를 가져가지 않아(<code>PopupProperties(focusable = false)</code>) 목록이 떠 있는 동안에도 키 입력이 입력란에 간다. 데스크톱에서 <code>Popup</code> 은 skiko 가 같은 창 안에 그리는 레이어다(별도 AWT 창이 아니다). 대화 상자 안의 팝업도 대화 상자 위에 그려진다</td></tr>
+    <tr><td><code>DropdownMenu</code> 를 입력란 아래에 직접 두기</td><td>버렸다. 기본이 포커스를 가져가는 팝업이라 목록이 뜨면 입력이 끊긴다. 너비·위치도 앵커에 맞춰 직접 재야 한다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/data/src/jvmMain/.../data/terminal/Git.jvm.kt</code>(<code>ProcessGitDataSource.observeBranches</code>), <code>feature/terminal/data/src/commonMain/.../data/terminal/GitBranchParser.kt</code>(<code>parseGitBranches</code>), 공통 코드(<code>GitBranch.kt</code>, <code>ObserveGitBranchesUseCase.kt</code>, <code>TerminalViewModel.gitBranches</code>, <code>NewWorktreeDialog.kt</code>)</dd>
+  <dt>동작</dt><dd><code>observeBranches(directory)</code> 는 <code>observeByPolling(GitBranchesPollInterval)</code> 로 수집하는 동안만 읽고 <code>Dispatchers.IO</code> 에서 돈다. 읽기마다 <code>rev-parse --show-toplevel</code> 로 최상위를 얻고, 거기서 <code>for-each-ref</code> 와 <code>remote</code> 를 돌려 <code>parseGitBranches</code> 로 로컬 먼저·원격 뒤(각 무리는 git 이 준 순서 그대로)의 <code>GitBranch</code> 목록을 만든다</dd>
+  <dt>실패</dt><dd>저장소가 아니거나 <code>for-each-ref</code> 가 0 이 아닌 코드로 끝나면 빈 목록이다(목록이 펴지지 않는다). <code>git remote</code> 가 실패하면 원격 이름을 첫 <code>/</code> 로 가른다. 예외는 던지지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>공통 스펙의 <a href="../common/terminal-worktree-base-branch.html#limits">한계</a>가 그대로 든다.</li>
+  <li><code>for-each-ref</code> 형식의 <code>%(symref)</code> 는 git 1.x 부터 있다. <code>/usr/bin/git</code>(Xcode CLT)은 어느 버전이든 된다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>파서는 <code>GitBranchParserTest</code>, 실제 <code>git</code> 은 임시 저장소와 그것을 <code>origin</code> 으로 둔 복제본을 만드는 <code>GitDataSourceTest</code>(<code>:feature:terminal:data</code> <code>jvmTest</code>, <code>git</code> 이 없으면 건너뛴다), 화면은 <code>JarvisAppTerminalWorktreeTest</code>(skiko)가 확인한다. 손으로는 <code>./gradlew :desktopApp:run</code> → 터미널 → 원격이 있는 저장소 폴더의 패널 → + → 기준 브랜치 입력란을 누르면 <code>local</code>·<code>origin</code> 라벨이 붙은 목록이 펴지는지, 글자를 치면 걸러지는지, 누르면 입력란이 바뀌는지 본다.</p>
 </section>
 
 <section class="feature" id="terminal-claude-status">

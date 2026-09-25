@@ -18,6 +18,8 @@ internal class RecordingGitWorktreeRepository(
 
     override fun observeWorktree(directory: String): Flow<GitWorktree?> = flowOf(worktrees[directory])
 
+    override fun observeBranches(directory: String): Flow<List<GitBranch>> = flowOf(emptyList())
+
     override suspend fun addWorktree(repositoryDirectory: String, branch: String, path: String, baseBranch: String?): Result<GitWorktree> {
         added += Added(repositoryDirectory, branch, path, baseBranch)
         if (failure != null) return Result.failure(GitWorktreeException(failure))

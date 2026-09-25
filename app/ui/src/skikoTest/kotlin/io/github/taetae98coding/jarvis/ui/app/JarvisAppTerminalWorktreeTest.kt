@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.v2.runComposeUiTest
+import io.github.taetae98coding.jarvis.domain.terminal.GitBranch
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
@@ -29,6 +30,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeDialogTe
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeErrorTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalCloseWorktreeRemoveTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewShellTabTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeBaseSuggestionsTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeBaseTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeBranchTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeCancelTestTag
@@ -38,6 +40,8 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeDirectoryT
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalNewWorktreeErrorTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalScreenTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalNewWorktreeBaseSuggestionLabelTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalNewWorktreeBaseSuggestionTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalNewWorktreeTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelBusyTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalPanelBranchTestTag
@@ -170,6 +174,51 @@ class JarvisAppTerminalWorktreeTest {
         onNodeWithTag(TerminalNewWorktreeCancelTestTag).performClick()
         assertEquals(0, count(TerminalNewWorktreeDialogTestTag))
         assertEquals(3, panelCount())
+    }
+
+    @Test
+    fun theBaseBranchFieldSuggestsLocalAndRemoteBranchesLabelledByKind() = runComposeUiTest {
+        val terminal = FakeTerminalRepository()
+        val git = git()
+        val branches = listOf(GitBranch("main"), GitBranch("release"), GitBranch("origin/main", "origin"), GitBranch("origin/release", "origin"))
+        git.branches.value = mapOf("/work/jarvis" to branches)
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = FakeTerminalWorkspaceRepository(initial), gitWorktree = git) }
+        openTerminal()
+        awaitSessions(terminal, 1)
+        awaitTag(terminalNewWorktreeTestTag(jarvis.id))
+        onNodeWithTag(terminalNewWorktreeTestTag(jarvis.id)).performClick()
+        // 창이 뜨면 포커스는 브랜치 입력란에 있어 목록이 없다.
+        assertEquals(0, count(TerminalNewWorktreeBaseSuggestionsTestTag))
+
+        // 고치기 전에는 입력란의 "main" 으로 거르지 않고 모두 보인다.
+        onNodeWithTag(TerminalNewWorktreeBaseTestTag).performClick()
+        awaitTag(TerminalNewWorktreeBaseSuggestionsTestTag)
+        branches.forEach { assertEquals(1, count(terminalNewWorktreeBaseSuggestionTestTag(it.name)), it.name) }
+        onNodeWithTag(terminalNewWorktreeBaseSuggestionLabelTestTag("main"), useUnmergedTree = true).assertTextEquals("local")
+        onNodeWithTag(terminalNewWorktreeBaseSuggestionLabelTestTag("origin/main"), useUnmergedTree = true).assertTextEquals("origin")
+
+        onNodeWithTag(TerminalNewWorktreeBaseTestTag).performTextReplacement(" REL ")
+        waitForIdle()
+        assertEquals(0, count(terminalNewWorktreeBaseSuggestionTestTag("main")))
+        assertEquals(0, count(terminalNewWorktreeBaseSuggestionTestTag("origin/main")))
+        assertEquals(1, count(terminalNewWorktreeBaseSuggestionTestTag("release")))
+        assertEquals(1, count(terminalNewWorktreeBaseSuggestionTestTag("origin/release")))
+
+        onNodeWithTag(TerminalNewWorktreeBaseTestTag).performTextReplacement("v1.0")
+        waitForIdle()
+        assertEquals(0, count(TerminalNewWorktreeBaseSuggestionsTestTag))
+
+        onNodeWithTag(TerminalNewWorktreeBaseTestTag).performTextReplacement("rel")
+        awaitTag(TerminalNewWorktreeBaseSuggestionsTestTag)
+        onNodeWithTag(terminalNewWorktreeBaseSuggestionTestTag("origin/release")).performClick()
+        waitForIdle()
+        assertEquals("origin/release", fieldText(TerminalNewWorktreeBaseTestTag))
+        assertEquals(0, count(TerminalNewWorktreeBaseSuggestionsTestTag))
+
+        onNodeWithTag(TerminalNewWorktreeBranchTestTag).performTextReplacement("hotfix")
+        onNodeWithTag(TerminalNewWorktreeConfirmTestTag).performClick()
+        awaitWorktreePanel(terminal, panels = 4, sessions = 2)
+        assertEquals("origin/release", git.added.single().baseBranch)
     }
 
     @Test

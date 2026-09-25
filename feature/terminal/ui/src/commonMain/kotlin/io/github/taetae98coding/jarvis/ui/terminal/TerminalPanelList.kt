@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -61,8 +62,10 @@ import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisShapes
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeStatus
 import io.github.taetae98coding.jarvis.domain.terminal.ClaudeTabStatus
+import io.github.taetae98coding.jarvis.domain.terminal.GitBranch
 import io.github.taetae98coding.jarvis.domain.terminal.GitWorktree
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalPanel
+import kotlinx.coroutines.flow.StateFlow
 
 const val TerminalNewPanelTestTag = "terminal:new-panel"
 const val TerminalPanelNameFieldTestTag = "terminal:panel-name-field"
@@ -91,8 +94,8 @@ fun terminalPanelBusyTestTag(id: Long): String = "terminal:panel-busy:$id"
  * [NewWorktreeDialog] 를 거쳐 [onAddWorktree] 를 부른다. 워크트리 패널 줄의 현재 브랜치는 [worktrees] 에서
  * 관측한 값이고, 관측할 수 없으면 만들 때 기억한 값이다. 워크트리 패널의 ✕ 는 지울 워크트리가 관측되면
  * [CloseWorktreeDialog] 를 거쳐 [onCloseWorktree] 를, 아니면 다른 줄처럼 곧바로 [onClose] 를 부른다. 두 창은 git 을
- * 기다리지 않고 닫힌다. 뒤에서 도는 동안 [pendingWorktrees] 는 부모 가족 뒤에 흐린 줄로, [removingPanelIds] 의
- * 줄은 흐리게 그리고, 실패한 [worktreeFailures] 는 목록의 창이 모두 닫혀 있을 때 하나씩 창을 다시 띄운다.
+ * 기다리지 않고 닫힌다. [NewWorktreeDialog] 의 기준 브랜치 후보는 창이 떠 있는 동안 [gitBranches] 에서 모은다.
+ * 뒤에서 도는 동안 [pendingWorktrees] 는 부모 가족 뒤에 흐린 줄로, [removingPanelIds] 의 줄은 흐리게 그리고, 실패한 [worktreeFailures] 는 목록의 창이 모두 닫혀 있을 때 하나씩 창을 다시 띄운다.
  * [claudeStatuses] 에 있는 패널 줄에는 Claude 탭마다 상태 표시가 있고, 누르면 [onSelectTab] 으로 그 탭을 고른다.
  */
 @Composable
@@ -101,6 +104,7 @@ internal fun TerminalPanelList(
     selectedPanelId: Long?,
     nextPanelName: String,
     worktrees: Map<Long, GitWorktree>,
+    gitBranches: (repository: String) -> StateFlow<List<GitBranch>>,
     pendingWorktrees: List<PendingWorktree>,
     removingPanelIds: Set<Long>,
     worktreeFailures: List<WorktreeFailure>,
@@ -216,6 +220,7 @@ internal fun TerminalPanelList(
     creatingWorktree?.let { (parent, worktree) ->
         NewWorktreeDialog(
             worktree = worktree,
+            branches = gitBranches(worktree.mainPath).collectAsStateWithLifecycle().value,
             onCreate = { branch, baseBranch, directory ->
                 creatingWorktree = null
                 onAddWorktree(parent.id, worktree, branch, baseBranch, directory)
@@ -245,13 +250,14 @@ internal fun TerminalPanelList(
         }
 
         // 실패마다 창의 입력 상태를 새로 시작한다.
-        if (failure != null) key(failure.id) { WorktreeFailureDialog(failure, onAddWorktree, onCloseWorktree, onDismissWorktreeFailure) }
+        if (failure != null) key(failure.id) { WorktreeFailureDialog(failure, gitBranches, onAddWorktree, onCloseWorktree, onDismissWorktreeFailure) }
     }
 }
 
 @Composable
 private fun WorktreeFailureDialog(
     failure: WorktreeFailure,
+    gitBranches: (repository: String) -> StateFlow<List<GitBranch>>,
     onAddWorktree: (parentId: Long, parent: GitWorktree, branch: String, baseBranch: String?, directory: String) -> Unit,
     onCloseWorktree: (panelId: Long, worktree: GitWorktree, removeWorktree: Boolean, deleteDirectory: Boolean) -> Unit,
     onDismiss: (id: Long) -> Unit,
@@ -261,6 +267,7 @@ private fun WorktreeFailureDialog(
             val pending = failure.pending
             NewWorktreeDialog(
                 worktree = pending.parent,
+                branches = gitBranches(pending.parent.mainPath).collectAsStateWithLifecycle().value,
                 onCreate = { branch, baseBranch, directory ->
                     onDismiss(failure.id)
                     onAddWorktree(pending.parentId, pending.parent, branch, baseBranch, directory)

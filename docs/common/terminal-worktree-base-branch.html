@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기준 브랜치 자동 완성 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>기준 브랜치 자동 완성</span></nav>
+
+<header>
+  <h1>기준 브랜치 자동 완성</h1>
+  <p class="lead">"새 워크트리" 창의 기준 브랜치 입력란 아래에 저장소의 로컬 브랜치와 원격 추적 브랜치를 후보로 펴고, 줄마다 <code>local</code> 인지 어느 원격(<code>origin</code>)인지 라벨을 붙여, 누르면 입력란이 그 이름이 된다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>base branch 입력할 때 자동완성 기능 제공해줘.<br>
+  - local/origin 둘 다 조회되면 좋겠어.<br>
+  - origin/local 구분해서 표시해줘.</p>
+  <footer>2026-09-25 대화. "base branch 입력" 은 <a href="terminal-worktree.html#requirements">워크트리 R2b</a> 의 기준 브랜치 입력란이다. 이 지시로 워크트리 스펙이 스코프에서 뺐던 "기준 브랜치의 자동 완성·목록" 이 들어온다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 후보는 + 를 누른 패널의 워크트리가 속한 저장소의 로컬 브랜치(<code>refs/heads</code>)와 원격 추적 브랜치(<code>refs/remotes</code>) 전부다. 원격의 기본 브랜치를 가리키는 심볼릭 ref(<code>origin/HEAD</code>)는 뺀다. 같은 저장소의 어느 워크트리 패널에서 + 를 눌러도 후보는 같다.</li>
+  <li><strong>R2.</strong> 후보 줄은 왼쪽에 git 에 넘길 이름(로컬 <code>main</code>, 원격 <code>origin/main</code>), 오른쪽에 구분 라벨을 가진다. 로컬은 <code>local</code>, 원격은 그 원격의 이름(<code>origin</code>, <code>upstream</code> 등)이다. 두 라벨은 색이 달라 글자를 읽지 않아도 구분된다.</li>
+  <li><strong>R3.</strong> 로컬 후보가 먼저, 원격 후보가 뒤다. 각 무리 안에서는 끝 커밋의 커밋 시각이 최근인 것이 먼저다.</li>
+  <li><strong>R4.</strong> 창이 뜬 뒤 사용자가 기준 브랜치 입력란의 글자를 고치기 전에는 모든 후보를 보인다. 고친 뒤에는 앞뒤 공백을 뗀 입력이 이름에 대소문자 없이 들어 있는 후보만 보이고, 입력이 비면 다시 모든 후보다. 실패로 다시 뜬 창(<a href="terminal-worktree.html#requirements">워크트리 R6</a>)도 새 창이라 고치기 전에는 모든 후보다.</li>
+  <li><strong>R5.</strong> 목록은 한 번에 최대 50줄이다. 넘치는 후보는 입력으로 좁혀야 보인다.</li>
+  <li><strong>R6.</strong> 기준 브랜치 입력란이 포커스를 받으면 목록이 펴지고, 글자를 고칠 때마다 다시 펴진다. 보일 후보가 없으면(브랜치가 없는 저장소, 입력과 맞는 것이 없음, 아직 읽지 못함, git 을 쓸 수 없음) 펴지지 않는다.</li>
+  <li><strong>R7.</strong> 후보를 누르면 입력란이 그 이름이 되고, 커서가 끝으로 가고, 목록이 닫힌다. 목록 바깥을 누르거나 입력란이 포커스를 잃어도 닫힌다.</li>
+  <li><strong>R8.</strong> 자동 완성은 입력을 제한하지 않는다. 후보에 없는 글자(태그, SHA, 아직 fetch 하지 않은 이름)도 그대로 넣을 수 있고, 목록이 펴져 있어도 Enter 는 "확인" 이다(<a href="terminal-worktree.html#requirements">워크트리 R5</a>). 만들기·실패·기본값 규칙은 워크트리 스펙 그대로다.</li>
+  <li><strong>R9.</strong> 원격 후보는 이 컴퓨터가 마지막으로 받아 둔 원격 추적 브랜치다. 창은 원격에 접속하지 않는다(fetch 하지 않는다).</li>
+  <li><strong>R10.</strong> 후보는 창이 떠 있는 동안만 읽는다. 떠 있는 동안 셸에서 브랜치를 만들거나 지우거나 fetch 하면 <a href="../platform/jvm.html#terminal-worktree-base-branch">폴링 간격</a> 뒤에 목록이 따라온다. 창이 닫히면 읽기를 멈춘다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>창을 열 때 <code>git fetch</code>. 네트워크·인증을 기다리며 창이 늦어지고, 인증을 묻지 못해 실패하면(<code>GIT_TERMINAL_PROMPT=0</code>) 목록이 비는 이유를 설명할 곳이 없다. 받아 둔 것만 보인다(R9).</li>
+    <li>태그·커밋 후보. 지시는 "local/origin" 이다. 태그는 입력란에 직접 넣으면 된다(R8).</li>
+    <li>화살표 키로 후보 고르기. 목록은 포커스를 가져가지 않는 팝업이라 키 입력은 입력란에 남는다. 마우스로 누른다.</li>
+    <li>브랜치 입력란(새 브랜치 이름)의 자동 완성. 지시는 base branch 다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre>
+┌ 새 워크트리 ─────────────────────────────────┐
+│ 브랜치                                        │
+│ ┌──────────────────────────────────────────┐ │
+│ │ feature/login                            │ │
+│ └──────────────────────────────────────────┘ │
+│ 기준 브랜치                                   │
+│ ┌──────────────────────────────────────────┐ │
+│ │ ma▏                                      │ │
+│ └──────────────────────────────────────────┘ │
+│ ┌──────────────────────────────────────────┐ │ ← 입력란 바로 아래 펴지는 목록(R6)
+│ │ main                              local  │ │ ← 로컬 먼저(R3), 라벨 local(R2)
+│ │ origin/main                      origin  │ │ ← 원격, 라벨은 원격 이름
+│ │ upstream/main                  upstream  │ │
+│ └──────────────────────────────────────────┘ │
+│ 폴더  …                                      │
+└──────────────────────────────────────────────┘
+</pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>컨트롤</td><td>기준 브랜치 <code>OutlinedTextField</code> 를 <code>ExposedDropdownMenuBox</code> 로 감싸고, 입력란은 <code>menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)</code> — 목록이 떠 있어도 입력란이 키 입력을 받는다. 목록은 <code>ExposedDropdownMenu</code> 안의 <code>DropdownMenuItem</code></td></tr>
+    <tr><td>후보 줄</td><td><code>text</code> 는 이름(한 줄, 넘치면 말줄임), <code>trailingIcon</code> 자리에 라벨. 라벨은 <code>labelSmall</code> 글자에 둥근 배경 — <code>local</code> 은 <code>primaryContainer</code>/<code>onPrimaryContainer</code>, 원격은 <code>tertiaryContainer</code>/<code>onTertiaryContainer</code></td></tr>
+    <tr><td>테스트 태그</td><td>목록 <code>terminal:new-worktree-base-suggestions</code>, 후보 줄 <code>terminal:new-worktree-base-suggestion:&lt;이름&gt;</code>, 라벨 <code>terminal:new-worktree-base-suggestion-label:&lt;이름&gt;</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>도메인</dt><dd><code>feature/terminal/domain/.../GitBranch.kt</code>: <code>data class GitBranch(val name: String, val remote: String? = null)</code> — <code>name</code> 은 git 에 넘길 이름(원격이면 <code>origin/main</code> 처럼 원격 이름을 붙인 것), <code>remote</code> 는 원격 이름이고 로컬이면 null. <code>GitWorktreeRepository.observeBranches(directory): Flow&lt;List&lt;GitBranch&gt;&gt;</code> — <code>directory</code> 가 속한 저장소의 후보를 R1·R3 순서로 준다. 저장소가 아니거나 git 을 쓸 수 없으면 빈 목록. cold 이고 수집하는 동안만 다시 읽는다. <code>ObserveGitBranchesUseCase</code> 가 그대로 넘긴다</dd>
+  <dt>데이터</dt><dd><code>GitDataSource.observeBranches</code>. <code>UnsupportedGitDataSource</code> 는 <code>flowOf(emptyList())</code>. JVM 은 <a href="../platform/jvm.html#terminal-worktree-base-branch">jvm.html</a></dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.gitBranches(repository: String): StateFlow&lt;List&lt;GitBranch&gt;&gt;</code> — main 워크트리 경로(<code>GitWorktree.mainPath</code>)마다 하나를 만들어 두고 <code>stateIn(viewModelScope, WhileSubscribed(replayExpirationMillis = 0), emptyList())</code>. 창이 모으는 동안만 git 이 돌고, 다시 뜬 창은 이전 목록 대신 처음부터 읽는다</dd>
+  <dt>UI</dt><dd><code>NewWorktreeDialog(branches = …)</code>. <code>TerminalPanelList</code> 가 창을 띄우는 두 곳(+ 와 실패로 다시 뜬 창)에서 <code>gitBranches(worktree.mainPath).collectAsStateWithLifecycle()</code> 로 모아 넘긴다. 거르기(R4·R5)는 <code>baseBranchSuggestions(branches, query, edited)</code> 순수 함수</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 원격 후보의 이름은 원격 이름을 붙인 채로 넣는다</strong>
+  <code>origin/main</code> 을 누르면 입력란에 <code>origin/main</code> 이 들어가 <code>git worktree add -b &lt;브랜치&gt; &lt;폴더&gt; origin/main</code> 이 된다. 라벨만 보이고 이름은 <code>main</code> 으로 보이게 하는 길은 버렸다 — 로컬 <code>main</code> 과 원격 <code>main</code> 이 같은 글자로 두 줄 보이고, 누른 뒤 입력란의 글자와 목록의 글자가 달라진다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 로컬 먼저, 그 안에서 최근 커밋 순</strong>
+  지시의 "구분해서 표시" 는 라벨(R2)로 하고, 순서도 로컬·원격을 나눠 같은 무리가 붙어 보이게 한다. 이름순은 버렸다 — 브랜치가 많은 저장소에서 지금 작업 중인 브랜치가 목록 끝에 묻힌다. 최근 커밋 순이면 <code>main</code>·방금 쓴 브랜치가 위에 온다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 고치기 전에는 거르지 않는다</strong>
+  입력란은 + 를 누른 패널의 현재 브랜치로 시작한다(<a href="terminal-worktree.html#requirements">워크트리 R2b</a>). 그 글자로 바로 거르면 포커스를 줄 때 그 이름을 담은 것만 보여 다른 브랜치를 고르려면 먼저 지워야 한다. 사용자가 한 글자라도 고친 뒤부터 거른다(R4).
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>기기에 <code>git</code> 이 없어 + 가 없고 창이 뜨지 않는다. 불려도 빈 목록</td><td><a href="../platform/android.html#terminal-worktree-base-branch">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>프로세스를 띄울 수 없어 + 가 없다. 불려도 빈 목록</td><td><a href="../platform/ios.html#terminal-worktree-base-branch">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td><code>git for-each-ref</code> + <code>git remote</code>, 창이 떠 있는 동안 5초 폴링</td><td><a href="../platform/jvm.html#terminal-worktree-base-branch">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>브라우저에서 git 을 띄울 수 없어 + 가 없다. 불려도 빈 목록</td><td><a href="../platform/web.html#terminal-worktree-base-branch">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>GitBranchParserTest</code></td><td>R1·R3. <code>for-each-ref</code> 출력에서 로컬·원격을 가르고 로컬을 앞에 두되 무리 안의 순서는 그대로, <code>origin/HEAD</code> 같은 심볼릭 ref 는 빼고, <code>/</code> 가 든 원격 이름은 가장 긴 원격으로 가른다</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>GitDataSourceTest</code></td><td>R1·R3·R9. 임시 저장소에 bare 원격을 붙여 올린 뒤 <code>observeBranches</code> 가 로컬을 앞에, <code>origin/…</code> 를 뒤에 주고 <code>origin/HEAD</code> 가 없으며, 워크트리 폴더에서 불러도 같은 목록, 원격에 새로 생긴 브랜치는 fetch 한 뒤에야 보이고, 저장소가 아닌 폴더는 빈 목록</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTerminalWorktreeTest</code></td><td>R2·R4·R6·R7. 기준 브랜치 입력란을 누르면 모든 후보가 라벨 <code>local</code>·<code>origin</code> 과 함께 펴지고, 글자를 고치면 걸러지고, 맞는 것이 없으면 목록이 없고, 후보를 누르면 입력란이 그 이름이 되고 목록이 닫히며 "확인" 이 그 이름으로 만든다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>R9(fetch 하지 않음)는 <code>GitDataSourceTest.remoteBranchesAreWhatWasLastFetched</code> 가 본다 — 다른 복제본이 원격에 올린 브랜치는 이 저장소에서 fetch 하기 전에는 후보에 없고, fetch 한 뒤에 생긴다. R3 의 커밋 시각 순서는 git 의 <code>--sort=-committerdate</code> 에 맡기고, 파서가 무리 안의 순서를 바꾸지 않는 것만 <code>GitBranchParserTest</code> 가 본다(임시 저장소의 커밋은 같은 초에 생겨 시각으로 줄 세울 수 없다). R5(50줄)는 <code>baseBranchSuggestions</code> 의 <code>take(NewWorktreeBaseSuggestionMaxCount)</code> 하나이고, <code>:feature:terminal:ui</code> 에 테스트 소스셋이 없어 자동 테스트가 없다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>원격 후보는 마지막 fetch 시점의 것이다. 원격에 새로 생긴 브랜치는 셸에서 <code>git fetch</code> 한 뒤 폴링 간격 안에 보인다.</li>
+  <li>브랜치가 50개를 넘는 저장소는 입력으로 좁혀야 나머지가 보인다(R5).</li>
+  <li>키보드만으로는 후보를 고를 수 없다(스코프 밖). 이름을 끝까지 치면 된다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

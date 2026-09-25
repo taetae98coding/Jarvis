@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.domain.terminal.FileContent
+import io.github.taetae98coding.jarvis.domain.terminal.GitBranch
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitDiffHunk
@@ -473,6 +474,47 @@ class GitDataSourceTest {
             git(it, "init", "-q", "--bare")
             git(repository, "remote", "add", name, it.path)
         }
+
+    @Test
+    fun branchesAreLocalThenRemoteTrackingWithoutOriginHeadAndTheSameFromAWorktree() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        git(repository, "branch", "release")
+        addRemote(repository)
+        git(repository, "push", "-q", "origin", "main", "release")
+        git(repository, "remote", "set-head", "origin", "main")
+        val worktree = newWorktree(repository, "work")
+
+        val branches = source.observeBranches(repository.path).first()
+
+        assertEquals(setOf(GitBranch("main"), GitBranch("release"), GitBranch("work")), branches.take(3).toSet())
+        assertEquals(setOf(GitBranch("origin/main", "origin"), GitBranch("origin/release", "origin")), branches.drop(3).toSet())
+        assertEquals(branches, source.observeBranches(worktree.path).first())
+    }
+
+    // 창은 원격에 접속하지 않는다. 다른 곳에서 올린 브랜치는 fetch 한 뒤에야 후보가 된다(docs/common/terminal-worktree-base-branch.html R9).
+    @Test
+    fun remoteBranchesAreWhatWasLastFetched() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        val remote = addRemote(repository)
+        git(repository, "push", "-q", "origin", "main")
+        val elsewhere = newDirectory().also { git(it, "clone", "-q", remote.path, ".") }
+        git(elsewhere, "push", "-q", "origin", "HEAD:refs/heads/other")
+
+        assertEquals(listOf(GitBranch("main"), GitBranch("origin/main", "origin")), source.observeBranches(repository.path).first())
+
+        git(repository, "fetch", "-q", "origin")
+
+        assertTrue(GitBranch("origin/other", "origin") in source.observeBranches(repository.path).first())
+    }
+
+    @Test
+    fun foldersOutsideARepositoryHaveNoBranches() = runTest {
+        if (!gitAvailable) return@runTest
+
+        assertEquals(emptyList(), source.observeBranches(newDirectory().path).first())
+    }
 
     private suspend fun pushTarget(directory: File): GitPushTarget? = source.observeStatus(directory.path).first()!!.pushTarget
 

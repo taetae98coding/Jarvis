@@ -14,6 +14,7 @@ val terminalDomainModule = module {
     factoryOf(::ObserveTerminalWorkspaceUseCase)
     factoryOf(::UpdateTerminalWorkspaceUseCase)
     factoryOf(::ObserveGitWorktreeUseCase)
+    factoryOf(::ObserveGitBranchesUseCase)
     factoryOf(::ObserveClaudeActivitiesUseCase)
     factoryOf(::AddWorktreePanelUseCase)
     factoryOf(::CloseWorktreePanelUseCase)
