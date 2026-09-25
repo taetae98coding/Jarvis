@@ -42,6 +42,34 @@ class PtyTerminalDataSourceTest {
         assertTrue("jarvis-42" in text.await(), text.await())
     }
 
+    // 사용자 설정을 읽지 않는 zsh -f 도 zle 가 뜨면 괄호 붙여넣기를 켠다. 명령이 화면에 한 번만(프롬프트 뒤에) 나와야 한다.
+    @Test
+    fun typedCommandRunsAfterTheShellIsReadyAndIsEchoedOnce() = runBlocking {
+        val typed = PtyTerminalDataSource(
+            launch = { PtyLaunch(listOf("/bin/zsh", "-f", "-i"), home, tracksDirectory = true, typedCommand = "echo jarvis-\$((40 + 2))") },
+        )
+        val session = assertNotNull(typed.open(TerminalSize(80, 24), shell))
+
+        // 출력은 한 수집자만 받는다. 명령의 결과가 보이면 그 자리에서 exit 를 쳐서 끝낸다.
+        val output = withTimeout(10_000) {
+            val text = StringBuilder()
+            var exited = false
+            session.output.collect { bytes ->
+                text.append(bytes.decodeToString())
+                if (!exited && "jarvis-42\r\n" in text) {
+                    exited = true
+                    session.write("exit\n".encodeToByteArray())
+                }
+            }
+            text.toString()
+        }
+        assertTrue("jarvis-42\r\n" in output, output)
+        val markerAt = output.indexOf(BracketedPasteOn.decodeToString())
+        val commandAt = output.indexOf("echo jarvis")
+        assertTrue(markerAt in 0..<commandAt, output)
+        assertEquals(1, Regex("echo jarvis").findAll(output).count(), output)
+    }
+
     @Test
     fun resizeReachesTheShell() = runBlocking {
         val session = assertNotNull(dataSource.open(TerminalSize(80, 24), shell))

@@ -25,8 +25,9 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만, [filePath]·[commitHash] 는 [TerminalProgram.File] 탭에만 있다. [deviceName]·[devicePlatform] 은
  * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다.
  * [commitHash] 가 있으면 디스크가 아니라 그 커밋 시점의 파일을 보이는 커밋 파일 탭이다(docs/common/terminal-commit-file.html).
- * [command] 가 있는 셸 탭은 로그인 셸 대신 그 명령으로 시작하고 끝나면 셸로 남는 실행 탭이다. [commandTitle] 이 자동 제목이다
- * (docs/common/terminal-run.html R9·R16).
+ * [command] 가 있는 셸 탭은 그 명령으로 시작하고 끝나면 셸로 남는 실행 탭이다. [commandTyped] 가 거짓이면 로그인 셸 대신
+ * 명령을 돌리고(앱 실행 스크립트), 참이면 로그인 셸을 띄운 뒤 명령을 프롬프트에 쳐 넣는다(사용자 명령). [commandTitle] 이
+ * 자동 제목이다(docs/common/terminal-run.html R9·R16).
  *
  * [claudeCheckedAt] 은 사용자가 본 마지막 끝난 결과의 [ClaudeActivity.Finished.at] 이다(docs/common/terminal-claude-status.html).
  *
@@ -47,6 +48,7 @@ data class TerminalTab(
     val commitHash: String? = null,
     val command: String? = null,
     val commandTitle: String? = null,
+    val commandTyped: Boolean = false,
 ) {
     /** 커밋 파일 탭의 제목·요약에 쓰는 해시 앞 7자리. */
     val shortCommitHash: String?
@@ -291,12 +293,16 @@ data class TerminalWorkspace(
         commitHash: String? = null,
         command: String? = null,
         commandTitle: String? = null,
+        commandTyped: Boolean = false,
     ): TerminalWorkspace {
         val panel = (if (groupId == null) selectedPanel else findPanel { panel -> panel.groups.any { it.id == groupId } })
             ?: return this
         val group = if (groupId == null) panel.focusedGroup else panel.groups.first { it.id == groupId }
         val tabId = nextId
-        val tab = TerminalTab(tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform, filePath = filePath, commitHash = commitHash, command = command, commandTitle = commandTitle)
+        val tab = TerminalTab(
+            tabId, program, directory, claudeSessionId, url, deviceId, deviceName, devicePlatform,
+            filePath = filePath, commitHash = commitHash, command = command, commandTitle = commandTitle, commandTyped = commandTyped,
+        )
 
         if (group == null) {
             val newGroupId = nextId + 1
@@ -533,12 +539,20 @@ data class TerminalWorkspace(
 
     /**
      * [groupId] 그룹(null 이면 포커스된 그룹, 없으면 새 그룹)의 끝에 [command] 로 시작하는 실행 탭을 붙여 고르고 포커스한다.
+     * [typed] 면 셸을 띄운 뒤 명령을 쳐 넣는 사용자 명령 탭이다(R16).
      * [mirror] 가 있으면 그 패널에 같은 기기의 기기 탭이 있을 때 그 탭을 그 그룹에서 고르고, 없으면 실행 탭의 그룹을 좌우로
      * 나눠 오른쪽에 기기 탭 하나짜리 그룹을 둔다. 포커스는 실행 탭의 그룹에 남는다(docs/common/terminal-run.html R9·R10).
      */
-    fun runInGroup(groupId: Long?, directory: String?, command: String, title: String, mirror: RunMirror? = null): TerminalWorkspace {
+    fun runInGroup(
+        groupId: Long?,
+        directory: String?,
+        command: String,
+        title: String,
+        mirror: RunMirror? = null,
+        typed: Boolean = false,
+    ): TerminalWorkspace {
         val runTabId = nextId
-        val added = addTab(groupId, directory = directory, command = command, commandTitle = title)
+        val added = addTab(groupId, directory = directory, command = command, commandTitle = title, commandTyped = typed)
         if (mirror == null || added === this) return added
 
         val panel = added.findPanel { panel -> panel.tabs.any { it.id == runTabId } } ?: return added
@@ -567,6 +581,20 @@ data class TerminalWorkspace(
                 PaneNode.Split(splitId, SplitDirection.SideBySide, first = group, second = PaneNode.Group(deviceGroupId, listOf(deviceTab), deviceTabId), ratio = RunRatio)
             }
             .copy(nextId = added.nextId + 3)
+    }
+
+    /**
+     * 모든 실행·명령 탭을 같은 폴더의 셸 탭으로 만든다. 앱을 켤 때 한 번 불러 되살아난 탭이 명령을 다시 돌리지 않게 한다
+     * (docs/common/terminal-run.html R18). 지울 것이 없으면 자신이다.
+     */
+    fun withoutCommands(): TerminalWorkspace {
+        if (panels.none { panel -> panel.tabs.any { it.command != null } }) return this
+
+        return copy(
+            panels = panels.map { panel ->
+                panel.copy(root = panel.root?.mapTabs { it.copy(command = null, commandTitle = null, commandTyped = false) })
+            },
+        )
     }
 
     fun setDirectory(tabId: Long, directory: String): TerminalWorkspace = replaceTab(tabId) { it.copy(directory = directory) }
@@ -654,6 +682,12 @@ private fun PaneNode.replaceGroup(groupId: Long, transform: (PaneNode.Group) -> 
     }
 
 private class Removal(val root: PaneNode, val neighbor: Long)
+
+private fun PaneNode.mapTabs(transform: (TerminalTab) -> TerminalTab): PaneNode =
+    when (this) {
+        is PaneNode.Group -> copy(tabs = tabs.map(transform))
+        is PaneNode.Split -> copy(first = first.mapTabs(transform), second = second.mapTabs(transform))
+    }
 
 private fun PaneNode.isGroup(groupId: Long): Boolean = this is PaneNode.Group && id == groupId
 

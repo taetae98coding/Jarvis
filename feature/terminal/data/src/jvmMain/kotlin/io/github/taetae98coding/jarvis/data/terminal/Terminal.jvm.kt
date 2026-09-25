@@ -27,7 +27,12 @@ internal actual fun createTerminalDataSource(context: PlatformContext): Terminal
         launch = { tab ->
             val directory = startDirectory(tab)
             when (tab.program) {
-                TerminalProgram.Shell -> PtyLaunch(shellCommand(shell, tab.command), directory, tracksDirectory = true)
+                TerminalProgram.Shell ->
+                    if (tab.commandTyped) {
+                        PtyLaunch(terminalCommand(shell), directory, tracksDirectory = true, typedCommand = tab.command)
+                    } else {
+                        PtyLaunch(shellCommand(shell, tab.command), directory, tracksDirectory = true)
+                    }
                 TerminalProgram.Claude -> PtyLaunch(claude.command(checkNotNull(tab.claudeSessionId), directory), directory)
                 TerminalProgram.Browser, TerminalProgram.Device, TerminalProgram.File -> error("브라우저·기기·파일 탭은 세션을 열지 않는다")
             }
@@ -37,11 +42,15 @@ internal actual fun createTerminalDataSource(context: PlatformContext): Terminal
     )
 }
 
-/** pty 에 띄울 명령. [tracksDirectory] 면 셸의 작업 디렉터리를 [TerminalSession.directory] 로 흘린다. */
+/**
+ * pty 에 띄울 명령. [tracksDirectory] 면 셸의 작업 디렉터리를 [TerminalSession.directory] 로 흘린다.
+ * [typedCommand] 가 있으면 셸이 준비된 뒤 그 명령을 쳐 넣는다([TypedCommandSession]).
+ */
 internal class PtyLaunch(
     val command: List<String>,
     val directory: String,
     val tracksDirectory: Boolean = false,
+    val typedCommand: String? = null,
 )
 
 internal class PtyTerminalDataSource(
@@ -78,7 +87,8 @@ internal class PtyTerminalDataSource(
                     .start()
 
                 val tracker = if (launch.tracksDirectory) DirectoryTracker { readDirectory(process.pid()) } else null
-                PtyTerminalSession(process, tracker)
+                val session = PtyTerminalSession(process, tracker)
+                launch.typedCommand?.let { TypedCommandSession(session, it) } ?: session
             }.getOrNull()
         }
 
@@ -152,7 +162,7 @@ private fun startDirectory(tab: TerminalTab): String {
  */
 internal fun terminalCommand(shell: String): List<String> = listOf(shell, "-l")
 
-/** [command] 가 있으면 그 명령을 돌린 뒤 같은 pty 에서 로그인 셸로 남는다(docs/common/terminal-run.html R9·R16). */
+/** [command] 가 있으면 그 명령을 돌린 뒤 같은 pty 에서 로그인 셸로 남는다(docs/common/terminal-run.html R9). */
 internal fun shellCommand(shell: String, command: String?): List<String> =
     if (command == null) terminalCommand(shell) else interactiveCommand(shell, command, thenShell = true)
 
