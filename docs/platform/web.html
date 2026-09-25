@@ -36,6 +36,7 @@
     <li><a href="#navigation">화면 이동 (Navigation3)</a></li>
     <li><a href="#retained-state">재생성을 넘기는 상태 (retain)</a></li>
     <li><a href="#app-info">앱 정보</a></li>
+    <li><a href="#app-update">앱 업데이트</a></li>
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
     <li><a href="#settings">설정 영구 저장</a></li>
@@ -280,6 +281,35 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>PlatformNameTest</code>, <code>DeviceIdentityTest</code>, <code>JarvisAppTest.showsAppVersion</code>, <code>JarvisAppTest.showsCurrentPlatformName</code>, <code>JarvisAppTest.showsDeviceNameAndId</code>, <code>JarvisAppTest.hidesBlankDeviceRows</code> 가 <code>wasmJsBrowserTest</code>에서 돈다.</p>
+</section>
+
+<section class="feature" id="app-update">
+<h2>앱 업데이트 <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/app-update.html">앱 업데이트</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>페이지 다시 불러오기</td><td>그 자체가 업데이트다. 정적 번들을 새로 올리면 다음 로드에 새 버전이 뜬다. 앱 안에서 할 일이 없다</td></tr>
+    <tr><td>서비스 워커로 새 번들을 알리기</td><td>해당 없음. 서비스 워커를 쓰지 않아 옛 번들을 붙잡아 두는 캐시가 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>대체 동작</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/appinfo/data/src/wasmJsMain/.../data/appinfo/AppUpdater.wasmJs.kt</code></dd>
+  <dt>동작</dt><dd><code>platformAppUpdater()</code> 가 null 이다. 확인하지 않고 줄이 없다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>해당 없음.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공용 <code>DefaultAppUpdateRepositoryTest.noUpdaterMeansNoUpdate</code>.</p>
 </section>
 
 <section class="feature" id="keep-screen-awake">

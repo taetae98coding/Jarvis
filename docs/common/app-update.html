@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>앱 업데이트 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>앱 업데이트</span></nav>
+
+<header>
+  <h1>앱 업데이트</h1>
+  <p class="lead"><code>main</code> 에 새 버전이 머지되면 GitHub Actions 가 macOS DMG 를 만들어 GitHub Release 로 올리고, 데스크톱 앱은 앱 정보 카드에 새 버전을 알려 버튼 하나로 받아 설치하고 다시 띄운다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a> · <a href="#release-workflow">배포 워크플로</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>origin/main에 머지되면 git action으로 dmg파일 만들어서 release, tag 지정하도록 하면 어때? 그리고 우리 앱에서는 버전 확인해서 최신버전 있으면 업데이트 기능을 재공해서 설치까지 하는거지.</p>
+  <footer>2026-09-25 대화.</footer>
+</blockquote>
+<blockquote class="instruction">
+  <p>jvm을 dmg로 만드는데 서명이 필요해? local에서는 gradle로 바로 되던거 아니었어?</p>
+  <p>ad-hoc으로 진행해줘. 설치도 버튼 누르면 바로 종료하고 재실행까지 해줘.</p>
+  <footer>2026-09-25 대화. 서명이 DMG 빌드가 아니라 배포(Gatekeeper)와 업데이트 뒤 권한 유지에만 영향을 준다는 설명을 듣고 ad-hoc 서명을 골랐다. 설치 방식은 "받아 두고 다음 종료 때 교체" 대신 "바로 종료하고 교체한 뒤 재실행"을 골랐다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1. 머지하면 배포.</strong> <code>origin/main</code> 에 push 가 들어오면 GitHub Actions 가 <code>./gradlew :desktopApp:packageReleaseDmg</code> 로 DMG 를 만들고, 태그 <code>v&lt;appVersion&gt;</code> 와 같은 이름의 GitHub Release 를 만들어 DMG 를 올린다. <code>appVersion</code> 은 <code>gradle/libs.versions.toml</code> 의 값이다(<a href="release-build.html#requirements">release 빌드 R4</a>).</li>
+  <li><strong>R2. 버전을 올린 머지만 배포.</strong> 태그 <code>v&lt;appVersion&gt;</code> 가 이미 있으면 워크플로는 빌드하지 않고 성공으로 끝난다. 같은 버전의 Release 를 덮어쓰지 않는다.</li>
+  <li><strong>R3. 체크섬.</strong> Release 에는 DMG 와 함께 그 SHA-256 을 적은 <code>&lt;DMG 이름&gt;.sha256</code> 이 올라간다. 체크섬이 없는 Release 는 앱이 설치 대상으로 보지 않는다.</li>
+  <li><strong>R4. ad-hoc 서명.</strong> CI 는 인증서 없이 jpackage 의 ad-hoc 서명 그대로 올린다. 저장소 Secrets 에 서명 키를 두지 않는다.</li>
+  <li><strong>R5. 새 버전 확인.</strong> 데스크톱 앱은 GitHub 의 최신 Release(<code>releases/latest</code>, draft·prerelease 제외)를 읽어, 태그의 버전이 지금 앱의 <code>APP_VERSION</code> 보다 <em>크면</em> 새 버전으로 본다. 버전은 <code>MAJOR.MINOR.PATCH</code> 를 숫자로 비교하고, 이 형식이 아닌 태그는 무시한다.</li>
+  <li><strong>R6. 확인 시점.</strong> 앱 정보 카드가 화면에 있는 동안 처음 한 번, 그 뒤 <code>AppUpdateCheckInterval</code>(1시간)마다 다시 확인한다. 카드가 화면에서 사라지면 확인을 멈춘다(<a href="state-observation.html">상태 조회</a>).</li>
+  <li><strong>R7. 알림.</strong> 새 버전이 있으면 앱 정보 카드에 "새 버전" 줄과 그 버전, "업데이트" 버튼이 나타난다. 없거나 확인하지 못했으면 그 줄은 없다.</li>
+  <li><strong>R8. 설치.</strong> "업데이트"를 누르면 DMG 를 받아 SHA-256 을 확인하고, DMG 안의 <code>Jarvis.app</code> 을 설치된 앱 옆에 풀어 둔 뒤 앱을 정상 종료한다. 앱이 끝나면 설치된 <code>Jarvis.app</code> 을 새것으로 바꾸고 다시 띄운다. 사용자가 누를 것은 버튼 하나다.</li>
+  <li><strong>R9. 실패하면 그대로.</strong> 받기·확인·풀기 중 하나라도 실패하면 앱은 종료하지 않고 카드에 "업데이트하지 못했습니다: &lt;이유&gt;"와 "다시 시도" 버튼을 보여준다. 설치된 앱은 바뀌지 않는다. 교체 단계에서 실패하면 옛 앱을 제자리로 돌려놓고 다시 띄운다.</li>
+  <li><strong>R10. 설치된 앱만.</strong> 업데이트는 <code>.app</code> 번들로 설치된 macOS 앱에서만 켜진다. <code>:desktopApp:run</code> 으로 띄운 개발 실행, macOS 밖 데스크톱, Android·iOS·Web 에서는 확인도 하지 않고 줄도 없다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>Developer ID 서명·공증. 인증서가 없고 사용자가 ad-hoc 을 골랐다. 첫 설치에서 Gatekeeper 확인이 필요하다(<a href="#limits">한계</a>).</li>
+    <li>Android·iOS·Web 의 앱 안 업데이트. 각각 Play·App Store·호스팅이 배포하고 앱이 자기 설치본을 바꿀 수 없다(플랫폼 스펙).</li>
+    <li>Intel Mac DMG. CI 러너가 arm64 라 DMG 는 arm64 JDK 를 담는다(<a href="../platform/jvm.html#release-build">jvm release 빌드</a>).</li>
+    <li>받는 중 진행률, 건너뛸 버전 고르기, 자동 설치. 버튼을 누를 때만 설치한다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<p>앱 정보 카드(<a href="app-info.html">앱 정보 카드</a>)의 기기 식별자 줄 아래에 붙는다. 새 버전이 없으면 아무것도 그리지 않는다.</p>
+
+<table>
+  <thead><tr><th>상태</th><th>왼쪽</th><th>오른쪽</th><th>그 아래</th></tr></thead>
+  <tbody>
+    <tr><td>새 버전 없음 · 확인 못 함 · 지원 안 함</td><td colspan="3">줄 없음</td></tr>
+    <tr><td>새 버전 있음</td><td>"새 버전" · <code>1.2.0</code></td><td>버튼 "업데이트"</td><td>—</td></tr>
+    <tr><td>설치 중(받기·확인·풀기)</td><td>"새 버전" · <code>1.2.0</code></td><td>잠긴 버튼 "설치 중…"</td><td>—</td></tr>
+    <tr><td>실패</td><td>"새 버전" · <code>1.2.0</code></td><td>버튼 "다시 시도"</td><td>"업데이트하지 못했습니다: &lt;이유&gt;" (error 색)</td></tr>
+    <tr><td>풀기가 끝남</td><td colspan="3">앱이 정상 종료한다(창이 닫힌다). 몇 초 뒤 새 버전이 뜬다</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>테스트 태그</td><td><code>appinfo:update</code>(줄), <code>appinfo:update-button</code>(버튼)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>모델</dt><dd><code>AppRelease(version, downloadUrl, checksumUrl)</code> (<code>domain/appinfo</code>). 지금보다 새 버전의 배포본</dd>
+  <dt>저장소</dt><dd><code>AppUpdateRepository</code>: <code>fun observeAvailableUpdate(): Flow&lt;AppRelease?&gt;</code>(없으면 null), <code>suspend fun install(release): Result&lt;Unit&gt;</code>(성공하면 앱이 곧 끝난다)</dd>
+  <dt>유스케이스</dt><dd><code>ObserveAppUpdateUseCase(scope): StateFlow&lt;AppRelease?&gt;</code>(초기값 null, <code>WhileSubscribed</code>), <code>InstallAppUpdateUseCase(release): Result&lt;Unit&gt;</code></dd>
+  <dt>UI</dt><dd><code>ui/appinfo/AppUpdateRow.kt</code>. 상태는 <code>AppInfoViewModel</code> 이 확인 결과와 설치 진행을 합친 <code>AppUpdateUiState</code>(<code>None</code> / <code>Available</code> / <code>Installing</code> / <code>Failed</code>)</dd>
+  <dt>공용 data</dt><dd><code>data/appinfo/GitHubRelease.kt</code>: <code>decodeLatestRelease(json): AppRelease?</code>(태그에서 <code>v</code> 를 떼고, 이름이 <code>.dmg</code> 로 끝나는 첫 자산과 <code>&lt;그 이름&gt;.sha256</code> 자산을 고른다. 둘 중 하나라도 없으면 null), <code>isNewerVersion(candidate, current)</code>. <code>DefaultAppUpdateRepository</code> 가 이것과 <code>observeByPolling(AppUpdateCheckInterval)</code> 으로 R5·R6 을 만든다</dd>
+  <dt>공급</dt><dd><code>internal expect fun platformAppUpdater(): AppUpdater?</code>. <code>AppUpdater</code> 는 <code>suspend fun fetchLatestRelease(): String?</code>(Release JSON, 실패하면 null)와 <code>suspend fun install(release: AppRelease)</code>(실패하면 던진다). null 이면 R10 — 확인하지 않고 늘 null 을 낸다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 확인은 GitHub REST API 를 1시간 간격으로 폴링한다</strong>
+  GitHub 는 새 Release 를 클라이언트에 밀어 주는 수단이 없다 — webhook 은 서버가 받는 것이고 앱은 공개 주소가 없다. 저장소가 public 이라 토큰 없이 <code>GET /repos/taetae98coding/Jarvis/releases/latest</code> 를 부른다. 토큰 없는 요청은 IP 하나에 시간당 60회라 회사처럼 여러 사람이 한 IP 로 나가면 모자랄 수 있어서, 앞 응답의 <code>ETag</code> 로 <code>If-None-Match</code> 를 보낸다. 304 는 한도에 세지 않는다. 버린 후보: <code>releases.atom</code> 피드(한도는 없지만 자산 주소가 없어 결국 API 를 한 번 더 불러야 한다), <code>/releases/latest/download/&lt;이름&gt;</code> 로 바로 받기(버전을 먼저 알 수 없다).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 앱이 끝난 뒤 셸 스크립트가 번들을 바꾼다</strong>
+  돌고 있는 앱이 자기 번들을 바꾸면 JVM 이 열어 둔 jar·네이티브 라이브러리가 사라져 죽을 수 있다(<a href="dev-run-rebuild.html">실행 중 다시 빌드</a>와 같은 문제). 그래서 앱은 새 번들을 설치된 앱 옆(<code>.Jarvis-update.app</code>)에 풀어 두기까지만 하고, 자기 pid 가 끝나기를 기다렸다가 두 번의 <code>mv</code> 로 바꾸고 <code>open</code> 으로 다시 띄우는 <code>/bin/sh</code> 스크립트를 띄운 뒤 정상 종료한다. 무거운 복사는 앱이 살아 있을 때 끝나므로 앱이 없는 시간은 <code>mv</code> 두 번이다. 정상 종료는 창을 닫을 때와 같은 경로(<code>exitApplication</code>)를 탄다 — <code>exitProcess</code> 로 끝내면 JCEF 를 닫지 않아 Chromium 도우미가 남는다. 버린 후보: Sparkle(네이티브 프레임워크라 JNA 브리지와 EdDSA 키 관리가 필요하다), Hydraulic Conveyor(업데이트까지 해 주지만 jpackage 빌드를 통째로 바꿔야 한다), DMG 를 Finder 로 열어 사용자가 끌어 놓게 하기(사용자가 "설치까지"를 원했다).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 앱 종료 요청은 data 가 내놓는 <code>Flow&lt;Unit&gt;</code> 로 창에 전한다</strong>
+  <code>exitApplication</code> 은 <code>desktopApp</code> 의 <code>application { }</code> 안에서만 부를 수 있고 data 는 창을 모른다. JVM data 가 <code>appQuitRequests: Flow&lt;Unit&gt;</code> 을 내놓고(<code>:shared</code> 가 <code>jarvisQuitRequests</code> 로 감싼다) <code>main.kt</code> 가 <code>LaunchedEffect</code> 에서 첫 값을 기다려 <code>exitApplication()</code> 을 부른다. 창 수명 동안 한 번 오는 사건이라 상태가 아니고, 뒤늦게 구독해도 놓치지 않게 마지막 하나를 남긴다.
+</aside>
+
+<h3 id="release-workflow">배포 워크플로</h3>
+
+<dl class="meta">
+  <dt>파일</dt><dd><code>.github/workflows/release.yml</code></dd>
+  <dt>시작</dt><dd><code>push</code> 가 <code>main</code> 에 들어올 때, 그리고 손으로(<code>workflow_dispatch</code>). 한 번에 하나만 돈다(<code>concurrency: release</code>)</dd>
+  <dt>러너</dt><dd><code>macos-15</code>(arm64). jpackage 는 돌린 OS 의 설치본만 만든다</dd>
+  <dt>순서</dt><dd>
+    <ol>
+      <li><code>gradle/libs.versions.toml</code> 에서 <code>appVersion</code> 을 읽는다.</li>
+      <li><code>git ls-remote --tags origin v&lt;버전&gt;</code> 이 비어 있지 않으면 끝낸다(R2).</li>
+      <li>JDK 21 과 Gradle 을 준비하고 <code>./gradlew :desktopApp:packageReleaseDmg</code>. 번들 JDK 는 foojay 가 받는 toolchain 21 이다.</li>
+      <li><code>shasum -a 256 Jarvis-&lt;버전&gt;.dmg &gt; Jarvis-&lt;버전&gt;.dmg.sha256</code>(R3).</li>
+      <li><code>gh release create v&lt;버전&gt; --target &lt;커밋&gt; --generate-notes</code> 로 태그·Release 를 만들고 두 파일을 올린다.</li>
+    </ol>
+  </dd>
+  <dt>권한</dt><dd><code>contents: write</code>. 저장소 기본 <code>GITHUB_TOKEN</code> 만 쓴다</dd>
+</dl>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge no">불가</span></td><td>Play 가 배포한다. <code>platformAppUpdater()</code> 가 null 이라 줄이 없다</td><td><a href="../platform/android.html#app-update">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>앱은 자기 번들을 바꿀 수 없다. null, 줄 없음</td><td><a href="../platform/ios.html#app-update">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge partial">조건부</span></td><td>macOS 의 <code>.app</code> 설치본에서만. <code>java.net.http.HttpClient</code> 로 받고 <code>hdiutil</code>·<code>ditto</code> 로 풀고 셸 스크립트가 교체·재실행</td><td><a href="../platform/jvm.html#app-update">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>페이지를 다시 불러오면 새 번들이다. null, 줄 없음</td><td><a href="../platform/web.html#app-update">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>GitHubReleaseTest</code></td><td>R3·R5. 태그·자산 고르기, 체크섬 없는 Release 무시, 버전 비교(<code>1.10.0 &gt; 1.9.0</code>, 같은 버전·옛 버전·형식이 다른 태그는 새 버전이 아님)</td><td><code>:feature:appinfo:data</code> commonTest</td></tr>
+    <tr><td><code>DefaultAppUpdateRepositoryTest</code></td><td>R5·R10. 새 버전만 내고, 옛 버전·실패는 null, 업데이터가 없으면 확인하지 않는다</td><td><code>:feature:appinfo:data</code> commonTest</td></tr>
+    <tr><td><code>JarvisAppTest.appUpdate…</code></td><td>R7·R9. 새 버전 줄이 보이고, 누르면 설치를 부르고 "설치 중…"으로 잠기며, 실패하면 이유와 "다시 시도"가 나온다. 새 버전이 없으면 줄이 없다</td><td><code>:app:ui</code> skikoTest</td></tr>
+    <tr><td>수동(jvm.html)</td><td>R1·R2·R4·R8. 가짜 Release 서버로 옛 버전 설치본을 새 버전으로 바꿔 다시 띄운다. 워크플로는 첫 머지에서 확인한다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>ad-hoc 서명이라 브라우저로 받은 첫 DMG 는 다른 Mac 에서 Gatekeeper 가 막는다. "시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기" 또는 <code>xattr -dr com.apple.quarantine /Applications/Jarvis.app</code> 이 한 번 필요하다. 앱이 직접 받은 DMG 에는 quarantine 속성이 붙지 않아 업데이트는 막히지 않는다(<a href="../platform/jvm.html#app-update">jvm.html</a>).</li>
+  <li>ad-hoc 서명은 빌드마다 코드 해시가 달라 macOS 가 업데이트된 앱을 다른 앱으로 볼 수 있다. 폴더 접근·자동화 같은 개인정보 보호 권한을 업데이트 뒤 다시 물을 수 있다.</li>
+  <li><code>appVersion</code> 을 올리지 않은 머지는 배포되지 않는다(R2). 배포하려면 버전을 올려 머지한다.</li>
+  <li>앱이 쓰기 권한이 없는 곳(관리자가 아닌 계정의 <code>/Applications</code>, 마운트한 DMG, App Translocation 경로)에서 돌면 풀기 단계에서 실패하고 R9 의 메시지가 나온다.</li>
+  <li>업데이트가 앱을 정상 종료하므로 열린 터미널 세션은 창을 닫을 때처럼 끝난다. 작업 공간 배치는 남는다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a> · <a href="app-info.html">앱 정보 카드</a> · <a href="release-build.html">release 빌드</a>
+</footer>
+
+</body>
+</html>

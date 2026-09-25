@@ -53,6 +53,7 @@
 │   ├── navigation.html              화면 이동 (Navigation3)
 │   ├── retained-state.html          재생성을 넘기는 상태 (retain)
 │   ├── app-info.html                앱 정보 카드 (버전·플랫폼·기기 이름·식별자)
+│   ├── app-update.html              앱 업데이트 (GitHub Release 배포, 앱 안 확인·설치)
 │   ├── keep-screen-awake.html       화면 꺼짐 방지
 │   ├── system-keep-screen-awake.html   화면 꺼짐 방지 (시스템 전역)
 │   ├── settings-persistence.html    설정 영구 저장
@@ -172,6 +173,13 @@
       <td class="center"><a href="platform/ios.html#app-info"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/jvm.html#app-info"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/web.html#app-info"><span class="badge workaround">우회</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/app-update.html">앱 업데이트</a></td>
+      <td class="center"><a href="platform/android.html#app-update"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/ios.html#app-update"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#app-update"><span class="badge partial">조건부</span></a></td>
+      <td class="center"><a href="platform/web.html#app-update"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
       <td><a href="common/keep-screen-awake.html">화면 꺼짐 방지</a></td>
@@ -505,6 +513,7 @@
   <li><a href="common/navigation.html">화면 이동 (Navigation3)</a><p>홈·기기 목록·기기 화면 사이를 백스택과 NavDisplay 로 옮긴다</p></li>
   <li><a href="common/retained-state.html">재생성을 넘기는 상태 (retain)</a><p>마지막 프레임을 컴포지션보다 오래 들고 있는다</p></li>
   <li><a href="common/app-info.html">앱 정보 카드</a><p>앱 버전, 실행 중인 플랫폼, 이 기기의 이름·식별자를 보여준다</p></li>
+  <li><a href="common/app-update.html">앱 업데이트</a><p>main 머지 때 DMG 를 GitHub Release 로 배포하고, 데스크톱 앱이 새 버전을 알려 받아 설치·재실행한다</p></li>
   <li><a href="common/keep-screen-awake.html">화면 꺼짐 방지</a><p>토글이 켜져 있는 동안 화면이 꺼지지 않게 한다</p></li>
   <li><a href="common/system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a><p>앱이 없는 동안에도 화면이 꺼지지 않게 한다. Android만 가능하다</p></li>
   <li><a href="common/settings-persistence.html">설정 영구 저장</a><p>토글 값이 앱을 껐다 켜도 남고, 외부 변경도 따라간다</p></li>

@@ -35,6 +35,7 @@
   <li><a href="navigation.html">화면 이동 (Navigation3)</a><p>홈·기기 목록·기기 화면 사이를 백스택과 NavDisplay 로 옮긴다</p></li>
   <li><a href="retained-state.html">재생성을 넘기는 상태 (retain)</a><p>마지막 프레임을 컴포지션보다 오래 들고 있는다</p></li>
   <li><a href="app-info.html">앱 정보 카드</a><p>앱 버전, 실행 중인 플랫폼, 이 기기의 이름·식별자를 보여준다</p></li>
+  <li><a href="app-update.html">앱 업데이트</a><p>main 머지 때 DMG 를 GitHub Release 로 배포하고, 데스크톱 앱이 새 버전을 알려 받아 설치·재실행한다</p></li>
   <li><a href="keep-screen-awake.html">화면 꺼짐 방지</a><p>토글이 켜져 있는 동안 화면이 꺼지지 않게 한다</p></li>
   <li><a href="system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a><p>앱이 없는 동안에도 화면이 꺼지지 않게 한다. Android만 가능하다</p></li>
   <li><a href="settings-persistence.html">설정 영구 저장</a><p>토글 값이 앱을 껐다 켜도 남고, 외부 변경도 따라간다</p></li>
@@ -101,6 +102,7 @@
   <tbody>
     <tr><td><code>platformName: String</code></td><td><code>data.appinfo</code></td><td>실행 중인 플랫폼 표시용 문자열</td><td><a href="app-info.html">앱 정보 카드</a></td></tr>
     <tr><td><code>readDeviceIdentity(context: PlatformContext): DeviceIdentity</code></td><td><code>data.appinfo</code></td><td>이 앱이 돌고 있는 기기의 이름과 식별자</td><td><a href="app-info.html">앱 정보 카드</a></td></tr>
+    <tr><td><code>platformAppUpdater(): AppUpdater?</code></td><td><code>data.appinfo</code></td><td>새 Release 를 읽고 받아 설치한다. macOS 의 <code>.app</code> 설치본만 본문이 있고 나머지는 null</td><td><a href="app-update.html">앱 업데이트</a></td></tr>
     <tr><td><code>createIdleInhibitor(): IdleInhibitor</code></td><td><code>data.screen</code></td><td>Compose가 커버하지 않는 플랫폼의 화면 꺼짐 방지. JVM만 본문이 있다</td><td><a href="keep-screen-awake.html">화면 꺼짐 방지</a></td></tr>
     <tr><td><code>createSystemScreenAwakeDataSource(context): SystemScreenAwakeDataSource</code></td><td><code>data.screen</code></td><td>앱이 없는 동안의 화면 유지. 상태를 읽고 효과를 적용한다. Android만 본문이 있다</td><td><a href="system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a></td></tr>
     <tr><td><code>createSettingsStore(context): SettingsStore</code></td><td><code>data.settings</code> (<code>:core:data</code>)</td><td>설정을 영구 저장하고 변경을 알리는 키-값 저장소. <code>screen</code>·<code>rotation</code> 이 쓴다</td><td><a href="settings-persistence.html">설정 영구 저장</a></td></tr>

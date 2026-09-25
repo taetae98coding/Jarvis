@@ -6,25 +6,35 @@ import androidx.compose.foundation.style.contentPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisCard
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisLabeledValue
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisDimens
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun AppInfoCard(modifier: Modifier = Modifier) {
     val viewModel = koinViewModel<AppInfoViewModel>()
+    val update by viewModel.update.collectAsStateWithLifecycle()
 
-    AppInfoCard(appInfo = viewModel.appInfo, modifier = modifier)
+    AppInfoCard(
+        appInfo = viewModel.appInfo,
+        update = update,
+        onUpdateClick = viewModel::onUpdateClick,
+        modifier = modifier,
+    )
 }
 
 @Composable
 internal fun AppInfoCard(
     appInfo: AppInfo,
+    update: AppUpdateUiState,
+    onUpdateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     JarvisCard(
@@ -42,6 +52,7 @@ internal fun AppInfoCard(
         // 플랫폼이 값을 주지 못하면(macOS 밖 데스크톱) 빈 줄을 그리지 않는다(docs/common/app-info.html R7).
         if (appInfo.deviceName.isNotBlank()) JarvisLabeledValue(label = DeviceNameLabel, value = appInfo.deviceName)
         if (appInfo.deviceId.isNotBlank()) JarvisLabeledValue(label = DeviceIdLabel, value = appInfo.deviceId)
+        AppUpdateRow(state = update, onUpdateClick = onUpdateClick)
     }
 }
 
