@@ -12,7 +12,7 @@
 
 <header>
   <h1>앱 정보 카드</h1>
-  <p class="lead">홈 화면 맨 위 카드. 앱 이름, 버전, 지금 실행 중인 플랫폼을 보여준다.</p>
+  <p class="lead">홈 화면 맨 위 카드. 앱 이름, 버전, 지금 실행 중인 플랫폼, 그리고 이 앱이 돌고 있는 기기의 이름과 식별자를 보여준다.</p>
 </header>
 
 <nav class="toc">
@@ -35,6 +35,11 @@
   <footer>커밋 <code>503bff1</code> "Add home screen with app info card and keep-screen-awake toggle"에서 복원. 원문 지시는 기록되지 않아 커밋 본문 기준으로 옮겼다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>처음 시작에 DeviceName이랑 DeviceId도 넣으면 좋겠어.</p>
+  <footer>2026-09-25 대화. "처음 시작" 이 어디인지 되물었고 "앱시작 시 나오는 카드" 라는 답을 받았다 — 이 카드다. "DeviceName·DeviceId" 는 이 앱이 <em>돌고 있는</em> 기기(앱을 띄운 폰·시뮬레이터·Mac·브라우저)의 이름과 식별자로 읽었다. 기기 이름은 사용자가 이 기기를 다른 곳에서 찾을 때 쓰는 이름 — 데스크톱 <a href="emulator-control.html">기기 목록</a>과 MCP <code>device_list</code> 가 그 기기를 부르는 이름 — 과 맞추기로 했다(결정). 그래서 Android 는 모델명, iOS 시뮬레이터는 시뮬레이터 이름·UDID 다.</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
@@ -42,6 +47,9 @@
   <li><strong>R2.</strong> 앱 버전은 원본이 하나다. 화면, Android <code>versionName</code>, 데스크톱 <code>packageVersion</code>이 같은 값을 읽는다.</li>
   <li><strong>R3.</strong> 플랫폼 이름은 어느 타깃에서도 비어 있지 않다.</li>
   <li><strong>R4.</strong> 카드 아래에는 기능 그리드가 오고, 그리드는 창 너비에 따라 열 수가 바뀐다.</li>
+  <li><strong>R5.</strong> 카드의 플랫폼 줄 아래에 이 앱이 돌고 있는 기기의 이름("기기 이름")과 식별자("기기 식별자")를 한 줄씩 보여준다.</li>
+  <li><strong>R6.</strong> 기기 이름은 그 기기를 밖에서 부르는 이름과 같다 — Android 는 모델명(<code>SM-X906N</code>), iOS 시뮬레이터는 시뮬레이터 이름(<code>iPhone 18 Pro Max</code>), Mac 은 시스템 설정의 컴퓨터 이름. 기기 식별자는 그 기기에서 앱을 지우고 다시 깔아도 바뀌지 않는 값을 우선한다 — iOS 시뮬레이터는 UDID 라서 <code>device_list</code> 의 식별자와 같다.</li>
+  <li><strong>R7.</strong> Android·iOS·Web 과 macOS 데스크톱에서는 두 값이 비어 있지 않다. 값이 비어 있으면(macOS 밖 데스크톱) 그 줄을 그리지 않는다 — 빈 값을 보여주지 않는다.</li>
 </ol>
 
 <h2 id="behavior">화면·동작</h2>
@@ -52,19 +60,22 @@
     <tr><td>(제목)</td><td>Jarvis</td><td>고정 문자열</td></tr>
     <tr><td>앱 버전</td><td>예: <code>1.0.0</code></td><td><code>APP_VERSION</code> 상수</td></tr>
     <tr><td>플랫폼</td><td>예: <code>Android 37</code>, <code>iOS 18.0</code>, <code>JVM 21.0.2</code>, <code>Wasm (Kotlin/Wasm)</code></td><td><code>platformName</code> expect</td></tr>
+    <tr><td>기기 이름</td><td>예: <code>SM-X906N</code>, <code>iPhone 18 Pro Max</code>, <code>홍길동의 Mac Studio</code>, <code>MacIntel</code></td><td><code>readDeviceIdentity(context).name</code> expect</td></tr>
+    <tr><td>기기 식별자</td><td>예: <code>a1b2c3d4e5f60718</code>, <code>09CBE1B9-6133-41BA-9C53-1676674AD16A</code></td><td><code>readDeviceIdentity(context).id</code> expect</td></tr>
   </tbody>
 </table>
 
-<p>정적인 정보라 사용자 입력은 없다.</p>
+<p>정적인 정보라 사용자 입력은 없다. 기기 이름·식별자 줄은 값이 비어 있으면 빠진다(R7).</p>
 
 <h2 id="implementation">공통 구현</h2>
 
 <dl class="meta">
-  <dt>모델</dt><dd><code>AppInfo(version, platform)</code> (<code>domain/appinfo</code>). 화면은 <code>GetAppInfoUseCase</code>로 한 번 읽는다</dd>
+  <dt>모델</dt><dd><code>AppInfo(version, platform, deviceName, deviceId)</code> (<code>domain/appinfo</code>). 화면은 <code>GetAppInfoUseCase</code>로 한 번 읽는다</dd>
   <dt>UI</dt><dd><code>ui/appinfo/AppInfoCard.kt</code></dd>
   <dt>버전 원본</dt><dd><code>gradle/libs.versions.toml</code>의 <code>appVersion</code></dd>
   <dt>버전 생성</dt><dd><code>data</code>의 <code>generateAppVersion</code> 태스크가 <code>AppVersion.kt</code>에 <code>internal const val APP_VERSION</code>을 써 넣는다</dd>
   <dt>플랫폼 이름</dt><dd><code>internal expect val platformName: String</code> (<code>data/appinfo/PlatformName.kt</code>)</dd>
+  <dt>기기</dt><dd><code>internal expect fun readDeviceIdentity(context: PlatformContext): DeviceIdentity</code>, <code>internal data class DeviceIdentity(name, id)</code> (<code>data/appinfo/DeviceIdentity.kt</code>). Android 의 식별자가 <code>Context</code> 를 요구해서 <code>PlatformContext</code> 를 받는다(<a href="dependency-injection.html">의존성 주입</a> R5). <code>DefaultAppInfoRepository</code> 가 <code>PlatformContext</code> 를 받아 한 번만(<code>lazy</code>) 읽는다 — 데스크톱은 프로세스를 두 개 띄워 읽으므로 화면이 다시 만들어질 때마다 읽지 않는다</dd>
 </dl>
 
 <p>iOS 번들 버전(<code>MARKETING_VERSION</code>)만 Gradle과 연동되지 않는다. 화면에 보이는 값은 공용 <code>APP_VERSION</code>이고, 번들 버전은 <code>iosApp/Configuration/Config.xcconfig</code>에서 따로 관리한다. 자세한 내용은 <a href="../platform/ios.html#build">iOS 빌드</a>에 있다.</p>
@@ -81,6 +92,16 @@
   </tbody>
 </table>
 
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>기기 이름</th><th>기기 식별자</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>Build.MODEL</code></td><td><code>Settings.Secure.ANDROID_ID</code></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>시뮬레이터 <code>SIMULATOR_DEVICE_NAME</code>, 실물 <code>UIDevice.name</code></td><td>시뮬레이터 <code>SIMULATOR_UDID</code>, 실물 <code>identifierForVendor</code></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td><code>scutil --get ComputerName</code> (macOS)</td><td><code>ioreg</code> 의 <code>IOPlatformUUID</code> (macOS)</td></tr>
+    <tr><td>Web</td><td><span class="badge workaround">우회</span></td><td><code>navigator.platform</code></td><td>처음 열 때 만들어 <code>localStorage</code> 에 둔 UUID</td></tr>
+  </tbody>
+</table>
+
 <h2 id="verification">검증</h2>
 
 <table>
@@ -89,6 +110,9 @@
     <tr><td><code>PlatformNameTest.platformNameIsNotBlank</code></td><td>R3. 모든 타깃에서 이름이 비어 있지 않다</td><td><code>:feature:appinfo:data</code> <code>commonTest</code> (Android host 포함 전 타깃)</td></tr>
     <tr><td><code>JarvisAppTest.showsAppVersion</code></td><td>R1. <code>AppInfo.version</code>이 화면에 보인다</td><td><code>:app:ui</code> <code>skikoTest</code> (jvm / wasmJs / ios)</td></tr>
     <tr><td><code>JarvisAppTest.showsCurrentPlatformName</code></td><td>R1. <code>AppInfo.platform</code>이 화면에 보인다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.showsDeviceNameAndId</code></td><td>R5. <code>AppInfo.deviceName</code>·<code>deviceId</code> 가 라벨과 함께 화면에 보인다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.hidesBlankDeviceRows</code></td><td>R7. 두 값이 비어 있으면 "기기 이름"·"기기 식별자" 줄이 없다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>DeviceIdentityTest.deviceIdentityIsNotBlank</code></td><td>R7. 이름과 식별자가 비어 있지 않다</td><td><code>:feature:appinfo:data</code> <code>jvmTest</code>(macOS)·<code>iosTest</code>·<code>wasmJsTest</code>. Android 는 호스트 테스트에 <code>Context</code> 가 없어 빠진다(<a href="../platform/android.html#test">Android 테스트</a>)</td></tr>
   </tbody>
 </table>
 
@@ -97,7 +121,10 @@
 <ul>
   <li>Android는 마케팅 버전이 아니라 API 레벨 정수를 보여준다. 마케팅 버전은 시스템이 제공하지 않는다.</li>
   <li>Web은 브라우저 종류나 OS를 넣지 않는다. 필요하면 <code>navigator.userAgent</code>를 붙일 수 있다.</li>
-  <li>Android UI 테스트가 없어 R1은 Android에서 컴파일로만 보장된다. 이유는 <a href="../platform/android.html#test">Android 테스트</a>에 있다.</li>
+  <li>Android UI 테스트가 없어 R1·R5는 Android에서 컴파일로만 보장된다. 이유는 <a href="../platform/android.html#test">Android 테스트</a>에 있다.</li>
+  <li>기기 식별자는 <code>device_list</code> 의 식별자와 iOS 시뮬레이터에서만 같다. Android 의 adb 시리얼과 Android 에뮬레이터의 <code>emulator-5554</code>, 실물 iOS 의 UDID 는 앱이 읽을 수 없다(플랫폼 문서의 버린 후보).</li>
+  <li>데스크톱은 macOS 에서만 값이 있다. 다른 OS 에서는 두 줄이 빠진다(R7).</li>
+  <li>Web 의 식별자는 브라우저 저장소(<code>localStorage</code>)를 지우면 새 값이 된다. 브라우저에는 기기 식별자 API 가 없다.</li>
 </ul>
 
 <footer class="page">

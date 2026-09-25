@@ -251,15 +251,37 @@
 <h3>기술 조사</h3>
 <p><code>android.os.Build.VERSION</code>이 <code>SDK_INT</code>(API 레벨 정수)와 <code>RELEASE</code>(예: <code>"17"</code>)를 제공한다. 마케팅 이름은 시스템이 주지 않는다.</p>
 
+<p>기기 이름·식별자(공통 R5·R6) 후보. 목표는 데스크톱 <a href="#emulator-control">기기 목록</a>이 이 기기를 부르는 이름(<code>ro.product.model</code>)과 맞추는 것이다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>Build.MODEL</code></td><td>채택(이름). <code>ro.product.model</code> 그대로라 <code>SM-X906N</code> 처럼 기기 목록·<code>device_list</code> 의 이름과 같다. 권한 없음</td></tr>
+    <tr><td><code>Settings.Global.DEVICE_NAME</code></td><td>버림. 사용자가 설정에서 바꾸는 이름(예: "Galaxy Tab S8 Ultra")이라 기기 목록과 맞지 않고, 제조사에 따라 비어 있다</td></tr>
+    <tr><td><code>Build.MANUFACTURER + MODEL</code></td><td>버림. "samsung SM-X906N" 은 기기 목록과 달라진다</td></tr>
+    <tr><td><code>Settings.Secure.ANDROID_ID</code></td><td>채택(식별자). 16자리 16진수. API 26 부터 앱 서명 키·사용자·기기마다 값이 정해지고 앱을 지웠다 깔아도 같다. <code>ContentResolver</code> 가 필요해서 <code>PlatformContext</code> 를 받는다</td></tr>
+    <tr><td><code>Build.getSerial()</code> / <code>ro.serialno</code></td><td>버림. adb 시리얼(<code>R54T202XEHN</code>)과 같은 값이지만 API 29 부터 <code>READ_PRIVILEGED_PHONE_STATE</code>(시스템 앱 전용)가 필요해서 <code>SecurityException</code> 이다. <code>Build.SERIAL</code> 은 API 26 부터 <code>"unknown"</code> 이다</td></tr>
+    <tr><td><code>ro.boot.qemu.avd_name</code>(에뮬레이터 AVD 이름)</td><td>버림. 공개 API 가 없어 <code>SystemProperties</code> 리플렉션이나 <code>getprop</code> 프로세스가 필요하다. 에뮬레이터에서만 뜻이 있어 넣지 않았다</td></tr>
+  </tbody>
+</table>
+
 <h3>구현</h3>
-<pre><code>actual val platformName: String = "Android ${Build.VERSION.SDK_INT}"</code></pre>
-<p>API 레벨을 그대로 보여준다. 마케팅 버전이 아니라 <code>37</code> 같은 정수다. 앱 버전은 <code>versionName = libs.versions.appVersion</code>으로 공용 원본을 읽는다.</p>
+<pre><code>actual val platformName: String = "Android ${Build.VERSION.SDK_INT}"
+
+actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
+    DeviceIdentity(
+        name = Build.MODEL.orEmpty(),
+        id = Settings.Secure.getString(context.context.contentResolver, Settings.Secure.ANDROID_ID).orEmpty(),
+    )</code></pre>
+<p>API 레벨을 그대로 보여준다. 마케팅 버전이 아니라 <code>37</code> 같은 정수다. 앱 버전은 <code>versionName = libs.versions.appVersion</code>으로 공용 원본을 읽는다. 기기 이름은 모델명, 식별자는 <code>ANDROID_ID</code> 다(<code>feature/appinfo/data/src/androidMain/.../DeviceIdentity.android.kt</code>).</p>
 
 <h3>한계</h3>
-<p>해당 없음.</p>
+<ul>
+  <li>식별자가 adb 시리얼과 다르다. 이 기기를 <code>device_list</code> 에서 찾으려면 이름(모델명)으로 찾아야 한다.</li>
+  <li>에뮬레이터의 이름은 AVD 이름이 아니라 <code>sdk_gphone64_arm64</code> 같은 모델명이다.</li>
+</ul>
 
 <h3>검증</h3>
-<p><code>PlatformNameTest</code>가 <code>testAndroidHostTest</code>에서 돈다. 화면 표시(<code>JarvisAppTest</code>)는 <a href="#test">Android UI 테스트가 없어</a> 검증하지 않는다.</p>
+<p><code>PlatformNameTest</code>가 <code>testAndroidHostTest</code>에서 돈다. <code>DeviceIdentityTest</code> 는 호스트 테스트에 <code>Context</code> 가 없고 <code>Build.MODEL</code> 이 스텁에서 <code>null</code> 이라 Android 에서는 돌지 않는다. 화면 표시(<code>JarvisAppTest</code>)는 <a href="#test">Android UI 테스트가 없어</a> 검증하지 않는다. 수동 확인: 실물 Galaxy 에서 카드의 기기 이름이 <code>adb shell getprop ro.product.model</code> 과 같은지 본다.</p>
 </section>
 
 <section class="feature" id="keep-screen-awake">

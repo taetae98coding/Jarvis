@@ -39,8 +39,14 @@ internal fun AppInfoCard(
 
         JarvisLabeledValue(label = "앱 버전", value = appInfo.version)
         JarvisLabeledValue(label = "플랫폼", value = appInfo.platform)
+        // 플랫폼이 값을 주지 못하면(macOS 밖 데스크톱) 빈 줄을 그리지 않는다(docs/common/app-info.html R7).
+        if (appInfo.deviceName.isNotBlank()) JarvisLabeledValue(label = DeviceNameLabel, value = appInfo.deviceName)
+        if (appInfo.deviceId.isNotBlank()) JarvisLabeledValue(label = DeviceIdLabel, value = appInfo.deviceId)
     }
 }
+
+const val DeviceNameLabel = "기기 이름"
+const val DeviceIdLabel = "기기 식별자"
 
 /** 홈 맨 위의 머리 카드라 기능 카드보다 여백과 제목이 한 단계 크다. */
 internal object AppInfoCardDefaults {

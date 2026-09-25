@@ -82,7 +82,7 @@ import org.koin.mp.KoinPlatformTools
 
 // 화면 테스트는 저장소도 플랫폼도 모른다. 도메인 인터페이스만 가짜로 끼우면 되는 것이 :ui 가
 // :data 를 보지 않는다는 증거다.
-internal val TestAppInfo = AppInfo(version = "1.2.3-test", platform = "Test Platform")
+internal val TestAppInfo = AppInfo(version = "1.2.3-test", platform = "Test Platform", deviceName = "Test Device", deviceId = "test-device-id")
 
 /**
  * 가짜 리포지토리만 담은 Koin 으로 앱 전체를 띄운다.

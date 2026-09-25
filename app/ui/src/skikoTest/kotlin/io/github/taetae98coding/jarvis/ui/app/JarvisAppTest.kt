@@ -30,6 +30,8 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
+import io.github.taetae98coding.jarvis.ui.appinfo.DeviceIdLabel
+import io.github.taetae98coding.jarvis.ui.appinfo.DeviceNameLabel
 import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeNotificationStatus
 import io.github.taetae98coding.jarvis.domain.screen.SystemScreenAwakeStatus
@@ -73,6 +75,24 @@ class JarvisAppTest {
         setContent { TestJarvisApp() }
 
         onNodeWithText(TestAppInfo.platform).assertIsDisplayed()
+    }
+
+    @Test
+    fun showsDeviceNameAndId() = runComposeUiTest {
+        setContent { TestJarvisApp() }
+
+        onNodeWithText(DeviceNameLabel).assertIsDisplayed()
+        onNodeWithText(TestAppInfo.deviceName).assertIsDisplayed()
+        onNodeWithText(DeviceIdLabel).assertIsDisplayed()
+        onNodeWithText(TestAppInfo.deviceId).assertIsDisplayed()
+    }
+
+    @Test
+    fun hidesBlankDeviceRows() = runComposeUiTest {
+        setContent { TestJarvisApp(appInfo = TestAppInfo.copy(deviceName = "", deviceId = "")) }
+
+        onNodeWithText(DeviceNameLabel).assertDoesNotExist()
+        onNodeWithText(DeviceIdLabel).assertDoesNotExist()
     }
 
     @Test

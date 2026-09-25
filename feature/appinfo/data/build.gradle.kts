@@ -35,7 +35,14 @@ kotlin {
             dependencies {
                 // appInfoDataModule 이 도메인 인터페이스를 내보내므로 api 다.
                 api(projects.feature.appinfo.domain)
+                // PlatformContext. Android 의 기기 식별자가 Context 를 요구한다.
+                implementation(projects.core.data)
             }
+        }
+
+        wasmJsMain.dependencies {
+            // 기기 이름·식별자의 navigator, localStorage.
+            implementation(libs.kotlinx.browser)
         }
     }
 }

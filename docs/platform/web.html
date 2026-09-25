@@ -238,21 +238,43 @@
 </section>
 
 <section class="feature" id="app-info">
-<h2>앱 정보 <span class="badge ok">구현</span></h2>
+<h2>앱 정보 <span class="badge workaround">우회</span></h2>
 <p>공통 스펙: <a href="../common/app-info.html">앱 정보 카드</a></p>
 
 <h3>기술 조사</h3>
 <p>브라우저·OS 정보는 <code>navigator.userAgent</code>로 얻을 수 있지만 문자열 파싱이 필요하고 브라우저마다 다르다. Kotlin/Wasm 자체를 나타내는 정보는 런타임에 없다.</p>
 
-<h3>구현</h3>
-<pre><code>actual val platformName: String = "Wasm (Kotlin/Wasm)"</code></pre>
-<p>고정 문자열이다. 브라우저 종류나 OS는 넣지 않는다.</p>
+<p>기기 이름·식별자(공통 R5·R6) 후보. 브라우저는 추적을 막으려고 기기 식별자를 일부러 주지 않는다. 그래서 식별자는 앱이 스스로 만들어 보관하는 우회다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>navigator.platform</code></td><td>채택(이름). <code>MacIntel</code>·<code>Win32</code>·<code>Linux x86_64</code>·<code>iPhone</code>. 표준에서 "레거시" 로 표시됐지만 모든 브라우저가 계속 준다. Apple Silicon 에서도 <code>MacIntel</code> 이다</td></tr>
+    <tr><td><code>navigator.userAgentData.platform</code></td><td>버림. Chromium 계열만 있다(Safari·Firefox 는 <code>undefined</code>)</td></tr>
+    <tr><td><code>navigator.userAgent</code></td><td>버림. 카드 한 줄에 넣기에는 길고, 브라우저가 값을 얼리고 있다(UA reduction)</td></tr>
+    <tr><td>기기 식별자 API</td><td>없음. <code>navigator.deviceMemory</code>·<code>hardwareConcurrency</code> 같은 값은 기기를 가리지 못한다</td></tr>
+    <tr><td>처음 열 때 만든 UUID 를 <code>localStorage</code> 에 보관</td><td>채택(식별자, 우회). <code>kotlin.uuid.Uuid.random()</code>(브라우저의 <code>crypto.getRandomValues</code>)으로 만들고 <code>jarvis.deviceId</code> 키에 둔다. 같은 오리진의 같은 브라우저 프로필에서 같은 값이다</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<pre><code>actual val platformName: String = "Wasm (Kotlin/Wasm)"
+
+actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
+    DeviceIdentity(
+        name = window.navigator.platform,
+        id = localStorage.getItem(DeviceIdKey)
+            ?: Uuid.random().toString().also { localStorage.setItem(DeviceIdKey, it) },
+    )</code></pre>
+<p>플랫폼 이름은 고정 문자열이다. 브라우저 종류나 OS는 넣지 않는다. 기기 이름은 <code>navigator.platform</code>, 식별자는 처음 열 때 만든 UUID 다(<code>feature/appinfo/data/src/wasmJsMain/.../DeviceIdentity.wasmJs.kt</code>). <code>localStorage</code> 를 쓸 수 없으면(사생활 보호 모드의 일부 브라우저) 매번 새 UUID 다.</p>
 
 <h3>한계</h3>
-<p>브라우저를 구분해야 하면 <code>navigator.userAgent</code>를 붙여야 한다.</p>
+<ul>
+  <li>브라우저를 구분해야 하면 <code>navigator.userAgent</code>를 붙여야 한다.</li>
+  <li>식별자는 기기가 아니라 브라우저 프로필과 오리진에 묶인다. 저장소를 지우거나 다른 브라우저로 열면 새 값이다. 다른 타깃과 달리 밖에서 이 값으로 기기를 찾을 길이 없다.</li>
+</ul>
 
 <h3>검증</h3>
-<p><code>PlatformNameTest</code>, <code>JarvisAppTest.showsAppVersion</code>, <code>JarvisAppTest.showsCurrentPlatformName</code>이 <code>wasmJsBrowserTest</code>에서 돈다.</p>
+<p><code>PlatformNameTest</code>, <code>DeviceIdentityTest</code>, <code>JarvisAppTest.showsAppVersion</code>, <code>JarvisAppTest.showsCurrentPlatformName</code>, <code>JarvisAppTest.showsDeviceNameAndId</code>, <code>JarvisAppTest.hidesBlankDeviceRows</code> 가 <code>wasmJsBrowserTest</code>에서 돈다.</p>
 </section>
 
 <section class="feature" id="keep-screen-awake">

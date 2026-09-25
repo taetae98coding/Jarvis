@@ -240,15 +240,39 @@
 <h3>기술 조사</h3>
 <p><code>System.getProperty("java.version")</code>이 실행 중인 JRE 버전을, <code>os.name</code>이 OS 이름을 준다.</p>
 
+<p>기기 이름·식별자(공통 R5·R6) 후보. 데스크톱은 macOS 만 지원한다(CLAUDE.md). JVM 표준 API 에는 Mac 의 이름·하드웨어 식별자가 없어서 macOS 명령을 띄워 읽는다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>scutil --get ComputerName</code></td><td>채택(이름). 시스템 설정 &gt; 일반 &gt; 정보의 "이름"(예: <code>홍길동의 Mac Studio</code>). 이 Mac 에서 30ms 안에 끝난다</td></tr>
+    <tr><td><code>InetAddress.getLocalHost().hostName</code></td><td>버림. <code>xxx-MacStudio.local</code> 처럼 사람이 붙인 이름이 아니고, macOS 에서 역방향 DNS 조회를 타서 네트워크에 따라 몇 초를 멈춘다(JDK-7180557)</td></tr>
+    <tr><td><code>System.getenv("HOSTNAME")</code></td><td>버림. Finder 로 띄운 GUI 앱에는 없는 변수다</td></tr>
+    <tr><td><code>ioreg -rd1 -c IOPlatformExpertDevice</code> 의 <code>IOPlatformUUID</code></td><td>채택(식별자). 시스템 정보의 "하드웨어 UUID". 메인보드에 묶여 OS 를 다시 깔아도 같다. 30ms 안에 끝난다</td></tr>
+    <tr><td>같은 명령의 <code>IOPlatformSerialNumber</code></td><td>버림. 일련번호는 Apple 계정·수리 이력에 묶이는 값이라 화면에 늘 띄워 두기에는 UUID 보다 민감하다</td></tr>
+    <tr><td><code>sysctl kern.uuid</code></td><td>버림. 부팅마다 바뀌는 커널 세션 UUID 다</td></tr>
+    <tr><td>Java <code>NetworkInterface</code> 의 MAC 주소</td><td>버림. macOS 에서 Wi-Fi 는 무작위 MAC 을 쓸 수 있고, 인터페이스 순서가 바뀐다</td></tr>
+  </tbody>
+</table>
+
 <h3>구현</h3>
-<pre><code>actual val platformName: String = "JVM ${System.getProperty("java.version")}"</code></pre>
-<p>JRE 버전만 보여준다. OS 이름은 넣지 않는다. 앱 버전은 <code>packageVersion = libs.versions.appVersion</code>으로 공용 원본을 읽는다.</p>
+<pre><code>actual val platformName: String = "JVM ${System.getProperty("java.version")}"
+
+// 데스크탑은 macOS 만 지원한다. 다른 OS 에는 scutil·ioreg 가 없어서 실행이 실패하고 빈 값이 된다.
+actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
+    DeviceIdentity(
+        name = commandOutput("scutil", "--get", "ComputerName").trim(),
+        id = platformUuid(commandOutput("ioreg", "-rd1", "-c", "IOPlatformExpertDevice")),
+    )</code></pre>
+<p>JRE 버전만 보여준다. OS 이름은 넣지 않는다. 앱 버전은 <code>packageVersion = libs.versions.appVersion</code>으로 공용 원본을 읽는다. 기기 이름·식별자는 명령 둘을 띄워 표준 출력을 읽고(<code>feature/appinfo/data/src/jvmMain/.../DeviceIdentity.jvm.kt</code>), <code>ioreg</code> 출력에서는 <code>"IOPlatformUUID" = "…"</code> 줄의 따옴표 안만 뽑는다. 명령이 없거나 실패하면 예외 없이 빈 값이고, 카드는 그 줄을 그리지 않는다(공통 R7). 리포지토리가 <code>lazy</code> 로 한 번만 읽어서 홈 화면이 다시 만들어져도 프로세스를 다시 띄우지 않는다.</p>
 
 <h3>한계</h3>
-<p>해당 없음.</p>
+<ul>
+  <li>macOS 밖(Linux·Windows)에서는 두 줄이 빠진다. 분기를 만들지 않는 정책이다.</li>
+  <li>두 명령을 첫 화면을 그리는 스레드에서 동기로 띄운다. 이 Mac 에서 합쳐 60ms 안이지만, 시스템이 느리면 홈 화면 첫 프레임이 그만큼 늦는다.</li>
+</ul>
 
 <h3>검증</h3>
-<p><code>PlatformNameTest</code>, <code>JarvisAppTest.showsAppVersion</code>, <code>JarvisAppTest.showsCurrentPlatformName</code>이 <code>jvmTest</code>에서 돈다.</p>
+<p><code>PlatformNameTest</code>, <code>DeviceIdentityTest</code>, <code>JarvisAppTest.showsAppVersion</code>, <code>JarvisAppTest.showsCurrentPlatformName</code>, <code>JarvisAppTest.showsDeviceNameAndId</code>, <code>JarvisAppTest.hidesBlankDeviceRows</code> 가 <code>jvmTest</code>에서 돈다. <code>DeviceIdentityTest</code> 는 macOS 호스트에서만 값을 본다. <code>DeviceIdentityJvmTest</code> 가 <code>ioreg</code> 출력 예시에서 UUID 를 뽑는 파서를 확인한다.</p>
 </section>
 
 <section class="feature" id="keep-screen-awake">
