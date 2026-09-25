@@ -69,6 +69,10 @@ include(":feature:theme:domain")
 include(":feature:theme:data")
 include(":feature:theme:ui")
 
+include(":feature:profiling:domain")
+include(":feature:profiling:data")
+include(":feature:profiling:ui")
+
 include(":feature:mcp:domain")
 include(":feature:mcp:data")
 

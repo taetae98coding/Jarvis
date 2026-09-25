@@ -14,6 +14,7 @@ kotlin {
             api(projects.feature.rotation.ui)
             api(projects.feature.terminal.ui)
             api(projects.feature.theme.ui)
+            api(projects.feature.profiling.ui)
             implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }

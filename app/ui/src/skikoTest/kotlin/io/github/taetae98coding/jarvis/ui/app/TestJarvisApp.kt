@@ -24,6 +24,10 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
 import io.github.taetae98coding.jarvis.domain.emulator.PairingService
+import io.github.taetae98coding.jarvis.domain.profiling.Profiling
+import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
+import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
+import io.github.taetae98coding.jarvis.domain.profiling.profilingDomainModule
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationRepository
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationRepository
@@ -75,6 +79,7 @@ import io.github.taetae98coding.jarvis.domain.theme.themeDomainModule
 import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
+import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
 import io.github.taetae98coding.jarvis.ui.terminal.terminalUiModule
@@ -129,6 +134,7 @@ internal fun TestJarvisApp(
     projectRun: ProjectRunRepository = FakeProjectRunRepository(),
     theme: ThemeSettingsRepository = FakeThemeSettingsRepository(),
     themeAppearance: ThemeAppearanceRepository = ThemeAppearanceRepository { },
+    profiling: ProfilingRepository = FakeProfilingRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -161,6 +167,7 @@ internal fun TestJarvisApp(
             single<ProjectRunRepository> { projectRun }
             single<ThemeSettingsRepository> { theme }
             single<ThemeAppearanceRepository> { themeAppearance }
+            single<ProfilingRepository> { profiling }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -176,6 +183,7 @@ internal fun TestJarvisApp(
                 rotationDomainModule, rotationUiModule,
                 terminalDomainModule, terminalUiModule,
                 themeDomainModule, themeUiModule,
+                profilingDomainModule, profilingUiModule,
                 appUiModule,
             )
         }
@@ -276,6 +284,15 @@ internal class FakeThemeSettingsRepository(
     override fun setThemeMode(mode: ThemeMode) {
         themeMode.value = mode
     }
+}
+
+/** [profiling] 에 값을 넣기 전까지는 아무것도 흘리지 않아 카드가 초기값에 머문다. */
+internal class FakeProfilingRepository(
+    override val supportedMetrics: Set<ProfilingMetric> = ProfilingMetric.entries.toSet(),
+) : ProfilingRepository {
+    val profiling = MutableStateFlow<Profiling?>(null)
+
+    override fun observeProfiling() = profiling.filterNotNull()
 }
 
 internal class FakeSystemScreenAwakeRepository(

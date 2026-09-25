@@ -10,6 +10,8 @@ import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorScreenUseC
 import io.github.taetae98coding.jarvis.domain.emulator.ObserveEmulatorStatusUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.SendEmulatorGestureUseCase
 import io.github.taetae98coding.jarvis.domain.emulator.WakeDeviceUseCase
+import io.github.taetae98coding.jarvis.domain.profiling.ObserveProfilingUseCase
+import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationRepository
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationRepository
 import io.github.taetae98coding.jarvis.domain.rotation.ObserveDeviceRotationNotificationUseCase
@@ -86,6 +88,7 @@ class JarvisKoinTest {
         assertNotNull(koin.get<TerminalWorkspaceRepository>())
         assertNotNull(koin.get<ThemeSettingsRepository>())
         assertNotNull(koin.get<ThemeAppearanceRepository>())
+        assertNotNull(koin.get<ProfilingRepository>())
 
         assertNotNull(koin.get<GetAppInfoUseCase>())
         assertNotNull(koin.get<ObserveEmulatorStatusUseCase>())
@@ -118,6 +121,7 @@ class JarvisKoinTest {
         assertNotNull(koin.get<ObserveThemeModeUseCase>())
         assertNotNull(koin.get<SetThemeModeUseCase>())
         assertNotNull(koin.get<ApplyThemeModeUseCase>())
+        assertNotNull(koin.get<ObserveProfilingUseCase>())
 
         assertNotNull(koin.get<PlatformContext>())
     }

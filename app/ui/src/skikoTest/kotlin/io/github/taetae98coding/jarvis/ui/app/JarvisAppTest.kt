@@ -10,6 +10,8 @@ import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -56,7 +58,19 @@ import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationNotificationTes
 import io.github.taetae98coding.jarvis.ui.rotation.deviceRotationAngleTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.domain.theme.ThemeMode
+import io.github.taetae98coding.jarvis.domain.profiling.DiskActivity
+import io.github.taetae98coding.jarvis.domain.profiling.DiskSpace
+import io.github.taetae98coding.jarvis.domain.profiling.MemoryUsage
+import io.github.taetae98coding.jarvis.domain.profiling.NetworkThroughput
+import io.github.taetae98coding.jarvis.domain.profiling.Profiling
+import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
+import io.github.taetae98coding.jarvis.domain.profiling.ProfilingScope
+import io.github.taetae98coding.jarvis.domain.profiling.Reading
+import io.github.taetae98coding.jarvis.domain.profiling.Usage
 import io.github.taetae98coding.jarvis.ui.theme.themeModeOptionTestTag
+import io.github.taetae98coding.jarvis.ui.profiling.ProfilingMeasuring
+import io.github.taetae98coding.jarvis.ui.profiling.ProfilingUnavailable
+import io.github.taetae98coding.jarvis.ui.profiling.profilingRowTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeNotificationTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeToggleTestTag
@@ -249,6 +263,54 @@ class JarvisAppTest {
         waitForIdle()
 
         assertEquals(listOf(ThemeMode.SYSTEM, ThemeMode.DARK), applied)
+    }
+
+    @Test
+    fun profilingCardShowsEveryMetric() = runComposeUiTest {
+        val profiling = FakeProfilingRepository()
+        profiling.profiling.value = Profiling(
+            cpu = Reading.Available(Usage(22.6)),
+            memory = Reading.Available(MemoryUsage(usedBytes = 27_600_000_000, totalBytes = 34_400_000_000)),
+            gpu = Reading.Available(Usage(15.0)),
+            network = Reading.Available(NetworkThroughput(receivedBytesPerSecond = 1_200_000, sentBytesPerSecond = 30_000)),
+            diskActivity = Reading.Available(DiskActivity(readPercent = 3.0, writePercent = 1.0)),
+            diskSpace = Reading.Available(DiskSpace(freeBytes = 120_000_000_000, totalBytes = 494_000_000_000)),
+        )
+        setContent { TestJarvisApp(profiling = profiling) }
+
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.CPU)).assertTextEquals("CPU", "23%")
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.MEMORY)).assertTextEquals("메모리", "27.6 GB / 34.4 GB (80%)")
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.GPU)).assertTextEquals("GPU", "15%")
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.NETWORK)).assertTextEquals("네트워크", "↓ 1.2 MB/s · ↑ 30 KB/s")
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.DISK_ACTIVITY)).assertTextEquals("디스크 읽기·쓰기", "읽기 3% · 쓰기 1%")
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.DISK_SPACE)).assertTextEquals("디스크 남은 용량", "120 GB / 494 GB")
+    }
+
+    @Test
+    fun profilingCardMarksUnavailableAndMeasuring() = runComposeUiTest {
+        // 첫 표본이 오기 전이다. 지원 목록만으로 첫 프레임이 정해진다.
+        val profiling = FakeProfilingRepository(supportedMetrics = setOf(ProfilingMetric.CPU, ProfilingMetric.DISK_SPACE))
+        setContent { TestJarvisApp(profiling = profiling) }
+
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.CPU)).assertTextEquals("CPU", ProfilingMeasuring)
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.DISK_SPACE)).assertTextEquals("디스크 남은 용량", ProfilingMeasuring)
+        listOf(ProfilingMetric.MEMORY, ProfilingMetric.GPU, ProfilingMetric.NETWORK, ProfilingMetric.DISK_ACTIVITY).forEach {
+            onNodeWithTag(profilingRowTestTag(it)).assertTextContains(ProfilingUnavailable)
+        }
+    }
+
+    @Test
+    fun profilingCardMarksAppScope() = runComposeUiTest {
+        val profiling = FakeProfilingRepository()
+        profiling.profiling.value = Profiling.initial(ProfilingMetric.entries.toSet()).copy(
+            cpu = Reading.Available(Usage(5.0, ProfilingScope.APP)),
+            memory = Reading.Available(MemoryUsage(usedBytes = 1, totalBytes = 2)),
+        )
+        setContent { TestJarvisApp(profiling = profiling) }
+
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.CPU)).assertTextEquals("CPU (이 앱)", "5%")
+        // 기기 전체를 잰 줄에는 붙지 않는다.
+        onNodeWithTag(profilingRowTestTag(ProfilingMetric.MEMORY)).assertTextEquals("메모리", "1 B / 2 B (50%)")
     }
 
     @Test

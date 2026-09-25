@@ -68,6 +68,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | Wi-Fi 기기 페어링 | `DevicePairingRepository`, `PairingQrCode`, 유스케이스 4개 | `DevicePairingDataSource`, 호스트 에이전트 | `WifiPairingScreen`, `QrCode` |
 | 화면 꺼짐 방지 | `ScreenAwakeSettingsRepository`, 유스케이스 7개 | `SettingsStore`, `IdleInhibitor`, `SystemScreenAwakeDataSource` | `ScreenAwakeCard`, `SystemScreenAwakeCard` |
 | 화면 테마 | `ThemeMode`, `ThemeSettingsRepository`, `ThemeAppearanceRepository`, 유스케이스 3개 | `SettingsStore`(문자열), `ThemeAppearance` | `ThemeModeCard`, `appDarkTheme()` |
+| 프로파일링 | `Profiling`, `ProfilingRepository`, `ObserveProfilingUseCase` | `ProfilingSource`, `CounterDelta` | `ProfilingCard` |
 
 ## 의존성 주입 · ViewModel · 화면 이동
 
