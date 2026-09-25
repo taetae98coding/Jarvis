@@ -147,7 +147,8 @@ class JarvisAppTerminalPanelTest {
         setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace) }
         openTerminal()
         awaitSessions(terminal, 1)
-        val name = "아주 긴 패널 이름이라 목록 폭을 한참 넘는다"
+        // 폭을 라틴 글자로 채운다. Wasm 테스트에는 한글 폰트가 없어 한글 글자의 폭이 플랫폼마다 다르다.
+        val name = "아주 긴 패널 이름 — a panel name long enough to overflow the list"
         val directory = "/Users/someone/projects/very/deep/folder/that/overflows"
         addPanel(terminal, name = name, directory = directory)
         val row = onNodeWithTag(terminalPanelTestTag(workspace.workspace.value.selectedPanelId!!)).fetchSemanticsNode().size.width

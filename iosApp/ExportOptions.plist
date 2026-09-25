@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		이 머신에는 Apple Development 인증서만 있어서 등록 기기용으로 내보낸다. App Store·TestFlight 는
+		Apple Distribution 인증서를 만든 뒤 app-store-connect 로 바꾼다(docs/platform/ios.html#release-build).
+	-->
+	<key>method</key>
+	<string>debugging</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>teamID</key>
+	<string>4TV6L66XZ8</string>
+</dict>
+</plist>

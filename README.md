@@ -15,7 +15,7 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 | Navigation3 | `navigation3-ui` 1.1.2 (JetBrains), `navigation3-runtime` 1.1.7 (androidx) |
 | `compose-runtime-retain` | 1.12.1 (`retain` 은 `runtime` 과 다른 아티팩트다) |
 | Gradle | 9.7.1 |
-| compileSdk / targetSdk / minSdk | 37 / 37 / 24 |
+| compileSdk / targetSdk / minSdk | 37 / 37 / 33 |
 | JVM toolchain | 21 |
 
 모든 버전은 `gradle/libs.versions.toml`에서 관리한다.
@@ -109,7 +109,8 @@ Grid는 `GridCells.Adaptive`라 창 너비에 따라 열 수가 늘어난다.
 
 `gradle/libs.versions.toml`의 `appVersion` 하나가 원본이다.
 `data`가 이 값으로 `APP_VERSION` 상수를 생성하고, Android `versionName`과 데스크톱 `packageVersion`도 같은 값을 읽는다.
-iOS 번들 버전만 `iosApp/Configuration/Config.xcconfig`에서 따로 관리한다.
+iOS 번들 버전만 Xcode 가 Gradle 값을 읽지 못해 `iosApp/Configuration/Config.xcconfig`에 같은 값을 적고, 어긋나면 `./gradlew check`(`checkIosAppVersion`)가 실패한다.
+빌드 번호(Android `versionCode`, iOS `CURRENT_PROJECT_VERSION`)는 `MAJOR×10000 + MINOR×100 + PATCH`다.
 
 ### 설정
 
@@ -239,6 +240,24 @@ Kotlin 프레임워크를 만들어 앱에 임베드한다. 서명 팀은 `iosAp
 Android·iOS·Web에서 에뮬레이터 개수·목록·화면을 보려면 데스크탑 앱을 함께 띄워 둬야 한다.
 실물 Android 기기라면 `adb reverse tcp:47890 tcp:47890`도 필요하다.
 
+## release 빌드
+
+```bash
+./gradlew :androidApp:assembleRelease :androidApp:bundleRelease   # 서명된 APK·AAB (R8)
+./gradlew :desktopApp:packageReleaseDmg                           # macOS DMG
+./gradlew :webApp:wasmJsBrowserDistribution                       # webApp/build/dist/wasmJs/productionExecutable
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+  -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release \
+  -destination generic/platform=iOS -archivePath build/ios/Jarvis.xcarchive -allowProvisioningUpdates archive
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -exportArchive \
+  -archivePath build/ios/Jarvis.xcarchive -exportPath build/ios/export \
+  -exportOptionsPlist iosApp/ExportOptions.plist -allowProvisioningUpdates
+```
+
+Android 서명 키는 저장소 밖에 두고 `~/.gradle/gradle.properties`의 `jarvis.signing.storeFile` · `storePassword` · `keyAlias` · `keyPassword`로 알려 준다.
+없으면 미서명 산출물을 만들고 경고한다. 체크리스트와 플랫폼별 판정·배포 방법은 [release 빌드 스펙](docs/common/release-build.html)에 있다.
+앱 아이콘 원본은 `branding/`의 SVG이고 `branding/render-icons.sh`가 플랫폼 아이콘을 다시 만든다.
+
 ## 테스트
 
 | 소스셋 | 내용 | 실행 타깃 |
@@ -249,6 +268,7 @@ Android·iOS·Web에서 에뮬레이터 개수·목록·화면을 보려면 데�
 | `feature/emulator/data/src/jvmTest` | `EmulatorParsingTest`, `HostAgentServerTest` — 명령 출력 파싱과 에이전트 HTTP 왕복 | jvm |
 | `feature/emulator/ui/src/jvmTest` | `EmulatorDevicesViewModelTest` — 실행 잠금 규칙 (`viewModelScope`) | jvm |
 | `app/ui/src/skikoTest` | `JarvisAppTest` — 앱 버전·플랫폼 표시, 토글 동작, 설정 반영, 화면 이동, 에뮬레이터 목록·화면·제스처 | jvm / wasmJs / ios |
+| `app/ui/src/skikoTest` | `@IgnoreOnWasm` — 실제 시간(`delay`)을 기다리는 줄 코멘트 보내기 테스트 둘만 Wasm 에서 건너뛴다. Wasm 도 JVM 처럼 테스트의 `Dispatchers.Main` 을 `Unconfined` 로 둔다 | jvm / ios |
 | `app/ui/src/jvmTest` | `JarvisAppLaunchLockTest` — 실행 잠금이 화면에 그려지는 것 (Wasm 에서는 이벤트 루프가 막혀 JVM 에만 둔다) | jvm |
 | `shared/src/jvmTest` | `JarvisKoinTest` — 기능들의 Koin 모듈을 합친 그래프가 모든 정의를 해석한다 | jvm |
 
