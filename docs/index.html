@@ -82,6 +82,7 @@
 │   ├── terminal-side-bar.html       터미널 오른쪽 사이드 바 (접고 펴기, 파일 트리와 파일 탭, git stage·unstage·push 와 커밋 그래프, 커밋의 파일)
 │   ├── terminal-file-diff.html      파일 탭에 git diff 표시 (HEAD 대비 더한·지운 줄을 내용에 겹침)
 │   ├── terminal-commit-file.html    커밋 파일 탭 (커밋 시점 내용에 첫 부모 대비 diff 를 겹친 탭)
+│   ├── terminal-file-editor.html    파일 탭 편집·꾸며 보기·빠른 스크롤 (저장, 문법 색, 마크다운 미리보기, FastScroller)
 │   ├── terminal-line-comment.html   파일 탭 줄 코멘트를 Claude 에 보내기 (줄 번호로 코멘트, 패널에 모아 Claude 탭에 한 번에)
 │   ├── terminal-link.html           터미널 출력의 링크 열기 (OSC 8·본문 주소, 시스템 브라우저 / Jarvis 브라우저 탭 고르기)
 │   ├── terminal-scroll.html         터미널 휠 스크롤 (스크롤백, 마우스 보고 휠 이벤트, 대체 화면의 방향키)
@@ -377,6 +378,13 @@
       <td class="center"><a href="platform/web.html#terminal-commit-file"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/terminal-file-editor.html">파일 탭 편집·꾸며 보기·빠른 스크롤</a></td>
+      <td class="center"><a href="platform/android.html#terminal-file-editor"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-file-editor"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-file-editor"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-file-editor"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/terminal-line-comment.html">파일 탭 줄 코멘트를 Claude 에 보내기</a></td>
       <td class="center"><a href="platform/android.html#terminal-line-comment"><span class="badge no">불가</span></a></td>
       <td class="center"><a href="platform/ios.html#terminal-line-comment"><span class="badge no">불가</span></a></td>
@@ -499,6 +507,7 @@
   <li><a href="common/terminal-link.html">터미널 출력의 링크 열기</a><p>셸·Claude 탭 출력의 웹 주소(OSC 8·본문의 http(s)://)에 마우스를 올리면 밑줄이 생기고, 누르면 시스템 브라우저와 Jarvis 브라우저 탭 중 어디에서 열지 고른다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-scroll.html">터미널 휠 스크롤</a><p>셸·Claude 탭에서 휠·트랙패드·드래그로 스크롤한다. 셸 출력은 스크롤백을, 전체 화면 프로그램(Claude Code 전체 화면 모드·<code>vim</code>·<code>less</code>)에는 휠 이벤트(마우스 보고)나 방향키를 보낸다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-commit-file.html">커밋 파일 탭 (커밋의 파일 diff)</a><p>사이드 바에서 펼친 커밋의 파일 줄을 누르면 그 커밋 시점의 내용 위에 첫 부모 대비 더한·지운 줄을 겹친 "이름 @ 해시" 탭이 열린다. JVM(macOS)</p></li>
+  <li><a href="common/terminal-file-editor.html">파일 탭 편집·꾸며 보기·빠른 스크롤</a><p>파일 트리와 파일 탭에 빠른 스크롤 막대, 파일 탭에서 고쳐 저장하기, 코드 문법 색과 마크다운 미리보기. JVM(macOS)·Android</p></li>
   <li><a href="common/module-architecture.html">모듈 구조</a><p>기능마다 domain / data / ui 모듈, core 와 앱 셸, 빌드 컨벤션 플러그인</p></li>
   <li><a href="common/dependency-injection.html">의존성 주입</a><p>Koin 모듈로 리포지토리·유스케이스·ViewModel·라우트를 등록하고 주입한다</p></li>
   <li><a href="common/view-model.html">화면 상태 소유 (ViewModel)</a><p>화면 하나가 쓰는 상태와 유스케이스 호출을 ViewModel 이 소유한다</p></li>

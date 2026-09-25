@@ -67,6 +67,32 @@ import io.github.taetae98coding.jarvis.domain.terminal.LineComment
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalTab
 import io.github.taetae98coding.jarvis.domain.terminal.diffedLines
 import io.github.taetae98coding.jarvis.domain.terminal.sameLine
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import io.github.taetae98coding.jarvis.designsystem.component.JarvisFastScroller
+import io.github.taetae98coding.jarvis.designsystem.component.rememberFastScrollerAdapter
+import io.github.taetae98coding.jarvis.domain.terminal.SyntaxLanguage
+import io.github.taetae98coding.jarvis.domain.terminal.SyntaxToken
+import io.github.taetae98coding.jarvis.domain.terminal.highlightLines
+import io.github.taetae98coding.jarvis.domain.terminal.resolveRelativePath
+import io.github.taetae98coding.jarvis.domain.terminal.syntaxLanguageOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 const val TerminalFileViewerNoticeTestTag = "terminal:file-viewer:notice"
 
@@ -84,6 +110,30 @@ const val TerminalFileViewerCommentClearTestTag = "terminal:file-viewer:comment-
 
 const val TerminalFileViewerCommentSendTestTag = "terminal:file-viewer:comment-send"
 
+const val TerminalFileViewerScrollerTestTag = "terminal:file-viewer:scroller"
+
+const val TerminalFileViewerEditTestTag = "terminal:file-viewer:edit"
+
+const val TerminalFileViewerEditorTestTag = "terminal:file-viewer:editor"
+
+const val TerminalFileViewerSaveTestTag = "terminal:file-viewer:save"
+
+const val TerminalFileViewerCloseEditorTestTag = "terminal:file-viewer:close-editor"
+
+const val TerminalFileViewerDirtyTestTag = "terminal:file-viewer:dirty"
+
+const val TerminalFileViewerEditErrorTestTag = "terminal:file-viewer:edit-error"
+
+const val TerminalFileViewerDiskChangedTestTag = "terminal:file-viewer:disk-changed"
+
+const val TerminalFileViewerDiscardTestTag = "terminal:file-viewer:discard"
+
+const val TerminalFileViewerKeepEditingTestTag = "terminal:file-viewer:keep-editing"
+
+const val TerminalFileViewerPreviewTestTag = "terminal:file-viewer:preview"
+
+const val TerminalFileViewerSourceTestTag = "terminal:file-viewer:source"
+
 fun terminalFileViewerTestTag(tabId: Long): String = "terminal:file-viewer:${tabId}"
 
 fun terminalFileViewerAddedTestTag(number: Int): String = "terminal:file-viewer:added:${number}"
@@ -99,6 +149,8 @@ fun terminalFileViewerCommentTestTag(id: Long): String = "terminal:file-viewer:c
 fun terminalFileViewerCommentDeleteTestTag(id: Long): String = "terminal:file-viewer:comment-delete:${id}"
 
 fun terminalFileViewerCommentTargetTestTag(tabId: Long): String = "terminal:file-viewer:comment-target:${tabId}"
+
+private val FileToolbarHeight = 40.dp
 
 /** 코멘트를 보낼 수 있는 Claude 탭 하나. */
 internal data class ClaudeTabChoice(val tabId: Long, val name: String)
@@ -120,9 +172,24 @@ internal class FileLineComments(
 )
 
 /**
- * 파일 탭. 읽기 전용이고 줄바꿈 없이 가로·세로로 스크롤한다. [content] 가 null 이면 아직 읽는 중이다. [diff] 가 있으면
- * 더한·지운 줄을 내용에 겹치고 요약을 "[diffLabel] +n −m" 으로 붙인다(docs/common/terminal-file-diff.html, 커밋 파일 탭은
- * docs/common/terminal-commit-file.html). [lineComments] 가 null 이면 줄 코멘트를 남길 수 없다.
+ * 파일 탭의 편집(docs/common/terminal-file-editor.html E1–E8). [edit] 가 null 이면 읽기 보기다. 커밋 파일 탭처럼 고칠 수 없는
+ * 탭은 이 값 자체가 null 이다.
+ */
+internal class FileEditing(
+    val edit: FileEdit?,
+    val onStart: (text: String) -> Unit,
+    val onChange: (text: String) -> Unit,
+    val onDiskChanged: (text: String) -> Unit,
+    val onSave: () -> Unit,
+    val onDiscard: () -> Unit,
+)
+
+/**
+ * 파일 탭. 줄바꿈 없이 가로·세로로 스크롤하고, 파일 이름으로 고른 언어의 문법 색을 칠한다. [content] 가 null 이면 아직 읽는
+ * 중이다. [diff] 가 있으면 더한·지운 줄을 내용에 겹치고 요약을 "[diffLabel] +n −m" 으로 붙인다(docs/common/terminal-file-diff.html,
+ * 커밋 파일 탭은 docs/common/terminal-commit-file.html). [lineComments] 가 null 이면 줄 코멘트를 남길 수 없다.
+ * 마크다운 파일은 [markdownSource] 가 아니면 미리보기로 보이고, [editing] 이 있으면 고쳐 저장할 수 있다
+ * (docs/common/terminal-file-editor.html). [onOpenFile] 은 미리보기의 상대 경로 링크가 연다.
  */
 @Composable
 internal fun TerminalFileViewer(
@@ -131,11 +198,40 @@ internal fun TerminalFileViewer(
     diff: GitFileDiff?,
     diffLabel: String,
     lineComments: FileLineComments?,
+    editing: FileEditing?,
+    markdownSource: Boolean,
+    onMarkdownSourceChange: (Boolean) -> Unit,
+    onOpenFile: (String) -> Unit,
     onFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentOnFocus by rememberUpdatedState(onFocus)
     val changes = diff?.takeIf { it.hunks.isNotEmpty() }
+    val language = remember(tab.filePath) { tab.filePath?.let(::syntaxLanguageOf) }
+    val isMarkdown = language == SyntaxLanguage.Markdown
+    val edit = editing?.edit
+    val text = content as? FileContent.Text
+    val canEdit = editing != null && text != null && !text.truncated
+    var confirmDiscard by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+
+    if (edit != null && text != null) {
+        LaunchedEffect(text.text) { editing.onDiskChanged(text.text) }
+    }
+
+    val closeEditor: () -> Unit = {
+        if (edit?.dirty == true) confirmDiscard = true else editing?.onDiscard?.invoke()
+    }
+    val onLink = { url: String ->
+        when {
+            url.startsWith("http://") || url.startsWith("https://") || url.startsWith("mailto:") -> {
+                // 받을 앱·브라우저가 없으면 플랫폼 UriHandler 가 예외를 던진다.
+                runCatching { uriHandler.openUri(url) }
+                Unit
+            }
+            else -> tab.filePath?.let { resolveRelativePath(it, url) }?.let(onOpenFile) ?: Unit
+        }
+    }
 
     Column(
         modifier = modifier
@@ -148,26 +244,84 @@ internal fun TerminalFileViewer(
                 }
             },
     ) {
+        FileToolbar(
+            summary = changes?.takeIf { edit == null }?.let { "$diffLabel +${it.added} −${it.removed}" },
+            edit = edit,
+            isMarkdown = isMarkdown && edit == null && text != null,
+            markdownSource = markdownSource,
+            onMarkdownSourceChange = onMarkdownSourceChange,
+            onEdit = if (canEdit && edit == null) ({ editing?.onStart?.invoke(text.text) }) else null,
+            onSave = { editing?.onSave?.invoke() },
+            onClose = closeEditor,
+        )
+
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             when {
+                edit != null && editing != null -> FileEditor(
+                    edit = edit,
+                    language = language,
+                    // 버리기 창이 떠 있는 동안 창이 포커스를 가져가므로, 창이 닫히면 입력 칸이 다시 가져온다.
+                    focused = !confirmDiscard,
+                    onChange = editing.onChange,
+                    onSave = editing.onSave,
+                    onClose = closeEditor,
+                    modifier = Modifier.fillMaxSize(),
+                )
                 content == null -> Unit
                 content == FileContent.Binary -> FileViewerNotice("텍스트가 아닌 파일이라 보일 수 없습니다", Modifier.align(Alignment.Center))
                 // 디스크에서 지운 파일은 HEAD 의 줄을 모두 지운 줄로 보인다.
-                content == FileContent.Unreadable && changes != null -> Column {
-                    DiffSummary(changes, diffLabel)
-                    FileText(lines = emptyList(), diff = changes, lineComments = lineComments, modifier = Modifier.fillMaxWidth().weight(1f))
-                }
+                content == FileContent.Unreadable && changes != null -> FileText(
+                    text = "",
+                    lines = emptyList(),
+                    language = language,
+                    diff = changes,
+                    lineComments = lineComments,
+                    modifier = Modifier.fillMaxSize(),
+                )
                 content == FileContent.Unreadable -> FileViewerNotice("파일을 읽을 수 없습니다", Modifier.align(Alignment.Center))
                 content is FileContent.Text -> Column {
                     if (content.truncated) FileViewerNotice("앞 512 KiB 만 보입니다", Modifier.padding(JarvisTheme.dimens.spacing.s))
-                    if (changes != null) DiffSummary(changes, diffLabel)
-                    val lines = remember(content.text) { content.text.lines() }
-                    FileText(lines = lines, diff = changes, lineComments = lineComments, modifier = Modifier.fillMaxWidth().weight(1f))
+                    if (isMarkdown && !markdownSource) {
+                        MarkdownPreview(text = content.text, onLink = onLink, modifier = Modifier.fillMaxWidth().weight(1f))
+                    } else {
+                        val lines = remember(content.text) { content.text.lines() }
+                        FileText(
+                            text = content.text,
+                            lines = lines,
+                            language = language,
+                            diff = changes,
+                            lineComments = lineComments,
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        )
+                    }
                 }
             }
         }
 
-        if (lineComments != null && lineComments.total > 0) LineCommentBar(lineComments)
+        if (edit == null && lineComments != null && lineComments.total > 0) LineCommentBar(lineComments)
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("저장하지 않은 변경을 버릴까요?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDiscard = false
+                        editing?.onDiscard?.invoke()
+                    },
+                    modifier = Modifier.testTag(TerminalFileViewerDiscardTestTag),
+                ) {
+                    Text("버리기")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }, modifier = Modifier.testTag(TerminalFileViewerKeepEditingTestTag)) {
+                    Text("계속 편집")
+                }
+            },
+        )
     }
 }
 
@@ -181,15 +335,197 @@ private fun FileViewerNotice(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * 탭 내용 위 한 줄. 읽기 보기는 diff 요약과 미리보기·원문·편집 버튼, 편집 보기는 편집 상태와 닫기·저장 버튼이다. 보일 것이
+ * 없으면 줄이 없다([onEdit] 이 null 이면 편집할 수 없다).
+ */
 @Composable
-private fun DiffSummary(diff: GitFileDiff, label: String) {
-    Text(
-        text = "$label +${diff.added} −${diff.removed}",
-        style = JarvisTheme.typography.labelMedium,
-        color = JarvisTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = JarvisTheme.dimens.spacing.s, vertical = JarvisTheme.dimens.spacing.xs)
-            .testTag(TerminalFileViewerDiffSummaryTestTag),
-    )
+private fun FileToolbar(
+    summary: String?,
+    edit: FileEdit?,
+    isMarkdown: Boolean,
+    markdownSource: Boolean,
+    onMarkdownSourceChange: (Boolean) -> Unit,
+    onEdit: (() -> Unit)?,
+    onSave: () -> Unit,
+    onClose: () -> Unit,
+) {
+    if (edit == null && summary == null && !isMarkdown && onEdit == null) return
+
+    val labelStyle = JarvisTheme.typography.labelMedium
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = FileToolbarHeight)
+            .padding(horizontal = JarvisTheme.dimens.spacing.s),
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.s),
+        ) {
+            if (edit != null) {
+                Text(text = "편집 중", style = labelStyle, color = JarvisTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                if (edit.dirty) {
+                    Text(
+                        text = "수정됨",
+                        style = labelStyle,
+                        color = JarvisTheme.colorScheme.primary,
+                        maxLines = 1,
+                        modifier = Modifier.testTag(TerminalFileViewerDirtyTestTag),
+                    )
+                }
+                val error = edit.error
+                when {
+                    error != null -> Text(
+                        text = "저장하지 못했습니다: $error",
+                        style = labelStyle,
+                        color = JarvisTheme.colorScheme.error,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag(TerminalFileViewerEditErrorTestTag),
+                    )
+                    edit.diskChanged -> Text(
+                        text = "디스크의 파일이 바뀌었습니다 — 저장하면 덮어씁니다",
+                        style = labelStyle,
+                        color = JarvisTheme.colors.warning,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag(TerminalFileViewerDiskChangedTestTag),
+                    )
+                }
+            } else if (summary != null) {
+                Text(
+                    text = summary,
+                    style = labelStyle,
+                    color = JarvisTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.testTag(TerminalFileViewerDiffSummaryTestTag),
+                )
+            }
+        }
+
+        if (edit != null) {
+            TextButton(onClick = onClose, modifier = Modifier.testTag(TerminalFileViewerCloseEditorTestTag)) { Text("닫기") }
+            Button(
+                onClick = onSave,
+                enabled = edit.dirty && !edit.saving,
+                modifier = Modifier.testTag(TerminalFileViewerSaveTestTag),
+            ) {
+                Text(if (edit.saving) "저장 중…" else "저장")
+            }
+        } else {
+            if (isMarkdown) {
+                ModeButton(text = "미리보기", selected = !markdownSource, tag = TerminalFileViewerPreviewTestTag) { onMarkdownSourceChange(false) }
+                ModeButton(text = "원문", selected = markdownSource, tag = TerminalFileViewerSourceTestTag) { onMarkdownSourceChange(true) }
+            }
+            if (onEdit != null) {
+                JarvisIconButton(
+                    icon = JarvisIcons.Edit,
+                    contentDescription = "편집",
+                    onClick = onEdit,
+                    modifier = Modifier.testTag(TerminalFileViewerEditTestTag),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModeButton(text: String, selected: Boolean, tag: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = if (selected) JarvisTheme.colorScheme.primary else JarvisTheme.colorScheme.onSurfaceVariant,
+        ),
+        modifier = Modifier.testTag(tag),
+    ) {
+        Text(text = text, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+    }
+}
+
+/**
+ * 편집 보기(E2). 줄 번호 칸과 입력 칸을 한 세로 스크롤에 넣어 같이 움직이고, 입력 칸만 가로로 스크롤한다. 입력 칸의 글은
+ * [FileEditHost] 가 들고, 커서·고른 범위만 여기서 든다. 디스크를 따라 글이 바뀌면(E6) 커서를 글 길이 안으로 옮긴다.
+ */
+@Composable
+private fun FileEditor(
+    edit: FileEdit,
+    language: SyntaxLanguage?,
+    focused: Boolean,
+    onChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var value by remember { mutableStateOf(TextFieldValue(edit.text)) }
+    val shown = if (value.text == edit.text) {
+        value
+    } else {
+        TextFieldValue(edit.text, TextRange(value.selection.start.coerceAtMost(edit.text.length), value.selection.end.coerceAtMost(edit.text.length)))
+    }
+    val palette = syntaxPalette()
+    val transformation = language?.let { SyntaxVisualTransformation(it, palette) } ?: VisualTransformation.None
+    val lineCount = remember(edit.text) { edit.text.count { it == '\n' } + 1 }
+    val numbers = remember(lineCount) { (1..lineCount).joinToString("\n") { it.toString().padStart(lineCount.toString().length) } }
+    val vertical = rememberScrollState()
+    val horizontal = rememberScrollState()
+    val focusRequester = remember { FocusRequester() }
+    val style = JarvisTheme.codeTextStyle
+
+    LaunchedEffect(focused) { if (focused) focusRequester.requestFocus() }
+
+    BoxWithConstraints(modifier = modifier) {
+        val visibleHeight = maxHeight
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m),
+            modifier = Modifier.fillMaxSize().verticalScroll(vertical).padding(start = JarvisTheme.dimens.spacing.s),
+        ) {
+            Text(
+                text = numbers,
+                style = style,
+                color = JarvisTheme.colorScheme.onSurfaceVariant,
+                softWrap = false,
+                modifier = Modifier.padding(vertical = JarvisTheme.dimens.spacing.s),
+            )
+            BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                val visibleWidth = maxWidth
+                BasicTextField(
+                    value = shown,
+                    onValueChange = {
+                        value = it
+                        if (it.text != edit.text) onChange(it.text)
+                    },
+                    textStyle = style.copy(color = JarvisTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(JarvisTheme.colorScheme.primary),
+                    visualTransformation = transformation,
+                    modifier = Modifier
+                        .horizontalScroll(horizontal)
+                        // 가로 스크롤 안에서는 fillMaxWidth 가 먹지 않는다. 글 밖을 눌러도 입력 칸이 되게 보이는 영역만큼 넓힌다.
+                        .widthIn(min = visibleWidth)
+                        .heightIn(min = visibleHeight)
+                        .padding(vertical = JarvisTheme.dimens.spacing.s)
+                        .focusRequester(focusRequester)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when {
+                                event.key == Key.S && (event.isMetaPressed || event.isCtrlPressed) -> onSave()
+                                event.key == Key.Escape -> onClose()
+                                else -> return@onPreviewKeyEvent false
+                            }
+                            true
+                        }
+                        .testTag(TerminalFileViewerEditorTestTag),
+                )
+            }
+        }
+        JarvisFastScroller(
+            adapter = rememberFastScrollerAdapter(vertical),
+            modifier = Modifier.align(Alignment.CenterEnd).testTag(TerminalFileViewerScrollerTestTag),
+        )
+    }
 }
 
 /** 고르는 중인 줄. [anchor] 는 처음 누른 줄, [extent] 는 Shift 로 넓힌 끝이다. */
@@ -211,9 +547,25 @@ private sealed interface FileItem {
     }
 }
 
+/**
+ * 읽기 보기. [text] 는 [lines] 로 나누기 전의 글이다. 문법 색은 기본 디스패처에서 계산하고, 끝날 때까지 한 색으로(또는 옛
+ * 색으로) 보인다(H4).
+ */
 @Composable
-private fun FileText(lines: List<String>, diff: GitFileDiff?, lineComments: FileLineComments?, modifier: Modifier = Modifier) {
+private fun FileText(
+    text: String,
+    lines: List<String>,
+    language: SyntaxLanguage?,
+    diff: GitFileDiff?,
+    lineComments: FileLineComments?,
+    modifier: Modifier = Modifier,
+) {
     val rows = remember(lines, diff) { diffedLines(lines, diff) }
+    val lineTokens by produceState<List<List<SyntaxToken>>?>(initialValue = null, text, language) {
+        value = language?.let { withContext(Dispatchers.Default) { highlightLines(text, it) } }
+    }
+    val palette = syntaxPalette()
+    val listState = rememberLazyListState()
     val numberWidth = lines.size.toString().length
     val showMarkers = diff != null
     val horizontalScroll = rememberScrollState()
@@ -237,6 +589,7 @@ private fun FileText(lines: List<String>, diff: GitFileDiff?, lineComments: File
             // 가로 스크롤 안에서는 fillMaxWidth 가 먹지 않는다. 바탕이 보이는 폭 끝까지 칠해지게 최소 폭을 준다.
             val visibleWidth = maxWidth
             LazyColumn(
+                state = listState,
                 modifier = Modifier.horizontalScroll(horizontalScroll),
                 contentPadding = PaddingValues(vertical = JarvisTheme.dimens.spacing.s),
             ) {
@@ -244,6 +597,11 @@ private fun FileText(lines: List<String>, diff: GitFileDiff?, lineComments: File
                     when (val item = items[index]) {
                         is FileItem.Line -> FileLine(
                             row = item.row,
+                            text = when (val row = item.row) {
+                                is DiffedLine.Current -> highlightedLine(row.text, lineTokens?.getOrNull(row.number - 1), palette)
+                                // 지운 줄은 지금 글에 없으므로 그 줄만 따로 칠한다(H3).
+                                is DiffedLine.Removed -> highlightedLine(row.text, language?.let { highlightLines(row.text, it).firstOrNull() }, palette)
+                            },
                             numberWidth = numberWidth,
                             showMarker = showMarkers,
                             selected = item.selected,
@@ -275,6 +633,10 @@ private fun FileText(lines: List<String>, diff: GitFileDiff?, lineComments: File
                     }
                 }
             }
+            JarvisFastScroller(
+                adapter = rememberFastScrollerAdapter(listState),
+                modifier = Modifier.align(Alignment.CenterEnd).testTag(TerminalFileViewerScrollerTestTag),
+            )
         }
     }
 }
@@ -333,6 +695,7 @@ private fun PinnedToViewport(scroll: ScrollState, width: Dp, content: @Composabl
 @Composable
 private fun FileLine(
     row: DiffedLine,
+    text: AnnotatedString,
     numberWidth: Int,
     showMarker: Boolean,
     selected: Boolean,
@@ -341,9 +704,9 @@ private fun FileLine(
     modifier: Modifier = Modifier,
 ) {
     val style = JarvisTheme.codeTextStyle
-    val (number, marker, text) = when (row) {
-        is DiffedLine.Current -> Triple(row.number.toString(), if (row.added) "+" else " ", row.text)
-        is DiffedLine.Removed -> Triple("", "−", row.text)
+    val (number, marker) = when (row) {
+        is DiffedLine.Current -> row.number.toString() to if (row.added) "+" else " "
+        is DiffedLine.Removed -> "" to "−"
     }
     val background = when {
         selected -> JarvisTheme.colorScheme.primaryContainer
@@ -378,8 +741,8 @@ private fun FileLine(
                 if (showMarker) Text(text = marker, style = style, color = numberColor, softWrap = false)
             }
         }
-        // 탭 글자는 글꼴마다 폭이 달라 칸이 어긋나므로 공백 네 칸으로 편다.
-        Text(text = text.replace("\t", "    "), style = style, softWrap = false)
+        // 탭 글자는 글꼴마다 폭이 달라 칸이 어긋나므로 highlightedLine 이 공백 네 칸으로 편다.
+        Text(text = text, style = style, softWrap = false)
     }
 }
 

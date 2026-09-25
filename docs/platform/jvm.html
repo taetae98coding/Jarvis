@@ -65,6 +65,7 @@
     <li><a href="#terminal-side-bar">터미널 오른쪽 사이드 바 (파일·Git)</a></li>
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
+    <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-scroll">터미널 휠 스크롤</a></li>
@@ -1491,6 +1492,40 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>GitStatusParserTest</code>·<code>GitDataSourceTest</code>(임시 저장소에서 진짜 <code>git</code>)·<code>TerminalWorkspaceStoreTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalSideBarTest</code>. 실제 화면은 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-file-editor">
+<h2>파일 탭 편집·꾸며 보기·빠른 스크롤 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-file-editor.html">파일 탭 편집·꾸며 보기·빠른 스크롤</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>okio <code>FileSystem.SYSTEM.write(path)</code></td><td>채택. JVM 구현(<code>JvmSystemFileSystem</code>)은 <code>FileOutputStream</code> 으로 파일을 비우고 쓴다. 심볼릭 링크를 따라가고 권한·확장 속성을 그대로 둔다</td></tr>
+    <tr><td><code>java.nio.file.Files.writeString</code></td><td>버렸다. 같은 일을 하지만 JVM 전용이라, 공통 <code>OkioFileDataSource</code> 에 두면 Android 와 갈라진다</td></tr>
+    <tr><td>임시 파일 + <code>Files.move(ATOMIC_MOVE)</code></td><td>버렸다. 공통 스펙의 결정대로 링크·권한을 잃고 inode 가 바뀐다</td></tr>
+    <tr><td>빠른 스크롤: Compose <code>VerticalScrollbar</code>(<code>rememberScrollbarAdapter</code>)</td><td>버렸다. 데스크톱에만 있어 Android 와 모양·동작이 갈라지고, <code>LazyListState</code> 어댑터가 항목 높이를 어림하는 방식은 직접 그리는 것과 같다. 공통 <code>JarvisFastScroller</code> 의 <code>pointerInput</code> 은 Swing 마우스 이벤트를 <code>ComposeScene</code> 이 옮긴 것을 받는다</td></tr>
+    <tr><td>편집: Compose <code>BasicTextField</code></td><td>채택. 내부는 AWT <code>KeyEvent</code>·<code>InputMethodEvent</code>(한글 조합)를 <code>ComposeWindow</code> 가 넘기고, 복사·붙여넣기는 <code>Toolkit.getSystemClipboard</code> 다. ⌘S·Esc 는 <code>onPreviewKeyEvent</code> 로 받는다. 앱 메뉴 막대에는 ⌘S 가 없어 겹치지 않는다</td></tr>
+    <tr><td>링크 열기: <code>LocalUriHandler</code></td><td>채택. Compose 데스크톱의 <code>PlatformUriHandler</code> 가 <code>java.awt.Desktop.browse(URI)</code> 를 부른다. 실패하면 예외라 <code>runCatching</code> 으로 삼킨다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 <code>FileDataSource.kt</code>(<code>OkioFileDataSource.writeFile</code>). <code>File.jvm.kt</code> 는 바꾸지 않는다. 화면은 모두 commonMain</dd>
+  <dt>동작</dt><dd>저장은 <code>Dispatchers.IO</code> 에서 쓴다. 파일 내용은 <code>FilePollInterval</code>(2초) 폴링이라, 쓰고 나면 데이터 소스 안 신호로 곧장 다시 읽는다(E8)</dd>
+  <dt>실패</dt><dd><code>IOException</code>(권한 없음, 폴더가 사라짐)이면 <code>Result.failure</code> 로 E4 문구</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>다른 프로그램의 변경은 최대 2초 늦게 E6 에 잡힌다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-file-editor.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>SyntaxHighlightTest</code>·<code>MarkdownParserTest</code>, <code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>OkioFileDataSourceTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalFileEditorTest</code>. 색·끌기·IME 는 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
 </section>
 
 <section class="feature" id="terminal-line-comment">

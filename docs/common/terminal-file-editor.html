@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>파일 탭 편집·꾸며 보기·빠른 스크롤 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>파일 탭 편집·꾸며 보기·빠른 스크롤</span></nav>
+
+<header>
+  <h1>파일 탭 편집·꾸며 보기·빠른 스크롤</h1>
+  <p class="lead">사이드 바의 파일 트리와 파일 탭 오른쪽에 끌어서 옮기는 빠른 스크롤 막대를 두고, 파일 탭에서 "편집" 을 눌러 내용을 고쳐 저장하며, 코드 파일은 문법 색으로, 마크다운 파일은 렌더링한 미리보기로 보인다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>파일 매니저에서 FastScroller 추가하고 edit 할 수 있는 기능 추가해줘. 그리고 md, kt, swift 같은 파일들 예쁘게 보도록 구현할 수 있어?</p>
+  <footer>2026-09-25 대화.</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<dl class="meta">
+  <dt>파일 매니저</dt><dd><a href="terminal-side-bar.html">사이드 바</a>의 "파일" 구획(트리)과 거기서 연 파일 탭을 함께 가리킨다</dd>
+  <dt>빠른 스크롤 막대</dt><dd>지시의 "FastScroller". 목록 오른쪽 끝의 세로 막대와 그 안의 손잡이. 손잡이를 끌면 목록이 그 비율의 자리로 곧장 옮겨 간다</dd>
+  <dt>읽기 보기</dt><dd>파일 탭의 기존 화면(<a href="terminal-side-bar.html">사이드 바</a> R11, diff·줄 코멘트 포함). 마크다운 파일에서는 "원문" 이라고 부른다</dd>
+  <dt>편집 보기</dt><dd>"편집" 을 눌러 들어가는, 파일 전체를 고칠 수 있는 글 입력 칸</dd>
+  <dt>미리보기</dt><dd>마크다운 파일을 제목·목록·표·코드 블록 등으로 그린 화면</dd>
+  <dt>문법 색</dt><dd>확장자로 고른 언어의 키워드·문자열·주석·숫자 등에 다른 색을 칠하는 것</dd>
+</dl>
+
+<h2 id="requirements">요구사항</h2>
+
+<h3>빠른 스크롤 막대</h3>
+<ol>
+  <li><strong>S1.</strong> 파일 트리, 파일 탭의 읽기 보기·편집 보기·미리보기는 내용이 보이는 높이보다 길면 오른쪽 끝에 빠른 스크롤 막대를 보인다. 내용이 다 보이면 막대가 없다.</li>
+  <li><strong>S2.</strong> 손잡이 높이는 (보이는 높이 ÷ 전체 높이) × 막대 높이이고 <code>FastScrollerMinThumb</code>(32dp) 보다 작지 않다. 손잡이 위치는 스크롤한 비율이다. 목록을 휠·드래그로 스크롤하면 손잡이가 따라간다.</li>
+  <li><strong>S3.</strong> 손잡이를 끌면 끈 만큼의 비율로 내용이 곧장 옮겨 간다. 손잡이 밖의 막대를 누르면 손잡이 가운데가 누른 자리로 가게 옮기고, 떼지 않고 끌면 이어서 끈다.</li>
+  <li><strong>S4.</strong> 막대는 평소 옅게(<code>onSurfaceVariant</code> 38%) 보이고, 마우스를 올리거나 끄는 동안 짙게(70%)·넓게 보인다. 막대는 내용 위에 겹쳐 그려서 내용 폭을 줄이지 않는다.</li>
+</ol>
+
+<h3>편집</h3>
+<ol>
+  <li><strong>E1.</strong> 작업 트리 파일 탭(커밋 파일 탭이 아닌 것)의 내용이 텍스트이고 잘리지 않았으면(<code>truncated</code> 가 아니면) 탭 위 도구 줄에 "편집" 버튼이 있다. 바이너리·읽을 수 없음·512 KiB 로 잘린 파일, 커밋 파일 탭에는 없다.</li>
+  <li><strong>E2.</strong> "편집" 을 누르면 편집 보기로 바뀐다. 파일 전체가 고정폭 글자(<code>codeTextStyle</code>)로, 왼쪽에 줄 번호와 함께, 줄바꿈 없이 가로·세로로 스크롤되는 입력 칸에 들어가고 커서가 그 칸에 간다. 문법 색(H1)을 입력 칸에도 칠한다. diff 표시·요약과 줄 코멘트는 편집 보기에서 보이지 않는다.</li>
+  <li><strong>E3.</strong> 도구 줄의 "저장" 또는 ⌘S·Ctrl+S 가 입력 칸의 글자 전체를 UTF-8 로 그 파일에 덮어쓴다. 바뀐 것이 없으면 "저장" 은 누를 수 없고 단축키는 아무 일도 하지 않는다. 저장하는 동안 "저장 중…" 이고, 끝나면 편집 보기에 남은 채 "수정됨" 표시가 사라진다.</li>
+  <li><strong>E4.</strong> 저장이 실패하면 입력 칸의 글자를 그대로 두고 도구 줄에 "저장하지 못했습니다: &lt;오류&gt;" 를 보인다. 다음 편집·저장에서 문구가 사라진다.</li>
+  <li><strong>E5.</strong> 저장하지 않은 변경이 있으면 도구 줄에 "수정됨" 이 보인다. "닫기" 또는 Esc 는 변경이 없으면 곧장 읽기 보기로 돌아가고, 있으면 "저장하지 않은 변경을 버릴까요?" 창을 띄운다. 창의 "버리기" 는 변경을 버리고 읽기 보기로, "계속 편집" 은 창만 닫는다.</li>
+  <li><strong>E6.</strong> 편집 보기에 있는 동안 디스크의 파일이 바뀌면(R13 의 간격 안), 저장하지 않은 변경이 없으면 입력 칸을 새 내용으로 바꾸고, 있으면 입력 칸을 두고 "디스크의 파일이 바뀌었습니다 — 저장하면 덮어씁니다" 를 보인다. 저장한 직후 돌아온 자기 저장 결과는 바뀐 것으로 치지 않는다.</li>
+  <li><strong>E7.</strong> 편집 중인 글자와 편집 보기 여부는 탭마다 따로이고, 같은 그룹의 다른 탭을 골랐다 돌아오거나 터미널 화면을 떠났다 돌아와도 남는다. 탭을 닫으면 버린다. 앱을 끄면 저장하지 않은 변경은 남지 않는다.</li>
+  <li><strong>E8.</strong> 저장이 끝나면 읽기 보기는 폴링 간격을 기다리지 않고 곧장 저장한 내용을 다시 읽는다.</li>
+</ol>
+
+<h3>문법 색</h3>
+<ol>
+  <li><strong>H1.</strong> 파일 탭의 읽기 보기와 편집 보기는 파일 이름으로 고른 언어(아래 표)의 토큰을 색으로 가른다: 키워드, 타입(대문자로 시작하는 이름), 함수 호출, 문자열, 숫자, 주석, 애노테이션(<code>@</code>·전처리기·셸 변수), 상수(<code>true</code>·<code>null</code> 등), 속성 키(JSON·YAML·TOML·XML 속성), 태그(XML·HTML).</li>
+  <li><strong>H2.</strong> 여러 줄에 걸친 블록 주석·여러 줄 문자열(<code>"""…"""</code>, 템플릿 리터럴, 원시 문자열)은 줄을 넘어서도 이어서 칠한다.</li>
+  <li><strong>H3.</strong> 표에 없는 파일은 예전처럼 한 색이다. diff 의 지운 줄은 그 줄만 따로 칠한다. 바탕색(diff·고른 줄)은 문법 색과 겹쳐 그대로 보인다.</li>
+  <li><strong>H4.</strong> 색은 라이트·다크 테마마다 따로 정한 팔레트를 쓴다. 읽기 보기는 색을 계산하는 동안 한 색으로 먼저 보이고, 다 되면 색을 입힌다. 편집 보기는 <code>EditorHighlightMaxChars</code>(200,000 글자)를 넘으면 칠하지 않는다.</li>
+</ol>
+
+<table>
+  <thead><tr><th>언어</th><th>파일</th></tr></thead>
+  <tbody>
+    <tr><td>Kotlin</td><td><code>.kt</code> <code>.kts</code></td></tr>
+    <tr><td>Swift</td><td><code>.swift</code></td></tr>
+    <tr><td>Java·Groovy</td><td><code>.java</code> <code>.gradle</code> <code>.groovy</code></td></tr>
+    <tr><td>JavaScript·TypeScript</td><td><code>.js</code> <code>.jsx</code> <code>.mjs</code> <code>.cjs</code> <code>.ts</code> <code>.tsx</code></td></tr>
+    <tr><td>C 계열</td><td><code>.c</code> <code>.h</code> <code>.cc</code> <code>.cpp</code> <code>.hpp</code> <code>.m</code> <code>.mm</code></td></tr>
+    <tr><td>Go · Rust · Python</td><td><code>.go</code> · <code>.rs</code> · <code>.py</code></td></tr>
+    <tr><td>셸</td><td><code>.sh</code> <code>.bash</code> <code>.zsh</code>, 이름 <code>.zshrc</code> <code>.bashrc</code> <code>.profile</code> <code>gradlew</code></td></tr>
+    <tr><td>JSON · YAML · TOML</td><td><code>.json</code> · <code>.yml</code> <code>.yaml</code> · <code>.toml</code> <code>.properties</code> <code>.ini</code></td></tr>
+    <tr><td>XML·HTML</td><td><code>.xml</code> <code>.html</code> <code>.htm</code> <code>.svg</code> <code>.plist</code></td></tr>
+    <tr><td>Markdown</td><td><code>.md</code> <code>.markdown</code> (원문 보기의 제목·코드·링크·인용·목록 표시)</td></tr>
+  </tbody>
+</table>
+
+<h3>마크다운 미리보기</h3>
+<ol>
+  <li><strong>M1.</strong> <code>.md</code>·<code>.markdown</code> 파일 탭(커밋 파일 탭 포함)은 미리보기로 열린다. 도구 줄의 "미리보기"·"원문" 으로 바꾸고, 원문은 읽기 보기(문법 색·diff·줄 코멘트 그대로)다. 고른 쪽은 탭마다 앱이 켜져 있는 동안 남는다.</li>
+  <li><strong>M2.</strong> 미리보기가 그리는 것: ATX(<code>#</code>~<code>######</code>)·setext(<code>===</code>·<code>---</code>) 제목, 문단(줄바꿈은 공백, 줄 끝 공백 둘·<code>\</code> 는 줄바꿈), <code>**굵게**</code>·<code>*기울임*</code>·<code>~~취소선~~</code>·<code>`코드`</code>, 링크 <code>[글](주소)</code>·<code>&lt;주소&gt;</code>·본문의 <code>http(s)://</code>, 이미지는 "🖼 대체 글" 링크, 글머리·번호 목록(중첩)과 작업 목록 <code>- [ ]</code>·<code>- [x]</code>(☐·☑), 인용 <code>&gt;</code>(중첩), 울타리 코드 블록(<code>```언어</code> — 언어가 H1 표에 있으면 문법 색)·들여쓴 코드 블록, 가로줄, GFM 표(열 정렬 <code>:--</code>·<code>:-:</code>·<code>--:</code>). 그 밖(HTML 태그, 각주, 수식)은 글자 그대로 보인다.</li>
+  <li><strong>M3.</strong> 링크를 누르면 <code>http</code>·<code>https</code>·<code>mailto</code> 는 시스템 브라우저로 열고, 상대 경로(<code>docs/a.md</code>, <code>../README.md</code>)는 이 파일의 폴더 기준으로 푼 파일의 파일 탭을 연다(<a href="terminal-side-bar.html">R9</a>). <code>#</code> 로 시작하는 문서 안 링크는 아무 일도 하지 않는다.</li>
+  <li><strong>M4.</strong> 미리보기 글자는 골라 복사할 수 있고, 디스크가 바뀌면(R13) 다시 그린다. 파일이 잘렸으면 "앞 512 KiB 만 보입니다" 가 붙고 읽은 만큼만 그린다. diff 요약(D2)은 미리보기에서도 도구 줄에 보인다.</li>
+  <li><strong>M5.</strong> 미리보기에서도 "편집" 을 누를 수 있고, 편집 보기(E2)는 원문을 고친다. 편집을 마치면 들어가기 전의 보기(미리보기·원문)로 돌아간다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  새 파일·폴더 만들기, 이름 바꾸기·지우기(트리 편집), 되돌리기·다시하기 기록(입력 칸 기본 동작 말고), 찾기·바꾸기, 자동 들여쓰기·괄호 짝 넣기, 자동 저장, 커밋 파일 탭 편집, 이미지 불러와 그리기, 미리보기와 원문 나란히 보기, 가로 빠른 스크롤. 지시는 "edit 할 수 있는 기능" 이라 열린 파일의 내용을 고쳐 저장하는 것까지로 둔다. 파일 만들기·지우기는 셸 탭에서 한다.
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre><code>┌ 파일 탭: 읽기 보기 ───────────────────────────┐
+│ HEAD 대비 +2 −1            [미리보기|원문] [✎]  │ ← 도구 줄
+│    1   package io.github…                   ▐ │
+│    2   fun main() {                         ▐ │ ← 빠른 스크롤 막대
+│    3 +     println("hi")                    ▐ │
+└─────────────────────────────────────────────────┘
+
+┌ 파일 탭: 편집 보기 ───────────────────────────┐
+│ 편집 중 · 수정됨               [닫기] [저장]    │
+│    1 │package io.github…                    ▐ │
+│    2 │fun main() {▌                         ▐ │
+└─────────────────────────────────────────────────┘</code></pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>도구 줄</td><td>탭 내용 위 한 줄. 왼쪽에 diff 요약(D2) 또는 편집 상태("편집 중", "수정됨", 경고·오류 문구), 오른쪽에 버튼. 요약도 버튼도 없으면 줄이 없다</td></tr>
+    <tr><td>읽기 버튼</td><td>마크다운이면 "미리보기"·"원문" 두 글자 버튼(고른 쪽 <code>primary</code>), E1 을 만족하면 "편집" 아이콘 버튼(<code>JarvisIcons.Edit</code>)</td></tr>
+    <tr><td>편집 버튼</td><td>"닫기"(<code>TextButton</code>), "저장"·"저장 중…"(<code>Button</code>)</td></tr>
+    <tr><td>문구</td><td>"편집 중", "수정됨"(<code>primary</code>), "디스크의 파일이 바뀌었습니다 — 저장하면 덮어씁니다"(<code>JarvisTheme.colors.warning</code>), "저장하지 못했습니다: …"(<code>error</code>). 모두 <code>labelMedium</code></td></tr>
+    <tr><td>버리기 창</td><td>제목 "저장하지 않은 변경을 버릴까요?", 버튼 "계속 편집"·"버리기"</td></tr>
+    <tr><td>빠른 스크롤 막대</td><td>폭 16dp 의 누를 수 있는 영역 오른쪽에 손잡이. 손잡이 폭 평소 4dp, 올리거나 끌 때 8dp, 모양 <code>CircleShape</code></td></tr>
+    <tr><td>미리보기</td><td>제목 h1 <code>headlineSmall</code>·h2 <code>titleLarge</code>·h3 <code>titleMedium</code>·h4~6 <code>titleSmall</code>(h1·h2 아래 가는 줄), 문단 <code>bodyMedium</code>, 코드 <code>codeTextStyle</code> 에 <code>surfaceContainer</code> 바탕, 인용 왼쪽 3dp <code>outlineVariant</code> 막대와 <code>onSurfaceVariant</code> 글자, 링크 <code>primary</code> 밑줄</td></tr>
+    <tr><td>테스트 태그</td><td><code>terminal:files:scroller</code>, <code>terminal:file-viewer:scroller</code>, <code>terminal:file-viewer:edit</code>, <code>terminal:file-viewer:editor</code>, <code>terminal:file-viewer:save</code>, <code>terminal:file-viewer:close-editor</code>, <code>terminal:file-viewer:dirty</code>, <code>terminal:file-viewer:edit-error</code>, <code>terminal:file-viewer:disk-changed</code>, <code>terminal:file-viewer:discard</code>, <code>terminal:file-viewer:keep-editing</code>, <code>terminal:file-viewer:preview</code>, <code>terminal:file-viewer:source</code>, <code>terminal:file-viewer:markdown</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd>
+    <code>FileRepository.writeFile(path, text): Result&lt;Unit&gt;</code>(<code>suspend</code> 명령)과 <code>WriteFileUseCase</code>.
+    순수 함수 <code>syntaxLanguageOf(path): SyntaxLanguage?</code>, <code>highlightSyntax(text, language): List&lt;SyntaxToken&gt;</code>(전체 글 기준 위치),
+    <code>highlightLines(text, language): List&lt;List&lt;SyntaxToken&gt;&gt;</code>(줄 기준 위치, 줄 나누기는 <code>String.lines()</code> 와 같다),
+    <code>parseMarkdown(text): List&lt;MarkdownBlock&gt;</code>(블록: 제목·문단·코드·인용·목록·표·가로줄, 인라인: 글·코드·강조·굵게·취소선·링크·이미지·줄바꿈),
+    <code>resolveRelativePath(file, link): String?</code>(M3)</dd>
+  <dt>data</dt><dd>
+    <code>OkioFileDataSource.writeFile</code> 가 <code>FileSystem.write(path)</code> 로 덮어쓰고, 성공하면 그 경로의 <code>observeFile</code> 에 다시 읽을 신호를 보낸다(E8).
+    <code>UnsupportedFileDataSource.writeFile</code> 은 실패다</dd>
+  <dt>UI</dt><dd>
+    <code>:core:designsystem</code> 의 <code>JarvisFastScroller</code>(<code>LazyListState</code>·<code>ScrollState</code> 두 가지 입력).
+    <code>FileEditHost</code>(앱 수명 싱글턴, 탭 id 마다 편집 상태·저장. <code>LineCommentHost</code> 와 같은 모양으로 화면을 떠나도 남는다 — E7)와
+    <code>TerminalViewModel</code> 의 탭별 마크다운 보기 선택(M1).
+    <code>TerminalFileViewer</code> 가 도구 줄·읽기 보기·<code>FileEditor</code>·<code>MarkdownPreview</code> 를 고른다. 색은 <code>SyntaxPalette</code>(라이트·다크)</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 문법 색과 마크다운은 직접 짠 가벼운 해석기로 한다.</strong>
+  <code>dev.snipme:highlights</code>, <code>com.mikepenz:multiplatform-markdown-renderer</code> 를 버렸다. 둘 다 Compose Multiplatform 버전에 묶여 있어 1.12.1 과 맞는 판을 따로 확인해야 하고, UI 모듈은 wasmJs 까지 컴파일하므로 네 타깃을 다 퍼블리시해야 한다. 또 읽기 보기는 diff·줄 코멘트를 줄마다 겹치므로 렌더러가 통째로 그리는 화면을 쓸 수 없고 토큰 위치만 필요하다. 해석기는 domain 의 순수 함수라 <code>commonTest</code> 로 확인한다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 편집 보기는 파일 전체를 입력 칸 하나에 넣는다.</strong>
+  줄마다 입력 칸을 두는 방식은 줄을 넘는 고르기·붙여넣기·지우기를 직접 만들어야 한다. 전체를 하나로 두면 고르기·복사·붙여넣기·실행 취소를 Compose 입력 칸이 준다. 잘린 파일(512 KiB 초과)은 뒷부분을 모르므로 편집하지 않는다(E1).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 저장은 원자적 이동 없이 그 파일에 바로 덮어쓴다.</strong>
+  임시 파일에 쓰고 옮기는 방식은 심볼릭 링크를 일반 파일로 바꾸고, 하드 링크를 끊고, 권한·확장 속성을 잃는다. 편집 대상은 사용자가 셸에서도 만지는 작업 트리 파일이라 원래 파일을 그대로 두는 쪽을 골랐다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 빠른 스크롤 막대는 직접 그린다.</strong>
+  Compose 의 <code>VerticalScrollbar</code> 는 데스크톱(<code>desktopMain</code>)에만 있고 Android 에는 없다. 공통 코드 하나로 두 타깃에 같게 보이도록 <code>pointerInput</code> 과 <code>drawBehind</code> 로 만든다. <code>LazyListState</code> 는 전체 높이를 모르므로 보이는 항목의 평균 높이 × 항목 수로 어림한다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>공통 Compose 화면. 저장은 okio <code>FileSystem.SYSTEM</code>(앱 샌드박스 안 파일). 링크는 <code>Intent.ACTION_VIEW</code></td><td><a href="../platform/android.html#terminal-file-editor">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/ios.html#terminal-file-editor">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. 저장은 okio <code>FileSystem.SYSTEM</code>, 링크는 <code>java.awt.Desktop.browse</code>, 단축키 ⌘S</td><td><a href="../platform/jvm.html#terminal-file-editor">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 화면에 들어갈 수 없다</td><td><a href="../platform/web.html#terminal-file-editor">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>SyntaxHighlightTest</code></td><td>H1, H2. 언어 고르기, Kotlin 키워드·타입·함수·문자열·숫자·주석·애노테이션, 여러 줄 주석·<code>"""</code>, Swift·JSON 속성 키·YAML 키·XML 태그·셸 주석과 변수, <code>highlightLines</code> 의 줄 수가 <code>lines()</code> 와 같고 줄을 넘는 토큰이 줄마다 나뉨</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>MarkdownParserTest</code></td><td>M2. 제목(ATX·setext), 문단 잇기·줄바꿈, 강조·굵게·취소선·코드·링크·자동 링크·이미지, 중첩 목록·번호 시작·작업 목록, 인용 중첩, 울타리·들여쓴 코드, 가로줄, 표와 정렬. M3 의 <code>resolveRelativePath</code>: <code>./</code>·<code>../</code>·<code>#</code> 떼기, <code>%20</code> 풀기, 주소는 null</td><td>같음</td></tr>
+    <tr><td><code>OkioFileDataSourceTest</code></td><td>E3, E8. 쓰기가 덮어쓰고, 쓰고 나면 보고 있던 <code>observeFile</code> 이 곧장 새 내용을 준다. 없는 폴더에 쓰면 실패. 같은 내용을 두 번 내지 않음</td><td><code>:feature:terminal:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalFileEditorTest</code></td><td>S1, E1–E7, M1, M5. 긴 트리·파일에 막대가 있고 짧으면 없음, 손잡이를 끌면 끝 줄이 보임, "편집"·저장·실패 문구·수정됨·버리기 창·디스크 변경 문구와 자동 갱신, 잘린 파일·커밋 파일 탭에 편집 없음, 마크다운은 미리보기로 열리고 원문으로 바뀜</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>자동으로 확인하지 못하는 것: 실제 색, 트랙패드로 막대 끌기의 손맛, IME 입력(한글 조합)과 ⌘S 가 메뉴 단축키와 겹치지 않는지. <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다. 2026-09-25 macOS 에서 Kotlin·Swift·TOML 색, README 미리보기(표·인라인 코드·굵게), 편집 보기의 줄 번호 정렬·한글 조합·수정됨·버리기 창을 확인했다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>문법 색은 정규 문법 수준의 토큰 나누기라 문맥을 모른다. Kotlin 문자열 템플릿 <code>${…}</code> 안도 문자열 색이고, 소프트 키워드(<code>data</code>·<code>by</code> 등)는 이름으로 쓰여도 키워드 색이다. 중첩 블록 주석(<code>/* /* */ */</code>)은 첫 <code>*/</code> 에서 끝난다.</li>
+  <li>마크다운은 CommonMark 전체가 아니다. 강조 구분자는 가까운 짝을 찾는 방식이라 <code>***a** b*</code> 같은 겹친 경우가 다르게 보일 수 있고, 참조 링크(<code>[a][1]</code>), 각주, HTML 블록, 이미지 그리기는 없다.</li>
+  <li>편집 보기의 입력 칸은 탭 글자를 글꼴의 탭 폭으로 그려 읽기 보기(공백 네 칸)와 들여쓰기 폭이 다를 수 있다.</li>
+  <li>편집 보기는 파일 전체를 한 문단으로 배치해서, 수만 줄 파일은 타자마다 배치가 느릴 수 있다. 200,000 글자를 넘으면 색을 끈다(H4).</li>
+  <li>편집 중에 탭을 닫거나 앱을 끄면 묻지 않고 버린다(E7).</li>
+  <li>한글 등 입력기로 조합하는 중에는 Esc 를 입력기가 먼저 받아 조합을 끝내는 데 쓴다. 한 번 더 눌러야 E5 가 동작할 수 있다.</li>
+  <li>저장 뒤 diff 표시는 다음 git 폴링(JVM 3초) 때 따라온다.</li>
+  <li>UTF-8 이 아닌 파일은 읽을 때 깨진 글자가 저장하면 그대로 파일에 쓰인다(<code>U+FFFD</code>).</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

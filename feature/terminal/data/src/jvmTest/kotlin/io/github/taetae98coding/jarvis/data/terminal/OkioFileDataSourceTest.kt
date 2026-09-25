@@ -122,4 +122,24 @@ class OkioFileDataSourceTest {
         assertEquals(FileContent.Text("two!", truncated = false), values.receive())
         assertTrue(values.tryReceive().isFailure)
     }
+
+    @Test
+    fun writingOverwritesTheFileAndTheWatcherReReadsWithoutWaitingForASignal() = runTest {
+        val file = File(newDirectory(), "a.txt").apply { writeText("예전 내용이 더 길다") }
+        val source = source()
+        val values = source.observeFile(file.path).produceIn(backgroundScope)
+        assertEquals(FileContent.Text("예전 내용이 더 길다", truncated = false), values.receive())
+
+        assertTrue(source.writeFile(file.path, "새 내용\n").isSuccess)
+
+        assertEquals("새 내용\n", file.readText())
+        assertEquals(FileContent.Text("새 내용\n", truncated = false), values.receive())
+    }
+
+    @Test
+    fun writingIntoAMissingFolderFails() = runTest {
+        val file = File(newDirectory(), "gone/a.txt")
+
+        assertTrue(source().writeFile(file.path, "x").isFailure)
+    }
 }

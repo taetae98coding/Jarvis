@@ -448,7 +448,7 @@ internal class FakeGitWorktreeRepository(
     }
 }
 
-/** 폴더·파일마다 정해 둔 값을 답한다. 기본값은 어느 폴더도 읽을 수 없는 것이다. 값을 바꾸면 디스크가 바뀐 것처럼 따라간다. */
+/** 폴더·파일마다 정해 둔 값을 답한다. 기본값은 어느 폴더도 읽을 수 없는 것이다. 값을 바꾸면 디스크가 바뀐 것처럼 따라간다. 쓰면 그 값이 바뀐다. */
 internal class FakeFileRepository(
     directories: Map<String, List<FileEntry>> = emptyMap(),
     files: Map<String, FileContent> = emptyMap(),
@@ -460,6 +460,24 @@ internal class FakeFileRepository(
     override fun observeDirectory(directory: String): Flow<List<FileEntry>?> = directories.map { it[directory] }
 
     override fun observeFile(path: String): Flow<FileContent> = files.map { it[path] ?: FileContent.Unreadable }
+
+    /** 쓴 (경로, 글). */
+    val written = mutableListOf<Pair<String, String>>()
+
+    /** 있으면 쓰기가 이 문구로 실패한다. */
+    var writeFailure: String? = null
+
+    /** 있으면 쓰기가 요청을 기록한 뒤 이것이 끝날 때까지 기다린다. */
+    var writeGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun writeFile(path: String, text: String): Result<Unit> {
+        written += path to text
+        writeGate?.await()
+        writeFailure?.let { return Result.failure(IllegalStateException(it)) }
+
+        files.update { it + (path to FileContent.Text(text, truncated = false)) }
+        return Result.success(Unit)
+    }
 }
 
 /**

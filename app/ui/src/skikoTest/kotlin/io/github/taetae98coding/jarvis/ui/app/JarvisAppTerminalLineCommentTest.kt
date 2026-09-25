@@ -48,8 +48,8 @@ import kotlin.test.assertTrue
 /** docs/common/terminal-line-comment.html */
 @OptIn(ExperimentalTestApi::class)
 class JarvisAppTerminalLineCommentTest {
-    private val readme = FileEntry("README.md", "$Root/README.md", isDirectory = false)
-    private val notes = FileEntry("NOTES.md", "$Root/NOTES.md", isDirectory = false)
+    private val readme = FileEntry("README.txt", "$Root/README.txt", isDirectory = false)
+    private val notes = FileEntry("NOTES.txt", "$Root/NOTES.txt", isDirectory = false)
 
     private fun files() = FakeFileRepository(
         directories = mapOf(Root to listOf(notes, readme)),
@@ -149,9 +149,9 @@ class JarvisAppTerminalLineCommentTest {
         val text = session.writtenText()
         val pasted = text.substringAfter("\u001b[200~").substringBefore("\u001b[201~")
         assertTrue(pasted.startsWith("아래 코드 줄에 남긴 코멘트 2개를 반영해 주세요."), pasted)
-        assertTrue("1. README.md:2\r" in pasted, pasted)
+        assertTrue("1. README.txt:2\r" in pasted, pasted)
         assertTrue("```\r2 + B\r```" in pasted, pasted)
-        assertTrue("이름이 짧다" in pasted && "2. README.md:4\r" in pasted && "여기 null 이면?" in pasted, pasted)
+        assertTrue("이름이 짧다" in pasted && "2. README.txt:4\r" in pasted && "여기 null 이면?" in pasted, pasted)
         assertTrue('\n' !in pasted, pasted)
         assertTrue(text.substringAfter("\u001b[201~") == "\r", text)
 

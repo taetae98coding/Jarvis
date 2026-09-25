@@ -38,6 +38,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -47,6 +48,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -71,6 +73,7 @@ internal class TerminalViewModel(
     private val observeGitFileDiff: ObserveGitFileDiffUseCase,
     private val observeGitCommitFile: ObserveGitCommitFileUseCase,
     private val lineComments: LineCommentHost,
+    private val fileEdits: FileEditHost,
 ) : ViewModel() {
     val isClaudeSupported: Boolean = isClaudeSupported()
 
@@ -179,6 +182,26 @@ internal class TerminalViewModel(
         }
 
     fun openFile(path: String) = update { it.openFile(path) }
+
+    /** 탭마다 편집 중인 파일(docs/common/terminal-file-editor.html E7). 여기 없는 탭은 읽기 보기다. */
+    val fileEditStates: StateFlow<Map<Long, FileEdit>> = fileEdits.edits
+
+    fun startFileEdit(tabId: Long, path: String, text: String) = fileEdits.start(tabId, path, text)
+
+    fun changeFileEdit(tabId: Long, text: String) = fileEdits.change(tabId, text)
+
+    fun fileEditDiskChanged(tabId: Long, text: String) = fileEdits.diskChanged(tabId, text)
+
+    fun saveFileEdit(tabId: Long) = fileEdits.save(tabId)
+
+    fun discardFileEdit(tabId: Long) = fileEdits.discard(tabId)
+
+    private val markdownSourceTabs = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** 마크다운 파일 탭 가운데 미리보기 대신 원문을 고른 탭(M1). 앱이 켜져 있는 동안만 기억한다. */
+    val markdownSource: StateFlow<Set<Long>> = markdownSourceTabs.asStateFlow()
+
+    fun setMarkdownSource(tabId: Long, source: Boolean) = markdownSourceTabs.update { if (source) it + tabId else it - tabId }
 
     /**
      * 커밋 파일 탭의 내용과 첫 부모 대비 diff(docs/common/terminal-commit-file.html). null 은 아직 읽지 못한 것이고, 읽지 못하는
@@ -307,6 +330,8 @@ internal class TerminalViewModel(
         val tabIds = workspace.tabIds.toSet()
         host.retain(tabIds)
         lineComments.retain(workspace.panels.mapTo(mutableSetOf()) { it.id })
+        fileEdits.retain(tabIds)
+        markdownSourceTabs.update { it intersect tabIds }
         browserTitles.keys.retainAll(tabIds)
         val filePaths = workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath }
         fileContents.keys.retainAll(filePaths)
