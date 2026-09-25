@@ -208,12 +208,15 @@ internal class TerminalViewModel(
 
     fun discardFileEdit(tabId: Long) = fileEdits.discard(tabId)
 
-    private val markdownSourceTabs = MutableStateFlow<Set<Long>>(emptySet())
+    private val sourceViewTabIds = MutableStateFlow<Set<Long>>(emptySet())
 
-    /** 마크다운 파일 탭 가운데 미리보기 대신 원문을 고른 탭(M1). 앱이 켜져 있는 동안만 기억한다. */
-    val markdownSource: StateFlow<Set<Long>> = markdownSourceTabs.asStateFlow()
+    /**
+     * 미리보기가 있는 파일 탭 가운데 미리보기 대신 원문을 고른 탭(docs/common/terminal-file-preview.html V3). 앱이 켜져 있는
+     * 동안만 기억한다.
+     */
+    val sourceViewTabs: StateFlow<Set<Long>> = sourceViewTabIds.asStateFlow()
 
-    fun setMarkdownSource(tabId: Long, source: Boolean) = markdownSourceTabs.update { if (source) it + tabId else it - tabId }
+    fun setSourceView(tabId: Long, source: Boolean) = sourceViewTabIds.update { if (source) it + tabId else it - tabId }
 
     /**
      * 커밋 파일 탭의 내용과 첫 부모 대비 diff(docs/common/terminal-commit-file.html). null 은 아직 읽지 못한 것이고, 읽지 못하는
@@ -377,7 +380,7 @@ internal class TerminalViewModel(
         host.retain(tabIds)
         lineComments.retain(workspace.panels.mapTo(mutableSetOf()) { it.id })
         fileEdits.retain(tabIds)
-        markdownSourceTabs.update { it intersect tabIds }
+        sourceViewTabIds.update { it intersect tabIds }
         browserTitles.keys.retainAll(tabIds)
         val filePaths = workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath }
         fileContents.keys.retainAll(filePaths)

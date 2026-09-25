@@ -310,7 +310,7 @@ private fun TerminalGroup(
             val tab = group.selectedTab
             val pane = viewModel.pane(tab.id)
             val fileEdits by viewModel.fileEditStates.collectAsStateWithLifecycle()
-            val markdownSource by viewModel.markdownSource.collectAsStateWithLifecycle()
+            val sourceViewTabs by viewModel.sourceViewTabs.collectAsStateWithLifecycle()
             if (tab.program == TerminalProgram.Device) {
                 key(tab.id) {
                     TerminalDevice(
@@ -347,8 +347,10 @@ private fun TerminalGroup(
                         diffLabel = "커밋 ${tab.shortCommitHash}",
                         lineComments = null,
                         editing = null,
-                        markdownSource = tab.id in markdownSource,
-                        onMarkdownSourceChange = { viewModel.setMarkdownSource(tab.id, it) },
+                        webPreviewSupported = viewModel.isBrowserSupported,
+                        webPreviewHidden = drag.coversPages,
+                        sourceView = tab.id in sourceViewTabs,
+                        onSourceViewChange = { viewModel.setSourceView(tab.id, it) },
                         onOpenFile = viewModel::openFile,
                         onFocus = { viewModel.focusGroup(group.id) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -374,8 +376,10 @@ private fun TerminalGroup(
                                 onDiscard = { viewModel.discardFileEdit(tab.id) },
                             )
                         },
-                        markdownSource = tab.id in markdownSource,
-                        onMarkdownSourceChange = { viewModel.setMarkdownSource(tab.id, it) },
+                        webPreviewSupported = viewModel.isBrowserSupported,
+                        webPreviewHidden = drag.coversPages,
+                        sourceView = tab.id in sourceViewTabs,
+                        onSourceViewChange = { viewModel.setSourceView(tab.id, it) },
                         onOpenFile = viewModel::openFile,
                         onFocus = { viewModel.focusGroup(group.id) },
                         modifier = Modifier.fillMaxWidth().weight(1f),

@@ -86,9 +86,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.taetae98coding.jarvis.designsystem.component.JarvisFastScroller
 import io.github.taetae98coding.jarvis.designsystem.component.rememberFastScrollerAdapter
+import io.github.taetae98coding.jarvis.domain.terminal.FilePreview
 import io.github.taetae98coding.jarvis.domain.terminal.SyntaxLanguage
 import io.github.taetae98coding.jarvis.domain.terminal.SyntaxToken
 import io.github.taetae98coding.jarvis.domain.terminal.highlightLines
+import io.github.taetae98coding.jarvis.domain.terminal.filePreviewOf
 import io.github.taetae98coding.jarvis.domain.terminal.resolveRelativePath
 import io.github.taetae98coding.jarvis.domain.terminal.syntaxLanguageOf
 import kotlinx.coroutines.Dispatchers
@@ -133,6 +135,8 @@ const val TerminalFileViewerKeepEditingTestTag = "terminal:file-viewer:keep-edit
 const val TerminalFileViewerPreviewTestTag = "terminal:file-viewer:preview"
 
 const val TerminalFileViewerSourceTestTag = "terminal:file-viewer:source"
+
+const val TerminalFileViewerWebPreviewTestTag = "terminal:file-viewer:web-preview"
 
 fun terminalFileViewerTestTag(tabId: Long): String = "terminal:file-viewer:${tabId}"
 
@@ -188,8 +192,9 @@ internal class FileEditing(
  * 파일 탭. 줄바꿈 없이 가로·세로로 스크롤하고, 파일 이름으로 고른 언어의 문법 색을 칠한다. [content] 가 null 이면 아직 읽는
  * 중이다. [diff] 가 있으면 더한·지운 줄을 내용에 겹치고 요약을 "[diffLabel] +n −m" 으로 붙인다(docs/common/terminal-file-diff.html,
  * 커밋 파일 탭은 docs/common/terminal-commit-file.html). [lineComments] 가 null 이면 줄 코멘트를 남길 수 없다.
- * 마크다운 파일은 [markdownSource] 가 아니면 미리보기로 보이고, [editing] 이 있으면 고쳐 저장할 수 있다
- * (docs/common/terminal-file-editor.html). [onOpenFile] 은 미리보기의 상대 경로 링크가 연다.
+ * 미리보기가 있는 파일(마크다운, [webPreviewSupported] 일 때 HTML·SVG)은 [sourceView] 가 아니면 미리보기로 보이고
+ * (docs/common/terminal-file-preview.html), [editing] 이 있으면 고쳐 저장할 수 있다(docs/common/terminal-file-editor.html).
+ * [onOpenFile] 은 마크다운 미리보기의 상대 경로 링크가 연다.
  */
 @Composable
 internal fun TerminalFileViewer(
@@ -199,8 +204,10 @@ internal fun TerminalFileViewer(
     diffLabel: String,
     lineComments: FileLineComments?,
     editing: FileEditing?,
-    markdownSource: Boolean,
-    onMarkdownSourceChange: (Boolean) -> Unit,
+    webPreviewSupported: Boolean,
+    webPreviewHidden: Boolean,
+    sourceView: Boolean,
+    onSourceViewChange: (Boolean) -> Unit,
     onOpenFile: (String) -> Unit,
     onFocus: () -> Unit,
     modifier: Modifier = Modifier,
@@ -208,7 +215,9 @@ internal fun TerminalFileViewer(
     val currentOnFocus by rememberUpdatedState(onFocus)
     val changes = diff?.takeIf { it.hunks.isNotEmpty() }
     val language = remember(tab.filePath) { tab.filePath?.let(::syntaxLanguageOf) }
-    val isMarkdown = language == SyntaxLanguage.Markdown
+    val preview = remember(tab.filePath, webPreviewSupported) {
+        tab.filePath?.let(::filePreviewOf)?.takeIf { it != FilePreview.Web || webPreviewSupported }
+    }
     val edit = editing?.edit
     val text = content as? FileContent.Text
     val canEdit = editing != null && text != null && !text.truncated
@@ -247,9 +256,9 @@ internal fun TerminalFileViewer(
         FileToolbar(
             summary = changes?.takeIf { edit == null }?.let { "$diffLabel +${it.added} −${it.removed}" },
             edit = edit,
-            isMarkdown = isMarkdown && edit == null && text != null,
-            markdownSource = markdownSource,
-            onMarkdownSourceChange = onMarkdownSourceChange,
+            hasPreview = preview != null && edit == null && text != null,
+            sourceView = sourceView,
+            onSourceViewChange = onSourceViewChange,
             onEdit = if (canEdit && edit == null) ({ editing?.onStart?.invoke(text.text) }) else null,
             onSave = { editing?.onSave?.invoke() },
             onClose = closeEditor,
@@ -280,9 +289,23 @@ internal fun TerminalFileViewer(
                 )
                 content == FileContent.Unreadable -> FileViewerNotice("파일을 읽을 수 없습니다", Modifier.align(Alignment.Center))
                 content is FileContent.Text -> Column {
-                    if (content.truncated) FileViewerNotice("앞 512 KiB 만 보입니다", Modifier.padding(JarvisTheme.dimens.spacing.s))
-                    if (isMarkdown && !markdownSource) {
+                    val path = tab.filePath
+                    val web = preview == FilePreview.Web && !sourceView && path != null
+                    val fromDisk = tab.commitHash == null
+                    // 작업 트리 파일의 웹 미리보기는 엔진이 파일을 직접 읽어 잘리지 않는다(V10).
+                    if (content.truncated && !(web && fromDisk)) FileViewerNotice("앞 512 KiB 만 보입니다", Modifier.padding(JarvisTheme.dimens.spacing.s))
+                    if (preview == FilePreview.Markdown && !sourceView) {
                         MarkdownPreview(text = content.text, onLink = onLink, modifier = Modifier.fillMaxWidth().weight(1f))
+                    } else if (web && path != null) {
+                        HtmlFilePreview(
+                            tabId = tab.id,
+                            path = path,
+                            html = content.text,
+                            fromDisk = fromDisk,
+                            hidden = webPreviewHidden,
+                            onFocus = onFocus,
+                            modifier = Modifier.fillMaxWidth().weight(1f).testTag(TerminalFileViewerWebPreviewTestTag),
+                        )
                     } else {
                         val lines = remember(content.text) { content.text.lines() }
                         FileText(
@@ -343,14 +366,14 @@ private fun FileViewerNotice(text: String, modifier: Modifier = Modifier) {
 private fun FileToolbar(
     summary: String?,
     edit: FileEdit?,
-    isMarkdown: Boolean,
-    markdownSource: Boolean,
-    onMarkdownSourceChange: (Boolean) -> Unit,
+    hasPreview: Boolean,
+    sourceView: Boolean,
+    onSourceViewChange: (Boolean) -> Unit,
     onEdit: (() -> Unit)?,
     onSave: () -> Unit,
     onClose: () -> Unit,
 ) {
-    if (edit == null && summary == null && !isMarkdown && onEdit == null) return
+    if (edit == null && summary == null && !hasPreview && onEdit == null) return
 
     val labelStyle = JarvisTheme.typography.labelMedium
     Row(
@@ -417,9 +440,9 @@ private fun FileToolbar(
                 Text(if (edit.saving) "저장 중…" else "저장")
             }
         } else {
-            if (isMarkdown) {
-                ModeButton(text = "미리보기", selected = !markdownSource, tag = TerminalFileViewerPreviewTestTag) { onMarkdownSourceChange(false) }
-                ModeButton(text = "원문", selected = markdownSource, tag = TerminalFileViewerSourceTestTag) { onMarkdownSourceChange(true) }
+            if (hasPreview) {
+                ModeButton(text = "미리보기", selected = !sourceView, tag = TerminalFileViewerPreviewTestTag) { onSourceViewChange(false) }
+                ModeButton(text = "원문", selected = sourceView, tag = TerminalFileViewerSourceTestTag) { onSourceViewChange(true) }
             }
             if (onEdit != null) {
                 JarvisIconButton(

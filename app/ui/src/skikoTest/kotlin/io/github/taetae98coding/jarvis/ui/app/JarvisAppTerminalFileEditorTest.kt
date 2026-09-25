@@ -40,6 +40,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerPreviewTest
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerSaveTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerScrollerTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerSourceTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerWebPreviewTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFilesRootTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFilesScrollerTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
@@ -56,6 +57,7 @@ class JarvisAppTerminalFileEditorTest {
     private val main = FileEntry("Main.kt", "$Root/Main.kt", isDirectory = false)
     private val readme = FileEntry("README.md", "$Root/README.md", isDirectory = false)
     private val guide = FileEntry("guide.md", "$Root/docs/guide.md", isDirectory = false)
+    private val page = FileEntry("index.html", "$Root/index.html", isDirectory = false)
 
     private fun ComposeUiTest.count(tag: String) = onAllNodesWithTag(tag).fetchSemanticsNodes().size
 
@@ -75,8 +77,9 @@ class JarvisAppTerminalFileEditorTest {
         workspace: FakeTerminalWorkspaceRepository = workspace(),
         git: FakeGitChangesRepository = FakeGitChangesRepository(),
         uriHandler: RecordingUriHandler = RecordingUriHandler(),
+        terminal: FakeTerminalRepository = FakeTerminalRepository(),
     ) {
-        setContent { TestJarvisApp(terminalWorkspace = workspace, files = files, gitChanges = git, uriHandler = uriHandler) }
+        setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, files = files, gitChanges = git, uriHandler = uriHandler) }
         onNodeWithTag(TerminalTestTag).performClick()
         awaitTag(terminalFileViewerTestTag(workspace.workspace.value.focusedTab!!.id))
     }
@@ -302,6 +305,46 @@ class JarvisAppTerminalFileEditorTest {
 
         onNodeWithText("가이드", substring = true, useUnmergedTree = true).performTouchInput { click(Offset(width - 1f, centerY)) }
         waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.filePath == guide.path }
+    }
+
+    // V3
+    @Test
+    fun theChosenViewSurvivesSwitchingTabs() = runComposeUiTest {
+        val workspace = workspace(readme.path)
+        openTerminal(files(readme.path to text("# 제목\n")), workspace = workspace)
+        val fileTab = workspace.workspace.value.focusedTab!!
+        val shellTab = workspace.workspace.value.selectedPanel!!.tabs.first { it.program != TerminalProgram.File }
+        awaitTag(TerminalFileViewerMarkdownTestTag)
+        onNodeWithTag(TerminalFileViewerSourceTestTag).performClick()
+        awaitTag(TerminalFileViewerMarkdownTestTag, count = 0)
+
+        workspace.workspace.value = workspace.workspace.value.selectTab(shellTab.id)
+        awaitTag(terminalFileViewerTestTag(fileTab.id), count = 0)
+        workspace.workspace.value = workspace.workspace.value.selectTab(fileTab.id)
+        awaitTag(terminalFileViewerTestTag(fileTab.id))
+        onNodeWithText("# 제목").assertIsDisplayed()
+        assertEquals(0, count(TerminalFileViewerMarkdownTestTag))
+    }
+
+    // V1, V2, V8
+    @Test
+    fun htmlIsSourceOnlyWhereWebPagesCannotBeShownAndCodeHasNoViewButtons() = runComposeUiTest {
+        val workspace = workspace(page.path)
+        openTerminal(
+            files(page.path to text("<h1>제목</h1>"), main.path to text("fun main() {}"), entries = listOf(main, page)),
+            workspace = workspace,
+            terminal = FakeTerminalRepository(isBrowserSupported = false),
+        )
+        onNodeWithText("<h1>제목</h1>").assertIsDisplayed()
+        assertEquals(0, count(TerminalFileViewerPreviewTestTag))
+        assertEquals(0, count(TerminalFileViewerSourceTestTag))
+        assertEquals(0, count(TerminalFileViewerWebPreviewTestTag))
+        onNodeWithTag(TerminalFileViewerEditTestTag).assertIsDisplayed()
+
+        workspace.workspace.value = workspace.workspace.value.openFile(main.path)
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("fun main() {}").fetchSemanticsNodes().size == 1 }
+        assertEquals(0, count(TerminalFileViewerPreviewTestTag))
+        assertEquals(0, count(TerminalFileViewerSourceTestTag))
     }
 
     private companion object {

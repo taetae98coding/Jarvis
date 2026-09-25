@@ -77,6 +77,7 @@
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
     <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
+    <li><a href="#terminal-file-preview">파일 탭 보기 방식 (마크다운·HTML 미리보기)</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-selection">터미널 글자 끌어 선택·복사</a></li>
@@ -1360,6 +1361,27 @@ internal actual fun createSystemScreenAwakeDataSource(
 <ul>
   <li>해당 없음.</li>
 </ul>
+
+<h3>검증</h3>
+<p>해당 없음.</p>
+</section>
+
+<section class="feature" id="terminal-file-preview">
+<h2>파일 탭 보기 방식 (마크다운·HTML 미리보기) <span class="badge no">불가</span></h2>
+<p>공통 스펙: <a href="../common/terminal-file-preview.html">파일 탭 보기 방식 (마크다운·HTML 미리보기)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>웹 미리보기 엔진</td><td>불가가 아니라 쓸 데가 없다. <a href="#terminal">터미널</a> 자체가 불가라 파일 탭을 열 수 없다. <code>HtmlFilePreview</code> 의 actual 은 불리지 않는 빈 구현이고, 보기 전환은 공통 코드라 이 타깃에서도 컴파일된다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/ui/src/iosMain/.../HtmlFilePreview.ios.kt</code> — 아무것도 그리지 않는다</dd>
+</dl>
 
 <h3>검증</h3>
 <p>해당 없음.</p>

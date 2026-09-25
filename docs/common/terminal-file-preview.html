@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>파일 탭 보기 방식 (마크다운·HTML 미리보기) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>파일 탭 보기 방식</span></nav>
+
+<header>
+  <h1>파일 탭 보기 방식 (마크다운·HTML 미리보기)</h1>
+  <p class="lead">파일 이름으로 그 파일을 그려 볼 수 있는지 가려, 마크다운·HTML·SVG 파일 탭에는 도구 줄에 "미리보기"·"원문" 보기 버튼을 저절로 붙이고 미리보기로 연다. 어느 보기에서든 "편집" 으로 고쳐 저장한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#terms">용어</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>md파일, html 파일 같은 것은 자동으로 viewMode 옵션 노출해서 편집이나 viewing 할 수 있도록 해줘.</p>
+  <footer>2026-09-25 대화. 마크다운 미리보기·원문 전환과 편집은 <a href="terminal-file-editor.html">파일 탭 편집·꾸며 보기</a>(M1–M5, E1–E8)에 이미 있다. 이 지시는 그 보기 전환을 "그려 볼 수 있는 파일" 전반의 규칙으로 넓히고, HTML 을 더하는 것으로 읽었다. "같은 것" 에는 브라우저가 그대로 그리는 SVG 를 넣었다(결정).</footer>
+</blockquote>
+
+<h2 id="terms">용어</h2>
+
+<dl class="meta">
+  <dt>보기 방식</dt><dd>지시의 "viewMode". 파일 탭이 내용을 어떤 모양으로 보이는지. 미리보기·원문·편집 보기 셋이다</dd>
+  <dt>미리보기</dt><dd>파일을 그 형식대로 그린 화면. 마크다운 미리보기(<a href="terminal-file-editor.html#requirements">M2</a>)와 웹 미리보기 두 가지다</dd>
+  <dt>웹 미리보기</dt><dd>HTML·SVG 파일을 웹 엔진(<a href="terminal-browser.html">브라우저 탭</a>과 같은 엔진)으로 그린 화면</dd>
+  <dt>원문</dt><dd>파일 탭의 읽기 보기(문법 색·diff·줄 코멘트). <a href="terminal-file-editor.html#terms">파일 탭 편집</a>의 "읽기 보기" 와 같다</dd>
+  <dt>편집 보기</dt><dd>"편집" 을 눌러 들어가는 입력 칸(<a href="terminal-file-editor.html#requirements">E2</a>)</dd>
+</dl>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>V1.</strong> 파일 탭의 미리보기 종류는 파일 이름(대소문자 무시한 확장자)으로 정한다. <code>.md</code>·<code>.markdown</code> 은 마크다운 미리보기, <code>.html</code>·<code>.htm</code>·<code>.xhtml</code>·<code>.svg</code> 는 웹 미리보기다. 그 밖의 파일은 미리보기가 없다.</li>
+  <li><strong>V2.</strong> 미리보기가 있는 파일 탭(작업 트리 파일 탭과 커밋 파일 탭)의 도구 줄 오른쪽에는 "미리보기"·"원문" 두 버튼이 저절로 붙는다. 고른 쪽은 primary 색·굵은 글자다. 미리보기가 없는 파일에는 두 버튼이 없다.</li>
+  <li><strong>V3.</strong> 미리보기가 있는 파일 탭은 미리보기로 열린다. 고른 보기는 탭마다 따로이고, 같은 그룹의 다른 탭을 골랐다 돌아오거나 터미널 화면을 떠났다 돌아와도 남는다. 탭을 닫거나 앱을 끄면 버린다(다시 열면 미리보기).</li>
+  <li><strong>V4.</strong> "편집"(<a href="terminal-file-editor.html#requirements">E1</a> 을 만족할 때)은 미리보기·원문 어느 쪽에서도 누를 수 있다. 편집 보기는 원문 글자를 고치고, 편집을 마치면(저장 뒤 닫기·버리기) 들어가기 전의 보기로 돌아간다. 편집 보기 동안 "미리보기"·"원문" 버튼은 없다.</li>
+  <li><strong>V5.</strong> 웹 미리보기는 작업 트리 파일 탭이면 그 파일의 <code>file://</code> 주소를 열어, 같은 폴더 기준 상대 경로의 CSS·이미지·스크립트가 함께 붙는다. 커밋 파일 탭이면 커밋 시점의 내용을 그린다. 이때 상대 경로 자원은 붙지 않는다(작업 트리의 자원을 붙이면 커밋 시점과 다른 모양이 된다).</li>
+  <li><strong>V6.</strong> 웹 미리보기는 파일 내용이 바뀌면(디스크 변경은 <a href="terminal-side-bar.html#requirements">R13</a> 의 간격, 저장은 <a href="terminal-file-editor.html#requirements">E8</a>) 다시 그린다.</li>
+  <li><strong>V7.</strong> 웹 미리보기의 페이지는 미리보기가 보이는 동안만 있다. 원문·편집 보기로 바꾸거나 다른 탭을 고르거나 탭을 닫으면 닫고, 다시 보이면 파일을 새로 연다. 미리보기 안의 링크·스크립트는 그 미리보기 안에서 돈다.</li>
+  <li><strong>V8.</strong> 웹 페이지를 띄울 수 없는 타깃(<a href="terminal-browser.html#requirements">브라우저 R8</a> 과 같은 조건 — 지원하지 않는 곳에는 "웹 브라우저" 메뉴가 없다)에서는 HTML·SVG 파일에 웹 미리보기가 없다. 그 파일은 원문으로 열리고 "미리보기"·"원문" 버튼이 없다.</li>
+  <li><strong>V9.</strong> 새 탭 메뉴가 떠 있거나 탭을 끄는 동안 웹 미리보기가 메뉴를 가리는 타깃에서는 그동안 웹 미리보기를 치운다(<a href="terminal-browser.html#requirements">브라우저 R9</a> 과 같은 규칙).</li>
+  <li><strong>V10.</strong> 바이너리·읽을 수 없는 파일은 확장자가 무엇이든 예전 문구만 보이고 보기 버튼이 없다. 잘린 파일(512 KiB 초과)은 "앞 512 KiB 만 보입니다" 를 붙이고, 마크다운 미리보기와 커밋 파일 탭의 웹 미리보기는 읽은 만큼 그린다. 작업 트리 파일 탭의 웹 미리보기는 엔진이 파일을 직접 읽어 전체가 보이므로 문구를 붙이지 않는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  미리보기와 원문 나란히 보기, 편집하는 동안 미리보기를 따라 그리기, 웹 미리보기의 주소 줄·뒤로 가기, 웹 미리보기를 Claude 의 브라우저 도구(MCP)에 내놓기,
+  그 밖의 형식(이미지·PDF·CSV 표·JSON 트리). 지시는 md·html "같은 것" 이라 문서로 그려 볼 수 있는 텍스트 형식까지로 둔다. 이미지는 텍스트가 아니라
+  파일 탭이 바이너리로 읽는다(V10).
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<pre>
+┌ 파일 탭: index.html — 웹 미리보기 ─────────────┐
+│ HEAD 대비 +2 −1            [미리보기|원문] [✎]  │ ← 도구 줄(V2)
+│ ┌─────────────────────────────────────────────┐ │
+│ │  (웹 엔진이 그린 페이지)                     │ │
+│ └─────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────┘
+</pre>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>보기 버튼</td><td>도구 줄 오른쪽, "편집" 아이콘 버튼 앞. "미리보기"·"원문" 두 글자 버튼(<code>TextButton</code>). 고른 쪽 primary·SemiBold, 다른 쪽 onSurfaceVariant</td></tr>
+    <tr><td>웹 미리보기</td><td>도구 줄 아래 남은 칸 전부. 바탕은 페이지가 칠한다(칠하지 않으면 엔진 기본값 흰색). 빠른 스크롤 막대는 없고 페이지 자체의 스크롤을 쓴다</td></tr>
+    <tr><td>엔진을 띄우지 못했을 때</td><td>"[웹 페이지를 열 수 없습니다]" (브라우저 탭과 같은 문구)</td></tr>
+    <tr><td>테스트 태그</td><td><code>terminal:file-viewer:preview</code>, <code>terminal:file-viewer:source</code>(기존), <code>terminal:file-viewer:markdown</code>(기존), <code>terminal:file-viewer:web-preview</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd><code>enum class FilePreview { Markdown, Web }</code> 와 순수 함수 <code>filePreviewOf(path): FilePreview?</code>(V1)</dd>
+  <dt>상태</dt><dd><code>TerminalViewModel.sourceViewTabs: StateFlow&lt;Set&lt;Long&gt;&gt;</code> — 원문을 고른 탭(V3). 예전 <code>markdownSource</code> 를 이름만 넓혔다. <code>setSourceView(tabId, source)</code>. 탭이 작업 공간에서 사라지면 <code>reconcile</code> 이 뺀다</dd>
+  <dt>UI</dt><dd><code>TerminalFileViewer</code> 가 <code>filePreviewOf</code> 로 종류를 고르고, 웹 미리보기는 <code>webPreviewSupported</code>(= <code>isBrowserSupported</code>)일 때만 둔다(V8). 도구 줄의 보기 버튼은 종류가 있으면 붙는다(V2)</dd>
+  <dt>공급</dt><dd><code>@Composable internal expect fun HtmlFilePreview(tabId: Long, path: String, html: String, fromDisk: Boolean, hidden: Boolean, onFocus: () -&gt; Unit, modifier: Modifier)</code> — <code>fromDisk</code> 는 작업 트리 파일 탭이다(V5). <code>html</code> 이 바뀌면 다시 그리고(V6), 컴포지션을 떠나면 페이지를 닫는다(V7). <code>hidden</code> 은 <code>TerminalTabDragState.coversPages</code>(V9)</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 웹 미리보기는 브라우저 탭의 엔진을 그대로 쓴다</strong>
+  JVM 은 <code>:core:browser</code> 의 Chromium(JCEF) 페이지를 파일 탭 id 로 하나 만들고, Android 는 시스템 웹뷰(composewebview)다. 엔진을 새로 싣지 않는다.
+  버린 후보: (1) HTML 을 Compose 로 직접 그리기 — CSS·스크립트·레이아웃을 흉내 낼 수 없어 "보이는 대로" 가 되지 않는다. (2) 시스템 브라우저로 열기(<code>LocalUriHandler</code>) —
+  지시는 파일 탭 안의 보기 방식이고, 저장해도 다시 그려지지 않는다(V6).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 웹 미리보기 페이지는 보이는 동안만 산다(V7)</strong>
+  브라우저 탭은 Claude 가 가려진 탭을 조작해야 해서 페이지를 탭 수명 동안 붙잡지만(<a href="terminal-browser.html#requirements">R6</a>), 미리보기는 사람이 보려는 것이라 가려지면 닫는다.
+  JVM 에서 Chromium 렌더러가 HTML 파일 탭마다 남아 메모리를 쥐지 않게 하려는 것이다. 대가로 탭을 다시 고르면 페이지를 새로 연다(스크롤·페이지 안 상태가 남지 않는다).
+</aside>
+
+<aside class="decision">
+  <strong>결정: SVG 도 웹 미리보기다</strong>
+  SVG 는 XML 텍스트라 원문은 문법 색(XML)으로 이미 보이고, 웹 엔진이 그대로 그린다. 지시의 "같은 것" 에 든다고 봤다. XML·JSON 같은 데이터 파일은 그려 볼 모양이 없어 넣지 않았다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>마크다운은 공통 Compose. 웹 미리보기는 시스템 웹뷰(composewebview)에 <code>file://</code> 주소, <code>allowFileAccess</code> 를 켠다</td><td><a href="../platform/android.html#terminal-file-preview">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 파일 탭을 열 수 없다</td><td><a href="../platform/ios.html#terminal-file-preview">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>macOS 만. 웹 미리보기는 JCEF 페이지에 <code>file://</code>·<code>data:</code> 주소. 다른 OS 는 웹 미리보기 없이 원문(V8)</td><td><a href="../platform/jvm.html#terminal-file-preview">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge no">불가</span></td><td>터미널 자체가 불가라 파일 탭을 열 수 없다</td><td><a href="../platform/web.html#terminal-file-preview">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>FilePreviewTest</code></td><td>V1. 확장자별 종류, 대소문자, 폴더 이름의 점, 확장자 없는 이름과 다른 형식은 null</td><td><code>:feature:terminal:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>JarvisAppTerminalFileEditorTest</code></td><td>V2, V3, V4, V8. 마크다운은 미리보기로 열리고 원문으로 바뀌며 편집 뒤 돌아온다(기존), 원문 선택이 다른 탭을 다녀와도 남는다, 웹 페이지를 띄울 수 없으면 HTML 파일은 보기 버튼 없이 원문, 코드 파일에는 보기 버튼이 없다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+  </tbody>
+</table>
+<p>자동으로 확인하지 못하는 것: 웹 미리보기가 실제로 그려지는지(V5·V6·V7·V9). 웹 엔진은 테스트 화면(<code>runComposeUiTest</code>)에 붙지 않아서, <code>isBrowserSupported = true</code> 로 HTML 을 여는 UI 테스트는 두지 않았다. <code>./gradlew :desktopApp:run</code> 에서 손으로 확인한다. 2026-09-25 macOS 에서 상대 경로 CSS 가 붙은 <code>index.html</code> 미리보기(V5), 디스크 변경 후 다시 그리기(V6), 원문 ↔ 미리보기 여러 번 바꾸기와 다른 탭을 다녀오는 동안 바뀐 파일을 새로 여는 것(V7), 편집·저장·닫기 뒤 미리보기로 돌아와 저장한 내용이 보이는 것(V4)을 확인했다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>커밋 파일 탭의 웹 미리보기는 HTML 한 파일만 그린다. 따로 떨어진 CSS·이미지·스크립트를 쓰는 페이지는 모양이 빠진 채 보인다(V5).</li>
+  <li>웹 미리보기는 파일이 바뀔 때마다 페이지를 다시 불러 스크롤이 처음으로 돌아갈 수 있다.</li>
+  <li>미리보기 안에서 링크를 눌러 다른 페이지로 가면 돌아올 버튼이 없다. "원문" 을 눌렀다 "미리보기" 로 오면 파일로 돌아온다(V7).</li>
+  <li>편집 중에는 미리보기가 없다. 저장하고 닫아야 바뀐 모양을 본다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

@@ -70,6 +70,7 @@
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
     <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
+    <li><a href="#terminal-file-preview">파일 탭 보기 방식 (마크다운·HTML 미리보기)</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-selection">터미널 글자 끌어 선택·복사</a></li>
@@ -1698,6 +1699,41 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>SyntaxHighlightTest</code>·<code>MarkdownParserTest</code>, <code>./gradlew :feature:terminal:data:jvmTest</code> 의 <code>OkioFileDataSourceTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalFileEditorTest</code>. 색·끌기·IME 는 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-file-preview">
+<h2>파일 탭 보기 방식 (마크다운·HTML 미리보기) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-file-preview.html">파일 탭 보기 방식 (마크다운·HTML 미리보기)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>:core:browser</code> 의 <code>BrowserEngine.page(tabId, url)</code> + <code>BrowserSurface</code></td><td>채택. <a href="#terminal-browser">브라우저 탭</a>과 같은 JCEF 화면 밖 렌더링 페이지다. 파일 탭 id 를 키로 쓴다 — 파일 탭과 브라우저 탭은 같은 id 공간이라 겹치지 않는다. 컴포지션을 떠나면 <code>BrowserEngine.close(tabId)</code> 로 닫는다(V7)</td></tr>
+    <tr><td>작업 트리 파일: <code>File(path).toURI()</code>(<code>file:///…</code>) 를 <code>CefBrowser.loadURL</code></td><td>채택. Chromium 은 <code>file://</code> 문서가 같은 폴더의 <code>&lt;link&gt;</code>·<code>&lt;img&gt;</code>·<code>&lt;script src&gt;</code> 를 읽게 둔다(V5). 파일 내용이 바뀌면 <code>CefBrowser.reload()</code> 로 다시 읽는다(V6). 엔진이 파일을 직접 읽어 512 KiB 로 잘리지 않는다(V10)</td></tr>
+    <tr><td>커밋 파일: <code>data:text/html;charset=utf-8;base64,…</code></td><td>채택. 커밋 시점 내용은 디스크에 없다. Chromium 은 <code>data:</code> 주소를 2 MB 까지 받고, 파일 탭이 읽는 내용은 512 KiB 이하라 base64(4/3 배)로도 넘지 않는다. <code>data:</code> 문서는 불투명 출처라 <code>file://</code> 자원을 읽지 못한다(공통 한계)</td></tr>
+    <tr><td>JCEF <code>CefFrame.loadString</code></td><td>불가. JCEF 가 CEF 3 의 <code>LoadString</code> 을 따라 없앴다(jcefmaven 이 싣는 판에 없음)</td></tr>
+    <tr><td>커밋 내용을 임시 파일로 써서 <code>file://</code> 로 열기</td><td>버렸다. 상대 경로 자원이 임시 폴더 기준이 되어 어차피 붙지 않고, 지울 파일이 남는다</td></tr>
+    <tr><td>composewebview(wry, WKWebView) 로 따로 띄우기</td><td>버렸다. 브라우저 탭은 2026-09-25 에 JCEF 로 옮겼다. 엔진을 두 벌 실을 까닭이 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/ui/src/jvmMain/.../HtmlFilePreview.jvm.kt</code></dd>
+  <dt>동작</dt><dd>macOS 가 아니면 <code>isBrowserSupported</code> 가 false 라 이 함수가 불리지 않고, HTML 은 원문으로 열린다(V8). 엔진을 띄우지 못하면 "[웹 페이지를 열 수 없습니다]". Compose 가 페이지를 그리므로 메뉴·끌기 미리 보기가 그 위에 올라가고 <code>hidden</code> 은 쓰지 않는다(V9)</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>미리보기를 처음 열 때 Chromium 엔진이 아직 없으면 띄우는 동안(처음 한 번 수 초) 빈 칸이다.</li>
+  <li>디스크 변경은 <code>FilePollInterval</code>(2초) 폴링이라 최대 2초 늦게 다시 그린다.</li>
+  <li>2026-09-25 손 확인 중 원문으로 바꿀 때 앱이 한 번 SIGTRAP(<code>NSApplication _crashOnException</code>, CrBrowserMain 스레드)으로 죽었고 다시 재현되지 않았다. 이 기능 전(12:29)의 다른 개발 인스턴스 충돌 보고서도 같은 모양이라 JCEF 와 AppKit 사이의 기존 문제로 보고 있다. 원인은 아직 모른다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-file-preview.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :feature:terminal:domain:jvmTest</code> 의 <code>FilePreviewTest</code>, <code>./gradlew :app:ui:jvmTest</code> 의 <code>JarvisAppTerminalFileEditorTest</code>. 웹 미리보기는 <code>./gradlew :desktopApp:run</code> 으로 손으로 확인한다.</p>
 </section>
 
 <section class="feature" id="terminal-line-comment">

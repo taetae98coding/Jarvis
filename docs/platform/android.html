@@ -74,6 +74,7 @@
     <li><a href="#terminal-file-diff">파일 탭에 git diff 표시</a></li>
     <li><a href="#terminal-commit-file">커밋 파일 탭 (커밋의 파일 diff)</a></li>
     <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
+    <li><a href="#terminal-file-preview">파일 탭 보기 방식 (마크다운·HTML 미리보기)</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
     <li><a href="#terminal-selection">터미널 글자 끌어 선택·복사</a></li>
@@ -1569,6 +1570,38 @@ class JarvisApplication : Application() {
 
 <h3>검증</h3>
 <p>공통 테스트(<code>SyntaxHighlightTest</code>·<code>MarkdownParserTest</code>·<code>JarvisAppTerminalFileEditorTest</code>)와 JVM 의 <code>OkioFileDataSourceTest</code>(같은 공통 코드). 기기 확인은 하지 않았다.</p>
+</section>
+
+<section class="feature" id="terminal-file-preview">
+<h2>파일 탭 보기 방식 (마크다운·HTML 미리보기) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/terminal-file-preview.html">파일 탭 보기 방식 (마크다운·HTML 미리보기)</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>composewebview <code>rememberWebViewState(Uri.fromFile(file))</code></td><td>채택. 내부는 <code>AndroidWebView.loadUrl</code> 이 <code>android.webkit.WebView.loadUrl("file:///…")</code> 를 부른다. 엔진이 파일을 직접 읽어 같은 폴더의 상대 경로 자원이 붙고(V5), 512 KiB 로 잘리지 않는다(V10). 웹뷰는 파일이 바뀐 것을 모르므로 파일 탭이 새 내용을 읽으면 <code>WebViewNavigator.reload()</code>(<code>WebView.reload</code>)를 부른다(V6)</td></tr>
+    <tr><td><code>WebSettings.setAllowFileAccess(true)</code></td><td>채택. API 30(Android 11) 부터 기본값이 <code>false</code> 라, 켜지 않으면 <code>file://</code> 문서도 그 폴더의 CSS·이미지도 읽지 못한다. composewebview 의 <code>webSettings.androidWebSettings.allowFileAccess</code> 를 <code>configureSettings</code> 가 그대로 넘긴다. 읽는 곳은 셸 탭과 같은 앱 샌드박스(<code>filesDir</code>)뿐이다</td></tr>
+    <tr><td>composewebview <code>rememberWebViewStateWithHTMLData(data, baseUrl, mimeType)</code></td><td>커밋 파일 탭(<code>fromDisk = false</code>)용으로만 둔다. 내부는 <code>WebView.loadDataWithBaseURL</code> 이다. 이 타깃에는 커밋 파일 탭이 없어 실제로는 불리지 않는다. 작업 트리 파일에 쓰지 않은 까닭은 파일 탭이 읽은 글자가 512 KiB 로 잘린다는 것이다(V10)</td></tr>
+    <tr><td><code>WebViewAssetLoader</code>(<code>https://appassets.androidplatform.net/…</code>)</td><td>버렸다. <code>allowFileAccess</code> 없이 샌드박스 파일을 내주는 권장 방식이지만 <code>WebViewClient.shouldInterceptRequest</code> 를 붙여야 한다. composewebview 는 컨테이너 안에서 자기 <code>AndroidWebViewClient</code>(주소·로딩 상태를 채운다)를 붙이고 이 메서드를 넘기지 않아서, 덮으면 그 상태가 끊긴다. 읽는 곳이 앱 자신의 샌드박스라 <code>file://</code> 의 위험(다른 앱 파일)이 없다</td></tr>
+    <tr><td>SVG</td><td><code>file://</code> 로 열면 웹뷰가 확장자로 <code>image/svg+xml</code> 문서로 읽는다. 글로 넣는 경로는 <code>mimeType = "image/svg+xml"</code> 을 넘긴다 — <code>text/html</code> 로 넣으면 <code>&lt;?xml …?&gt;</code> 머리와 네임스페이스를 HTML 파서가 다르게 읽는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/terminal/ui/src/androidMain/.../HtmlFilePreview.android.kt</code></dd>
+  <dt>동작</dt><dd><code>WebView</code> 는 이 컴포지션에만 있어 가려지면 버린다(V7). <code>hidden</code> 이면 크기를 0 으로 줄인다(V9, 브라우저 탭과 같은 방식). 작업 트리 파일 탭뿐이라 늘 <code>file://</code> 주소로 연다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>페이지가 네이티브 뷰라 메뉴·탭 끌기 동안 미리보기가 사라진다(V9).</li>
+  <li>공통 스펙의 <a href="../common/terminal-file-preview.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 테스트(<code>FilePreviewTest</code>·<code>JarvisAppTerminalFileEditorTest</code>). 기기에서 웹 미리보기는 확인하지 않았다.</p>
 </section>
 
 <section class="feature" id="terminal-line-comment">
