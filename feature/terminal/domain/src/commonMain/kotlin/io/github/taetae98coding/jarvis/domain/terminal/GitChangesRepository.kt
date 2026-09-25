@@ -76,12 +76,30 @@ data class GitCommit(
     }
 }
 
+/** 커밋 시점의 파일 하나(docs/common/terminal-commit-file.html). [diff] 는 첫 부모 대비다. */
+data class GitCommitFile(
+    val content: FileContent,
+    val diff: GitFileDiff,
+)
+
 interface GitChangesRepository {
     /** [directory] 를 담은 저장소의 변경. 저장소 밖이거나 git 을 쓸 수 없으면 null 이다. cold. */
     fun observeStatus(directory: String): Flow<GitStatus?>
 
     /** [directory] 를 담은 저장소의 커밋 그래프. 저장소 밖이거나 커밋이 없으면 빈 목록이다. cold. */
     fun observeGraph(directory: String): Flow<List<GitGraphLine>>
+
+    /**
+     * [directory] 를 담은 저장소에서 커밋 [hash] 가 첫 부모와 비교해 바꾼 파일. 경로 순이고 이름 바꿈은 새 경로가 [GitChange.path] 다.
+     * 커밋은 바뀌지 않으므로 한 번 내보내고 끝난다. 저장소 밖이거나 커밋이 없거나 git 을 쓸 수 없으면 null 이다. cold.
+     */
+    fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?>
+
+    /**
+     * 커밋 [hash] 시점의 [path](절대 경로) 파일과 첫 부모 대비 차이. 그 커밋에서 지운 파일은 [FileContent.Unreadable] 에 모두 지운 hunk 다.
+     * 커밋은 바뀌지 않으므로 한 번 내보내고 끝난다. 저장소 밖이거나 커밋이 없거나 git 을 쓸 수 없으면 null 이다. cold.
+     */
+    fun observeCommitFile(path: String, hash: String): Flow<GitCommitFile?>
 
     /**
      * [path] 파일의 HEAD 대비 차이. 추적하지 않는 파일은 모든 줄을 더한 것이고, 같거나 무시된 파일은 빈 diff 다. 저장소
@@ -109,6 +127,18 @@ class ObserveGitGraphUseCase(
     private val repository: GitChangesRepository,
 ) {
     operator fun invoke(directory: String): Flow<List<GitGraphLine>> = repository.observeGraph(directory)
+}
+
+class ObserveGitCommitFilesUseCase(
+    private val repository: GitChangesRepository,
+) {
+    operator fun invoke(directory: String, hash: String): Flow<List<GitChange>?> = repository.observeCommitFiles(directory, hash)
+}
+
+class ObserveGitCommitFileUseCase(
+    private val repository: GitChangesRepository,
+) {
+    operator fun invoke(path: String, hash: String): Flow<GitCommitFile?> = repository.observeCommitFile(path, hash)
 }
 
 class ObserveGitFileDiffUseCase(

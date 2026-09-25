@@ -52,6 +52,7 @@ internal data class TerminalTabDto(
     val name: String? = null,
     val claudeCheckedAt: Long? = null,
     val filePath: String? = null,
+    val commitHash: String? = null,
 )
 
 @Serializable
@@ -153,6 +154,7 @@ private fun PaneNode.toDto(): PaneNodeDto =
                     name = tab.name,
                     claudeCheckedAt = tab.claudeCheckedAt,
                     filePath = tab.filePath,
+                    commitHash = tab.commitHash,
                 )
             },
             selectedTabId = selectedTabId,
@@ -211,7 +213,7 @@ private fun TerminalTabDto.toDomain(): TerminalTab =
                 else -> null
             },
         )
-        program == FileProgram && filePath != null -> TerminalTab(id, TerminalProgram.File, filePath = filePath)
+        program == FileProgram && filePath != null -> TerminalTab(id, TerminalProgram.File, filePath = filePath, commitHash = commitHash?.ifEmpty { null })
 
         else -> TerminalTab(id, directory = directory)
     }.copy(name = name?.trim()?.ifEmpty { null })

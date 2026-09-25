@@ -44,6 +44,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
 import io.github.taetae98coding.jarvis.domain.terminal.FileRepository
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangesRepository
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
@@ -449,13 +450,21 @@ internal class FakeGitChangesRepository(
     statuses: Map<String, GitStatus> = emptyMap(),
     graphs: Map<String, List<GitGraphLine>> = emptyMap(),
     diffs: Map<String, GitFileDiff> = emptyMap(),
+    commitFiles: Map<String, List<GitChange>> = emptyMap(),
+    commitFileContents: Map<Pair<String, String>, GitCommitFile> = emptyMap(),
     var failure: String? = null,
 ) : GitChangesRepository {
+    /** (절대 경로, 해시)마다 커밋 시점의 파일. 없으면 읽을 수 없는 커밋이다. */
+    val commitFileContents = MutableStateFlow(commitFileContents)
+
     val statuses = MutableStateFlow(statuses)
 
     val graphs = MutableStateFlow(graphs)
 
     val diffs = MutableStateFlow(diffs)
+
+    /** 해시마다 커밋의 파일. 없는 해시는 읽을 수 없는 커밋이다. */
+    val commitFiles = MutableStateFlow(commitFiles)
 
     val staged = mutableListOf<Pair<String, List<GitChange>>>()
 
@@ -468,6 +477,10 @@ internal class FakeGitChangesRepository(
     override fun observeStatus(directory: String): Flow<GitStatus?> = statuses.map { it[directory] }
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> = graphs.map { it[directory].orEmpty() }
+
+    override fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?> = commitFiles.map { it[hash] }
+
+    override fun observeCommitFile(path: String, hash: String): Flow<GitCommitFile?> = commitFileContents.map { it[path to hash] }
 
     override fun observeFileDiff(path: String): Flow<GitFileDiff?> = diffs.map { it[path] }
 

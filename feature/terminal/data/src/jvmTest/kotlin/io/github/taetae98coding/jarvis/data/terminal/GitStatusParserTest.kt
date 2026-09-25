@@ -116,6 +116,59 @@ class GitStatusParserTest {
     }
 
     @Test
+    fun nameStatusListsCommitFilesByPathWithRenamesOnTheNewPath() {
+        val output = listOf("M", "z.kt", "A", "app/New.kt", "R094", "old/Name.kt", "app/Name.kt", "D", "gone.txt", "T", "link").joinToString("\u0000", postfix = "\u0000")
+
+        assertEquals(
+            listOf(
+                GitChange("app/Name.kt", GitChangeKind.Renamed, "old/Name.kt"),
+                GitChange("app/New.kt", GitChangeKind.Added),
+                GitChange("gone.txt", GitChangeKind.Deleted),
+                GitChange("link", GitChangeKind.TypeChanged),
+                GitChange("z.kt", GitChangeKind.Modified),
+            ),
+            parseGitNameStatus(output),
+        )
+        assertEquals(emptyList(), parseGitNameStatus(""))
+    }
+
+    // docs/common/terminal-commit-file.html K4, K5
+    @Test
+    fun commitDiffPicksTheSectionOfOnePathAmongRenamedAndDeletedFiles() {
+        val output = listOf(
+            "diff --git a/old.txt b/새 이름.txt",
+            "similarity index 83%",
+            "rename from old.txt",
+            "rename to 새 이름.txt",
+            "index b8cb000..0970e47 100644",
+            "--- a/old.txt",
+            "+++ b/새 이름.txt\t",
+            "@@ -5,0 +6 @@ l5",
+            "+l6",
+            "diff --git a/gone.txt b/gone.txt",
+            "deleted file mode 100644",
+            "--- a/gone.txt",
+            "+++ /dev/null",
+            "@@ -1,2 +0,0 @@",
+            "-x",
+            "-y",
+            "diff --git a/a.txt b/a.txt",
+            "--- a/a.txt",
+            "+++ b/a.txt",
+            "@@ -2 +2 @@ a",
+            "-b",
+            "+B",
+        ).joinToString("\n")
+
+        assertEquals(GitFileDiff(listOf(GitDiffHunk(5, 0, 6, 1, emptyList()))), parseGitCommitDiff(output, "새 이름.txt"))
+        assertEquals(GitFileDiff(listOf(GitDiffHunk(1, 2, 0, 0, listOf("x", "y")))), parseGitCommitDiff(output, "gone.txt"))
+        assertEquals(GitFileDiff(listOf(GitDiffHunk(2, 1, 2, 1, listOf("b")))), parseGitCommitDiff(output, "a.txt"))
+        // 옛 경로로는 찾지 않는다 — 그 커밋에는 없는 이름이다.
+        assertEquals(GitFileDiff(emptyList()), parseGitCommitDiff(output, "old.txt"))
+        assertEquals(GitFileDiff(emptyList()), parseGitCommitDiff("", "a.txt"))
+    }
+
+    @Test
     fun aDetachedHeadIsStillTheHeadCommit() {
         val line = parseGitGraph("* \u001fh\u001fa\u001fHEAD, main\u001fdev\u001fd\u001fs").single()
 

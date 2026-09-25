@@ -2,7 +2,9 @@ package io.github.taetae98coding.jarvis.data.terminal
 
 import io.github.taetae98coding.jarvis.data.state.observeByPolling
 import io.github.taetae98coding.jarvis.data.state.observeOnSignals
+import io.github.taetae98coding.jarvis.domain.terminal.FileContent
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
 import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
@@ -13,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.runInterruptible
@@ -43,11 +46,16 @@ internal val GitPushTimeout: Duration = 5.minutes
 // upstream 도 없고 원격을 고를 단서가 없을 때 먼저 찾는 원격(docs/common/terminal-side-bar.html 용어 "올릴 곳").
 private const val DefaultRemote = "origin"
 
+/** [outputBytes] 는 stdout 그대로다. [output] 은 그것을 UTF-8 로 푼 것이고, blob 내용처럼 바이트가 필요한 곳만 [outputBytes] 를 본다. */
 internal class GitResult(
     val exitCode: Int,
-    val output: String,
+    val outputBytes: ByteArray,
     val error: String,
-)
+) {
+    constructor(exitCode: Int, output: String, error: String) : this(exitCode, output.encodeToByteArray(), error)
+
+    val output: String by lazy { outputBytes.decodeToString() }
+}
 
 /**
  * `git` CLI 로 저장소를 판정하고 워크트리를 만든다. JGit 을 버린 이유는 docs/platform/jvm.html#terminal-worktree 에 있다.
@@ -117,6 +125,13 @@ internal class ProcessGitDataSource(
 
     override fun observeGraph(directory: String): Flow<List<GitGraphLine>> =
         observeOnSignals(changeSignals()) { readGraph(directory) }.flowOn(Dispatchers.IO)
+
+    // 커밋은 바뀌지 않으므로 틱·신호 없이 한 번 읽고 끝난다(docs/common/terminal-side-bar.html 결정).
+    override fun observeCommitFiles(directory: String, hash: String): Flow<List<GitChange>?> =
+        flow { emit(readCommitFiles(directory, hash)) }.flowOn(Dispatchers.IO)
+
+    override fun observeCommitFile(path: String, hash: String): Flow<GitCommitFile?> =
+        flow { emit(readCommitFile(path, hash)) }.flowOn(Dispatchers.IO)
 
     override fun observeFileDiff(path: String): Flow<GitFileDiff?> =
         observeOnSignals(changeSignals()) { readFileDiff(path) }.flowOn(Dispatchers.IO)
@@ -207,6 +222,59 @@ internal class ProcessGitDataSource(
         if (result.exitCode != 0) return emptyList()
 
         return parseGitGraph(result.output)
+    }
+
+    // --root 가 없으면 첫 커밋이, --diff-merges 가 없으면 병합 커밋이 빈 출력이다. `-m --first-parent` 는 log 와 달리
+    // diff-tree 에서는 모든 부모와의 diff 를 이어 붙여서 못 쓴다. -M 은 plumbing 이라 diff.renames 를 따르지 않아 직접 준다
+    // (docs/platform/jvm.html#terminal-side-bar).
+    private suspend fun readCommitFiles(directory: String, hash: String): List<GitChange>? {
+        val folder = File(expandHome(directory, home))
+        if (!folder.isDirectory || !hasGitAncestor(folder)) return null
+
+        return readNameStatus(folder, hash)
+    }
+
+    private suspend fun readNameStatus(folder: File, hash: String): List<GitChange>? {
+        val result = run(git(folder, "diff-tree", "--no-commit-id", "-r", "-M", "--name-status", "-z", "--root", "--diff-merges=first-parent", hash))
+        if (result.exitCode != 0) return null
+
+        return parseGitNameStatus(result.output)
+    }
+
+    // 이름 바꿈은 옛 경로도 pathspec 에 줘야 한 구획으로 짝지어져서 먼저 목록을 읽는다. 그 커밋에 없는 경로는 show 가 128 이고
+    // 그것이 곧 지운 파일이다(docs/platform/jvm.html#terminal-commit-file).
+    private suspend fun readCommitFile(path: String, hash: String): GitCommitFile? {
+        val file = File(expandHome(path, home)).absoluteFile
+        val folder = generateSequence(file.parentFile) { it.parentFile }.firstOrNull { it.isDirectory } ?: return null
+        if (!hasGitAncestor(folder)) return null
+        val rootResult = run(git(folder, "rev-parse", "--show-toplevel"))
+        val root = File(rootResult.output.trim().takeIf { rootResult.exitCode == 0 && it.isNotEmpty() } ?: return null)
+        // show-toplevel 은 심볼릭 링크를 푼 경로라 파일 쪽도 같은 방식으로 맞춘다.
+        val relative = file.canonicalFile.relativeTo(root.canonicalFile).path.takeIf { !it.startsWith("..") } ?: return null
+
+        val changes = readNameStatus(root, hash) ?: return null
+        val paths = listOfNotNull(relative, changes.firstOrNull { it.path == relative }?.originalPath)
+
+        val shown = run(git(root, "show", "$hash:$relative"))
+        val content = if (shown.exitCode == 0) {
+            val bytes = shown.outputBytes
+            val truncated = bytes.size > FileContent.FileViewerMaxBytes
+            fileContentOf(if (truncated) bytes.copyOf(FileContent.FileViewerMaxBytes.toInt()) else bytes, truncated)
+        } else {
+            FileContent.Unreadable
+        }
+
+        val patch = run(
+            git(
+                root,
+                "-c", "core.quotePath=false",
+                "diff-tree", "--no-commit-id", "-r", "-M", "--root", "--diff-merges=first-parent",
+                "-p", "-U0", "--no-color", "--no-ext-diff", hash, "--", *paths.toTypedArray(),
+            ),
+        )
+        if (patch.exitCode != 0) return null
+
+        return GitCommitFile(content = content, diff = parseGitCommitDiff(patch.output, relative))
     }
 
     // 경로를 있는 가장 가까운 폴더 기준으로 주면 최상위를 따로 읽지 않는다. 폴더째 지운 파일도 그 위 폴더에서 읽는다
@@ -305,7 +373,7 @@ private suspend fun runGit(command: List<String>, timeout: Duration): GitResult 
                 return@runInterruptible GitResult(-1, "", "git 이 $timeout 안에 끝나지 않았습니다")
             }
 
-            GitResult(process.exitValue(), output.readText(), error.readText())
+            GitResult(process.exitValue(), output.readBytes(), error.readText())
         } catch (e: IOException) {
             GitResult(-1, "", "git 을 실행할 수 없습니다: ${e.message}")
         } finally {

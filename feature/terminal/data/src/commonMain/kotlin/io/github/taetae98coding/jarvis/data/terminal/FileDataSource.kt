@@ -100,13 +100,8 @@ internal class OkioFileDataSource(
                     if (source.read(buffer, FileContent.FileViewerMaxBytes - buffer.size) == -1L) break
                 }
                 val truncated = !source.exhausted()
-                val bytes = buffer.readByteArray()
 
-                if (bytes.take(FileContent.BinarySniffBytes).any { it == 0.toByte() }) {
-                    FileContent.Binary
-                } else {
-                    FileContent.Text(text = bytes.decodeToString(), truncated = truncated)
-                }
+                fileContentOf(buffer.readByteArray(), truncated)
             }
         } catch (_: IOException) {
             FileContent.Unreadable
@@ -126,4 +121,12 @@ internal fun pollingTicks(interval: Duration): Flow<Unit> =
             delay(interval)
             emit(Unit)
         }
+    }
+
+/** 파일 탭에 보일 [bytes] 의 판정. 파일과 git 이 준 커밋 시점 내용이 같이 쓴다. [truncated] 는 [FileContent.FileViewerMaxBytes] 에서 잘랐는지다. */
+internal fun fileContentOf(bytes: ByteArray, truncated: Boolean): FileContent =
+    if (bytes.take(FileContent.BinarySniffBytes).any { it == 0.toByte() }) {
+        FileContent.Binary
+    } else {
+        FileContent.Text(text = bytes.decodeToString(), truncated = truncated)
     }

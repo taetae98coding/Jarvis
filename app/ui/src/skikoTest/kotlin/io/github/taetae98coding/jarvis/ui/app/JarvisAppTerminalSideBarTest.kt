@@ -17,6 +17,7 @@ import io.github.taetae98coding.jarvis.domain.terminal.FileEntry
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitCommit
+import io.github.taetae98coding.jarvis.domain.terminal.GitCommitFile
 import io.github.taetae98coding.jarvis.domain.terminal.GitDiffHunk
 import io.github.taetae98coding.jarvis.domain.terminal.GitFileDiff
 import io.github.taetae98coding.jarvis.domain.terminal.GitGraphLine
@@ -24,10 +25,14 @@ import io.github.taetae98coding.jarvis.domain.terminal.GitPushTarget
 import io.github.taetae98coding.jarvis.domain.terminal.GitStatus
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalProgram
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalWorkspace
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerCommentFieldTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerDiffSummaryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerNoticeTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFilesRootTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitBranchTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitCommitFilesEmptyTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitCommitFilesTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitCommitFilesUnreadableTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitErrorTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitNoCommitsTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitNotRepositoryTestTag
@@ -44,8 +49,10 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalSideBarToggleTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileEntryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerAddedTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerGutterTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerRemovedTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.terminalGitCommitFileTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalGitCommitTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalGitStageTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalGitStagedTestTag
@@ -83,6 +90,8 @@ class JarvisAppTerminalSideBarTest {
     private val head = GitCommit("h1", "a1b2c3d", listOf("HEAD -> main"), "dev", "2026-09-25 10:00", "사이드 바 추가")
     private val first = GitCommit("h2", "e4f5a6b", emptyList(), "dev", "2026-09-20 09:00", "처음")
 
+    private val renamed = GitChange("app/New.kt", GitChangeKind.Renamed, "app/Old.kt")
+
     private fun git() = FakeGitChangesRepository(
         statuses = mapOf(Root to GitStatus(root = Root, branch = "main", staged = listOf(added), unstaged = listOf(foo, tmp))),
         graphs = mapOf(
@@ -93,6 +102,7 @@ class JarvisAppTerminalSideBarTest {
                 GitGraphLine("", first, isDetail = true),
             ),
         ),
+        commitFiles = mapOf(head.hash to listOf(foo, renamed), first.hash to emptyList()),
     )
 
     private fun ComposeUiTest.count(tag: String) = onAllNodesWithTag(tag).fetchSemanticsNodes().size
@@ -371,6 +381,102 @@ class JarvisAppTerminalSideBarTest {
         onNodeWithText("HEAD -> main").assertIsDisplayed()
         onNodeWithText("a1b2c3d · dev · 2026-09-25 10:00").assertIsDisplayed()
         onNodeWithTag(terminalGitCommitTestTag(first.hash)).assertIsDisplayed()
+    }
+
+    @Test
+    fun clickingACommitExpandsItsFilesAndOnlyOneCommitIsOpenAtATime() = runComposeUiTest {
+        openTerminal()
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(terminalGitCommitTestTag(head.hash))
+        assertEquals(0, count(TerminalGitCommitFilesTestTag))
+
+        onNodeWithTag(terminalGitCommitTestTag(head.hash)).performClick()
+
+        awaitTag(terminalGitCommitFileTestTag(foo.path))
+        onNodeWithText("파일 2개").assertIsDisplayed()
+        onNodeWithTag(terminalGitCommitFileTestTag(renamed.path)).assertIsDisplayed()
+        onNodeWithText("New.kt").assertIsDisplayed()
+        assertEquals(1, count(TerminalGitCommitFilesTestTag))
+
+        // 둘째 줄을 눌러도 같은 커밋이라 접힌다.
+        onNodeWithText("a1b2c3d · dev · 2026-09-25 10:00").performClick()
+        awaitTag(TerminalGitCommitFilesTestTag, count = 0)
+
+        onNodeWithTag(terminalGitCommitTestTag(head.hash)).performClick()
+        awaitTag(terminalGitCommitFileTestTag(foo.path))
+        onNodeWithTag(terminalGitCommitTestTag(first.hash)).performClick()
+
+        awaitTag(TerminalGitCommitFilesEmptyTestTag)
+        assertEquals(0, count(terminalGitCommitFileTestTag(foo.path)))
+        assertEquals(1, count(TerminalGitCommitFilesTestTag))
+        onNodeWithText("바뀐 파일이 없습니다").assertIsDisplayed()
+    }
+
+    // docs/common/terminal-commit-file.html K1, K2, K4, K5, K7
+    @Test
+    fun clickingACommitFileOpensATabWithThatCommitsContentAndDiff() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git()
+        git.commitFileContents.value = mapOf(
+            ("$Root/${foo.path}" to head.hash) to GitCommitFile(
+                FileContent.Text("a\nB\nc", truncated = false),
+                GitFileDiff(listOf(GitDiffHunk(oldStart = 2, oldCount = 1, newStart = 2, newCount = 1, removed = listOf("b")))),
+            ),
+            ("$Root/${renamed.path}" to head.hash) to GitCommitFile(
+                FileContent.Unreadable,
+                GitFileDiff(listOf(GitDiffHunk(oldStart = 1, oldCount = 1, newStart = 0, newCount = 0, removed = listOf("gone")))),
+            ),
+        )
+        openTerminal(workspace = workspace, git = git)
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(terminalGitCommitTestTag(head.hash))
+        onNodeWithTag(terminalGitCommitTestTag(head.hash)).performClick()
+        awaitTag(terminalGitCommitFileTestTag(foo.path))
+
+        onNodeWithTag(terminalGitCommitFileTestTag(foo.path)).performClick()
+
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.focusedTab?.commitHash == head.hash }
+        val tab = workspace.workspace.value.focusedTab!!
+        assertEquals("$Root/${foo.path}", tab.filePath)
+        awaitTag(TerminalFileViewerDiffSummaryTestTag)
+        onNodeWithTag(terminalTabTitleTestTag(tab.id)).assertTextEquals("Foo.kt @ h1")
+        onNodeWithTag(TerminalFileViewerDiffSummaryTestTag).assertTextEquals("커밋 h1 +1 −1")
+        onNodeWithTag(terminalFileViewerAddedTestTag(2)).assertIsDisplayed()
+        onNodeWithTag(terminalFileViewerRemovedTestTag(2)).assertIsDisplayed()
+        onNodeWithText("b").assertIsDisplayed()
+
+        // 줄 번호를 눌러도 코멘트 입력 칸이 열리지 않는다(K7).
+        onNodeWithTag(terminalFileViewerGutterTestTag(1)).performClick()
+        assertEquals(0, count(TerminalFileViewerCommentFieldTestTag))
+
+        // 다시 누르면 같은 탭이고, 지운 파일은 지운 줄만 보인다(K5).
+        onNodeWithTag(terminalGitCommitFileTestTag(foo.path)).performClick()
+        assertEquals(2, workspace.workspace.value.selectedPanel!!.tabs.size)
+        onNodeWithTag(terminalGitCommitFileTestTag(renamed.path)).performClick()
+        waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.selectedPanel!!.tabs.size == 3 }
+        awaitTag(terminalFileViewerRemovedTestTag(1))
+        onNodeWithText("gone").assertIsDisplayed()
+        onNodeWithTag(TerminalFileViewerDiffSummaryTestTag).assertTextEquals("커밋 h1 +0 −1")
+    }
+
+    @Test
+    fun anUnreadableCommitSaysSoAndSwitchingThePanelCollapsesIt() = runComposeUiTest {
+        val workspace = FakeTerminalWorkspaceRepository(initial)
+        val git = git().apply { commitFiles.value = emptyMap() }
+        openTerminal(workspace = workspace, git = git)
+        onNodeWithTag(TerminalSideBarGitTestTag).performClick()
+        awaitTag(terminalGitCommitTestTag(head.hash))
+
+        onNodeWithTag(terminalGitCommitTestTag(head.hash)).performClick()
+        awaitTag(TerminalGitCommitFilesUnreadableTestTag)
+
+        val other = "/work/other"
+        git.statuses.value = git.statuses.value + (other to git.statuses.value.getValue(Root).copy(root = other))
+        git.graphs.value = git.graphs.value + (other to git.graphs.value.getValue(Root))
+        workspace.workspace.value = workspace.workspace.value.addPanel(name = "Other", directory = other)
+
+        awaitTag(TerminalGitCommitFilesTestTag, count = 0)
+        onNodeWithTag(terminalGitCommitTestTag(head.hash)).assertIsDisplayed()
     }
 
     @Test

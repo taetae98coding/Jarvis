@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.terminal
 
+import io.github.taetae98coding.jarvis.domain.terminal.FileContent
 import io.github.taetae98coding.jarvis.domain.terminal.GitChange
 import io.github.taetae98coding.jarvis.domain.terminal.GitChangeKind
 import io.github.taetae98coding.jarvis.domain.terminal.GitDiffHunk
@@ -356,6 +357,110 @@ class GitDataSourceTest {
         assertNull(source.observeStatus(outside.path).first())
         assertEquals(emptyList(), source.observeGraph(outside.path).first())
         assertEquals(emptyList(), source.observeGraph(unborn.path).first())
+    }
+
+    private fun head(directory: File): String = revision(directory, "HEAD")
+
+    @Test
+    fun commitFilesAreTheChangesAgainstTheFirstParentInPathOrder() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newDirectory().also { git(it, "init", "-q", "-b", "main") }
+        File(repository, "a.txt").writeText("a")
+        File(repository, "old.txt").writeText("old")
+        git(repository, "add", "-A")
+        commit(repository, "root")
+        val root = head(repository)
+
+        File(repository, "a.txt").writeText("changed")
+        git(repository, "mv", "old.txt", "new.txt")
+        File(repository, "dir").mkdirs()
+        File(repository, "dir/b.txt").writeText("b")
+        git(repository, "add", "-A")
+        commit(repository, "work")
+        val work = head(repository)
+
+        // 첫 커밋은 빈 트리 대비라 모두 추가다.
+        assertEquals(
+            listOf(GitChange("a.txt", GitChangeKind.Added), GitChange("old.txt", GitChangeKind.Added)),
+            source.observeCommitFiles(repository.path, root).first(),
+        )
+        assertEquals(
+            listOf(
+                GitChange("a.txt", GitChangeKind.Modified),
+                GitChange("dir/b.txt", GitChangeKind.Added),
+                GitChange("new.txt", GitChangeKind.Renamed, "old.txt"),
+            ),
+            source.observeCommitFiles(File(repository, "dir").path, work).first(),
+        )
+    }
+
+    @Test
+    fun aMergeCommitListsWhatItBroughtInAndAnEmptyCommitNothing() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+        git(repository, "switch", "-q", "-c", "side")
+        File(repository, "side.txt").writeText("side")
+        git(repository, "add", "-A")
+        commit(repository, "side work")
+        git(repository, "switch", "-q", "main")
+        File(repository, "main.txt").writeText("main")
+        git(repository, "add", "-A")
+        commit(repository, "main work")
+        git(repository, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+
+        assertEquals(listOf(GitChange("side.txt", GitChangeKind.Added)), source.observeCommitFiles(repository.path, head(repository)).first())
+        assertEquals(emptyList(), source.observeCommitFiles(repository.path, revision(repository, "main~2")).first())
+    }
+
+    // docs/common/terminal-commit-file.html K3–K6
+    @Test
+    fun aCommitFileIsItsContentAtThatCommitWithTheDiffAgainstTheFirstParent() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newDirectory().also { git(it, "init", "-q", "-b", "main") }
+        File(repository, "a.txt").writeText("a\nb\nc\n")
+        File(repository, "old.txt").writeText("l1\nl2\nl3\nl4\nl5\n")
+        File(repository, "gone.txt").writeText("x\ny\n")
+        git(repository, "add", "-A")
+        commit(repository, "root")
+        val root = head(repository)
+
+        File(repository, "a.txt").writeText("a\nB\nc\nd\n")
+        git(repository, "mv", "old.txt", "새 이름.txt")
+        File(repository, "새 이름.txt").appendText("l6\n")
+        git(repository, "rm", "-q", "gone.txt")
+        git(repository, "add", "-A")
+        commit(repository, "work")
+        val work = head(repository)
+        // 작업 트리를 더 바꿔도 커밋 시점의 내용이다.
+        File(repository, "a.txt").writeText("changed again\n")
+
+        val modified = source.observeCommitFile(File(repository, "a.txt").path, work).first()!!
+        assertEquals(FileContent.Text("a\nB\nc\nd\n", truncated = false), modified.content)
+        assertEquals(listOf(GitDiffHunk(2, 1, 2, 1, listOf("b")), GitDiffHunk(3, 0, 4, 1, emptyList())), modified.diff.hunks)
+
+        val renamed = source.observeCommitFile(File(repository, "새 이름.txt").path, work).first()!!
+        assertEquals(FileContent.Text("l1\nl2\nl3\nl4\nl5\nl6\n", truncated = false), renamed.content)
+        assertEquals(listOf(GitDiffHunk(5, 0, 6, 1, emptyList())), renamed.diff.hunks)
+
+        val deleted = source.observeCommitFile(File(repository, "gone.txt").path, work).first()!!
+        assertEquals(FileContent.Unreadable, deleted.content)
+        assertEquals(listOf(GitDiffHunk(1, 2, 0, 0, listOf("x", "y"))), deleted.diff.hunks)
+
+        val first = source.observeCommitFile(File(repository, "a.txt").path, root).first()!!
+        assertEquals(FileContent.Text("a\nb\nc\n", truncated = false), first.content)
+        assertEquals(listOf(GitDiffHunk(0, 0, 1, 3, emptyList())), first.diff.hunks)
+
+        assertNull(source.observeCommitFile(File(repository, "a.txt").path, "0123456789012345678901234567890123456789").first())
+        assertNull(source.observeCommitFile(File(newDirectory(), "a.txt").path, work).first())
+    }
+
+    @Test
+    fun anUnknownCommitOrAFolderOutsideARepositoryHasNoCommitFiles() = runTest {
+        if (!gitAvailable) return@runTest
+        val repository = newRepository()
+
+        assertNull(source.observeCommitFiles(repository.path, "0123456789012345678901234567890123456789").first())
+        assertNull(source.observeCommitFiles(newDirectory().path, head(repository)).first())
     }
 
     /** [repository] 에 `origin` 으로 붙인 빈 bare 저장소. */

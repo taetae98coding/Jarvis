@@ -136,6 +136,34 @@ private const val FieldSeparator = '\u001f'
 private const val DetailMarker = '\u001e'
 
 /**
+ * `git diff-tree --name-status -z` 의 출력. 항목은 `<상태>\0<경로>\0` 이고, 상태가 R·C 면 점수가 붙고(`R094`) 옛 경로·새 경로
+ * 순으로 두 필드다. porcelain 과 달리 옛 경로가 먼저다. 커밋에는 충돌·추적 안 함이 없어 그 글자는 건너뛴다.
+ */
+internal fun parseGitNameStatus(output: String): List<GitChange> {
+    val fields = output.split('\u0000')
+    val changes = mutableListOf<GitChange>()
+
+    var index = 0
+    while (index < fields.size) {
+        val status = fields[index++]
+        if (status.isEmpty()) continue
+        val code = status[0]
+        val kind = changeKind(code)?.takeUnless { it == GitChangeKind.Conflicted }
+
+        if (code in RenameCodes) {
+            val original = fields.getOrNull(index++) ?: break
+            val path = fields.getOrNull(index++) ?: break
+            kind?.let { changes += GitChange(path, it, original) }
+        } else {
+            val path = fields.getOrNull(index++) ?: break
+            kind?.let { changes += GitChange(path, it) }
+        }
+    }
+
+    return changes.sortedBy { it.path }
+}
+
+/**
  * 파일 하나의 `git diff -U0` 출력. `@@ -a[,b] +c[,d] @@` 머리마다 덩어리 하나이고, 수가 빠지면 1 이다. 머리 앞의
  * `diff --git`·`---`·`+++` 줄과 `\ No newline at end of file` 는 건너뛴다. 더한 줄의 글자는 파일 탭이 디스크에서 읽으므로
  * 지운 줄만 모은다.
@@ -174,3 +202,24 @@ internal fun parseGitDiff(output: String): GitFileDiff {
 }
 
 private val HunkHeader = Regex("""@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@""")
+
+/**
+ * 여러 파일이 섞인 `git diff-tree -p` 출력에서 [path] 파일의 diff 만 읽는다. 구획은 `diff --git` 줄로 나뉘고, 새 경로가 [path] 인 구획
+ * (`+++ b/<path>`)이거나 지운 파일이라 새 경로가 없는 구획(`--- a/<path>` 와 `+++ /dev/null`)이다. 공백이 든 경로 뒤에는 git 이 탭을
+ * 붙이므로 끝 탭을 떼고 견준다. 없으면 빈 diff 다. `core.quotePath=false` 로 받은 출력이어야 한글 경로가 그대로 온다.
+ */
+internal fun parseGitCommitDiff(output: String, path: String): GitFileDiff {
+    val sections = output.split(Regex("(?m)^(?=diff --git )")).filter { it.startsWith(DiffHeader) }
+    val newHeader = "+++ b/$path"
+    val oldHeader = "--- a/$path"
+
+    val section = sections.firstOrNull { section ->
+        val lines = section.lineSequence().takeWhile { !it.startsWith("@@ ") }.map { it.trimEnd('\t') }.toList()
+        newHeader in lines || (oldHeader in lines && DeletedHeader in lines)
+    } ?: return GitFileDiff(emptyList())
+
+    return parseGitDiff(section)
+}
+
+private const val DiffHeader = "diff --git "
+private const val DeletedHeader = "+++ /dev/null"

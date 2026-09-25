@@ -44,6 +44,7 @@ internal fun TerminalSideBar(
     viewModel: TerminalSideBarViewModel,
     directory: String?,
     onOpenFile: (String) -> Unit,
+    onOpenCommitFile: (path: String, hash: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(true) }
@@ -72,15 +73,19 @@ internal fun TerminalSideBar(
                         val graph by viewModel.gitGraph.collectAsStateWithLifecycle()
                         val error by viewModel.gitError.collectAsStateWithLifecycle()
                         val pushing by viewModel.pushing.collectAsStateWithLifecycle()
+                        val expandedCommit by viewModel.expandedCommit.collectAsStateWithLifecycle()
                         TerminalGitPanel(
                             state = status,
                             graph = graph,
+                            expandedCommit = expandedCommit,
                             error = error,
                             pushing = pushing,
                             onStage = viewModel::stage,
                             onUnstage = viewModel::unstage,
                             onPush = viewModel::push,
+                            onToggleCommit = viewModel::toggleCommit,
                             onOpen = onOpenFile,
+                            onOpenCommitFile = onOpenCommitFile,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

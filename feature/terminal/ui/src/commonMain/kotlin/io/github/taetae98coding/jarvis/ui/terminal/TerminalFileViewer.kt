@@ -121,13 +121,15 @@ internal class FileLineComments(
 
 /**
  * 파일 탭. 읽기 전용이고 줄바꿈 없이 가로·세로로 스크롤한다. [content] 가 null 이면 아직 읽는 중이다. [diff] 가 있으면
- * 더한·지운 줄을 내용에 겹친다(docs/common/terminal-file-diff.html). [lineComments] 가 null 이면 줄 코멘트를 남길 수 없다.
+ * 더한·지운 줄을 내용에 겹치고 요약을 "[diffLabel] +n −m" 으로 붙인다(docs/common/terminal-file-diff.html, 커밋 파일 탭은
+ * docs/common/terminal-commit-file.html). [lineComments] 가 null 이면 줄 코멘트를 남길 수 없다.
  */
 @Composable
 internal fun TerminalFileViewer(
     tab: TerminalTab,
     content: FileContent?,
     diff: GitFileDiff?,
+    diffLabel: String,
     lineComments: FileLineComments?,
     onFocus: () -> Unit,
     modifier: Modifier = Modifier,
@@ -152,13 +154,13 @@ internal fun TerminalFileViewer(
                 content == FileContent.Binary -> FileViewerNotice("텍스트가 아닌 파일이라 보일 수 없습니다", Modifier.align(Alignment.Center))
                 // 디스크에서 지운 파일은 HEAD 의 줄을 모두 지운 줄로 보인다.
                 content == FileContent.Unreadable && changes != null -> Column {
-                    DiffSummary(changes)
+                    DiffSummary(changes, diffLabel)
                     FileText(lines = emptyList(), diff = changes, lineComments = lineComments, modifier = Modifier.fillMaxWidth().weight(1f))
                 }
                 content == FileContent.Unreadable -> FileViewerNotice("파일을 읽을 수 없습니다", Modifier.align(Alignment.Center))
                 content is FileContent.Text -> Column {
                     if (content.truncated) FileViewerNotice("앞 512 KiB 만 보입니다", Modifier.padding(JarvisTheme.dimens.spacing.s))
-                    if (changes != null) DiffSummary(changes)
+                    if (changes != null) DiffSummary(changes, diffLabel)
                     val lines = remember(content.text) { content.text.lines() }
                     FileText(lines = lines, diff = changes, lineComments = lineComments, modifier = Modifier.fillMaxWidth().weight(1f))
                 }
@@ -180,9 +182,9 @@ private fun FileViewerNotice(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DiffSummary(diff: GitFileDiff) {
+private fun DiffSummary(diff: GitFileDiff, label: String) {
     Text(
-        text = "HEAD 대비 +${diff.added} −${diff.removed}",
+        text = "$label +${diff.added} −${diff.removed}",
         style = JarvisTheme.typography.labelMedium,
         color = JarvisTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = JarvisTheme.dimens.spacing.s, vertical = JarvisTheme.dimens.spacing.xs)

@@ -117,6 +117,17 @@ class TerminalWorkspaceStoreTest {
     }
 
     @Test
+    fun commitFileTabsAreReadBackWithTheirPathAndHash() = runTest {
+        val path = newPath()
+        val change = repository(path).updateWorkspace { it.openCommitFile("/work/README.md", "0123456789abcdef") }
+
+        val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
+
+        assertEquals(change.after, reopened)
+        assertEquals("0123456789abcdef", reopened.tabs.single { it.program == TerminalProgram.File }.commitHash)
+    }
+
+    @Test
     fun aFileTabWithoutAPathIsReadAsAShell() {
         val dto = TerminalWorkspaceDto(
             panels = listOf(

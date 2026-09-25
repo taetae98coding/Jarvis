@@ -177,6 +177,7 @@ internal fun TerminalScreen(
                     viewModel = sideBar,
                     directory = current.sideBarDirectory,
                     onOpenFile = viewModel::openFile,
+                    onOpenCommitFile = viewModel::openCommitFile,
                 )
             }
         }
@@ -329,6 +330,20 @@ private fun TerminalGroup(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 }
+            } else if (tab.program == TerminalProgram.File && tab.commitHash != null) {
+                // 커밋 파일 탭은 커밋 시점의 내용·첫 부모 대비 diff 를 한 번 읽고, 줄 코멘트를 남길 수 없다(docs/common/terminal-commit-file.html K3·K7).
+                key(tab.id) {
+                    val commitFile = tab.commitHash?.let { hash -> tab.filePath?.let { viewModel.commitFile(it, hash).collectAsStateWithLifecycle().value } }
+                    TerminalFileViewer(
+                        tab = tab,
+                        content = if (tab.filePath == null) FileContent.Unreadable else commitFile?.content,
+                        diff = commitFile?.diff,
+                        diffLabel = "커밋 ${tab.shortCommitHash}",
+                        lineComments = null,
+                        onFocus = { viewModel.focusGroup(group.id) },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
             } else if (tab.program == TerminalProgram.File) {
                 key(tab.id) {
                     val content = tab.filePath?.let { viewModel.fileContent(it).collectAsStateWithLifecycle().value } ?: FileContent.Unreadable
@@ -337,6 +352,7 @@ private fun TerminalGroup(
                         tab = tab,
                         content = content,
                         diff = diff,
+                        diffLabel = "HEAD 대비",
                         lineComments = tab.filePath?.takeIf { viewModel.isClaudeSupported }?.let { fileLineComments(it, panel, group.id, viewModel) },
                         onFocus = { viewModel.focusGroup(group.id) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -569,7 +585,9 @@ private fun tabTitle(source: StateFlow<String?>?, index: Int, tab: TerminalTab):
     // 기기 이름은 고를 때 탭에 저장해 둔다. 가려진 탭의 이름을 알려고 목록을 계속 세지 않는다.
     val automatic = when (tab.program) {
         TerminalProgram.Device -> tab.deviceName
-        TerminalProgram.File -> tab.filePath?.trimEnd('/')?.substringAfterLast('/')
+        TerminalProgram.File -> tab.filePath?.trimEnd('/')?.substringAfterLast('/')?.let { name ->
+            tab.shortCommitHash?.let { "$name @ $it" } ?: name
+        }
         else -> source?.collectAsStateWithLifecycle()?.value
     }
     val title = tab.name ?: automatic
