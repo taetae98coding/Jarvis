@@ -87,6 +87,7 @@
 │   ├── terminal-file-editor.html    파일 탭 편집·꾸며 보기·빠른 스크롤 (저장, 문법 색, 마크다운 미리보기, FastScroller)
 │   ├── terminal-line-comment.html   파일 탭 줄 코멘트를 Claude 에 보내기 (줄 번호로 코멘트, 패널에 모아 Claude 탭에 한 번에)
 │   ├── terminal-link.html           터미널 출력의 링크 열기 (OSC 8·본문 주소, 시스템 브라우저 / Jarvis 브라우저 탭 고르기)
+│   ├── terminal-selection.html      터미널 글자 끌어 선택·복사 (끌면 강조, 놓으면 클립보드)
 │   ├── terminal-scroll.html         터미널 휠 스크롤 (스크롤백, 마우스 보고 휠 이벤트, 대체 화면의 방향키)
 │   ├── terminal-run.html            터미널에서 실행 (Android 변형·iOS 구성·기기 실행 + 미러링 탭, 패널별 사용자 명령)
 │   ├── device-mirroring.html        기기 화면 영상 스트림·호버 (scrcpy-server + FFmpeg, 마우스 호버)
@@ -416,6 +417,13 @@
       <td class="center"><a href="platform/web.html#terminal-link"><span class="badge no">불가</span></a></td>
     </tr>
     <tr>
+      <td><a href="common/terminal-selection.html">터미널 글자 끌어 선택·복사</a></td>
+      <td class="center"><a href="platform/android.html#terminal-selection"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#terminal-selection"><span class="badge no">불가</span></a></td>
+      <td class="center"><a href="platform/jvm.html#terminal-selection"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#terminal-selection"><span class="badge no">불가</span></a></td>
+    </tr>
+    <tr>
       <td><a href="common/terminal-scroll.html">터미널 휠 스크롤</a></td>
       <td class="center"><a href="platform/android.html#terminal-scroll"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/ios.html#terminal-scroll"><span class="badge no">불가</span></a></td>
@@ -529,6 +537,7 @@
   <li><a href="common/terminal-panel-text-marquee.html">패널 줄 글자 흐르게</a><p>왼쪽 패널 목록 줄의 이름·브랜치·폴더가 넘치면 말줄임 대신 끝없이 옆으로 흘려 전체를 보인다</p></li>
   <li><a href="common/terminal-side-bar.html">터미널 오른쪽 사이드 바 (파일·Git)</a><p>터미널 화면 오른쪽에 접었다 펴는 사이드 바를 두고, 패널 폴더의 파일 트리에서 파일을 눌러 읽기 전용 탭으로 열고, 스테이지된·안 된 변경을 stage·unstage 하고 브랜치를 push 하며 커밋 그래프를 보고, 커밋을 눌러 그 커밋이 바꾼 파일을 본다. JVM(macOS), 파일만 Android</p></li>
   <li><a href="common/terminal-link.html">터미널 출력의 링크 열기</a><p>셸·Claude 탭 출력의 웹 주소(OSC 8·본문의 http(s)://)에 마우스를 올리면 밑줄이 생기고, 누르면 시스템 브라우저와 Jarvis 브라우저 탭 중 어디에서 열지 고른다. JVM(macOS)·Android</p></li>
+  <li><a href="common/terminal-selection.html">터미널 글자 끌어 선택·복사</a><p>셸·Claude 탭의 창에서 마우스를 누른 채 끌면 지나간 글자가 강조되고, 놓으면 그 글자가 클립보드에 들어간다. 터치는 길게 누른 뒤 끈다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-scroll.html">터미널 휠 스크롤</a><p>셸·Claude 탭에서 휠·트랙패드·드래그로 스크롤한다. 셸 출력은 스크롤백을, 전체 화면 프로그램(Claude Code 전체 화면 모드·<code>vim</code>·<code>less</code>)에는 휠 이벤트(마우스 보고)나 방향키를 보낸다. JVM(macOS)·Android</p></li>
   <li><a href="common/terminal-run.html">터미널에서 실행</a><p>탭 줄의 실행(▶) 메뉴에서 패널 폴더의 Android(빌드 변형)·iOS(구성) 앱을 기기를 골라 실행하면 빌드 로그 탭과 기기 화면 탭이 열리고, 최상위 패널에 저장해 워크트리 패널과 함께 쓰는 사용자 명령을 새 탭에서 돌린다. JVM(macOS)·Android(명령만)</p></li>
   <li><a href="common/terminal-commit-file.html">커밋 파일 탭 (커밋의 파일 diff)</a><p>사이드 바에서 펼친 커밋의 파일 줄을 누르면 그 커밋 시점의 내용 위에 첫 부모 대비 더한·지운 줄을 겹친 "이름 @ 해시" 탭이 열린다. JVM(macOS)</p></li>

@@ -74,6 +74,7 @@
     <li><a href="#terminal-file-editor">파일 탭 편집·꾸며 보기·빠른 스크롤</a></li>
     <li><a href="#terminal-line-comment">파일 탭 줄 코멘트를 Claude 에 보내기</a></li>
     <li><a href="#terminal-link">터미널 출력의 링크 열기</a></li>
+    <li><a href="#terminal-selection">터미널 글자 끌어 선택·복사</a></li>
     <li><a href="#terminal-scroll">터미널 휠 스크롤</a></li>
     <li><a href="#terminal-run">터미널에서 실행</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
@@ -1556,6 +1557,39 @@ class JarvisApplication : Application() {
 
 <h3>검증</h3>
 <p>감지·메뉴는 공통 테스트(<code>TerminalLinkTest</code>, skiko 의 <code>JarvisAppTerminalTest</code>)가 확인하지만 Android 의 <code>ACTION_VIEW</code>·터치 경로는 테스트가 없어 <span class="badge untested">미검증</span>이다. <code>./gradlew :androidApp:installDebug</code> 로 깔아 터미널에서 <code>echo https://example.com</code> 뒤 그 글자를 눌러 손으로 확인한다.</p>
+</section>
+
+<section class="feature" id="terminal-selection">
+<h2>터미널 글자 끌어 선택·복사 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/terminal-selection.html">터미널 글자 끌어 선택·복사</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code>(<code>AndroidClipboardManager</code>)</td><td>채택. <code>setText(AnnotatedString)</code> 이 <code>ClipboardManager.setPrimaryClip(ClipData.newPlainText("plain text", text))</code> 을 부른다(androidx.compose.ui 1.12.1 <code>AndroidClipboardManager.android.kt</code>). Android 13+ 는 시스템이 "복사됨" 오버레이를 띄운다. 권한이 필요 없다</td></tr>
+    <tr><td>클립보드: <code>LocalClipboard</code> + <code>ClipEntry(ClipData)</code></td><td>버렸다. 공통 팩토리가 없어 <code>expect</code> 가 필요하다(<a href="../common/terminal-selection.html#implementation">공통 결정</a>)</td></tr>
+    <tr><td>터치 끌기 시작: 길게 누르기(<code>awaitLongPressOrCancellation</code>)</td><td>채택. 창의 <code>scrollable</code> 이 터치 끌기를 스크롤로 쓰고 있어(<a href="#terminal-scroll">휠 스크롤</a>) 바로 끌면 스크롤이다. 길게 누르기 전에 슬롭을 넘으면 <code>scrollable</code> 이 이동을 소비해 길게 누르기가 취소되고, 길게 누른 뒤에는 선택 제스처가 이동을 소비해 <code>scrollable</code> 이 시작하지 않는다. <a href="#terminal-tab-groups">탭 끌기</a>와 같은 규칙</td></tr>
+    <tr><td>터치 끌기 시작: 슬롭 넘는 이동</td><td>버렸다. 스크롤과 구분할 수 없다</td></tr>
+    <tr><td>마우스·스타일러스</td><td>붙이면 <code>PointerType.Mouse</code> 로 와서 데스크톱과 같이 슬롭 넘는 이동으로 시작한다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드. <code>androidMain</code> 에는 없다</dd>
+  <dt>동작</dt><dd>공통 스펙 R1–R8 그대로. 파이프 셸(<a href="#terminal">터미널</a>)의 출력도 같은 격자라 같은 방식으로 선택된다</dd>
+  <dt>실패</dt><dd><code>setPrimaryClip</code> 은 던지지 않는다. 다른 앱이 포그라운드일 때는 Android 10+ 가 쓰기를 막지 않는다(읽기만 막는다)</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>길게 누르는 동안 손가락이 슬롭만큼 움직이면 스크롤이 되어 선택이 시작되지 않는다.</li>
+  <li>공통 스펙의 <a href="../common/terminal-selection.html#limits">한계</a>가 그대로 든다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>범위·글자·마우스 끌기는 공통 테스트(<code>TerminalSelectionTest</code>, skiko 의 <code>JarvisAppTerminalTest</code>)가 확인하지만 터치의 길게 누르기와 <code>setPrimaryClip</code> 은 테스트가 없어 <span class="badge untested">미검증</span>이다. <code>./gradlew :androidApp:installDebug</code> 로 깔아 터미널 출력을 길게 누른 뒤 끌고, 다른 입력란에 붙여넣어 손으로 확인한다.</p>
 </section>
 
 <section class="feature" id="terminal-scroll">

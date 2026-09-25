@@ -2,7 +2,11 @@ package io.github.taetae98coding.jarvis.ui.terminal
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
@@ -57,12 +61,15 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -84,15 +91,22 @@ import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColorScheme
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisColors
 import io.github.taetae98coding.jarvis.designsystem.theme.jarvisDimens
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalCell
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalEmulator
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalKey
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalKeyModifiers
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalLine
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalLink
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalSelection
+import io.github.taetae98coding.jarvis.domain.terminal.TerminalSelectionBounds
 import io.github.taetae98coding.jarvis.domain.terminal.TerminalStyle
 import io.github.taetae98coding.jarvis.domain.terminal.encodeControlCharacter
 import io.github.taetae98coding.jarvis.domain.terminal.encodeTerminalKey
 import io.github.taetae98coding.jarvis.domain.terminal.linkAt
+import io.github.taetae98coding.jarvis.domain.terminal.selectedText
+import io.github.taetae98coding.jarvis.domain.terminal.selectionBounds
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 
 fun terminalPaneTestTag(id: Long): String = "terminal:pane:$id"
 
@@ -135,11 +149,27 @@ internal fun TerminalPane(
     val uriHandler = LocalUriHandler.current
     val currentOnOpenInJarvis by rememberUpdatedState(onOpenInJarvis)
 
+    // 끌어 선택한 범위. 화면 안에서만 쓰는 값이라 여기 둔다(docs/common/terminal-selection.html).
+    var selection by remember { mutableStateOf<TerminalSelection?>(null) }
+    // Compose Multiplatform 1.12.1 의 LocalClipboard 는 공통 코드에서 텍스트 ClipEntry 를 만들 수 없다(데스크톱은
+    // Transferable, Android 는 ClipData 생성자뿐). ClipEntry 에 공통 팩토리가 생기면 그리로 옮긴다.
+    @Suppress("DEPRECATION")
+    val clipboard by rememberUpdatedState(LocalClipboardManager.current)
+
     // 화면 좌표 → 칸 → 링크. 보이는 줄 번호에서 스크롤한 만큼 빼면 에뮬레이터의 줄 번호다.
     fun linkAt(offset: Offset): TerminalLink? {
         val row = (offset.y / cell.height).toInt() - state.scrollOffset.value
         val column = (offset.x / cell.width).toInt()
         return state.emulator.linkAt(row, column)
+    }
+
+    // 화면 좌표 → 칸. 끌기는 창 밖 좌표도 오므로 가장자리 칸으로 묶는다.
+    fun cellAt(offset: Offset): TerminalCell {
+        val emulator = state.emulator
+        val column = (offset.x / cell.width).toInt().coerceIn(0, emulator.columns - 1)
+        val row = (offset.y / cell.height).toInt().coerceIn(0, emulator.rows - 1) - state.scrollOffset.value
+
+        return TerminalCell(row, column)
     }
 
     // 마우스가 그대로여도 출력이 오거나 스크롤하면 그 자리의 글자가 바뀐다. 그때마다 다시 찾는다.
@@ -166,6 +196,14 @@ internal fun TerminalPane(
         if (focused) focusRequester.requestFocus()
     }
 
+    // 대체 화면을 오가면 같은 줄 번호가 다른 화면의 글자를 가리킨다. 그때는 선택을 지운다.
+    LaunchedEffect(state) {
+        snapshotFlow { revision; state.emulator.isAlternateScreen }
+            .distinctUntilChanged()
+            .drop(1)
+            .collect { selection = null }
+    }
+
     Box(
         modifier = modifier
             .styleable(styleState, TerminalPaneDefaults.style)
@@ -177,6 +215,7 @@ internal fun TerminalPane(
             }
             .pointerInput(cell) {
                 detectTapGestures { offset ->
+                    selection = null
                     val link = linkAt(offset)
                     when {
                         link == null -> {
@@ -215,6 +254,31 @@ internal fun TerminalPane(
                     delta
                 },
             )
+            // 다른 pointerInput·scrollable 보다 뒤(안쪽)에 있어야 Main 패스에서 먼저 보고 이동을 소비한다. 그래야
+            // detectTapGestures 가 누르기를 취소하고 scrollable 이 터치 끌기를 시작하지 않는다.
+            .pointerInput(cell) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val start = when (down.type) {
+                        PointerType.Mouse -> awaitMouseDragStart(down)
+                        else -> awaitLongPressOrCancellation(down.id)?.also { it.consume() }
+                    } ?: return@awaitEachGesture
+
+                    selection = TerminalSelection(cellAt(down.position), cellAt(start.position), state.emulator.scrolledLines)
+                    drag(start.id) { change ->
+                        change.consume()
+                        selection = selection?.copy(focus = cellAt(change.position))
+                    }
+
+                    val text = selection?.let { state.emulator.selectedText(it) }.orEmpty()
+                    if (text.isEmpty()) {
+                        selection = null
+                    } else {
+                        // 다른 앱이 클립보드를 잡고 있으면 AWT 가 던진다. 셸은 그대로여야 한다.
+                        runCatching { clipboard.setText(AnnotatedString(text)) }
+                    }
+                }
+            }
             .testTag(terminalPaneTestTag(state.id)),
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -222,6 +286,9 @@ internal fun TerminalPane(
             revision
 
             drawTerminal(state.emulator, scrollOffset, TerminalCanvas(textMeasurer, textStyle, colors, cell), focused)
+            selection?.let { state.emulator.selectionBounds(it) }?.let {
+                drawSelection(it, scrollOffset, state.emulator, cell, colors.selection)
+            }
             hoveredLink?.let { drawLinkUnderline(it, scrollOffset, state.emulator.rows, cell, colors.foreground) }
         }
 
@@ -465,6 +532,27 @@ private fun DrawScope.drawLinkUnderline(link: TerminalLink, scrollOffset: Int, r
     }
 }
 
+/** 선택된 칸을 글자 위에 반투명으로 덮는다(R3). 줄마다 선택된 첫 칸부터 마지막 칸까지 한 사각형이다. */
+private fun DrawScope.drawSelection(
+    bounds: TerminalSelectionBounds,
+    scrollOffset: Int,
+    emulator: TerminalEmulator,
+    cell: IntSize,
+    color: Color,
+) {
+    for (row in 0 until emulator.rows) {
+        val index = row - scrollOffset
+        if (index < -emulator.scrollbackSize) continue
+
+        val range = bounds.columnsAt(index, minOf(emulator.columns, emulator.line(index).columns)) ?: continue
+        drawRect(
+            color = color,
+            topLeft = Offset(range.first * cell.width.toFloat(), row * cell.height.toFloat()),
+            size = Size((range.last - range.first + 1) * cell.width.toFloat(), cell.height.toFloat()),
+        )
+    }
+}
+
 /**
  * 같은 스타일의 ASCII 칸은 한 조각으로 모아 그린다. 그 밖의 글자는 칸마다 따로 그린다 — 고정폭 글꼴에
  * 없는 글자는 대체 글꼴로 그려져 폭이 달라서, 한 조각에 섞으면 뒤따르는 칸이 전부 밀린다.
@@ -557,11 +645,15 @@ private fun DrawScope.drawCells(
 internal class TerminalPaneColors(
     val background: Color,
     val foreground: Color,
+    val selection: Color,
 )
 
 internal object TerminalPaneDefaults {
     /** 흐린 글자(SGR 2)와 커서에 쓰는 글자색 투명도. */
     const val DimAlpha = 0.6f
+
+    /** 끌어 선택한 칸을 글자 위에 덮는 강조색 투명도. 어떤 배경 위에서도 보이고 글자도 읽혀야 한다. */
+    const val SelectionAlpha = 0.35f
 
     val inputMinWidth: Dp = 1.dp
 
@@ -573,7 +665,8 @@ internal object TerminalPaneDefaults {
     fun colors(
         background: Color = JarvisTheme.colors.terminalBackground,
         foreground: Color = JarvisTheme.colors.terminalForeground,
-    ): TerminalPaneColors = TerminalPaneColors(background = background, foreground = foreground)
+        selection: Color = JarvisTheme.colorScheme.primary.copy(alpha = SelectionAlpha),
+    ): TerminalPaneColors = TerminalPaneColors(background = background, foreground = foreground, selection = selection)
 
     @Composable
     @ReadOnlyComposable

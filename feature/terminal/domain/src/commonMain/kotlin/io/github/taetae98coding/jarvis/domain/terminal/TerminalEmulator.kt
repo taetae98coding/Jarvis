@@ -57,6 +57,13 @@ class TerminalEmulator(
     /** 대체 화면에서는 스크롤백을 보여주지 않는다. `vim` 을 나가기 전의 화면이 섞이면 안 된다. */
     val scrollbackSize: Int get() = if (isAlternateScreen) 0 else scrollback.size
 
+    /**
+     * 메인 화면 맨 위에서 스크롤백으로 밀려난 줄의 누적 수. 상한을 넘어 버려진 줄도 센다. 줄 번호는 출력마다
+     * 바뀌므로, 글자에 묶인 위치는 이 값의 차이로 옮긴다(docs/common/terminal-selection.html R4).
+     */
+    var scrolledLines: Long = 0
+        private set
+
     private var main = MutableList(this.rows) { TerminalLine(this.columns, TerminalStyle.Default) }
     private var alternate = MutableList(this.rows) { TerminalLine(this.columns, TerminalStyle.Default) }
     private var screen = main
@@ -317,6 +324,7 @@ class TerminalEmulator(
     }
 
     private fun pushScrollback(line: TerminalLine) {
+        scrolledLines++
         scrollback.addLast(line)
         while (scrollback.size > scrollbackLimit) scrollback.removeFirst()
     }

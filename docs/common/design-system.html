@@ -114,7 +114,7 @@
     <tr><td>페어링 QR</td><td><code>:feature:emulator:ui</code></td><td><code>QrCodeImageDefaults</code>: 크기 220, 사방 여백 4칸, 칸 색 검정·바탕 흰색 — 테마를 따르지 않는다(<a href="wireless-pairing.html">Wi-Fi 기기 페어링</a> R3). 기기 스캐너가 반전된 QR 을 읽지 못할 수 있어서다</td><td>—</td></tr>
     <tr><td>터미널 탭</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalTabDefaults</code>: 제목 너비 120, 글꼴 labelLarge</td><td>shapes.small, 배경 surfaceVariant → <code>selected</code> 에서 primaryContainer, <code>hovered</code>·<code>pressed</code> 에서 한 단계 진하게, 전환은 <code>animate</code></td></tr>
     <tr><td>터미널 패널 목록·줄</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalPanelListDefaults</code>: 폭 200. <code>TerminalPanelItemDefaults</code>: 이름 글꼴 labelLarge</td><td>줄: shapes.small, 배경 투명 → <code>selected</code> 에서 primaryContainer, <code>hovered</code>·<code>pressed</code> 에서 한 단계 진하게</td></tr>
-    <tr><td>터미널 창</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalPaneDefaults</code>: 글자(codeTextStyle), 배경·글자색(colors.terminal*), 흐린 글자·커서 알파 0.6</td><td>창: 배경 terminalBackground, <code>selected</code>(분할 중 포커스된 창)에서 <code>border(stroke.thin, primary)</code>. 경계선: 굵기 stroke.thick, outlineVariant → <code>hovered</code> 에서 primary</td></tr>
+    <tr><td>터미널 창</td><td><code>:feature:terminal:ui</code></td><td><code>TerminalPaneDefaults</code>: 글자(codeTextStyle), 배경·글자색(colors.terminal*), 흐린 글자·커서 알파 0.6, 끌어 선택한 칸은 colorScheme.primary 알파 0.35 로 글자 위에 덮음(<a href="terminal-selection.html">끌어 선택·복사</a>)</td><td>창: 배경 terminalBackground, <code>selected</code>(분할 중 포커스된 창)에서 <code>border(stroke.thin, primary)</code>. 경계선: 굵기 stroke.thick, outlineVariant → <code>hovered</code> 에서 primary</td></tr>
   </tbody>
 </table>
 

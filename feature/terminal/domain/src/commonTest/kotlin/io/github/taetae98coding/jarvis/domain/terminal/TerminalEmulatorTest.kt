@@ -56,6 +56,26 @@ class TerminalEmulatorTest {
     }
 
     @Test
+    fun scrolledLinesCountsLinesPushedIntoScrollback() {
+        val e = TerminalEmulator(columns = 10, rows = 3, scrollbackLimit = 1)
+
+        e.feed("1\r\n2\r\n3\r\n4\r\n5")
+        assertEquals(2L, e.scrolledLines)
+        assertEquals(1, e.scrollbackSize)
+
+        // 위쪽 여백이 0 이 아닌 스크롤 영역과 대체 화면의 스크롤은 스크롤백에 들어가지 않으므로 세지 않는다.
+        e.feed("\u001b[2;3r\u001b[3;1H\n\n\u001b[r")
+        assertEquals(2L, e.scrolledLines)
+        e.feed("\u001b[?1049h\u001b[3;1H\n\n\u001b[?1049l")
+        assertEquals(2L, e.scrolledLines)
+
+        // 창 높이를 줄여 커서 위의 줄이 올라가는 것은 센다.
+        e.feed("\u001b[3;1Hx")
+        e.resize(10, 1)
+        assertEquals(4L, e.scrolledLines)
+    }
+
+    @Test
     fun scrollbackIsCapped() {
         val e = TerminalEmulator(columns = 5, rows = 1, scrollbackLimit = 3)
 

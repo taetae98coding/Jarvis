@@ -60,7 +60,7 @@
   <li><strong>R5.</strong> 스크롤백은 <a href="terminal.html#requirements">터미널 R14</a> 그대로다 — 창마다 2,000줄까지 거슬러 올라가 볼 수 있고, 키를 누르면 맨 아래로 돌아온다.</li>
   <li><strong>R6.</strong> 휠을 셸로 보낼 때(R2, R4)는 키 입력과 같이 보던 스크롤백이 맨 아래로 돌아온다.</li>
   <li><strong>R7.</strong> 스크롤백을 거슬러 올라가 있는 동안 스크롤백이 줄면(<code>ESC[3J</code>, 대체 화면 진입, 창 크기 변경) 보는 위치도 남은 스크롤백 안으로 줄어든다. 화면 위쪽이 빈 줄로 보이는 일이 없다.</li>
-  <li><strong>R8.</strong> 마우스 보고가 켜져 있어도 보내는 것은 휠뿐이다. 누르기·끌기·움직임은 보내지 않고, 누르면 지금처럼 창 포커스와 <a href="terminal-link.html">링크</a>로 간다.</li>
+  <li><strong>R8.</strong> 마우스 보고가 켜져 있어도 보내는 것은 휠뿐이다. 누르기·끌기·움직임은 보내지 않고, 누르면 지금처럼 창 포커스와 <a href="terminal-link.html">링크</a>로, 끌면 <a href="terminal-selection.html">글자 선택</a>으로 간다.</li>
   <li><strong>R9.</strong> 마우스 보고 모드는 켰던 것과 무관하게 <code>?9</code>·<code>?1000</code>·<code>?1002</code>·<code>?1003</code> 중 어느 것이든 <code>l</code> 로 끄면 꺼진다(xterm 과 같다). <code>ESC c</code>(RIS)는 마우스 보고·SGR 인코딩을 끄고 alternateScroll 을 켠다.</li>
   <li><strong>R10.</strong> Claude Code 의 전체 화면 모드(<code>"tui": "fullscreen"</code>)가 도는 Claude 탭에서 휠을 굴리면 Claude Code 의 대화 기록이 스크롤된다(R1a). 기본 모드에서는 스크롤백이 움직인다(R1c).</li>
 </ol>

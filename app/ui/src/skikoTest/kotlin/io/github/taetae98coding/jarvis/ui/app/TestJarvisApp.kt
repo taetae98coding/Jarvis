@@ -4,10 +4,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.WindowInfo
+import androidx.compose.ui.text.AnnotatedString
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
 import io.github.taetae98coding.jarvis.domain.appinfo.AppRelease
@@ -106,6 +109,7 @@ internal val TestAppInfo = AppInfo(version = "1.2.3-test", platform = "Test Plat
  * 그러면 먼저 실행된 테스트의 가짜 저장소가 남아 다음 테스트로 새어 든다. 대신 테스트마다 전역
  * Koin 을 세우고, 이전 테스트가 남긴 것이 있으면 먼저 치운다.
  */
+@Suppress("DEPRECATION")
 @Composable
 internal fun TestJarvisApp(
     settings: ScreenAwakeSettingsRepository = FakeScreenAwakeSettingsRepository(),
@@ -131,6 +135,8 @@ internal fun TestJarvisApp(
     appUpdate: AppUpdateRepository = FakeAppUpdateRepository(),
     // 기본 핸들러(DesktopUriHandler)는 테스트 중에 실제 브라우저를 띄운다. 늘 기록만 하는 것으로 바꾼다.
     uriHandler: RecordingUriHandler = RecordingUriHandler(),
+    // 기본 관리자(AwtClipboardManager)는 테스트 중에 실제 시스템 클립보드를 덮어쓴다. 기록만 하는 것으로 바꾼다.
+    clipboard: RecordingClipboardManager = RecordingClipboardManager(),
 ) {
     remember {
         installTestMainDispatcher()
@@ -175,7 +181,7 @@ internal fun TestJarvisApp(
         }
     }
 
-    CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+    CompositionLocalProvider(LocalUriHandler provides uriHandler, LocalClipboardManager provides clipboard) {
         if (windowFocused == null) {
             JarvisApp()
         } else {
@@ -220,6 +226,17 @@ internal class RecordingUriHandler : UriHandler {
     override fun openUri(uri: String) {
         opened += uri
     }
+}
+
+@Suppress("DEPRECATION")
+internal class RecordingClipboardManager : ClipboardManager {
+    val copied = mutableListOf<String>()
+
+    override fun setText(annotatedString: AnnotatedString) {
+        copied += annotatedString.text
+    }
+
+    override fun getText(): AnnotatedString? = copied.lastOrNull()?.let(::AnnotatedString)
 }
 
 internal class FakeScreenAwakeSettingsRepository(
