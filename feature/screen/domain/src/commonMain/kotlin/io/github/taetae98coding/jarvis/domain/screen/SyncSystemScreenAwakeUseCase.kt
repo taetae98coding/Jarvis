@@ -16,6 +16,6 @@ class SyncSystemScreenAwakeUseCase(
         // 권한이 없으면 적용도 복원도 할 수 없다. ApplySystemScreenAwakeUseCase 와 같은 판단이다.
         if (!systemScreenAwake.observeStatus().first().permitted) return
 
-        systemScreenAwake.setEnabled(settings.readKeepSystemScreenAwake())
+        systemScreenAwake.setEnabled(settings.observeKeepSystemScreenAwake().first())
     }
 }

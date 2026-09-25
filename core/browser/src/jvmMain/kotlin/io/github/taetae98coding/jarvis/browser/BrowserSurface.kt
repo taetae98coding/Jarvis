@@ -11,7 +11,7 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,7 +84,7 @@ fun BrowserSurface(
     val focus = remember { FocusRequester() }
     var image by remember { mutableStateOf<ImageBitmap?>(null) }
     var popupImage by remember { mutableStateOf<Pair<java.awt.Rectangle, ImageBitmap>?>(null) }
-    val cursor by page.cursor.collectAsState()
+    val cursor by page.cursor.collectAsStateWithLifecycle()
 
     // 버퍼는 몇 장 뒤에 덮어써지므로 받은 자리에서 Skia 로 옮긴다. 옮기는 일은 UI 스레드 밖에서 한다.
     LaunchedEffect(page) {

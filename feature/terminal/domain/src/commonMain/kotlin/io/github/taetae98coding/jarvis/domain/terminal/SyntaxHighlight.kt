@@ -548,8 +548,10 @@ private fun tokenizeYaml(text: String, out: MutableList<SyntaxToken>) {
             else -> {
                 var valueStart = 0
                 YamlKey.find(line)?.let { match ->
-                    val key = match.groups[2]!!
-                    out += SyntaxToken(start + key.range.first, start + key.range.last + 1, SyntaxKind.Property)
+                    // MatchGroup.range 는 플랫폼 stdlib 에만 있고 commonMain 메타데이터 컴파일에서는 풀리지 않는다.
+                    // YamlKey 는 ^ 에 고정돼 있어 키는 앞 그룹 길이만큼 떨어진 곳에서 시작한다.
+                    val keyStart = match.groupValues[1].length
+                    out += SyntaxToken(start + keyStart, start + keyStart + match.groupValues[2].length, SyntaxKind.Property)
                     valueStart = match.range.last + 1
                 } ?: run {
                     val dash = Regex("""^\s*(?:-\s+)*""").find(line)
@@ -712,8 +714,9 @@ private fun tokenizeMarkdown(text: String, out: MutableList<SyntaxToken>) {
             else -> {
                 val taken = mutableListOf<IntRange>()
                 MarkdownListMarker.find(line)?.let { match ->
-                    val marker = match.groups[1]!!.range
-                    out += SyntaxToken(start + marker.first, start + marker.last + 1, SyntaxKind.Keyword)
+                    // ^\s* 가 앞 공백을 다 먹으므로 표시는 첫 공백 아닌 글자에서 시작한다(MatchGroup.range 는 common 에 없다).
+                    val markerStart = line.length - line.trimStart().length
+                    out += SyntaxToken(start + markerStart, start + markerStart + match.groupValues[1].length, SyntaxKind.Keyword)
                 }
                 fun mark(regex: Regex, kind: SyntaxKind) {
                     regex.findAll(line).forEach { match ->

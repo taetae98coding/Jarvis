@@ -5,7 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,7 +31,7 @@ internal actual fun HtmlFilePreview(
 ) {
     val url = if (fromDisk) File(path).toPath().toUri().toString() else dataUrl(path, html)
     val page = remember(tabId) { BrowserEngine.page(tabId, url) }
-    val failed by page.failed.collectAsState()
+    val failed by page.failed.collectAsStateWithLifecycle()
     var loaded by remember(page) { mutableStateOf(html) }
 
     DisposableEffect(page) { onDispose { BrowserEngine.close(tabId) } }

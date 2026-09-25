@@ -2,7 +2,7 @@ package io.github.taetae98coding.jarvis.ui.terminal
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,11 +21,11 @@ import io.github.taetae98coding.jarvis.browser.BrowserPage as EnginePage
 @Composable
 internal actual fun rememberBrowserPage(tab: TerminalTab): BrowserPage {
     val engine = remember(tab.id) { BrowserEngine.page(tab.id, tab.url ?: TerminalTab.DefaultBrowserUrl) }
-    val url by engine.url.collectAsState()
-    val title by engine.title.collectAsState()
-    val canGoBack by engine.canGoBack.collectAsState()
-    val canGoForward by engine.canGoForward.collectAsState()
-    val failed by engine.failed.collectAsState()
+    val url by engine.url.collectAsStateWithLifecycle()
+    val title by engine.title.collectAsStateWithLifecycle()
+    val canGoBack by engine.canGoBack.collectAsStateWithLifecycle()
+    val canGoForward by engine.canGoForward.collectAsStateWithLifecycle()
+    val failed by engine.failed.collectAsStateWithLifecycle()
 
     return remember(engine) { JcefBrowserPage(engine) }.apply {
         this.url = url

@@ -82,7 +82,8 @@ abstract class StatusTileService<T : Any> : TileService() {
             startActivityAndCollapse(pendingIntent)
         } else {
             // targetSdk 34+ 앱이 API 34 기기에서 이 판을 부르면 UnsupportedOperationException 이다. 33 에서만 쓴다.
-            @Suppress("DEPRECATION")
+            // lint 는 SDK_INT 분기를 보지 못하고 자기 검사 ID 로만 억제된다.
+            @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
             startActivityAndCollapse(intent)
         }
     }

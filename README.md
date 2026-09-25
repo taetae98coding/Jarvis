@@ -24,7 +24,8 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 
 기본 패키지는 `io.github.taetae98coding.jarvis`다. 모듈마다 하위 패키지를 따로 쓰므로 같은 패키지가 여러 모듈에 걸치지 않는다.
 
-공용 코드는 **기능마다 clean architecture 세 계층을 모듈로** 갖는다. 기능은 `appinfo` · `emulator` · `screen` · `rotation` 넷이고 서로를 의존하지 않는다. 의존은 한 방향이고 Gradle이 강제한다.
+공용 코드는 **기능마다 clean architecture 세 계층을 모듈로** 갖는다. 기능은 `appinfo` · `emulator` · `screen` · `rotation` · `terminal` · `theme` · `profiling` · `mcp` 여덟이고 서로를 의존하지 않는다.
+화면이 없는 `mcp` 는 `domain` · `data` 둘만, Android 위젯·알림·타일이 있는 `screen` · `rotation` 은 `widget` 을 하나 더 갖는다. 의존은 한 방향이고 Gradle이 강제한다.
 
 ```
 androidApp   iosApp(Xcode)   desktopApp   webApp
@@ -32,10 +33,10 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
                    shared               ← Koin 시작. 기능이 늘어도 커지지 않는다
                    app:ui               ← JarvisApp(), Home 화면, FeatureGrid, 백스택
      ┌───────────────┼───────────────┬───────────────┐
- feature:appinfo  feature:emulator  feature:screen  feature:rotation
-     │      기능마다 ui → domain ← data
+ feature:appinfo  feature:emulator  feature:screen  feature:terminal  …  (기능 여덟)
+     │      기능마다 ui → domain ← data   (widget → domain)
      └───────────────┴───────────────┴───────────────┘
-              core:ui        core:data              ← 두 기능 이상이 쓰는 것만
+   core:ui   core:data   core:browser   core:automation   core:widget   ← 두 기능 이상이 쓰는 것만
                  │
            core:designsystem                         ← JarvisTheme, JarvisIcons, Jarvis* 컴포넌트
 ```
@@ -45,8 +46,12 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | `feature:<기능>:domain` | `.jarvis.domain.<기능>` | 모델, 리포지토리 인터페이스, 유스케이스, `<기능>DomainModule`. 의존성은 `kotlinx-coroutines-core` 와 `koin-core` 뿐 |
 | `feature:<기능>:data` | `.jarvis.data.<기능>` | 리포지토리 구현과 `<기능>DataModule`. 플랫폼 API(`expect`/`actual`), 저장소, 직렬화, 프로세스·HTTP |
 | `feature:<기능>:ui` | `.jarvis.ui.<기능>` | 카드·화면, ViewModel, 라우트, `<기능>UiModule`. 같은 기능의 `domain`만 본다 |
+| `feature:<기능>:widget` | `.jarvis.widget.<기능>` | Android 전용 홈 화면 위젯·알림·빠른 설정 타일. `domain`만 본다 |
 | `core:data` | `.jarvis.data`, `.jarvis.data.state` | `PlatformContext`(expect class), 상태 조회 규칙 3종 |
 | `core:designsystem` | `.jarvis.designsystem.theme`, `.icon`, `.component` | M3 위의 `JarvisTheme`(색·글꼴·모양·치수), `JarvisIcons`(ImageVector), `JarvisCard` 등 공용 컴포넌트와 `*Defaults`. 규칙은 [디자인 시스템 스펙](docs/common/design-system.html) |
+| `core:browser` | `.jarvis.browser` | 터미널 브라우저 탭과 MCP 가 함께 쓰는 브라우저 엔진(JVM 은 JCEF) |
+| `core:automation` | `.jarvis.automation` | MCP 도구가 기능들의 능력을 부르는 이음새 인터페이스 |
+| `core:widget` | `.jarvis.widget` | Android 위젯·알림·타일이 함께 쓰는 갱신 장치·권한 중계·알림 채널 |
 | `core:ui` | `.jarvis.ui.component`, `.jarvis.ui.navigation` | `ToggleFeatureCard`, `Navigator`·`LocalNavigator`, `NavKeySerializers` |
 | `app:ui` | `.jarvis.ui.app` | `JarvisApp()`, Home 라우트와 화면, `FeatureGrid`, 백스택, `appUiModule` |
 | `shared` | `.jarvis.shared` | Koin 시작(`startJarvisKoin()`)과 진입점. `App()`, iOS `MainViewController()` |
@@ -56,7 +61,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | `webApp` | `.jarvis.web` | Kotlin/Wasm — `main()`이 ComposeViewport에 `App()`을 붙인다 |
 | `iosApp` | — | Xcode 프로젝트. SwiftUI가 `shared`의 `MainViewController()`를 감싼다 |
 
-라이브러리 모듈 열여섯은 모두 android / jvm / iosArm64 / iosSimulatorArm64 / wasmJs 타깃을 갖는다. 그 선언은 `build-logic`의 컨벤션 플러그인에만 있다.
+멀티플랫폼 라이브러리 모듈 서른은 모두 android / jvm / iosArm64 / iosSimulatorArm64 / wasmJs 타깃을 갖는다(`widget` 모듈 셋은 Android 전용). 그 선언은 `build-logic`의 컨벤션 플러그인에만 있다.
 패키지는 기능 분리 전 이름(`.jarvis.<계층>.<기능>`)을 그대로 쓴다. 모듈 경로와 순서가 반대지만, 그 덕에 분리 과정에서 `import`가 한 줄도 바뀌지 않았다.
 같은 기능은 세 모듈에서 같은 마지막 이름을 쓰므로 `emulator`로 찾으면 세 계층이 함께 나온다.
 
@@ -69,6 +74,8 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | 화면 꺼짐 방지 | `ScreenAwakeSettingsRepository`, 유스케이스 7개 | `SettingsStore`, `IdleInhibitor`, `SystemScreenAwakeDataSource` | `ScreenAwakeCard`, `SystemScreenAwakeCard` |
 | 화면 테마 | `ThemeMode`, `ThemeSettingsRepository`, `ThemeAppearanceRepository`, 유스케이스 3개 | `SettingsStore`(문자열), `ThemeAppearance` | `ThemeModeCard`, `appDarkTheme()` |
 | 프로파일링 | `Profiling`, `ProfilingRepository`, `ObserveProfilingUseCase` | `ProfilingSource`, `CounterDelta` | `ProfilingCard` |
+| 터미널 | `TerminalWorkspace`, `FileRepository`, `GitWorktreeRepository`, `CodeIntelRepository` | PTY 세션, git, 파일, LSP | 터미널 화면·패널·탭·사이드 바 |
+| MCP 서버 | `McpToolbox`, `McpTools`, `DeviceLeases` | `McpServer`, `McpProtocol` | — |
 
 ## 의존성 주입 · ViewModel · 화면 이동
 
@@ -301,7 +308,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 그 기능의 `data` 모듈 `src/commonMain`에 `expect`를 선언하고 각 `<target>Main`에 `actual`을 구현한다.
 현재는 `platformName`(`feature/appinfo/data`의 `data/appinfo/PlatformName.kt`)이 가장 단순한 예시다.
 두 기능 이상이 쓰는 플랫폼 핸들만 `core:data`로 내린다(`PlatformContext`).
-기능의 `ui`와 `domain` 모듈에는 `expect`를 두지 않는다. 예외 하나(`Modifier.keepScreenAwake`)는 [모듈 구조 스펙](docs/common/module-architecture.html#exceptions)에 적혀 있다.
+`domain` 에는 `expect`를 두지 않고, `ui` 에는 Compose 타입에 묶인 것(`Modifier.keepScreenAwake`, 브라우저 화면, `ImageBitmap` 변환)만 둔다. 그 목록은 [모듈 구조 스펙](docs/common/module-architecture.html#exceptions)에 적혀 있다.
 
 한 타깃에서만 가능한 기능이라면 나머지 `actual`을 "지원하지 않음"으로 두는 쪽을 택했다.
 `createSystemScreenAwakeDataSource`가 그렇게 구현되어 있고, 화면에서 카드를 감추는 대신 잠긴 채로 이유를 보여준다.

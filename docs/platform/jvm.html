@@ -77,6 +77,7 @@
     <li><a href="#terminal-selection">터미널 글자 끌어 선택·복사</a></li>
     <li><a href="#terminal-scroll">터미널 휠 스크롤</a></li>
     <li><a href="#terminal-run">터미널에서 실행</a></li>
+    <li><a href="#chrome-cookie-import">Chrome 쿠키 가져오기</a></li>
     <li><a href="#claude-notification">Claude 턴 알림</a></li>
     <li><a href="#device-mirroring">기기 화면 영상 스트림·호버</a></li>
     <li><a href="#mcp-server">Claude 에게 브라우저·기기 조작 맡기기 (MCP 서버)</a></li>
@@ -950,6 +951,36 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>DevicePairingParsingTest</code> 가 <code>mdns services</code>·<code>pair</code> 출력 해석(두 버전의 실패 문구, 점 붙은 종류, 공백 든 이름)을, <code>HostAgentServerTest</code> 가 엔드포인트를 확인한다. 실제 기기 페어링은 <span class="badge untested">미검증</span>이다. 손으로 확인하려면 기기에서 "페어링 코드로 기기 페어링" 을 연 채 <code>curl http://127.0.0.1:47890/emulators/pairing/services</code> 로 목록을 보고, 앱에서 코드를 넣는다.</p>
+</section>
+
+<section class="feature" id="device-list-split">
+<h2>기기 목록 좌우 분할 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/device-list-split.html">기기 목록 좌우 분할</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>Row</code> + <code>Modifier.weight(1f)</code></td><td>채택. 창 크기를 바꾸면 제약이 다시 내려와 두 열이 같이 늘고 준다</td></tr>
+    <tr><td>열마다 <code>LazyColumn</code></td><td>채택. AWT 마우스 휠 이벤트는 포인터 아래의 <code>scrollable</code> 하나에만 전달되어 두 열이 따로 굴러간다</td></tr>
+    <tr><td>Swing <code>JSplitPane</code></td><td>해당 없음. 기기 목록은 Compose 화면이고 나눈 비율을 사용자가 끌어 바꾸는 요구도 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/emulator/ui/src/commonMain/.../ui/emulator/EmulatorListScreen.kt</code></dd>
+  <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>좁은 창에서는 열 하나가 좁아 이름이 여러 줄로 접힌다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>JarvisAppTest</code> 가 <code>jvmTest</code>(skikoTest) 에서 열 분리와 빈 열 문구를 확인한다. 너비와 휠 스크롤은 <span class="badge untested">미검증</span>이고 <code>./gradlew :desktopApp:run</code> 으로 수동 확인한다.</p>
 </section>
 
 <section class="feature" id="terminal">
@@ -2343,36 +2374,6 @@ internal actual fun createSystemScreenAwakeDataSource(
 ./gradlew :desktopApp:createDistributable  # Jarvis.app
 ./gradlew :desktopApp:packageReleaseDmg    # 배포용 DMG (<a href="#release-build">release 빌드</a>)</code></pre>
 <p>Android·iOS·Web에서 에뮬레이터 개수를 보려면 이 앱을 함께 띄워 둬야 한다.</p>
-</section>
-
-<section class="feature" id="device-list-split">
-<h2>기기 목록 좌우 분할 <span class="badge ok">구현</span></h2>
-<p>공통 스펙: <a href="../common/device-list-split.html">기기 목록 좌우 분할</a></p>
-
-<h3>기술 조사</h3>
-<table>
-  <thead><tr><th>후보</th><th>결과</th></tr></thead>
-  <tbody>
-    <tr><td><code>Row</code> + <code>Modifier.weight(1f)</code></td><td>채택. 창 크기를 바꾸면 제약이 다시 내려와 두 열이 같이 늘고 준다</td></tr>
-    <tr><td>열마다 <code>LazyColumn</code></td><td>채택. AWT 마우스 휠 이벤트는 포인터 아래의 <code>scrollable</code> 하나에만 전달되어 두 열이 따로 굴러간다</td></tr>
-    <tr><td>Swing <code>JSplitPane</code></td><td>해당 없음. 기기 목록은 Compose 화면이고 나눈 비율을 사용자가 끌어 바꾸는 요구도 없다</td></tr>
-  </tbody>
-</table>
-
-<h3>구현</h3>
-<dl class="meta">
-  <dt>파일</dt><dd><code>feature/emulator/ui/src/commonMain/.../ui/emulator/EmulatorListScreen.kt</code></dd>
-  <dt>동작</dt><dd>플랫폼 코드가 없다. 공통 코드 그대로 돈다</dd>
-  <dt>실패</dt><dd>해당 없음</dd>
-</dl>
-
-<h3>한계</h3>
-<ul>
-  <li>좁은 창에서는 열 하나가 좁아 이름이 여러 줄로 접힌다.</li>
-</ul>
-
-<h3>검증</h3>
-<p><code>JarvisAppTest</code> 가 <code>jvmTest</code>(skikoTest) 에서 열 분리와 빈 열 문구를 확인한다. 너비와 휠 스크롤은 <span class="badge untested">미검증</span>이고 <code>./gradlew :desktopApp:run</code> 으로 수동 확인한다.</p>
 </section>
 
 <section class="feature" id="test">

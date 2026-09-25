@@ -47,7 +47,7 @@
   <li><strong>R2.</strong> 계층 의존은 기능 안에서 한 방향이다. <code>ui → domain</code>, <code>data → domain</code>. 어느 기능에서도 <code>ui</code>가 <code>data</code>를, <code>data</code>가 <code>ui</code>를 컴파일 타임에 볼 수 없다.</li>
   <li><strong>R3.</strong> 기능은 서로를 의존하지 않는다. 기능 사이에 필요한 것은 <code>:core:*</code>로 내려가고, 기능 하나가 다른 기능의 타입을 import 하면 그 구조는 틀린 것이다.</li>
   <li><strong>R4.</strong> <code>:core:*</code>에는 두 기능 이상이 쓰는 것만 둔다. 한 기능만 쓰는 것은 그 기능이 갖는다.</li>
-  <li><strong>R5.</strong> <code>:domain</code>은 Compose와 플랫폼 API에 의존하지 않는다. 의존성은 <code>kotlinx-coroutines-core</code>와 <code>koin-core</code>뿐이고 <code>expect</code> 선언이 없다. 플랫폼 API 호출은 전부 <code>data</code> 모듈에 있다.</li>
+  <li><strong>R5.</strong> <code>:domain</code>은 Compose와 플랫폼 API에 의존하지 않는다. 의존성은 <code>kotlinx-coroutines-core</code>와 <code>koin-core</code>뿐이고 <code>expect</code> 선언이 없다. 플랫폼 API 호출은 <code>data</code> 모듈에 있다(UI 타입에 묶인 것은 <a href="#exceptions">예외</a>).</li>
   <li><strong>R6.</strong> 기능 모듈은 자기 조립을 스스로 들고 있다. <code>domain</code>은 유스케이스를, <code>data</code>는 리포지토리를, <code>ui</code>는 ViewModel·화면·라우트를 각각 자기 Koin 모듈에 등록한다.</li>
   <li><strong>R7.</strong> 앱 셸(<code>:app:ui</code>)은 어떤 화면이 있는지 모른다. 라우트는 각 기능의 Koin 모듈이 등록하고, 백스택 키의 직렬화 등록도 기능이 함께 낸다.</li>
   <li><strong>R8.</strong> 기능을 하나 더할 때 고치는 기존 파일은 <code>settings.gradle.kts</code>와 <code>:shared</code>의 모듈 목록, 그리고 카드를 놓는 <code>FeatureGrid</code> 뿐이다.</li>
@@ -251,7 +251,7 @@ val emulatorUiModule = module {
 
 <h3 id="exceptions">계층 규칙의 예외</h3>
 
-<p>플랫폼에 닿는데 <code>data</code> 에 둘 수 없는 것이 하나 있다. 예외를 만드는 대신 감추면 다음 사람이 규칙을 잘못 읽는다.</p>
+<p>플랫폼에 닿는데 <code>data</code> 에 둘 수 없는 것이 아래 표의 것들이다. 모두 Compose 화면·<code>ImageBitmap</code> 처럼 UI 타입에 묶여 있어서 <code>ui</code> 에 <code>expect</code> 로 둔다. 예외를 만드는 대신 감추면 다음 사람이 규칙을 잘못 읽으므로, <code>ui</code> 에 <code>expect</code> 를 새로 두면 이 표에 한 줄을 더한다.</p>
 
 <table>
   <thead><tr><th>무엇</th><th>어디</th><th>왜 data에 못 두나</th></tr></thead>
@@ -260,6 +260,21 @@ val emulatorUiModule = module {
       <td><code>Modifier.keepScreenAwake(enabled)</code></td>
       <td><code>:feature:screen:ui</code></td>
       <td>Compose의 <code>Modifier.keepScreenOn()</code>이 플랫폼 API를 대신 부른다. Modifier 형태로만 존재하므로 Compose 밖으로 꺼낼 수 없다. 이 modifier가 커버하지 못하는 JVM은 <code>:feature:screen:data</code> 의 <code>IdleInhibitor</code>가 맡는다</td>
+    </tr>
+    <tr>
+      <td><code>HtmlFilePreview</code>, <code>rememberBrowserPage</code>, <code>BrowserPageView</code>, <code>browserTitle</code>, <code>closeBrowserPages</code></td>
+      <td><code>:feature:terminal:ui</code></td>
+      <td>웹 페이지를 그리는 컴포저블과 그 수명이다. Android 는 <code>WebView</code> 를 <code>AndroidView</code> 로, JVM 은 <code>:core:browser</code> 의 JCEF 화면 밖 렌더링을 붙이므로 Compose 밖으로 꺼낼 수 없다(<a href="terminal-browser.html">터미널에서 웹 브라우저</a>, <a href="terminal-file-preview.html">파일 탭 보기 방식</a>)</td>
+    </tr>
+    <tr>
+      <td><code>directoryPicker</code></td>
+      <td><code>:feature:terminal:ui</code></td>
+      <td>폴더 선택 창은 화면에 뜨는 대화 상자다. 없는 타깃은 <code>null</code> 이고 경로를 직접 입력받는다(<a href="terminal-panel-create.html">새 패널 제목·폴더</a>)</td>
+    </tr>
+    <tr>
+      <td><code>EmulatorFrame.Pixels.toImageBitmap()</code>, <code>ImageBitmap.release()</code>, <code>FrameDecodeContext</code></td>
+      <td><code>:feature:emulator:ui</code></td>
+      <td>기기 프레임을 Compose 의 <code>ImageBitmap</code> 으로 바꾸고 네이티브 픽셀 메모리를 놓는 일이다. <code>ImageBitmap</code> 이 Compose 타입이라 <code>data</code> 가 볼 수 없다(<a href="device-mirroring.html">기기 화면 영상 스트림·호버</a>)</td>
     </tr>
   </tbody>
 </table>
