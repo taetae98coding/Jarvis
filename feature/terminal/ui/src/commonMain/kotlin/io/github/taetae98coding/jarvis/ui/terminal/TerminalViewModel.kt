@@ -236,8 +236,9 @@ internal class TerminalViewModel(
         update { it.addTab(groupId, TerminalProgram.Claude, it.startDirectory(groupId), sessionId) }
     }
 
-    fun addBrowserTab(groupId: Long? = null) =
-        update { it.addTab(groupId, TerminalProgram.Browser, url = TerminalTab.DefaultBrowserUrl) }
+    /** [url] 은 창의 링크에서 열 때 그 주소다(docs/common/terminal-link.html R6). 메뉴의 "웹 브라우저" 는 첫 페이지다. */
+    fun addBrowserTab(groupId: Long? = null, url: String = TerminalTab.DefaultBrowserUrl) =
+        update { it.addTab(groupId, TerminalProgram.Browser, url = url) }
 
     fun setUrl(tabId: Long, url: String) = update { it.setUrl(tabId, url) }
 

@@ -51,6 +51,9 @@ class TerminalEmulator(
     private val scrollback = ArrayDeque<TerminalLine>()
 
     private var style = TerminalStyle.Default
+
+    /** OSC 8 로 열린 하이퍼링크. 닫힐 때까지 찍는 글자에 붙는다(docs/common/terminal-link.html R1a). */
+    private var link: String? = null
     private var pendingWrap = false
     private var autoWrap = true
     private var insertMode = false
@@ -246,8 +249,8 @@ class TerminalEmulator(
         line.breakWideAround(cursorColumn, blank())
         if (width == 2) line.breakWideAround(cursorColumn + 1, blank())
 
-        line.set(cursorColumn, codePoint, style)
-        if (width == 2 && cursorColumn + 1 < columns) line.set(cursorColumn + 1, TerminalLine.WideTail, style)
+        line.set(cursorColumn, codePoint, style, link)
+        if (width == 2 && cursorColumn + 1 < columns) line.set(cursorColumn + 1, TerminalLine.WideTail, style, link)
         lastPrinted = codePoint
 
         val next = cursorColumn + width
@@ -649,6 +652,8 @@ class TerminalEmulator(
 
         when (text.substring(0, separator)) {
             "0", "2" -> title = text.substring(separator + 1)
+            // `8;params;URI`. params(id=…)는 쓰지 않는다. URI 가 비면 링크가 끝난다.
+            "8" -> link = text.substring(separator + 1).substringAfter(';', "").ifEmpty { null }
         }
     }
 
@@ -669,6 +674,7 @@ class TerminalEmulator(
         alternate.forEach { it.clear(0, columns, TerminalStyle.Default) }
         screen = main
         style = TerminalStyle.Default
+        link = null
         cursorRow = 0
         cursorColumn = 0
         cursorVisible = true

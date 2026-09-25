@@ -233,6 +233,32 @@ class TerminalEmulatorTest {
     }
 
     @Test
+    fun oscHyperlinkAttachesToPrintedCells() {
+        val e = emulator(columns = 12)
+
+        e.feed("a\u001b]8;;https://x.io\u0007b가\u001b]8;;\u001b\\c")
+
+        assertEquals("ab가c", e.row(0))
+        assertEquals(null, e.line(0).linkAt(0))
+        assertEquals("https://x.io", e.line(0).linkAt(1))
+        assertEquals("https://x.io", e.line(0).linkAt(2))
+        assertEquals("https://x.io", e.line(0).linkAt(3))
+        assertEquals(null, e.line(0).linkAt(4))
+    }
+
+    @Test
+    fun oscHyperlinkIgnoresParamsAndEndsOnReset() {
+        val e = emulator()
+
+        e.feed("\u001b]8;id=1;https://x.io\u0007a")
+        assertEquals("https://x.io", e.line(0).linkAt(0))
+
+        e.feed("\u001bcb")
+        assertEquals("b", e.row(0))
+        assertEquals(null, e.line(0).linkAt(0))
+    }
+
+    @Test
     fun cursorPositionReportIsAnswered() {
         val e = emulator()
 
