@@ -30,6 +30,7 @@ kotlin {
             implementation(projects.feature.rotation.data)
             implementation(projects.feature.terminal.data)
             implementation(projects.feature.theme.data)
+            implementation(projects.feature.profiling.data)
         }
 
         androidMain.dependencies {

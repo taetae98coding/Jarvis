@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>프로파일링 (CPU·메모리·GPU·네트워크·디스크) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>프로파일링</span></nav>
+
+<header>
+  <h1>프로파일링 (CPU·메모리·GPU·네트워크·디스크)</h1>
+  <p class="lead">홈의 "프로파일링" 카드가 이 앱이 돌고 있는 기기의 CPU·메모리·GPU 사용률, 네트워크 속도, 디스크 읽기·쓰기 사용률, 디스크 남은 용량을 1초마다 새로 보여준다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>home에 Profiling 정보 노출하도록 구현해줘.<br>
+  - cpu, memory, gpu, network, disk(read/write 퍼센트), disk(남은용량)</p>
+  <footer>2026-09-25 대화.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 홈 기능 그리드에 "프로파일링" 카드가 있고, 지표 여섯 줄을 이 순서로 보인다: CPU, 메모리, GPU, 네트워크, 디스크 읽기·쓰기, 디스크 남은 용량.</li>
+  <li><strong>R2.</strong> CPU·GPU 는 사용률(%)이다. 메모리는 사용량 / 전체와 그 비율, 네트워크는 받기·보내기 속도(초당 바이트), 디스크 읽기·쓰기는 읽기가 디스크를 차지한 시간 비율(%)과 쓰기가 차지한 시간 비율(%), 디스크 남은 용량은 남은 바이트 / 전체다.</li>
+  <li><strong>R3.</strong> 값은 카드가 보이는 동안 1초(<code>ProfilingPollInterval</code>)마다 다시 읽는다. 이 지표들은 시스템이 변경을 알려주지 않으므로 <a href="state-observation.html">상태 조회 규칙</a> R2 의 폴링이다. 카드가 화면에서 사라지거나 앱이 백그라운드로 가면 읽기를 멈춘다(R11, R14).</li>
+  <li><strong>R4.</strong> 두 표본의 차이로 구하는 지표(CPU, 네트워크, 디스크 읽기·쓰기)는 첫 표본에 "측정 중" 을 보이고, 다음 표본부터 값을 보인다.</li>
+  <li><strong>R5.</strong> 플랫폼이 줄 수 없거나 읽기에 실패한 지표는 "측정 불가" 로 보인다. 카드 전체가 숨거나 앱이 죽지 않는다.</li>
+  <li><strong>R6.</strong> 기기 전체가 아니라 이 앱(Android CPU, Web 메모리)이나 이 사이트(Web 저장 공간)만 잰 값은 줄 이름 뒤에 "(이 앱)" 을 붙여 기기 전체 값과 구분한다.</li>
+  <li><strong>R7.</strong> 첫 프레임부터 카드의 모양이 흔들리지 않는다. 이 플랫폼이 지원하지 않는 지표는 첫 프레임부터 "측정 불가", 지원하는 지표는 "측정 중" 으로 시작한다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>값의 이력(그래프). 카드는 지금 값만 보인다. <a href="state-observation.html#limits">상태 조회 규칙의 한계</a>대로 중간 값은 건너뛴다.</li>
+    <li>프로세스별 목록(가장 CPU 를 많이 쓰는 앱 등). 대부분의 플랫폼이 다른 앱을 들여다보지 못하게 막는다.</li>
+    <li>연결된 기기(에뮬레이터·실물 기기)의 지표. 이 카드는 Jarvis 가 떠 있는 기기만 잰다.</li>
+    <li>경고·알림(예: CPU 90% 이상). 보여 주기만 한다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>프로파일링</td></tr>
+    <tr><td>아이콘</td><td><code>JarvisIcons.Activity</code> (새 아이콘. 심전도처럼 위아래로 꺾이는 선)</td></tr>
+    <tr><td>줄</td><td><code>JarvisLabeledValue</code> 여섯. 라벨은 위에서부터 "CPU" · "메모리" · "GPU" · "네트워크" · "디스크 읽기·쓰기" · "디스크 남은 용량"</td></tr>
+    <tr><td>막대</td><td>CPU · 메모리 · GPU · 디스크 남은 용량 줄 아래에 값이 있을 때만 <code>LinearProgressIndicator</code>(사용률, 디스크는 사용한 비율). 값이 없으면 그리지 않는다</td></tr>
+    <tr><td>테스트 태그</td><td>카드 <code>feature:profiling</code>, 줄 <code>feature:profiling:cpu</code> / <code>:memory</code> / <code>:gpu</code> / <code>:network</code> / <code>:diskActivity</code> / <code>:diskSpace</code></td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>지표</th><th>값의 형식</th><th>예</th></tr></thead>
+  <tbody>
+    <tr><td>CPU, GPU</td><td>정수 퍼센트</td><td><code>23%</code></td></tr>
+    <tr><td>메모리</td><td>사용량 / 전체 (정수 퍼센트)</td><td><code>27.6 GB / 34.4 GB (80%)</code></td></tr>
+    <tr><td>네트워크</td><td>받기 · 보내기 속도</td><td><code>↓ 1.2 MB/s · ↑ 30 KB/s</code></td></tr>
+    <tr><td>디스크 읽기·쓰기</td><td>읽기 퍼센트 · 쓰기 퍼센트</td><td><code>읽기 3% · 쓰기 1%</code></td></tr>
+    <tr><td>디스크 남은 용량</td><td>남은 바이트 / 전체</td><td><code>120 GB / 494 GB</code></td></tr>
+    <tr><td>값이 아직 없다 (R4)</td><td colspan="2"><code>측정 중</code></td></tr>
+    <tr><td>값을 줄 수 없다 (R5)</td><td colspan="2"><code>측정 불가</code></td></tr>
+  </tbody>
+</table>
+
+<ul>
+  <li>바이트는 1000 단위(B, KB, MB, GB, TB)로 적는다. macOS·Android 의 파일 크기 표기와 같다. 100 미만이면 소수 한 자리까지 적고 <code>.0</code> 은 뗀다(<code>1.2 MB</code>, <code>27.6 GB</code>, <code>30 KB</code>, <code>494 GB</code>).</li>
+  <li>퍼센트는 0–100 으로 자른다. 두 디스크가 동시에 바쁘거나 요청이 겹치면 합이 100 을 넘을 수 있어서다(<a href="#limits">한계</a>).</li>
+</ul>
+
+<aside class="decision">
+  <strong>결정: "disk read/write 퍼센트" 는 시간 비율이다</strong>
+  디스크 읽기·쓰기에는 전체라는 것이 없어서 바이트 속도로는 퍼센트를 만들 수 없다. <code>iostat</code>·Windows 작업 관리자의 "활성 시간" 처럼, 표본 간격 동안 디스크가 읽기(쓰기) 요청을 처리하던 시간의 비율로 정했다. 읽기·쓰기를 합친 활성 시간 하나로 줄이는 안은 지시가 둘을 나눠 적어서 버렸다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 새로 고침은 1초다</strong>
+  <code>top</code> 과 Android Studio 프로파일러가 1초, macOS 활동 모니터 기본값이 5초다. 이 카드는 "지금 얼마나 바쁜가" 를 보는 용도라 짧은 쪽을 골랐다. JVM 은 한 번 읽는 데 명령 넷을 띄우며 개발 머신에서 합쳐 약 50ms 가 걸렸다(<a href="../platform/jvm.html#profiling">jvm.html</a>). 카드가 보이는 동안에만 돈다.
+</aside>
+
+<h2 id="implementation">공통 구현</h2>
+
+<p>기능 하나가 <code>:feature:profiling:domain</code> · <code>:feature:profiling:data</code> · <code>:feature:profiling:ui</code> 셋을 갖는다(<a href="module-architecture.html">모듈 구조</a> R1). 패키지는 <code>domain.profiling</code> · <code>data.profiling</code> · <code>ui.profiling</code> 이다.</p>
+
+<dl class="meta">
+  <dt>모델</dt><dd><code>domain/profiling/Profiling.kt</code> — 지표 여섯을 담는 <code>data class Profiling</code>. 지표마다 <code>Reading&lt;T&gt;</code>(<code>Measuring</code> · <code>Unavailable</code> · <code>Available(value)</code>). 값은 <code>Usage(percent, scope)</code>, <code>MemoryUsage(usedBytes, totalBytes, scope)</code>, <code>NetworkThroughput(receivedBytesPerSecond, sentBytesPerSecond)</code>, <code>DiskActivity(readPercent, writePercent)</code>, <code>DiskSpace(freeBytes, totalBytes, scope)</code>. <code>scope</code> 는 <code>ProfilingScope.DEVICE</code> / <code>APP</code>(R6)</dd>
+  <dt>계약</dt><dd><code>domain/profiling/ProfilingRepository.kt</code> — <code>supportedMetrics: Set&lt;ProfilingMetric&gt;</code>(실행 중에 바뀌지 않는 값, 상태 조회 규칙 R10), <code>observeProfiling(): Flow&lt;Profiling&gt;</code>(cold, R11)</dd>
+  <dt>유스케이스</dt><dd><code>ObserveProfilingUseCase(scope): StateFlow&lt;Profiling&gt;</code>. <code>observeProfiling().stateIn(scope, WhileSubscribed(), Profiling.initial(supportedMetrics))</code> 다(R7)</dd>
+  <dt>상태</dt><dd><code>data/profiling/DefaultProfilingRepository.kt</code>. 수집 하나마다 <code>ProfilingSource.openSampler()</code> 로 표본기를 새로 열고 <code>observeByPolling(ProfilingPollInterval) { sampler.sample() }</code> 로 흘린다</dd>
+  <dt>공급</dt><dd><code>internal expect fun createProfilingSource(context: PlatformContext): ProfilingSource</code> (<code>data.profiling</code>). <code>ProfilingSource</code> 는 <code>supportedMetrics</code> 와 <code>openSampler(): ProfilingSampler</code> 를, <code>ProfilingSampler</code> 는 <code>suspend fun sample(): Profiling</code> 하나를 가진다</dd>
+  <dt>차이 계산</dt><dd><code>data/profiling/CounterDelta.kt</code> — 누적 카운터(바이트, CPU 틱, 디스크 사용 시간)를 직전 표본과의 차이와 경과 시간으로 바꾼다. 첫 표본은 null(R4), 카운터가 줄어들면(재부팅·인터페이스 교체·32비트 넘침) 그 표본의 차이는 0 이다</dd>
+  <dt>UI</dt><dd><code>ui/profiling/ProfilingCard.kt</code>(카드), <code>ui/profiling/ProfilingViewModel.kt</code>, <code>ui/profiling/ProfilingFormat.kt</code>(바이트·퍼센트 표기)</dd>
+</dl>
+
+<pre><code>// :feature:profiling:data — 수집 하나마다 표본기를 새로 연다
+override fun observeProfiling(): Flow&lt;Profiling&gt; = flow {
+    val sampler = source.openSampler()
+    emitAll(observeByPolling(ProfilingPollInterval) { sampler.sample() })
+}</code></pre>
+
+<aside class="decision">
+  <strong>결정: 표본기는 수집마다 새로 연다</strong>
+  속도 지표는 직전 표본을 기억해야 한다. 리포지토리가 표본기 하나를 들고 있으면 구독자 둘이 번갈아 읽을 때 서로의 직전 표본을 빼앗아 간격이 절반인 값이 나온다. 수집마다 <code>openSampler()</code> 로 새 상태를 만들면 구독자마다 제 간격으로 잰다. 대신 구독자가 둘이면 읽기도 두 벌이다. 지금 구독자는 카드 하나뿐이라 <a href="state-observation.html">상태 조회 규칙</a> R12 의 <code>shareIn</code> 은 쓰지 않는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 지원 여부는 상태가 아니라 값이다</strong>
+  어떤 지표를 줄 수 있는지는 플랫폼이 정하고 실행 중에 바뀌지 않는다(상태 조회 규칙 R10). 그래서 <code>supportedMetrics</code> 는 <code>Flow</code> 가 아니라 일반 프로퍼티이고, 첫 프레임의 초기값(R7)을 만드는 데만 쓴다. 읽기에 실패한 지표는 지원 목록에 있어도 <code>Unavailable</code> 을 흘린다(R5).
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>지표</th><th>Android</th><th>iOS</th><th>JVM (macOS)</th><th>Web</th></tr></thead>
+  <tbody>
+    <tr><td>CPU</td><td>우회 — 이 앱만. <code>Process.getElapsedCpuTime()</code></td><td>구현 — <code>host_statistics(HOST_CPU_LOAD_INFO)</code></td><td>구현 — <code>OperatingSystemMXBean.getCpuLoad()</code></td><td>불가</td></tr>
+    <tr><td>메모리</td><td>구현 — <code>ActivityManager.getMemoryInfo</code></td><td>구현 — <code>host_statistics64(HOST_VM_INFO64)</code></td><td>구현 — <code>vm_stat</code></td><td>조건부 — 이 앱의 JS 힙. <code>performance.memory</code>(Chromium)</td></tr>
+    <tr><td>GPU</td><td>불가</td><td>불가</td><td>구현 — <code>ioreg</code> <code>IOAccelerator</code></td><td>불가</td></tr>
+    <tr><td>네트워크</td><td>구현 — <code>TrafficStats</code></td><td>구현 — <code>getifaddrs</code> <code>AF_LINK</code></td><td>구현 — <code>netstat -ibn</code></td><td>불가</td></tr>
+    <tr><td>디스크 읽기·쓰기</td><td>불가</td><td>불가</td><td>구현 — <code>ioreg</code> <code>IOBlockStorageDriver</code></td><td>불가</td></tr>
+    <tr><td>디스크 남은 용량</td><td>구현 — <code>StatFs</code></td><td>구현 — <code>NSURLVolumeAvailableCapacityForImportantUsageKey</code></td><td>구현 — <code>File.usableSpace</code></td><td>조건부 — 이 사이트의 몫. <code>navigator.storage.estimate()</code></td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>요약</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge partial">조건부</span></td><td>CPU 는 이 앱만(<code>/proc/stat</code> 이 Android 8 부터 앱에 막혔다). GPU·디스크 읽기·쓰기는 앱이 읽을 수 있는 공개 API·파일이 없어 측정 불가</td><td><a href="../platform/android.html#profiling">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge partial">조건부</span></td><td>GPU·디스크 읽기·쓰기는 IOKit 이 샌드박스 밖이라 측정 불가</td><td><a href="../platform/ios.html#profiling">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>여섯 지표 모두. macOS 명령(<code>vm_stat</code>, <code>ioreg</code>, <code>netstat</code>)의 출력을 읽는다. 다른 OS 는 명령이 없어 해당 줄이 측정 불가가 된다</td><td><a href="../platform/jvm.html#profiling">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>브라우저가 기기 지표를 주지 않는다. 메모리는 이 앱의 JS 힙(Chromium 만), 디스크 남은 용량은 이 사이트에 허용된 몫. 나머지는 측정 불가</td><td><a href="../platform/web.html#profiling">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.profilingCardShowsEveryMetric</code></td><td>R1, R2. 여섯 줄과 형식</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.profilingCardMarksUnavailableAndMeasuring</code></td><td>R4, R5, R7. 지원 안 하는 줄은 첫 프레임부터 "측정 불가", 나머지는 "측정 중"</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTest.profilingCardMarksAppScope</code></td><td>R6. "(이 앱)"</td><td>같음</td></tr>
+    <tr><td><code>ProfilingRepositoryTest</code></td><td>R3, R4. 1초마다 다시 읽는다, 수집마다 표본기를 새로 연다, 수집을 끊으면 멈춘다</td><td><code>:feature:profiling:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>CounterDeltaTest</code></td><td>R4. 첫 표본은 null, 차이와 경과 시간, 줄어든 카운터는 0</td><td>같음</td></tr>
+    <tr><td><code>MacProfilingParsersTest</code></td><td>JVM 의 <code>vm_stat</code>·<code>ioreg</code>·<code>netstat</code> 출력 해석</td><td><code>:feature:profiling:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>MacProfilingSourceTest</code></td><td>R4. macOS 에서 실제 명령을 불러 첫 표본은 측정 중, 두 번째 표본은 여섯 지표 모두 값</td><td>같음</td></tr>
+    <tr><td><code>ProfilingTest</code></td><td>R7. <code>Profiling.initial</code> 이 지원 목록에 따라 측정 중·측정 불가로 나뉜다</td><td><code>:feature:profiling:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ProfilingFormatTest</code></td><td>바이트·속도·퍼센트 표기, 0–100 자르기</td><td><code>:feature:profiling:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisKoinTest.everyDefinitionResolves</code></td><td>새 정의 둘(리포지토리, 유스케이스)이 해석된다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>실제 값이 맞는지는 자동 테스트가 보지 못한다. 플랫폼 스펙의 검증 항목에 비교할 도구(활동 모니터, <code>adb shell top</code> 등)와 2026-09-25 에 확인한 범위를 적었다. 앱에서 눈으로 본 것은 JVM 뿐이고, Android·iOS·Web 의 플랫폼 코드는 컴파일로만 확인했다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>1초 간격의 평균이다. 그 사이의 짧은 치솟음은 보이지 않는다.</li>
+  <li>디스크 읽기·쓰기 퍼센트는 요청이 겹치면 실제 활성 시간보다 크게 잡히고, 디스크가 여럿이면 합쳐 센다. 그래서 100 으로 자른다. 정확한 "활성 시간" 이 아니라 부하의 눈대중이다.</li>
+  <li>플랫폼마다 재는 범위가 다르다(<a href="#platforms">판정 표</a>). 같은 "CPU 23%" 라도 Android 는 이 앱, JVM 은 기기 전체다. 줄 이름의 "(이 앱)" 이 그 차이를 알린다.</li>
+  <li>카드를 보고 있지 않은 동안은 재지 않는다. 다시 보면 속도 지표는 한 번 "측정 중" 을 거친다.</li>
+</ul>
+
+<footer class="page">
+  <a href="theme-mode.html">← 화면 테마</a> · <a href="state-observation.html">상태 조회 규칙 →</a>
+</footer>
+
+</body>
+</html>

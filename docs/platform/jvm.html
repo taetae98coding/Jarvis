@@ -38,6 +38,7 @@
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
+    <li><a href="#profiling">프로파일링</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -465,6 +466,51 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>:feature:theme:domain</code>·<code>:feature:theme:data</code> 의 <code>jvmTest</code>, <code>:app:ui</code> 의 <code>JarvisAppTest</code>, <code>:shared</code> 의 <code>JarvisKoinTest</code> 가 돈다. 제목 막대는 <code>:desktopApp:run</code> 으로 띄워 모드를 고르고 다시 실행해 눈으로 본다. 2026-09-25 개발 머신(macOS 다크 모드, JDK 21.0.12)에서 확인한 것: 라이트를 고르면 내용은 즉시 밝아지고 제목 막대는 어두운 채다. 다시 실행하면 첫 프레임부터 라이트이고 제목 막대도 밝다. 프로퍼티 자체는 <code>JFrame</code> 하나짜리 Java 파일로 <code>NSAppearanceNameDarkAqua</code>·<code>NSAppearanceNameAqua</code> 둘 다 제목 막대에 반영되는 것을 따로 봤다.</p>
+</section>
+
+<section class="feature" id="profiling">
+<h2>프로파일링 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/profiling.html">프로파일링</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>CPU: <code>com.sun.management.OperatingSystemMXBean.getCpuLoad()</code></td><td>채택. JDK 의 macOS 구현이 <code>host_statistics(HOST_CPU_LOAD_INFO)</code> 의 틱 차이를 직전 호출과 비교해 낸다. 첫 호출은 비교할 것이 없어 0 을 돌려주므로 "측정 중" 으로 둔다. 음수는 읽기 실패다</td></tr>
+    <tr><td>CPU: <code>top -l 2</code></td><td>버렸다. 두 번째 표본을 내려고 1초를 기다린다</td></tr>
+    <tr><td>메모리: <code>OperatingSystemMXBean.getFreeMemorySize()</code></td><td>버렸다. macOS 에서는 <code>vm_stat</code> 의 "Pages free" 뿐이라 캐시로 쓰인 메모리까지 사용량으로 잡혀 늘 90% 를 넘는다</td></tr>
+    <tr><td>메모리: <code>vm_stat</code></td><td>채택. 활동 모니터의 "사용된 메모리" 와 같은 식 <code>(Anonymous − purgeable) + wired down + occupied by compressor</code> 페이지 × 머리줄의 페이지 크기. 전체는 <code>getTotalMemorySize()</code>(<code>hw.memsize</code>)</td></tr>
+    <tr><td>GPU: <code>ioreg -r -d 1 -c IOAccelerator</code></td><td>채택. <code>PerformanceStatistics</code> 사전의 <code>"Device Utilization %"</code> 다. 권한이 필요 없고 Apple Silicon·Intel 내장 GPU 모두 이 키를 낸다. GPU 가 여럿이면 가장 큰 값</td></tr>
+    <tr><td>GPU: <code>powermetrics --samplers gpu_power</code></td><td>버렸다. <code>sudo</code> 가 필요하다</td></tr>
+    <tr><td>GPU: JNA·JNI 로 IOKit 직접 호출</td><td>버렸다. 네이티브 의존을 들여야 한다. <code>ioreg</code> 가 같은 IORegistry 를 읽는다</td></tr>
+    <tr><td>네트워크: <code>netstat -ibn</code></td><td>채택. 인터페이스마다 <code>&lt;Link#N&gt;</code> 줄이 하나씩 있고 끝에서 다섯째·둘째 열이 누적 <code>Ibytes</code>·<code>Obytes</code> 다(주소 열이 비는 인터페이스가 있어 끝에서 센다). <code>lo0</code> 를 뺀다</td></tr>
+    <tr><td>네트워크: <code>java.net.NetworkInterface</code></td><td>버렸다. 주소만 주고 바이트 카운터가 없다</td></tr>
+    <tr><td>네트워크: <code>nettop</code></td><td>버렸다. 프로세스별이고 출력이 흘러나오는 도구라 한 번 읽고 끝내기 어렵다</td></tr>
+    <tr><td>디스크 읽기·쓰기: <code>ioreg -r -d 1 -c IOBlockStorageDriver -k Statistics</code></td><td>채택. <code>"Total Time (Read)"</code>·<code>"Total Time (Write)"</code> 는 부팅 이후 읽기·쓰기 요청에 쓴 누적 나노초다. 표본 간 차이 ÷ 경과 나노초가 퍼센트다. 드라이버가 여럿(내장 SSD, 외장 디스크, 디스크 이미지)이면 합친다</td></tr>
+    <tr><td>디스크 읽기·쓰기: <code>iostat -d</code></td><td>버렸다. 초당 전송량(MB/s)·요청 수만 주고 시간 비율이 없다</td></tr>
+    <tr><td>디스크 남은 용량: <code>File(user.home).usableSpace</code> / <code>totalSpace</code></td><td>채택. <code>statfs</code> 다. APFS 컨테이너는 볼륨끼리 공간을 나눠 쓰므로 홈 볼륨의 값이 곧 컨테이너의 남은 공간이다</td></tr>
+    <tr><td>디스크 남은 용량: <code>NSURLVolumeAvailableCapacityForImportantUsageKey</code></td><td>버렸다. Finder 와 같게 purgeable 까지 더해 주지만 JVM 에서 부를 길이 없다. JNA 를 들이는 대신 <code>statfs</code> 값을 쓴다</td></tr>
+    <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. CPU 와 디스크 남은 용량은 JDK 가 주므로 그대로 나오고, 나머지 넷은 명령이 없어 실행이 실패하고 "측정 불가" 가 된다. 예외는 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/profiling/data/src/jvmMain/.../profiling/ProfilingSource.jvm.kt</code>, <code>MacProfilingParsers.kt</code>(명령 출력 해석)</dd>
+  <dt>동작</dt><dd>표본 하나에 <code>vm_stat</code>, <code>ioreg</code> 둘, <code>netstat</code> 을 차례로 띄워 출력을 읽는다. 개발 머신(M 계열, macOS 26)에서 넷을 합쳐 약 50ms 였다. <code>Dispatchers.IO</code> 에서 돈다. 지원 목록은 여섯 전부</dd>
+  <dt>실패</dt><dd>명령마다 <code>runCatching</code> 과 5초 타임아웃. 실패하거나 출력에서 키를 찾지 못하면 그 줄만 "측정 불가"</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>카드가 보이는 동안 초마다 프로세스 넷을 띄운다.</li>
+  <li>디스크 남은 용량은 purgeable 을 빼서 Finder 의 "사용 가능" 보다 작을 수 있다.</li>
+  <li>디스크 읽기·쓰기 퍼센트는 요청이 겹치면 크게 잡힌다. 100 으로 자른다.</li>
+  <li>네트워크는 루프백만 빼고 모든 인터페이스를 더한다. VPN(<code>utun*</code>)·브리지(<code>bridge*</code>)를 지나는 트래픽은 물리 인터페이스와 두 번 셀 수 있다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>MacProfilingParsersTest</code> 가 개발 머신에서 받은 <code>vm_stat</code>·<code>ioreg</code>·<code>netstat</code> 출력을 해석하고, <code>MacProfilingSourceTest</code> 가 macOS 에서 실제 명령을 불러 두 번째 표본에 여섯 지표가 모두 있는지 본다(다른 OS 에서는 건너뛴다). 2026-09-25 개발 머신(Mac Studio, macOS 26, JDK 21.0.12)에서 <code>:desktopApp:run</code> 으로 띄워 카드의 여섯 줄이 모두 값을 보이고 초마다 바뀌는 것을 봤다(CPU 27–55%, 메모리 27.3–27.9 / 34.4 GB, GPU 12–15%). 실제 값은 활동 모니터(CPU, 메모리, GPU 기록, 네트워크, 디스크)와 비교한다.</p>
 </section>
 
 <section class="feature" id="state-observation">

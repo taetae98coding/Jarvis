@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorCard
+import io.github.taetae98coding.jarvis.ui.profiling.ProfilingCard
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationCard
 import io.github.taetae98coding.jarvis.ui.screen.ScreenAwakeCard
 import io.github.taetae98coding.jarvis.ui.screen.SystemScreenAwakeCard
@@ -37,6 +38,8 @@ internal fun FeatureGrid(modifier: Modifier = Modifier) {
         item { SystemScreenAwakeCard() }
 
         item { ThemeModeCard() }
+
+        item { ProfilingCard() }
 
         item { EmulatorCard() }
 

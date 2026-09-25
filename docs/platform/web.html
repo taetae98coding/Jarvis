@@ -41,6 +41,7 @@
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
+    <li><a href="#profiling">프로파일링</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -439,6 +440,45 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>:feature:theme:domain</code>·<code>:feature:theme:data</code> 의 <code>wasmJsBrowserTest</code> 와 <code>:app:ui</code> 의 <code>JarvisAppTest</code> 가 돈다. <code>color-scheme</code> 적용은 <span class="badge untested">미검증</span>이라 개발자 도구에서 <code>document.documentElement.style.colorScheme</code> 을 읽어 본다.</p>
+</section>
+
+<section class="feature" id="profiling">
+<h2>프로파일링 <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/profiling.html">프로파일링</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>CPU: Compute Pressure API (<code>PressureObserver</code>)</td><td>버렸다. 콜백이 있지만 값이 <code>nominal</code>·<code>fair</code>·<code>serious</code>·<code>critical</code> 네 단계라 퍼센트가 아니고, Chromium 125+ 에만 있다. 브라우저는 지문 채취를 막으려고 CPU 사용률을 주지 않는다. "측정 불가"</td></tr>
+    <tr><td>CPU: <code>navigator.hardwareConcurrency</code></td><td>버렸다. 코어 수일 뿐이다</td></tr>
+    <tr><td>메모리: <code>performance.memory</code> (<code>usedJSHeapSize</code> / <code>jsHeapSizeLimit</code>)</td><td>채택(조건부). 비표준이고 Chromium 에만 있다. 이 탭의 JS 힙이다. Kotlin/Wasm 의 객체는 WasmGC 라 이 힙에 들어간다. 줄 이름에 "(이 앱)" 이 붙고, 속성이 없는 브라우저(Safari, Firefox)는 "측정 불가"</td></tr>
+    <tr><td>메모리: <code>performance.measureUserAgentSpecificMemory()</code></td><td>버렸다. 교차 출처 격리(COOP·COEP)가 필요하고 결과가 수십 초 늦게 온다</td></tr>
+    <tr><td>메모리: <code>navigator.deviceMemory</code></td><td>버렸다. 전체 용량을 0.25–8 GB 로 뭉갠 값만 주고 사용량이 없다</td></tr>
+    <tr><td>GPU: WebGPU <code>GPUAdapter.info</code>, <code>WEBGL_debug_renderer_info</code></td><td>버렸다. 어떤 GPU 인지만 알려 준다. 사용률 API 는 없다. "측정 불가"</td></tr>
+    <tr><td>네트워크: <code>navigator.connection.downlink</code></td><td>버렸다. 실제 흐른 양이 아니라 추정 대역폭(Mbps)이고 Chromium 에만 있다</td></tr>
+    <tr><td>네트워크: <code>PerformanceResourceTiming.transferSize</code> 합</td><td>버렸다. 이 페이지가 받은 리소스만 세고 WebSocket·다른 탭은 빠진다. 기기의 네트워크 속도라고 보일 수 없다. "측정 불가"</td></tr>
+    <tr><td>디스크 읽기·쓰기</td><td>해당 없음. 브라우저에 디스크 I/O 를 알려 주는 API 가 없다. "측정 불가"</td></tr>
+    <tr><td>디스크 남은 용량: <code>navigator.storage.estimate()</code></td><td>채택(조건부). 이 출처에 허용된 <code>quota</code> 와 쓴 <code>usage</code> 다. 남은 양은 <code>quota − usage</code>, 전체는 <code>quota</code>. 보안 컨텍스트(HTTPS·localhost)에서만 있다. 기기 디스크가 아니라서 줄 이름에 "(이 앱)" 이 붙는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/profiling/data/src/wasmJsMain/.../profiling/ProfilingSource.wasmJs.kt</code></dd>
+  <dt>동작</dt><dd><code>js("…")</code> 한 줄 함수로 <code>performance.memory</code> 를 읽고, <code>navigator.storage.estimate()</code> 의 <code>Promise</code> 를 <code>kotlinx.coroutines.await</code> 로 기다린다. 지원 목록은 메모리·디스크 남은 용량 둘</dd>
+  <dt>실패</dt><dd>속성이 없으면 JS 쪽에서 -1 을 돌려 "측정 불가"</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>CPU·GPU·네트워크·디스크 읽기·쓰기는 항상 "측정 불가" 다.</li>
+  <li>메모리는 Chromium 계열에서만, 그것도 이 탭의 JS 힙만 나온다. 값은 브라우저가 보안상 뭉개서(버킷) 준다.</li>
+  <li>디스크 남은 용량은 브라우저가 이 사이트에 준 몫이다. 기기 디스크가 가득 차도 quota 가 남아 보일 수 있다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>ProfilingSource.wasmJs.kt</code> 자체는 컴파일(<code>:webApp:compileProductionExecutableKotlinWasmJs</code>)로만 확인했다. 실제 값은 <code>:webApp:wasmJsBrowserDevelopmentRun</code> 으로 띄워 Chrome 개발자 도구 → Application → Storage 와 비교한다.</p>
 </section>
 
 <section class="feature" id="state-observation">

@@ -45,6 +45,7 @@
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
+    <li><a href="#profiling">프로파일링</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -454,6 +455,46 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>:feature:theme:domain</code>·<code>:feature:theme:data</code> 의 <code>iosSimulatorArm64Test</code> 와 <code>:app:ui</code> 의 <code>JarvisAppTest</code> 가 돈다. <code>overrideUserInterfaceStyle</code> 왕복은 <span class="badge untested">미검증</span>이라 시뮬레이터에서 카드를 누르고 상태 막대 글자색을 본다.</p>
+</section>
+
+<section class="feature" id="profiling">
+<h2>프로파일링 <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/profiling.html">프로파일링</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>CPU: <code>host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO)</code></td><td>채택. 기기 전체의 user·system·idle·nice 누적 틱이다. 샌드박스 안에서 권한 없이 부를 수 있다. 두 표본의 차이에서 <code>(user + system + nice) / 전체</code></td></tr>
+    <tr><td>CPU: <code>task_threads</code> + <code>thread_info</code></td><td>버렸다. 이 앱만 잰다. 기기 전체를 주는 위 후보가 있다</td></tr>
+    <tr><td>메모리: <code>host_statistics64(HOST_VM_INFO64)</code> + <code>NSProcessInfo.physicalMemory</code></td><td>채택. 사용량은 macOS 활동 모니터와 같은 식 <code>(internal − purgeable) + wired + compressor</code> 페이지 × 페이지 크기다</td></tr>
+    <tr><td>메모리: <code>os_proc_available_memory()</code></td><td>버렸다. 이 앱이 더 쓸 수 있는 양이라 기기 사용량이 아니다</td></tr>
+    <tr><td>GPU: IOKit <code>IOAccelerator</code> <code>PerformanceStatistics</code></td><td>불가. iOS 에서 IOKit 은 비공개 프레임워크이고 샌드박스가 IORegistry 조회를 막는다. Metal 은 사용률을 주지 않는다(<code>MTLCounterSampleBuffer</code> 는 내 명령 버퍼의 타이밍뿐). "측정 불가"</td></tr>
+    <tr><td>네트워크: <code>getifaddrs</code> 의 <code>AF_LINK</code> 항목 → <code>if_data.ifi_ibytes</code> / <code>ifi_obytes</code></td><td>채택. 인터페이스별 누적 바이트다. 이름이 <code>lo</code> 로 시작하는 루프백을 뺀다</td></tr>
+    <tr><td>네트워크: <code>sysctl(NET_RT_IFLIST2)</code> 의 <code>if_data64</code></td><td>버렸다. 64비트 카운터지만 라우팅 소켓 메시지를 직접 걸어 읽어야 한다. 32비트 넘침은 1초 간격이면 4 GB/s 를 넘지 않는 한 한 표본만 0 으로 보인다</td></tr>
+    <tr><td>네트워크: <code>NWPathMonitor</code></td><td>버렸다. 경로 상태(연결 여부, 종류)만 알리고 바이트는 주지 않는다</td></tr>
+    <tr><td>디스크 읽기·쓰기: IOKit <code>IOBlockStorageDriver</code> <code>Statistics</code></td><td>불가. GPU 와 같은 이유다. 공개 대안이 없어 "측정 불가"</td></tr>
+    <tr><td>디스크 남은 용량: <code>NSURLVolumeAvailableCapacityForImportantUsageKey</code> / <code>NSURLVolumeTotalCapacityKey</code></td><td>채택. 홈 디렉터리 URL 에서 읽는다. 지울 수 있는 캐시(purgeable)까지 더한 값이라 설정 앱의 "사용 가능" 과 같다</td></tr>
+    <tr><td>디스크 남은 용량: <code>NSFileManager.attributesOfFileSystemForPath</code> 의 <code>NSFileSystemFreeSize</code></td><td>버렸다. purgeable 을 빼서 설정 앱보다 작게 나온다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/profiling/data/src/iosMain/.../profiling/ProfilingSource.ios.kt</code></dd>
+  <dt>동작</dt><dd>Kotlin/Native <code>platform.darwin</code>·<code>platform.posix</code> 로 Mach·BSD 함수를 부른다. CPU 틱과 인터페이스 바이트는 <code>CounterDelta</code> 에 넣어 차이를 낸다. 모두 즉시 끝나는 호출이다. 지원 목록은 CPU·메모리·네트워크·디스크 남은 용량 넷</dd>
+  <dt>실패</dt><dd><code>KERN_SUCCESS</code> 가 아니거나 <code>getifaddrs</code> 가 실패하면 그 줄만 "측정 불가"</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>GPU, 디스크 읽기·쓰기는 항상 "측정 불가" 다.</li>
+  <li>인터페이스 카운터가 32비트라 4 GB 마다 넘친다. 넘친 표본 하나는 속도가 0 으로 보인다.</li>
+  <li>시뮬레이터에서는 Mac 의 값이 나온다. 시뮬레이터는 호스트 커널을 쓴다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:profiling:data</code> 의 공통 테스트가 <code>iosSimulatorArm64Test</code> 로도 돈다. <code>ProfilingSource.ios.kt</code> 자체는 컴파일(<code>:shared:compileKotlinIosSimulatorArm64</code>)로만 확인했다. <code>getifaddrs</code>·<code>ifaddrs</code> 는 <code>platform.darwin</code> 에, <code>if_data</code> 는 <code>platform.posix</code> 에 있고, <code>HOST_*_COUNT</code> 매크로는 cinterop 이 내보내지 않아 <code>sizeOf</code> 로 계산한다. 실제 값은 시뮬레이터에서 카드를 띄워 Mac 의 활동 모니터와 비교한다.</p>
 </section>
 
 <section class="feature" id="state-observation">

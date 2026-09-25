@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
  * 선 색은 검정이지만 `Icon` 의 tint 가 색 필터로 덮으므로 실제 색은 쓰는 쪽의 `LocalContentColor` 다.
  */
 object JarvisIcons {
+    val Activity: ImageVector by lazy { outline("Activity", "M22 12h-4l-3 9L9 3l-3 9H2") }
+
     val Add: ImageVector by lazy { outline("Add", "M12 5v14M5 12h14") }
 
     val Android: ImageVector by lazy {
@@ -152,7 +154,7 @@ object JarvisIcons {
 
     internal val all: List<ImageVector>
         get() = listOf(
-            Add, Android, Apple, Back, Check, ChevronDown, ChevronLeft, ChevronRight, Claude, Close, Edit, Eye, File, Folder, Forward, GitBranch,
+            Activity, Add, Android, Apple, Back, Check, ChevronDown, ChevronLeft, ChevronRight, Claude, Close, Edit, Eye, File, Folder, Forward, GitBranch,
             Globe, Monitor, Moon, Play, Remove, RotateLeft, RotateRight, Smartphone, Sun, Terminal, User, Wifi,
         )
 }

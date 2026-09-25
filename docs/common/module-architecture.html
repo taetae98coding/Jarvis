@@ -43,7 +43,7 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 공용 코드는 기능마다 <code>:feature:&lt;기능&gt;:domain</code> · <code>:feature:&lt;기능&gt;:data</code> · <code>:feature:&lt;기능&gt;:ui</code> 셋으로 나뉜다. 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code>, <code>terminal</code>, <code>theme</code>(2026-09-25, <a href="theme-mode.html">화면 테마</a>) 여섯이다.</li>
+  <li><strong>R1.</strong> 공용 코드는 기능마다 <code>:feature:&lt;기능&gt;:domain</code> · <code>:feature:&lt;기능&gt;:data</code> · <code>:feature:&lt;기능&gt;:ui</code> 셋으로 나뉜다. 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code>, <code>terminal</code>, <code>theme</code>(2026-09-25, <a href="theme-mode.html">화면 테마</a>), <code>profiling</code>(2026-09-25, <a href="profiling.html">프로파일링</a>) 일곱이다.</li>
   <li><strong>R2.</strong> 계층 의존은 기능 안에서 한 방향이다. <code>ui → domain</code>, <code>data → domain</code>. 어느 기능에서도 <code>ui</code>가 <code>data</code>를, <code>data</code>가 <code>ui</code>를 컴파일 타임에 볼 수 없다.</li>
   <li><strong>R3.</strong> 기능은 서로를 의존하지 않는다. 기능 사이에 필요한 것은 <code>:core:*</code>로 내려가고, 기능 하나가 다른 기능의 타입을 import 하면 그 구조는 틀린 것이다.</li>
   <li><strong>R4.</strong> <code>:core:*</code>에는 두 기능 이상이 쓰는 것만 둔다. 한 기능만 쓰는 것은 그 기능이 갖는다.</li>
@@ -93,7 +93,7 @@
                        │
                     :app:ui              ← JarvisApp, Home 화면, FeatureGrid, 백스택
         ┌──────────────┬──────────────┼──────────────┬──────────────┐
-  :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation  :feature:terminal  :feature:theme
+  :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation  :feature:terminal  :feature:theme  :feature:profiling
         │  ui → domain ← data (기능마다 셋)
         └──────────────┴──────────────┴──────────────┴──────────────┘
                  :core:ui        :core:data   :core:widget(android)   ← 두 기능 이상이 쓰는 것만
@@ -114,8 +114,8 @@
     <tr><td><code>:core:automation</code></td><td><code>…automation</code></td><td><code>AgentTabs</code>·<code>BrowserAutomation</code>·<code>DeviceAutomation</code> 이음새와 값 타입(<a href="mcp-server.html#seams">MCP</a>)</td><td>없음</td></tr>
     <tr><td><code>:core:browser</code></td><td><code>…browser</code></td><td>JVM: JCEF 엔진(<code>BrowserEngine</code>), 화면 밖 렌더러, CDP, <code>BrowserAutomation</code> 구현, 페이지를 그리는 컴포저블. 다른 타깃은 비어 있다</td><td><code>:core:automation</code>, Compose, <code>jcefmaven</code>(jvm)</td></tr>
     <tr><td><code>:feature:mcp:domain</code>·<code>:feature:mcp:data</code></td><td><code>…domain.mcp</code>, <code>…data.mcp</code></td><td>도구 목록과 호출(<code>McpToolbox</code>), JVM 의 HTTP·JSON-RPC 서버(<code>startMcpServer</code>)</td><td><code>:core:automation</code>(R13)</td></tr>
-    <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>여섯 기능의 <code>ui</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
-    <tr><td><code>:shared</code></td><td><code>…shared</code></td><td><code>startJarvisKoin()</code>, <code>platformModule</code>, <code>App()</code>, <code>MainViewController()</code></td><td><code>:app:ui</code>, 여섯 기능의 <code>data</code>·<code>domain</code></td></tr>
+    <tr><td><code>:app:ui</code></td><td><code>…ui.app</code></td><td><code>JarvisApp()</code>, <code>Home</code> 라우트와 화면, <code>FeatureGrid</code>, 백스택, <code>appUiModule</code></td><td>일곱 기능의 <code>ui</code>, <code>:core:ui</code>, <code>:core:designsystem</code></td></tr>
+    <tr><td><code>:shared</code></td><td><code>…shared</code></td><td><code>startJarvisKoin()</code>, <code>platformModule</code>, <code>App()</code>, <code>MainViewController()</code></td><td><code>:app:ui</code>, 일곱 기능의 <code>data</code>·<code>domain</code></td></tr>
   </tbody>
 </table>
 
@@ -139,7 +139,8 @@
 │   ├── screen     ScreenAwakeRepository, SystemScreenAwakeStatus, SystemScreenAwakeNotificationRepository, 유스케이스 10개, screenDomainModule
 │   ├── rotation   RotationAngle, DeviceRotationRepository, DeviceRotationNotificationRepository, 유스케이스 6개, rotationDomainModule
 │   ├── terminal   TerminalRepository, TerminalWorkspace, TerminalEmulator, LineDiscipline, 유스케이스 2개
-│   └── theme      ThemeMode, ThemeSettingsRepository, ThemeAppearanceRepository, 유스케이스 3개, themeDomainModule
+│   ├── theme      ThemeMode, ThemeSettingsRepository, ThemeAppearanceRepository, 유스케이스 3개, themeDomainModule
+│   └── profiling  Profiling, Reading, ProfilingRepository, ObserveProfilingUseCase, profilingDomainModule
 ├── data
 │   ├── PlatformContext(expect)                      ← :core:data
 │   ├── state      observeByPolling / observeOnSignals / observeSystemState   ← :core:data
@@ -150,7 +151,8 @@
 │   ├── screen     IdleInhibitor(expect), SystemScreenAwakeDataSource(expect), 알림 고정 리포지토리
 │   ├── rotation   DeviceRotationDataSource(expect), 알림 고정 리포지토리
 │   ├── terminal   TerminalDataSource(expect), 리포지토리
-│   └── theme      ThemeAppearance(expect), 리포지토리 둘
+│   ├── theme      ThemeAppearance(expect), 리포지토리 둘
+│   └── profiling  ProfilingSource(expect), CounterDelta, DefaultProfilingRepository
 ├── designsystem
 │   ├── theme      JarvisTheme, 색·글꼴·모양·치수 토큰   ← :core:designsystem
 │   ├── icon       JarvisIcons                        ← :core:designsystem
@@ -165,6 +167,7 @@
 │   ├── rotation   DeviceRotationCard, DeviceRotationViewModel
 │   ├── terminal   TerminalCard, TerminalScreen, TerminalPane, TerminalViewModel, TerminalRoute
 │   ├── theme      ThemeModeCard, appDarkTheme(), ViewModel 둘
+│   ├── profiling  ProfilingCard, ProfilingViewModel, ProfilingFormat
 │   └── app        JarvisApp, HomeRoute, HomeScreen, FeatureGrid   ← :app:ui
 ├── widget                                            (Android 전용)
 │   ├── WidgetRefresh, WidgetRefreshJobService, WriteSettingsPermissionActivity, NotificationWidget(s), StatusTileService, AsyncReceiver   ← :core:widget

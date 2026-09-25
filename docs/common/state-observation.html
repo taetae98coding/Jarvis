@@ -156,6 +156,7 @@
     <tr><td>에뮬레이터 화면</td><td>전부</td><td>폴링</td><td><code>EmulatorScreenPollInterval</code> 500ms. 화면을 찍는 명령이 한 장씩만 준다</td></tr>
     <tr><td>Claude 백그라운드 세션 활동</td><td>JVM</td><td>폴링</td><td><code>ClaudeActivityPollInterval</code> 1초. Claude Code 의 <code>state.json</code> 을 다시 읽는다. macOS <code>WatchService</code> 가 폴링이다. 나머지는 지원하지 않아 빈 맵 하나(<a href="terminal-claude-status.html">Claude 상태 표시</a>)</td></tr>
     <tr><td>페어링 대기 기기</td><td>전부</td><td>폴링</td><td><code>PairingServicePollInterval</code> 1초. <code>adb mdns services</code> 는 한 번 답하고 끝난다</td></tr>
+    <tr><td>프로파일링 지표</td><td>전부</td><td>폴링</td><td><code>ProfilingPollInterval</code> 1초. CPU 틱·메모리 페이지·바이트 카운터는 변경 알림이 없는 누적값이다. 수집마다 표본기를 새로 열어 직전 표본과의 차이를 낸다(<a href="profiling.html">프로파일링</a>)</td></tr>
   </tbody>
 </table>
 
