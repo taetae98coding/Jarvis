@@ -30,6 +30,9 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationNotificationStatus
 import io.github.taetae98coding.jarvis.domain.rotation.DeviceRotationStatus
+import io.github.taetae98coding.jarvis.domain.appinfo.AppRelease
+import io.github.taetae98coding.jarvis.ui.appinfo.AppUpdateButtonTestTag
+import io.github.taetae98coding.jarvis.ui.appinfo.AppUpdateTestTag
 import io.github.taetae98coding.jarvis.ui.appinfo.DeviceIdLabel
 import io.github.taetae98coding.jarvis.ui.appinfo.DeviceNameLabel
 import io.github.taetae98coding.jarvis.domain.rotation.RotationAngle
@@ -53,6 +56,7 @@ import io.github.taetae98coding.jarvis.ui.screen.KeepScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeNotificationTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepSystemScreenAwakeToggleTestTag
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -93,6 +97,52 @@ class JarvisAppTest {
 
         onNodeWithText(DeviceNameLabel).assertDoesNotExist()
         onNodeWithText(DeviceIdLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun appUpdateRowIsHiddenWithoutNewVersion() = runComposeUiTest {
+        setContent { TestJarvisApp() }
+
+        onAllNodesWithTag(AppUpdateTestTag).assertCountEquals(0)
+    }
+
+    @Test
+    fun appUpdateRowShowsNewVersion() = runComposeUiTest {
+        setContent { TestJarvisApp(appUpdate = FakeAppUpdateRepository(TestRelease)) }
+
+        onNodeWithText(TestRelease.version).assertIsDisplayed()
+        onNodeWithText("업데이트").assertIsDisplayed()
+    }
+
+    @Test
+    fun appUpdateButtonInstallsAndLocks() = runComposeUiTest {
+        val appUpdate = FakeAppUpdateRepository(TestRelease).apply { gate = CompletableDeferred() }
+        setContent { TestJarvisApp(appUpdate = appUpdate) }
+
+        onNodeWithTag(AppUpdateButtonTestTag).performClick()
+        waitForIdle()
+
+        assertEquals(listOf(TestRelease), appUpdate.installed)
+        onNodeWithText("설치 중…").assertIsDisplayed()
+        onNodeWithTag(AppUpdateButtonTestTag).assertIsNotEnabled()
+    }
+
+    @Test
+    fun appUpdateFailureShowsReasonAndRetry() = runComposeUiTest {
+        val appUpdate = FakeAppUpdateRepository(TestRelease, failure = "체크섬이 맞지 않습니다.")
+        setContent { TestJarvisApp(appUpdate = appUpdate) }
+
+        onNodeWithTag(AppUpdateButtonTestTag).performClick()
+        waitForIdle()
+
+        onNodeWithText("업데이트하지 못했습니다: 체크섬이 맞지 않습니다.").assertIsDisplayed()
+        onNodeWithText("다시 시도").assertIsDisplayed()
+
+        appUpdate.failure = null
+        onNodeWithTag(AppUpdateButtonTestTag).performClick()
+        waitForIdle()
+
+        assertEquals(2, appUpdate.installed.size)
     }
 
     @Test
@@ -683,3 +733,5 @@ class JarvisAppTest {
         assertNull(rotation.status.value.angle)
     }
 }
+
+private val TestRelease = AppRelease(version = "9.9.9", downloadUrl = "https://example.com/Jarvis.dmg", checksumUrl = "https://example.com/Jarvis.dmg.sha256")

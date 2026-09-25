@@ -1,0 +1,60 @@
+# main 에 머지되면 macOS DMG 를 만들어 v<appVersion> 태그의 GitHub Release 로 올린다(docs/common/app-update.html).
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # jpackage 는 돌린 OS·아키텍처의 설치본만 만든다. macos-15 는 arm64 다.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read appVersion
+        id: version
+        run: |
+          version=$(sed -n 's/^appVersion = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$version")" ]; then
+            echo "v$version 이 이미 있다. appVersion 을 올린 머지만 배포한다."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.version.outputs.exists != 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.version.outputs.exists != 'true'
+
+      - name: Package DMG
+        if: steps.version.outputs.exists != 'true'
+        run: ./gradlew :desktopApp:packageReleaseDmg
+
+      - name: Publish release
+        if: steps.version.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cd desktopApp/build/compose/binaries/main-release/dmg
+          dmg="Jarvis-$VERSION.dmg"
+          shasum -a 256 "$dmg" > "$dmg.sha256"
+          gh release create "v$VERSION" "$dmg" "$dmg.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Jarvis $VERSION" \
+            --generate-notes

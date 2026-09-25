@@ -33,6 +33,7 @@
     <li><a href="#navigation">화면 이동 (Navigation3)</a></li>
     <li><a href="#retained-state">재생성을 넘기는 상태 (retain)</a></li>
     <li><a href="#app-info">앱 정보</a></li>
+    <li><a href="#app-update">앱 업데이트</a></li>
     <li><a href="#keep-screen-awake">화면 꺼짐 방지</a></li>
     <li><a href="#system-keep-screen-awake">화면 꺼짐 방지 (시스템 전역)</a></li>
     <li><a href="#settings">설정 영구 저장</a></li>
@@ -279,6 +280,54 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>PlatformNameTest</code>, <code>DeviceIdentityTest</code>, <code>JarvisAppTest.showsAppVersion</code>, <code>JarvisAppTest.showsCurrentPlatformName</code>, <code>JarvisAppTest.showsDeviceNameAndId</code>, <code>JarvisAppTest.hidesBlankDeviceRows</code> 가 <code>jvmTest</code>에서 돈다. <code>DeviceIdentityTest</code> 는 macOS 호스트에서만 값을 본다. <code>DeviceIdentityJvmTest</code> 가 <code>ioreg</code> 출력 예시에서 UUID 를 뽑는 파서를 확인한다.</p>
+</section>
+
+<section class="feature" id="app-update">
+<h2>앱 업데이트 <span class="badge partial">조건부</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/app-update.html">앱 업데이트</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>설치본인지 알기: 시스템 속성 <code>jpackage.app-path</code></td><td>채택. jpackage 런처가 자기 실행 파일 경로(<code>…/Jarvis.app/Contents/MacOS/Jarvis</code>)를 넣는다. <code>:desktopApp:run</code> 에는 없다. 세 단계 위가 <code>.app</code> 으로 끝나지 않으면 설치본이 아닌 것으로 본다</td></tr>
+    <tr><td>Release 읽기·받기: <code>java.net.http.HttpClient</code></td><td>채택. jlink 모듈에 <code>java.net.http</code> 가 이미 있다(<a href="#release-build">release 빌드</a>). 자산 주소가 <code>objects.githubusercontent.com</code> 으로 넘겨주므로 <code>followRedirects(NORMAL)</code>. 받은 DMG 는 <code>BodyHandlers.ofFile</code> 로 바로 파일에 쓴다</td></tr>
+    <tr><td>quarantine 속성</td><td>앱이 직접 쓴 파일에는 붙지 않는다. <code>com.apple.quarantine</code> 은 Info.plist 에 <code>LSFileQuarantineEnabled</code> 를 둔 앱(브라우저 등)이나 quarantine API 를 부른 앱의 파일에만 붙고 jpackage 의 Info.plist 에는 그 키가 없다. 그래서 받은 DMG·푼 앱이 Gatekeeper 에 걸리지 않는다</td></tr>
+    <tr><td>DMG 풀기: <code>hdiutil attach -nobrowse -readonly -noautoopen -mountpoint</code> + <code>ditto</code></td><td>채택. Finder 에 볼륨이 뜨지 않고, <code>ditto</code> 가 심볼릭 링크·확장 속성·ad-hoc 서명을 그대로 옮긴다. 끝나면 <code>hdiutil detach -force</code></td></tr>
+    <tr><td>번들 교체: 앱이 끝난 뒤 <code>/bin/sh</code> 스크립트</td><td>채택(<a href="../common/app-update.html#implementation">공통 결정</a>). <code>ProcessBuilder</code> 로 띄운 자식은 JVM 이 끝나도 남는다(launchd 로 넘어간다). 출력이 파이프면 부모가 끝난 뒤 쓰기에서 SIGPIPE 로 죽으므로 표준 출력·오류를 작업 폴더의 <code>update.log</code> 로 돌린다</td></tr>
+    <tr><td>앱 종료: <code>exitProcess(0)</code></td><td>버렸다. <code>application { }</code> 뒤의 <code>shutdownJarvisBrowser()</code>·MCP 서버·에이전트 정리를 건너뛰어 Chromium 도우미가 남는다. 창을 닫을 때와 같은 <code>exitApplication()</code> 을 부른다</td></tr>
+    <tr><td><code>open -n</code> 으로 새 인스턴스를 먼저 띄우고 옛 것을 끝내기</td><td>버렸다. 두 인스턴스가 에이전트 포트(47890)·작업 공간 파일을 두고 겹친다</td></tr>
+    <tr><td>Sparkle, Hydraulic Conveyor</td><td>버렸다(<a href="../common/app-update.html#implementation">공통 결정</a>)</td></tr>
+    <tr><td>Linux·Windows</td><td>해당 없음. 데스크톱은 macOS 만 지원한다. <code>os.name</code> 이 Mac 이 아니면 null 이다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/appinfo/data/src/jvmMain/.../data/appinfo/AppUpdater.jvm.kt</code>, <code>MacAppUpdater.kt</code>, <code>AppQuit.kt</code>; <code>shared/src/jvmMain/.../shared/JarvisQuit.kt</code>; <code>desktopApp/.../desktop/main.kt</code></dd>
+  <dt>확인</dt><dd><code>GET https://api.github.com/repos/taetae98coding/Jarvis/releases/latest</code>, <code>Accept: application/vnd.github+json</code>, <code>User-Agent: Jarvis/&lt;버전&gt;</code>. 앞 응답의 <code>ETag</code> 를 <code>If-None-Match</code> 로 보내고 304 면 앞 본문을 그대로 쓴다. 200·304 밖의 응답과 예외는 null. 주소는 검증용으로 환경 변수 <code>JARVIS_UPDATE_RELEASE_URL</code> 로 바꿀 수 있다</dd>
+  <dt>설치</dt><dd>
+    <ol>
+      <li>설치된 앱 <code>&lt;폴더&gt;/Jarvis.app</code> 의 폴더에 쓸 수 있는지, 경로에 <code>/AppTranslocation/</code> 이 없는지 본다.</li>
+      <li>임시 폴더(<code>Files.createTempDirectory("jarvis-update")</code>)에 DMG 와 <code>.sha256</code> 을 받고, <code>MessageDigest("SHA-256")</code> 결과가 <code>.sha256</code> 의 첫 낱말과 같은지 본다.</li>
+      <li>DMG 를 붙여 안의 첫 <code>*.app</code> 을 <code>&lt;폴더&gt;/.Jarvis-update.app</code> 으로 <code>ditto</code> 한다.</li>
+      <li>스크립트를 띄운다: 앱 pid 가 끝나기를 0.1초 간격으로 최대 60초 기다리고, <code>Jarvis.app</code> → <code>.Jarvis-previous.app</code>, <code>.Jarvis-update.app</code> → <code>Jarvis.app</code> 두 번의 <code>mv</code> 뒤 <code>.Jarvis-previous.app</code> 을 지우고 <code>open</code> 한다. 두 번째 <code>mv</code> 가 실패하면 옛 앱을 되돌리고 그것을 <code>open</code> 한다.</li>
+      <li><code>appQuitRequests</code> 에 종료를 보낸다. <code>main.kt</code> 가 받아 <code>exitApplication()</code>.</li>
+    </ol>
+  </dd>
+  <dt>실패</dt><dd>1–3 에서 던진 예외는 <code>install</code> 의 <code>Result.failure</code> 가 되고 앱은 그대로 돈다. 받은 파일·풀어 둔 <code>.Jarvis-update.app</code> 은 지운다. 60초 안에 앱이 끝나지 않으면 스크립트는 풀어 둔 앱을 지우고 그만둔다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>ad-hoc 서명이라 첫 설치는 Gatekeeper 확인이 필요하고, 업데이트 뒤 개인정보 보호 권한을 다시 물을 수 있다(<a href="../common/app-update.html#limits">공통 한계</a>).</li>
+  <li>DMG 는 arm64 다. Intel Mac 에서 업데이트하면 arm64 앱으로 바뀌어 Rosetta 로 돈다.</li>
+  <li>교체하는 동안(두 번의 <code>mv</code>) 전원이 꺼지면 <code>.Jarvis-previous.app</code> 만 남을 수 있다. 그 폴더를 <code>Jarvis.app</code> 으로 되돌리면 된다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>교체·재실행은 자동 테스트가 없다(<span class="badge untested">미검증</span>). 수동으로는 <code>appVersion</code> 을 낮춰 만든 DMG 를 임시 폴더에 설치하고, 올린 버전의 DMG·<code>.sha256</code>·가짜 <code>releases/latest</code> JSON 을 <code>python3 -m http.server</code> 로 띄운 뒤 <code>JARVIS_UPDATE_RELEASE_URL</code> 을 주고 설치본을 띄운다. 카드에 새 버전이 보이고, 누르면 앱이 닫혔다가 새 버전으로 다시 뜨고, <code>Info.plist</code> 의 <code>CFBundleShortVersionString</code> 이 바뀌고, <code>.Jarvis-*.app</code> 이 남지 않는지 본다.</p>
+<p>2026-09-25 에 확인했다. 사용자의 작업 공간을 건드리지 않도록 <code>jvmArgs("-Duser.home=&lt;임시&gt;")</code> 를 잠시 넣어 1.0.0·1.0.1 DMG 를 만들었다(그 뒤 되돌림). 1.0.0 설치본을 띄우자 가짜 서버로 <code>latest.json</code> 요청이 왔다 — <code>jpackage.app-path</code> 로 설치본을 알아보는 데까지 확인했다. 화면이 잠겨 있어 버튼은 누르지 못했다(<code>screencapture</code> 가 검은 화면이고 AX 읽기가 막힘). 대신 설치본의 jar 로 <code>MacAppUpdater.install</code> 을 부르는 별도 JVM 을 띄웠다: DMG 와 <code>.sha256</code> 을 받고 <code>.Jarvis-update.app</code> 을 풀었고, 그 JVM 이 끝나자 스크립트가 번들을 바꿔 1.0.1 을 다시 띄웠다(<code>CFBundleShortVersionString</code> 1.0.1, <code>codesign --verify --deep --strict</code> 통과, quarantine 속성 없음, <code>.Jarvis-*.app</code> 과 작업 폴더가 남지 않음). 틀린 체크섬을 주면 "받은 파일의 체크섬이 맞지 않습니다." 로 실패했고 설치본과 돌던 앱은 그대로였다. 버튼 → <code>jarvisQuitRequests</code> → <code>exitApplication()</code> 경로는 화면이 풀린 뒤에 확인해야 한다.</p>
 </section>
 
 <section class="feature" id="keep-screen-awake">

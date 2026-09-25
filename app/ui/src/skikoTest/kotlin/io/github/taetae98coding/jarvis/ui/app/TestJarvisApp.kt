@@ -10,6 +10,8 @@ import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.WindowInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
+import io.github.taetae98coding.jarvis.domain.appinfo.AppRelease
+import io.github.taetae98coding.jarvis.domain.appinfo.AppUpdateRepository
 import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
@@ -119,6 +121,7 @@ internal fun TestJarvisApp(
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
+    appUpdate: AppUpdateRepository = FakeAppUpdateRepository(),
     // 기본 핸들러(DesktopUriHandler)는 테스트 중에 실제 브라우저를 띄운다. 늘 기록만 하는 것으로 바꾼다.
     uriHandler: RecordingUriHandler = RecordingUriHandler(),
 ) {
@@ -127,6 +130,7 @@ internal fun TestJarvisApp(
 
         val fakes = module {
             single<AppInfoRepository> { AppInfoRepository { appInfo } }
+            single<AppUpdateRepository> { appUpdate }
             single<EmulatorRepository> { emulator }
             single<DevicePairingRepository> { pairing }
             single<ScreenAwakeSettingsRepository> { settings }
@@ -173,6 +177,29 @@ internal fun TestJarvisApp(
             }
             CompositionLocalProvider(LocalWindowInfo provides info) { JarvisApp() }
         }
+    }
+}
+
+/**
+ * 기본값은 새 버전이 없는 것이다 — 스스로 업데이트하지 못하는 타깃과 같다. 설치는 요청을 기록하고 [failure] 가 있으면
+ * 그것으로 실패한다. [gate] 가 있으면 요청을 기록한 뒤 그것이 끝날 때까지 기다린다.
+ */
+internal class FakeAppUpdateRepository(
+    release: AppRelease? = null,
+    var failure: String? = null,
+) : AppUpdateRepository {
+    val release = MutableStateFlow(release)
+
+    val installed = mutableListOf<AppRelease>()
+
+    var gate: CompletableDeferred<Unit>? = null
+
+    override fun observeAvailableUpdate(): Flow<AppRelease?> = release
+
+    override suspend fun install(release: AppRelease): Result<Unit> {
+        installed += release
+        gate?.await()
+        return failure?.let { Result.failure(IllegalStateException(it)) } ?: Result.success(Unit)
     }
 }
 

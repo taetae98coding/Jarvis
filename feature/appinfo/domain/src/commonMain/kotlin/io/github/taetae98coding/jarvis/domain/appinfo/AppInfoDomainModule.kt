@@ -5,4 +5,6 @@ import org.koin.dsl.module
 
 val appInfoDomainModule = module {
     factoryOf(::GetAppInfoUseCase)
+    factoryOf(::ObserveAppUpdateUseCase)
+    factoryOf(::InstallAppUpdateUseCase)
 }
