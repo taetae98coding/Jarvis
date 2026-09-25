@@ -72,6 +72,7 @@
     <li><a href="#device-lease">Claude 기기 할당</a></li>
     <li><a href="#design-system">디자인 시스템</a></li>
     <li><a href="#release-build">release 빌드와 배포 준비</a></li>
+    <li><a href="#dev-run-rebuild">실행 중 다시 빌드해도 앱이 살아 있기</a></li>
     <li><a href="#build">빌드·실행</a></li>
     <li><a href="#test">테스트</a></li>
   </ol>
@@ -1173,6 +1174,8 @@ internal actual fun createSystemScreenAwakeDataSource(
     <tr><td><code>&lt;select&gt;</code> 펼침 목록</td><td>화면 밖 렌더링은 펼침 목록을 따로 그려 준다(<code>onPopupShow</code>·<code>onPopupSize</code>·<code>onPaint(popup = true)</code>). 그 사각형을 본 화면 위에 겹쳐 그린다</td></tr>
     <tr><td>새 창(<code>window.open</code>, <code>target="_blank"</code>)</td><td><code>CefLifeSpanHandler.onBeforePopup</code> 에서 막고 같은 탭에서 그 주소를 연다. 공통 스코프가 새 탭으로 여는 것은 뺐다</td></tr>
     <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. <code>os.name</code> 이 <code>Mac</code> 으로 시작하지 않으면 <code>isBrowserSupported = false</code> 라 메뉴 항목이 없다(R8). 엔진을 띄우지 않는다</td></tr>
+    <tr><td>포커스: <code>CefBrowser_N.setFocus</code> 를 그대로 쓰기</td><td>버렸다. 2026-09-25 의 크래시 리포트에서 <code>Exception in thread "AppKit Thread"</code> 가 스택 없이 여러 번 찍힌 원인이다. <code>-XX:AbortVMOnException=java.lang.StackOverflowError</code> 로 받은 hs_err 를 보면 AppKit 메인 스레드(CEF 의 UI 스레드)에서 <code>CefClient.onGotFocus</code> → <code>CefBrowser.setFocus(true)</code> → <code>N_SetFocus</code> → CEF <code>SetFocus</code> → <code>FocusHandler::OnGotFocus</code> → <code>CefClient.onGotFocus</code> → … 가 8MB 스택(남은 126KB)까지 재귀한다. JCEF 146.0.10 의 <code>CefBrowser_N.setFocus</code> 는 <code>N_SetFocus</code> 를 그대로 부르고 <code>CefClient.onGotFocus</code> 는 매번 <code>setFocus(true)</code> 를 부른다(<code>javap -c</code>). JNI 경계에서 난 <code>StackOverflowError</code> 는 CEF 가 <code>ExceptionDescribe</code> 로 버리는데 <code>printStackTrace</code> 마저 스택이 없어 실패해 스레드 이름만 남는다. 브라우저 탭을 열 때마다, 페이지를 누를 때마다 이 재귀가 한 번씩 돈다. jcefmaven 의 <code>CefBrowserOsr</code> 도 <code>setFocus</code> 를 덮어쓰지 않아 같은지는 확인하지 않았다</td></tr>
+    <tr><td>포커스: <code>JarvisOsrBrowser.setFocus</code> 에 같은 스레드의 중첩 호출 무시(<code>ThreadLocal</code> 재진입 표시)</td><td>채택. 밖에서 온 <code>setFocus</code> 는 항상 네이티브로 보내고, 그 안에서 되돌아온 <code>onGotFocus</code> 의 <code>setFocus(true)</code> 만 버린다. 포커스 상태를 따로 기억해 같은 값이면 건너뛰는 방법은 CEF 가 말없이 포커스를 잃었을 때(다른 탭·창) 다음 <code>setFocus(true)</code> 를 버려 키 입력이 페이지에 가지 않을 수 있어 버렸다</td></tr>
   </tbody>
 </table>
 
@@ -1193,6 +1196,7 @@ internal actual fun createSystemScreenAwakeDataSource(
   <li>숨은 입력칸을 거쳐 조합하므로 조합 중 글자가 페이지의 입력칸 위치가 아니라 페이지 안에 그대로 그려진다(Chromium 이 조합 밑줄을 그린다). 한자 변환 창 위치는 맞지 않을 수 있다.</li>
   <li>JavaScript 대화 상자(<code>alert</code>·<code>confirm</code>·<code>prompt</code>)는 Chromium 기본 처리다. 화면 밖 렌더링에서는 보이지 않고 곧바로 취소된다.</li>
   <li>Google 은 이 엔진의 User-Agent 를 Chrome 으로 보고 요즘 첫 페이지를 준다(WKWebView 때의 옛 모양 문제는 사라졌다).</li>
+  <li>JCEF 를 띄울 때 stderr 에 <code>process_requirement.cc … (-67030)</code>·<code>gpu_blocklist.cc Unable to get gpu adapter</code> 가 찍힌다. Chromium 도우미의 로그로, 개발 실행·ad-hoc 서명 번들에서 브라우저는 정상으로 그려진다(<a href="#release-build">release 빌드</a>).</li>
 </ul>
 
 <h3>검증</h3>
@@ -1838,6 +1842,43 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>검증</h3>
 <p>DMG 를 <code>hdiutil attach</code> 로 붙여 <code>Jarvis.app/Contents/MacOS/Jarvis</code> 를 띄운다. 사용자가 띄워 둔 Jarvis 와 작업 공간 파일이 겹치지 않게 <code>JAVA_TOOL_OPTIONS=-Duser.home=&lt;임시&gt;</code> 로 띄운다. 포트(47890, 47891)가 이미 쓰이고 있으면 MCP 서버는 조용히 뜨지 않고 앱은 그대로 돈다. 2026-09-25 에 번들 안 <code>release</code> 파일의 <code>JAVA_VERSION="21.0.7"</code>·<code>MODULES</code>, <code>Info.plist</code> 의 번들 ID·버전·아이콘을 보고, 홈 화면 → 터미널(pty4j 로 zsh) → 새 탭의 웹 브라우저(JCEF 가 번들을 풀고 Google 을 그림) → 창 닫기로 프로세스와 Chromium 도우미가 모두 끝나는 것을 확인했다. 가짜 홈이라 <code>~/Library/Android/sdk</code> 를 못 찾아 Android 개수는 "셀 수 없음"이었다.</p>
 <p>번들은 jpackage 가 ad-hoc 으로 서명한다(<code>codesign --verify --deep --strict</code> 통과). JCEF 를 띄울 때 로그에 <code>process_requirement.cc … Signature validation of current process failed (-67030)</code> 가 한 줄 찍히지만 브라우저는 정상으로 그려진다. Chromium 이 Developer ID 서명을 기대하고 남기는 경고로 보고, Developer ID 로 서명하면 사라지는지는 확인하지 못했다.</p>
+</section>
+
+<section class="feature" id="dev-run-rebuild">
+<h2>실행 중 다시 빌드해도 앱이 살아 있기 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/dev-run-rebuild.html">실행 중 다시 빌드해도 앱이 살아 있기</a></p>
+
+<h3>기술 조사</h3>
+<p><strong>리포트 판독.</strong> 2026-09-25 의 <code>NoClassDefFoundError: …TerminalTabKt$TerminalTab$1$1$1$1</code> 는 <code>TerminalTab.kt</code> 의 <code>pointerInput</code> 안 <code>awaitEachGesture</code> suspend 람다 클래스다. suspend 람다는 indy 가 아니라 클래스로 컴파일되고, <code>SuspendingPointerInputModifierNode</code> 가 첫 포인터 이벤트에서야 블록을 띄우므로 탭 제목에 마우스를 처음 올리는 순간 읽힌다. 그 클래스가 jar 에 없는 것이 아니라(<code>unzip -l feature/terminal/ui/build/libs/ui-jvm.jar</code> 에 있다) <em>돌고 있던 JVM 이 열어 둔 jar 가 그 사이 바뀐 것</em>이다. 그날 main 체크아웃에서 12:29 에 <code>:desktopApp:run</code> 으로 띄운 뒤, 12:35·12:38 의 머지에 이어 12:38:46 빌드가 <code>designsystem</code>·<code>terminal/domain</code>·<code>terminal/ui</code> jar 를 다시 썼고(Gradle 데몬 로그와 jar mtime), 사용자가 탭 제목에 마우스를 올리자 죽었다. 12:40 에 다시 띄운 인스턴스도 12:41:29 빌드가 <code>terminal/data</code> jar 를 다시 써서 같은 위험에 있었다. 함께 온 <code>Exception in thread "AppKit Thread"</code> 가 스택 없이 네 번 찍힌 것은 jar 와 무관한 다른 결함이다 — 브라우저 탭의 포커스 재귀로 난 <code>StackOverflowError</code> 로, <a href="#terminal-browser">터미널에서 웹 브라우저</a>의 기술 조사에 적고 고쳤다. <code>process_requirement.cc</code>·<code>gpu_blocklist.cc</code> 줄은 JCEF 도우미의 로그로 무해하다.</p>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Gradle <code>Jar</code> 태스크가 산출물을 어떻게 쓰는가</td><td>같은 inode 에 잘라 다시 쓴다. <code>ZipCopyAction</code> 이 commons-compress 의 <code>ZipArchiveOutputStream(File)</code> 을 쓰고 이것은 <code>TRUNCATE_EXISTING</code> 으로 연다. 이 저장소에서 <code>:feature:appinfo:domain:jvmJar</code> 를 소스를 바꿔 다시 돌려 <code>stat -f %i</code> 로 재 보면 재빌드 전후 inode 가 같다(26592607)</td></tr>
+    <tr><td>JVM 이 열어 둔 jar 가 자리에서 바뀌면</td><td><code>ZipFile</code> 은 열 때 central directory 를 읽어 두고 항목은 그 offset 으로 읽으므로, 내용이 바뀐 뒤 처음 읽는 클래스는 <code>ClassNotFoundException</code> 이 된다. A·B 두 클래스를 jar 로 묶어 A 가 뜬 뒤 jar 를 자리에서 덮어쓰고 <code>Class.forName("B")</code> 를 하면 <code>ClassNotFoundException: B</code>, 지우고 새로 쓰면 정상으로 읽힌다(JDK 21.0.7)</td></tr>
+    <tr><td><code>Jar</code> doFirst 에서 기존 파일을 지우기</td><td>채택. unlink 는 열어 둔 fd 의 inode 를 건드리지 않아 돌고 있던 JVM 은 옛 내용을 끝까지 읽는다. UP-TO-DATE 면 doFirst 가 돌지 않아 불필요한 재작성이 없다. configuration cache 에서 태스크 자신의 <code>archiveFile</code> 만 잡으므로 문제없다</td></tr>
+    <tr><td><code>:desktopApp:run</code> 의 classpath 를 launch 마다 <code>build/run/&lt;시각&gt;/</code> 에 복사</td><td>버렸다. 프로젝트 jar 를 매번 복사하고 옛 디렉터리를 치워야 하며, <code>run</code> 한 경로만 보호한다. jvmTest 로 띄운 JVM 이나 옛 인스턴스가 남은 경우는 못 막는다</td></tr>
+    <tr><td><code>archiveFileName</code> 에 시각·해시를 붙여 파일을 늘 새로 만들기</td><td>버렸다. classpath 가 매번 바뀌어 의존 태스크가 전부 다시 돌고, 옛 파일이 쌓인다</td></tr>
+    <tr><td>앱이 시작할 때 classpath 의 모든 클래스를 미리 읽기</td><td>버렸다. JCEF·FFmpeg·pty4j 까지 수백 MB 를 읽어야 하고 네이티브가 이름으로 찾는 클래스는 미리 읽어도 소용없다</td></tr>
+    <tr><td>앱을 끄고 빌드하도록 안내</td><td>버렸다. 빌드를 다른 세션(워크트리 머지 뒤 검증 빌드)이 돌리고, JCEF 를 띄운 뒤에는 SIGTERM 을 무시해 <code>:desktopApp:run</code> 을 끊어도 인스턴스가 남는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>루트 <code>build.gradle.kts</code></dd>
+  <dt>동작</dt><dd><code>subprojects { tasks.withType&lt;Jar&gt;().configureEach { doFirst { archiveFile.get().asFile.delete() } } }</code>. <code>jvmJar</code>·<code>desktopApp:jar</code> 를 포함한 모든 <code>Jar</code> 태스크가 쓰기 전에 옛 파일을 unlink 한다. <code>:desktopApp:run</code> 자체는 바꾸지 않는다</dd>
+  <dt>실패</dt><dd>파일이 없으면 <code>delete()</code> 가 false 를 돌려주고 그냥 쓴다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>돌고 있는 앱은 빌드 전 코드로 계속 돈다. 새 코드는 다시 띄워야 한다.</li>
+  <li>Gradle 이 아닌 도구(IDE 의 자체 빌드 등)가 같은 경로에 jar 를 자리에서 쓰면 보호하지 못한다.</li>
+  <li>JCEF 를 띄운 뒤 앱이 SIGTERM 을 무시하는 것은 그대로다. 옛 인스턴스는 창을 닫아 끝낸다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>자동 테스트는 없다(<span class="badge untested">미검증</span>). 수동으로는 (1) <code>stat -f %i feature/appinfo/domain/build/libs/domain-jvm.jar</code> 를 적고 그 모듈 소스에 선언 하나를 더해 <code>:feature:appinfo:domain:jvmJar</code> 를 다시 돌린 뒤 inode 가 바뀌는지, (2) <code>:desktopApp:run</code> 으로 띄운 채 <code>./gradlew :feature:terminal:ui:jvmJar --rerun-tasks</code> 를 돌리고 터미널 탭 제목에 마우스를 올려 <code>NoClassDefFoundError</code> 가 없는지 본다. 2026-09-25 에 둘 다 확인했다.</p>
 </section>
 
 <section class="feature" id="build">

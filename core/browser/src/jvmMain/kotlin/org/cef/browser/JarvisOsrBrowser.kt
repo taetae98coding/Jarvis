@@ -37,6 +37,12 @@ internal class JarvisOsrBrowser(
     @Volatile
     private var created = false
 
+    // 포커스는 같은 스레드에서 되돌아온다: CefClient.onGotFocus 가 setFocus(true) 를 부르고, CefBrowser_N.setFocus 가 그대로 부르는
+    // N_SetFocus 는 CEF 의 UI 스레드(macOS 의 AppKit 메인 스레드)에서 곧바로 OnGotFocus 를 다시 올려 onGotFocus → setFocus → … 가
+    // 끝없이 재귀한다(JCEF 146.0.10). 8MB 메인 스레드 스택이 차면 StackOverflowError 가 JNI 경계에서 버려져 stderr 에
+    // `Exception in thread "AppKit Thread"` 만 남는다(docs/platform/jvm.html#terminal-browser). 그래서 중첩 호출은 무시한다.
+    private val settingFocus = ThreadLocal.withInitial { false }
+
     /** 창 핸들 없이 만든다. `CefBrowserOsr.createImmediately` 가 쓰는 경로다. */
     override fun createImmediately() {
         // getURL() 도 같은 속성 이름(url)이 돼서 생성자에 준 주소(getUrl())를 직접 부른다.
@@ -59,6 +65,16 @@ internal class JarvisOsrBrowser(
     /** 그린 것이 아직 없을 때 한 장을 다시 그리게 한다. */
     fun repaint() {
         if (created) invalidate()
+    }
+
+    override fun setFocus(enable: Boolean) {
+        if (settingFocus.get()) return
+        settingFocus.set(true)
+        try {
+            super.setFocus(enable)
+        } finally {
+            settingFocus.set(false)
+        }
     }
 
     override fun getUIComponent(): Component = component

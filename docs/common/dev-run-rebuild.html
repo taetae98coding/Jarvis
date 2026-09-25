@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>실행 중 다시 빌드해도 앱이 살아 있기 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>실행 중 다시 빌드해도 앱이 살아 있기</span></nav>
+
+<header>
+  <h1>실행 중 다시 빌드해도 앱이 살아 있기</h1>
+  <p class="lead">개발용으로 띄워 둔 앱이 돌고 있는 동안 같은 체크아웃에서 Gradle 빌드가 다시 돌아도, 돌고 있던 앱은 아직 읽지 않은 클래스를 <code>NoClassDefFoundError</code> 없이 계속 읽는다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>이런 크래시 리포트 들어왔는데 해결됐는지 확인하고 이슈 있으면 해결해줘. macOs JVM 환경이야.</p>
+  <pre><code>Exception in thread "AWT-EventQueue-0" java.lang.NoClassDefFoundError: io/github/taetae98coding/jarvis/ui/terminal/TerminalTabKt$TerminalTab$1$1$1$1
+        at io.github.taetae98coding.jarvis.ui.terminal.TerminalTabKt$TerminalTab$1$1$1.invoke(TerminalTab.kt:127)
+        at androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNodeImpl$onPointerEvent$1.invokeSuspend(SuspendingPointerInputFilter.kt:720)
+        …
+        at androidx.compose.ui.scene.ComposeSceneMediator$mouseListener$1.mouseMoved(ComposeSceneMediator.desktop.kt:318)
+        …
+Caused by: java.lang.ClassNotFoundException: io.github.taetae98coding.jarvis.ui.terminal.TerminalTabKt$TerminalTab$1$1$1$1
+
+Exception in thread "AppKit Thread" [54648:22577752:0925/115433.403949:ERROR:base/mac/process_requirement.cc:165] Unable to derive validation category for current process. Signature validation of current process failed: Error Domain=NSOSStatusErrorDomain Code=-67030 "(null)" (-67030)
+[30909:22595284:0925/115730.855861:ERROR:services/on_device_model/ml/gpu_blocklist.cc:118] Unable to get gpu adapter
+Exception in thread "AppKit Thread" Exception in thread "AppKit Thread" Exception in thread "AppKit Thread" Exception in thread "AppKit Thread"</code></pre>
+  <footer>2026-09-25 대화. 리포트의 스택은 줄여 옮겼다.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<p>리포트를 판독한 결과, 코드 결함이 아니라 <strong>돌고 있는 앱의 jar 를 Gradle 이 자리에서 덮어쓴 것</strong>이었다. <code>:desktopApp:run</code> 은 각 모듈의 <code>build/libs/*-jvm.jar</code> 를 그대로 classpath 에 올리고, JVM 은 jar 를 연 채 클래스를 처음 쓰는 순간에 읽는다. 같은 체크아웃에서 빌드가 다시 돌면(워크트리 작업을 main 에 머지한 뒤의 빌드, 다른 세션의 <code>jvmTest</code>) Gradle 의 <code>Jar</code> 태스크가 기존 파일을 같은 inode 에 잘라 다시 쓰고, 열어 둔 JVM 은 아직 읽지 않은 클래스를 <code>ClassNotFoundException</code> 으로 잃는다. 판독 근거와 재현은 <a href="../platform/jvm.html#dev-run-rebuild">JVM 스펙</a>에 있다. 그래서 요구사항은 "빌드가 돌고 있는 앱을 깨뜨리지 않는다" 다. 리포트에 함께 온 <code>Exception in thread "AppKit Thread"</code> 줄은 jar 와 무관한 브라우저 탭의 포커스 재귀(<code>StackOverflowError</code>)였고, 그쪽은 <a href="terminal-browser.html">터미널에서 웹 브라우저</a>의 <a href="../platform/jvm.html#terminal-browser">JVM 스펙</a>에서 다룬다.</p>
+
+<ol>
+  <li><strong>R1.</strong> 개발용으로 띄운 앱(<code>:desktopApp:run</code>)이 돌고 있는 동안 같은 체크아웃에서 어떤 Gradle 빌드가 모듈 jar 를 다시 만들어도, 돌고 있던 앱은 아직 읽지 않은 클래스를 <code>NoClassDefFoundError</code>·<code>ClassNotFoundException</code> 없이 계속 읽는다.</li>
+  <li><strong>R2.</strong> 모든 하위 프로젝트의 <code>Jar</code> 태스크는 산출물을 다시 쓸 때 기존 파일을 먼저 지워 새 inode 에 쓴다. 다시 빌드한 뒤 jar 의 inode 가 바뀐다.</li>
+  <li><strong>R3.</strong> 새로 띄운 앱은 새 jar 를 쓴다. 돌고 있던 앱에 새 코드가 들어가는 것은 요구하지 않는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  JCEF 를 띄운 뒤 데스크톱 앱이 SIGTERM 을 무시해 <code>:desktopApp:run</code> 을 끊어도 창이 남는 문제. 옛 인스턴스가 남아 있는 동안 다시 빌드하면 이 기능이 그 인스턴스를 보호하지만, 남는 것 자체는 고치지 않는다.
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>사용자 입력이 없는 빌드 동작이다. 화면이 없다</td></tr>
+    <tr><td>설명</td><td>빌드가 돌고 있는 앱을 깨뜨리지 않는다. 앱은 빌드 전 코드로 계속 돈다</td></tr>
+    <tr><td>컨트롤</td><td>없음</td></tr>
+    <tr><td>테스트 태그</td><td>없음</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>파일</dt><dd>루트 <code>build.gradle.kts</code></dd>
+  <dt>동작</dt><dd><code>subprojects { tasks.withType&lt;Jar&gt;().configureEach { doFirst { archiveFile.get().asFile.delete() } } }</code>. 태스크가 실제로 돌 때(UP-TO-DATE 가 아닐 때)만 doFirst 가 돌아 옛 파일을 unlink 하고, Gradle 은 새 inode 에 쓴다. 열어 둔 옛 파일은 마지막 fd 가 닫힐 때까지 그대로 읽힌다</dd>
+  <dt>공급</dt><dd><code>expect</code> 없음. Gradle 설정만이다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: Jar 태스크가 쓰기 전에 옛 파일을 지운다.</strong>
+  <code>:desktopApp:run</code> 이 classpath 를 launch 마다 <code>build/run/&lt;시각&gt;/</code> 으로 복사해 그것으로 띄우는 방법도 되지만, 매번 프로젝트 jar 를 복사하고 옛 디렉터리를 치워야 하며 <code>run</code> 한 경로만 보호한다. 옛 파일을 지우는 쪽은 한 줄이고, 어떤 태스크가 어떤 이유로 jar 를 다시 만들어도 돌고 있는 모든 JVM(앱, 테스트)을 보호한다. 앱이 시작할 때 모든 클래스를 미리 읽는 방법은 JCEF·FFmpeg 까지 수백 MB 라 버렸다. "앱을 끄고 빌드하라" 는 안내는 빌드를 다른 세션이 돌리므로 지킬 수 없다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>문제가 생기지 않는다. 설치본은 APK 를 기기로 복사한 것이라 빌드 산출물을 열어 두지 않는다</td><td><a href="../platform/android.html#dev-run-rebuild">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>문제가 생기지 않는다. Xcode 가 번들을 시뮬레이터·기기에 복사한다</td><td><a href="../platform/ios.html#dev-run-rebuild">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span> <span class="badge untested">미검증</span></td><td>루트 <code>build.gradle.kts</code> 의 <code>Jar</code> doFirst. 자동 테스트는 없고 inode 비교와 재현 jar 로 확인했다</td><td><a href="../platform/jvm.html#dev-run-rebuild">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>문제가 생기지 않는다. 개발 서버가 번들을 메모리에서 내주고 다시 빌드하면 페이지를 새로 고친다</td><td><a href="../platform/web.html#dev-run-rebuild">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td>수동: 모듈 jar 의 inode 를 재빌드 전후로 비교</td><td>R2. 소스를 바꿔 <code>:feature:appinfo:domain:jvmJar</code> 를 다시 돌리면 inode 가 바뀐다</td><td>—</td></tr>
+    <tr><td>수동: 앱을 띄운 채 <code>:feature:terminal:ui:jvmJar --rerun-tasks</code> 뒤 탭 제목에 마우스 올리기</td><td>R1. 리포트의 경로(<code>TerminalTab.kt</code> 의 <code>pointerInput</code>)가 <code>NoClassDefFoundError</code> 없이 돈다</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>돌고 있는 앱에 새 코드가 들어가지는 않는다. 새 코드는 앱을 다시 띄워야 한다(R3).</li>
+  <li>jar 가 아닌 산출물을 자리에서 바꾸는 태스크는 보호하지 않는다. 지금 <code>:desktopApp:run</code> 의 classpath 는 jar 뿐이고 <code>compose.application.resources.dir</code> 은 비어 있다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>
