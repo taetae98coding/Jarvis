@@ -1679,7 +1679,7 @@ internal actual fun createSystemScreenAwakeDataSource(
     <tr><td><code>java.nio.file.Files.writeString</code></td><td>버렸다. 같은 일을 하지만 JVM 전용이라, 공통 <code>OkioFileDataSource</code> 에 두면 Android 와 갈라진다</td></tr>
     <tr><td>임시 파일 + <code>Files.move(ATOMIC_MOVE)</code></td><td>버렸다. 공통 스펙의 결정대로 링크·권한을 잃고 inode 가 바뀐다</td></tr>
     <tr><td>빠른 스크롤: Compose <code>VerticalScrollbar</code>(<code>rememberScrollbarAdapter</code>)</td><td>버렸다. 데스크톱에만 있어 Android 와 모양·동작이 갈라지고, <code>LazyListState</code> 어댑터가 항목 높이를 어림하는 방식은 직접 그리는 것과 같다. 공통 <code>JarvisFastScroller</code> 의 <code>pointerInput</code> 은 Swing 마우스 이벤트를 <code>ComposeScene</code> 이 옮긴 것을 받는다</td></tr>
-    <tr><td>편집: Compose <code>BasicTextField</code></td><td>채택. 내부는 AWT <code>KeyEvent</code>·<code>InputMethodEvent</code>(한글 조합)를 <code>ComposeWindow</code> 가 넘기고, 복사·붙여넣기는 <code>Toolkit.getSystemClipboard</code> 다. ⌘S·Esc 는 <code>onPreviewKeyEvent</code> 로 받는다. 앱 메뉴 막대에는 ⌘S 가 없어 겹치지 않는다</td></tr>
+    <tr><td>편집: Compose <code>BasicTextField</code></td><td>채택. 내부는 AWT <code>KeyEvent</code>·<code>InputMethodEvent</code>(한글 조합)를 <code>ComposeWindow</code> 가 넘기고, 복사·붙여넣기는 <code>Toolkit.getSystemClipboard</code> 다. ⌘S 는 <code>onPreviewKeyEvent</code> 로 받는다. 앱 메뉴 막대에는 ⌘S 가 없어 겹치지 않는다</td></tr>
     <tr><td>링크 열기: <code>LocalUriHandler</code></td><td>채택. Compose 데스크톱의 <code>PlatformUriHandler</code> 가 <code>java.awt.Desktop.browse(URI)</code> 를 부른다. 실패하면 예외라 <code>runCatching</code> 으로 삼킨다</td></tr>
   </tbody>
 </table>
@@ -1687,7 +1687,7 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>구현</h3>
 <dl class="meta">
   <dt>파일</dt><dd>공통 <code>FileDataSource.kt</code>(<code>OkioFileDataSource.writeFile</code>). <code>File.jvm.kt</code> 는 바꾸지 않는다. 화면은 모두 commonMain</dd>
-  <dt>동작</dt><dd>저장은 <code>Dispatchers.IO</code> 에서 쓴다. 파일 내용은 <code>FilePollInterval</code>(2초) 폴링이라, 쓰고 나면 데이터 소스 안 신호로 곧장 다시 읽는다(E8)</dd>
+  <dt>동작</dt><dd>저장은 <code>Dispatchers.IO</code> 에서 쓴다. 파일 내용은 <code>FilePollInterval</code>(2초) 폴링이라, 쓰고 나면 데이터 소스 안 신호로 곧장 다시 읽는다(E8). 자동 저장(E3)의 1초 대기는 공통 코드의 코루틴 <code>delay</code> 라 플랫폼 API 가 없다. 창을 닫아 <code>exitApplication</code> 으로 끝나면 기다리던 저장은 취소된다</dd>
   <dt>실패</dt><dd><code>IOException</code>(권한 없음, 폴더가 사라짐)이면 <code>Result.failure</code> 로 E4 문구</dd>
 </dl>
 

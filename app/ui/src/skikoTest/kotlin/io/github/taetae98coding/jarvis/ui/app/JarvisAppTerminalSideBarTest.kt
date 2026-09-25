@@ -29,6 +29,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerCommentFiel
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerDiffSummaryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerMarkdownTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerNoticeTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerReadTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerSourceTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFilesRootTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalGitBranchTestTag
@@ -282,12 +283,15 @@ class JarvisAppTerminalSideBarTest {
         assertEquals(readme.path, fileTab.filePath)
         assertEquals(2, workspace.workspace.value.selectedPanel!!.tabs.size)
         awaitTag(terminalFileViewerTestTag(fileTab.id))
-        // 마크다운은 미리보기로 열린다(docs/common/terminal-file-editor.html M1). 원문이 줄 번호와 함께 보이는 읽기 보기다.
+        // 마크다운은 미리보기로 열린다(docs/common/terminal-file-editor.html M1). 원문은 편집 보기이고, 줄 번호와 함께 보이는
+        // 것은 읽기 보기다(E5).
         awaitTag(TerminalFileViewerMarkdownTestTag)
         waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("끝", useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
         assertEquals(0, onAllNodesWithText("# Jarvis").fetchSemanticsNodes().size)
         onNodeWithTag(TerminalFileViewerSourceTestTag).performClick()
         awaitTag(TerminalFileViewerMarkdownTestTag, count = 0)
+        awaitTag(TerminalFileViewerReadTestTag)
+        onNodeWithTag(TerminalFileViewerReadTestTag).performClick()
         onNodeWithText("# Jarvis").assertIsDisplayed()
         onNodeWithText("끝").assertIsDisplayed()
         onNodeWithText("3").assertIsDisplayed()
@@ -344,6 +348,8 @@ class JarvisAppTerminalSideBarTest {
         awaitTag(TerminalFileViewerDiffSummaryTestTag)
         onNodeWithTag(TerminalFileViewerDiffSummaryTestTag).assertTextEquals("HEAD 대비 +2 −1")
         onNodeWithTag(TerminalFileViewerSourceTestTag).performClick()
+        awaitTag(TerminalFileViewerReadTestTag)
+        onNodeWithTag(TerminalFileViewerReadTestTag).performClick()
         awaitTag(terminalFileViewerAddedTestTag(2))
         onNodeWithTag(terminalFileViewerAddedTestTag(5)).assertIsDisplayed()
         onNodeWithTag(terminalFileViewerRemovedTestTag(2)).assertIsDisplayed()

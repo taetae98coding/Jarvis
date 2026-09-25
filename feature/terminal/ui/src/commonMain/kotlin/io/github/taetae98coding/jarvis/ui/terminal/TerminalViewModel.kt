@@ -195,7 +195,7 @@ internal class TerminalViewModel(
 
     fun openFile(path: String) = update { it.openFile(path) }
 
-    /** 탭마다 편집 중인 파일(docs/common/terminal-file-editor.html E7). 여기 없는 탭은 읽기 보기다. */
+    /** 탭마다 편집 중인 파일(docs/common/terminal-file-editor.html E7). 편집할 수 있는 탭은 열면 곧 여기 들어온다(E2). */
     val fileEditStates: StateFlow<Map<Long, FileEdit>> = fileEdits.edits
 
     fun startFileEdit(tabId: Long, path: String, text: String) = fileEdits.start(tabId, path, text)
@@ -206,7 +206,7 @@ internal class TerminalViewModel(
 
     fun saveFileEdit(tabId: Long) = fileEdits.save(tabId)
 
-    fun discardFileEdit(tabId: Long) = fileEdits.discard(tabId)
+    fun revertFileEdit(tabId: Long) = fileEdits.revert(tabId)
 
     private val sourceViewTabIds = MutableStateFlow<Set<Long>>(emptySet())
 
@@ -216,7 +216,20 @@ internal class TerminalViewModel(
      */
     val sourceViewTabs: StateFlow<Set<Long>> = sourceViewTabIds.asStateFlow()
 
-    fun setSourceView(tabId: Long, source: Boolean) = sourceViewTabIds.update { if (source) it + tabId else it - tabId }
+    fun setSourceView(tabId: Long, source: Boolean) {
+        if (!source) fileEdits.flush(tabId)
+        sourceViewTabIds.update { if (source) it + tabId else it - tabId }
+    }
+
+    private val readingTabs = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** 편집할 수 있는 파일 탭 가운데 편집 보기 대신 읽기 보기를 고른 탭(E5). 앱이 켜져 있는 동안만 기억한다. */
+    val fileReading: StateFlow<Set<Long>> = readingTabs.asStateFlow()
+
+    fun setFileReading(tabId: Long, reading: Boolean) {
+        if (reading) fileEdits.flush(tabId)
+        readingTabs.update { if (reading) it + tabId else it - tabId }
+    }
 
     /**
      * 커밋 파일 탭의 내용과 첫 부모 대비 diff(docs/common/terminal-commit-file.html). null 은 아직 읽지 못한 것이고, 읽지 못하는
@@ -381,6 +394,7 @@ internal class TerminalViewModel(
         lineComments.retain(workspace.panels.mapTo(mutableSetOf()) { it.id })
         fileEdits.retain(tabIds)
         sourceViewTabIds.update { it intersect tabIds }
+        readingTabs.update { it intersect tabIds }
         browserTitles.keys.retainAll(tabIds)
         val filePaths = workspace.tabs.mapNotNullTo(mutableSetOf()) { it.filePath }
         fileContents.keys.retainAll(filePaths)

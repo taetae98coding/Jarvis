@@ -48,7 +48,7 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>D1.</strong> 파일 탭의 파일이 git 작업 트리 안에 있고 HEAD 와 다르면, 파일 내용의 줄마다 더한 줄은 <code>successContainer</code> 바탕에 표시 칸 "+", 지운 줄은 원래 있던 자리(그 뒤에 오는 지금 파일의 줄 바로 앞)에 <code>errorContainer</code> 바탕에 표시 칸 "−" 로 끼워 보인다. 지운 줄은 줄 번호 칸이 비어 있고, 나머지 줄 번호는 지금 파일 기준 그대로다. 바뀌지 않은 줄은 표시 칸이 비어 있다.</li>
+  <li><strong>D1.</strong> 파일 탭의 파일이 git 작업 트리 안에 있고 HEAD 와 다르면, 읽기 보기에서 파일 내용의 줄마다 더한 줄은 <code>successContainer</code> 바탕에 표시 칸 "+", 지운 줄은 원래 있던 자리(그 뒤에 오는 지금 파일의 줄 바로 앞)에 <code>errorContainer</code> 바탕에 표시 칸 "−" 로 끼워 보인다. 지운 줄은 줄 번호 칸이 비어 있고, 나머지 줄 번호는 지금 파일 기준 그대로다. 바뀌지 않은 줄은 표시 칸이 비어 있다. 편집할 수 있는 파일 탭은 열면 편집 보기라, 도구 줄의 "읽기 보기" 로 바꿔야 보인다(<a href="terminal-file-editor.html">파일 탭 편집</a> E2·E5).</li>
   <li><strong>D2.</strong> 바뀐 줄이 하나라도 있으면 내용 위에 "HEAD 대비 +n −m" 이 붙는다. n 은 더한 줄 수, m 은 지운 줄 수다.</li>
   <li><strong>D3.</strong> 추적하지 않는 파일(<code>.gitignore</code> 로 빠진 것 제외)은 모든 줄이 더한 줄이다. 커밋이 하나도 없는 저장소에서는 무시되지 않는 모든 파일이 그렇다.</li>
   <li><strong>D4.</strong> HEAD 에 있고 디스크에서 지워진 파일은 "파일을 읽을 수 없습니다" 대신 HEAD 의 모든 줄을 지운 줄로 보이고 D2 의 요약을 붙인다.</li>

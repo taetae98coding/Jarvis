@@ -32,6 +32,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerCommentCanc
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerCommentClearTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerCommentFieldTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerCommentSendTestTag
+import io.github.taetae98coding.jarvis.ui.terminal.TerminalFileViewerReadTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileEntryTestTag
 import io.github.taetae98coding.jarvis.ui.terminal.terminalFileViewerCommentDeleteTestTag
@@ -92,7 +93,15 @@ class JarvisAppTerminalLineCommentTest {
     ) {
         setContent { TestJarvisApp(terminal = terminal, terminalWorkspace = workspace, files = files(), gitChanges = git()) }
         onNodeWithTag(TerminalTestTag).performClick()
+        showReadView()
         awaitTag(terminalFileViewerGutterTestTag(1))
+    }
+
+    /** 편집할 수 있는 파일 탭은 편집 보기로 열린다. 줄 코멘트는 읽기 보기에만 있다(docs/common/terminal-file-editor.html E2·E5). */
+    private fun ComposeUiTest.showReadView() {
+        awaitTag(TerminalFileViewerReadTestTag)
+        onNodeWithTag(TerminalFileViewerReadTestTag).performClick()
+        awaitTag(TerminalFileViewerReadTestTag, count = 0)
     }
 
     private fun ComposeUiTest.addComment(gutterTag: String, text: String) {
@@ -222,6 +231,7 @@ class JarvisAppTerminalLineCommentTest {
         addComment(terminalFileViewerGutterTestTag(1), "readme")
 
         onNodeWithTag(terminalFileEntryTestTag(notes.path)).performClick()
+        showReadView()
         awaitTag(terminalFileViewerGutterTestTag(2))
         onNodeWithText("코멘트 1개").assertIsDisplayed()
         assertEquals(0, onAllNodesWithText("readme").fetchSemanticsNodes().size)
@@ -231,6 +241,7 @@ class JarvisAppTerminalLineCommentTest {
         onNodeWithTag(terminalTabCloseTestTag(readmeTab.id)).performClick()
         waitUntil(timeoutMillis = FrameTimeoutMillis) { workspace.workspace.value.tabs.none { it.id == readmeTab.id } }
         onNodeWithTag(terminalFileEntryTestTag(readme.path)).performClick()
+        showReadView()
         waitUntil(timeoutMillis = FrameTimeoutMillis) { onAllNodesWithText("readme").fetchSemanticsNodes().size == 1 }
         onNodeWithText("코멘트 2개").assertIsDisplayed()
     }

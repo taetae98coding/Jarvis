@@ -311,6 +311,7 @@ private fun TerminalGroup(
             val pane = viewModel.pane(tab.id)
             val fileEdits by viewModel.fileEditStates.collectAsStateWithLifecycle()
             val sourceViewTabs by viewModel.sourceViewTabs.collectAsStateWithLifecycle()
+            val fileReading by viewModel.fileReading.collectAsStateWithLifecycle()
             if (tab.program == TerminalProgram.Device) {
                 key(tab.id) {
                     TerminalDevice(
@@ -373,7 +374,9 @@ private fun TerminalGroup(
                                 onChange = { viewModel.changeFileEdit(tab.id, it) },
                                 onDiskChanged = { viewModel.fileEditDiskChanged(tab.id, it) },
                                 onSave = { viewModel.saveFileEdit(tab.id) },
-                                onDiscard = { viewModel.discardFileEdit(tab.id) },
+                                onRevert = { viewModel.revertFileEdit(tab.id) },
+                                reading = tab.id in fileReading,
+                                onReadingChange = { viewModel.setFileReading(tab.id, it) },
                             )
                         },
                         webPreviewSupported = viewModel.isBrowserSupported,
