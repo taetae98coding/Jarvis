@@ -263,6 +263,48 @@ class HostAgentTest {
         assertIs<PairingResult.Failed>(silentPairing().pair(WaitingService, "012345"))
     }
 
+    @Test
+    fun logChunksSurviveTheWireFormat() {
+        val chunk = DeviceLogChunk(next = 42, lines = listOf("09-25 17:18:51.832  1850  2652 I tag: \"quoted\"", ""))
+
+        assertEquals(chunk, decodeDeviceLogChunk(encodeDeviceLogChunk(chunk)))
+        assertNull(decodeDeviceLogChunk("<html>Proxy Error</html>"))
+    }
+
+    // 다음 요청의 after 는 지난 응답의 next 다. 그래야 같은 줄이 두 번 오지 않는다.
+    @Test
+    fun logsFollowTheAgentCursor() = runTest {
+        val paths = mutableListOf<String>()
+        val answers = ArrayDeque(
+            listOf(
+                DeviceLogChunk(next = 2, lines = listOf("a", "b")),
+                null,
+                DeviceLogChunk(next = 2, lines = emptyList()),
+                DeviceLogChunk(next = 3, lines = listOf("c")),
+            ),
+        )
+        val client = HostAgentClient(
+            fetch = { path ->
+                paths += path
+                answers.removeFirstOrNull()?.let { encodeDeviceLogChunk(it).encodeToByteArray() }
+            },
+            send = { _, _ -> },
+        )
+
+        val batches = hostAgentDeviceLogDataSource(client).observeLog("avd:Pixel 9").take(2).toList()
+
+        assertEquals(listOf(listOf("a", "b"), listOf("c")), batches)
+        assertEquals(
+            listOf(
+                "$HostAgentLogsPath?id=avd%3APixel%209&after=-1",
+                "$HostAgentLogsPath?id=avd%3APixel%209&after=2",
+                "$HostAgentLogsPath?id=avd%3APixel%209&after=2",
+                "$HostAgentLogsPath?id=avd%3APixel%209&after=2",
+            ),
+            paths,
+        )
+    }
+
     private fun silentPairing() =
         hostAgentDevicePairingDataSource(HostAgentClient(fetch = { null }, send = { _, _ -> }, exchange = { _, _ -> null }))
 

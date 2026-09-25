@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.emulator.agent
 
+import io.github.taetae98coding.jarvis.data.emulator.DeviceLogDataSource
 import io.github.taetae98coding.jarvis.data.emulator.DevicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorScreenPollInterval
@@ -11,7 +12,9 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorGesture
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
 import io.github.taetae98coding.jarvis.domain.emulator.PairingService
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -29,12 +32,16 @@ internal const val HostAgentLaunchPath: String = "$HostAgentPath/launch"
 internal const val HostAgentWakePath: String = "$HostAgentPath/wake"
 internal const val HostAgentPairingServicesPath: String = "$HostAgentPath/pairing/services"
 internal const val HostAgentPairPath: String = "$HostAgentPath/pairing/pair"
+internal const val HostAgentLogsPath: String = "$HostAgentPath/logs"
 
 internal fun hostAgentUrl(host: String, path: String = HostAgentPath): String =
     "http://$host:$HostAgentPort$path"
 
 internal fun hostAgentScreenPath(deviceId: String): String =
     "$HostAgentScreenPath?id=${encodeQueryValue(deviceId)}"
+
+internal fun hostAgentLogsPath(deviceId: String, after: Long): String =
+    "$HostAgentLogsPath?id=${encodeQueryValue(deviceId)}&after=$after"
 
 /**
  * 기기와 브라우저 샌드박스 안에서는 프로세스를 띄울 수 없어서, 같은 머신의 데스크탑 앱을 거치는
@@ -79,6 +86,9 @@ internal class HostAgentClient(
 
     suspend fun pair(service: PairingService, code: String): PairingResult? =
         exchange(HostAgentPairPath, encodePairRequest(service, code))?.decodeToString()?.let(::decodePairResult)
+
+    suspend fun logs(deviceId: String, after: Long): DeviceLogChunk? =
+        fetch(hostAgentLogsPath(deviceId, after))?.decodeToString()?.let(::decodeDeviceLogChunk)
 }
 
 internal fun hostAgentEmulatorDataSource(client: HostAgentClient): EmulatorDataSource =
@@ -117,10 +127,32 @@ internal fun hostAgentDevicePairingDataSource(client: HostAgentClient): DevicePa
             client.pair(service, code) ?: PairingResult.Failed(UnreachableAgent)
     }
 
+/**
+ * HTTP 는 한 방향이라 에이전트가 새 줄을 밀어 줄 수 없다. 에이전트가 줄을 들고 있고 여기서 순번 커서로 뒤의 줄만 묻는다.
+ * 응답이 없는 동안(에이전트가 없거나 다시 뜨는 중)에도 끝나지 않고 계속 묻는다(docs/common/device-logcat.html R11).
+ */
+internal fun hostAgentDeviceLogDataSource(client: HostAgentClient): DeviceLogDataSource =
+    object : DeviceLogDataSource {
+        override fun observeLog(deviceId: String): Flow<List<String>> = flow {
+            var after = -1L
+
+            while (true) {
+                client.logs(deviceId, after)?.let { chunk ->
+                    after = chunk.next
+                    if (chunk.lines.isNotEmpty()) emit(chunk.lines)
+                }
+                delay(HostAgentLogPollInterval)
+            }
+        }
+    }
+
 private const val UnreachableAgent = "개발자 머신의 에이전트에 닿지 못했습니다."
 
 // 에뮬레이터를 켜고 끄는 건 사람의 손이라 이보다 촘촘히 볼 이유가 없다.
 private val HostAgentPollInterval = 5.seconds
+
+// 로그는 사람이 읽는 속도로 따라가면 된다. 에이전트가 기기마다 2000줄을 들고 있어 1초 사이의 줄은 빠지지 않는다.
+internal val HostAgentLogPollInterval = 1.seconds
 
 /**
  * 기기 식별자를 질의 문자열에 싣는다. `avd:<이름>` 처럼 콜론이 들어가고 AVD 이름에 무엇이 올지

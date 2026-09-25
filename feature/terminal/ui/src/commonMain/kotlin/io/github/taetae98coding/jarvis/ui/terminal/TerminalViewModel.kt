@@ -289,6 +289,8 @@ internal class TerminalViewModel(
 
     fun setUrl(tabId: Long, url: String) = update { it.setUrl(tabId, url) }
 
+    fun setDeviceLogVisible(tabId: Long, visible: Boolean) = update { it.setDeviceLogVisible(tabId, visible) }
+
     fun addDeviceTab(groupId: Long?, choice: DeviceChoice) =
         update {
             it.addTab(

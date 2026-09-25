@@ -80,6 +80,7 @@ internal data class TerminalTabDto(
     val deviceId: String? = null,
     val deviceName: String? = null,
     val devicePlatform: String? = null,
+    val deviceLogVisible: Boolean = false,
     val name: String? = null,
     val claudeCheckedAt: Long? = null,
     val filePath: String? = null,
@@ -191,6 +192,7 @@ private fun PaneNode.toDto(): PaneNodeDto =
                         DevicePlatform.IOS -> IosPlatform
                         null -> null
                     },
+                    deviceLogVisible = tab.deviceLogVisible,
                     name = tab.name,
                     claudeCheckedAt = tab.claudeCheckedAt,
                     filePath = tab.filePath,
@@ -255,6 +257,7 @@ private fun TerminalTabDto.toDomain(): TerminalTab =
                 IosPlatform -> DevicePlatform.IOS
                 else -> null
             },
+            deviceLogVisible = deviceLogVisible,
         )
         program == FileProgram && filePath != null -> TerminalTab(id, TerminalProgram.File, filePath = filePath, commitHash = commitHash?.ifEmpty { null })
 

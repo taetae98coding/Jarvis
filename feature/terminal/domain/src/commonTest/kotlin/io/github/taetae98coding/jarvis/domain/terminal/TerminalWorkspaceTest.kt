@@ -2,6 +2,7 @@ package io.github.taetae98coding.jarvis.domain.terminal
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -661,6 +662,25 @@ class TerminalWorkspaceTest {
         assertEquals(TerminalProgram.Device, tab.program)
         assertEquals("emulator-5554", tab.deviceId)
         assertEquals("Pixel 9", tab.deviceName)
+    }
+
+    // docs/common/device-logcat.html R1·R2
+    @Test
+    fun deviceLogVisibilityStaysWithTheTab() {
+        val workspace = TerminalWorkspace.initial()
+            .addTab(program = TerminalProgram.Device, deviceId = "emulator-5554", deviceName = "Pixel 9")
+            .addTab(program = TerminalProgram.Device, deviceId = "emulator-5554", deviceName = "Pixel 9")
+        val (first, second) = workspace.groups.single().tabs.drop(1)
+        assertFalse(first.deviceLogVisible)
+
+        val shown = workspace.setDeviceLogVisible(first.id, visible = true)
+        assertEquals(listOf(true, false), shown.groups.single().tabs.drop(1).map { it.deviceLogVisible })
+
+        val moved = shown.dockTab(first.id, shown.groups.single().id, DockEdge.Right)
+        assertTrue(moved.tabs.single { it.id == first.id }.deviceLogVisible)
+        assertFalse(moved.tabs.single { it.id == second.id }.deviceLogVisible)
+
+        assertFalse(shown.setDeviceLogVisible(first.id, visible = false).tabs.single { it.id == first.id }.deviceLogVisible)
     }
 
     @Test

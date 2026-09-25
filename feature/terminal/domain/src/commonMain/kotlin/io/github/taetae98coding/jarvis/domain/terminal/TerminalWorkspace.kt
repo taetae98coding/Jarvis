@@ -23,7 +23,8 @@ enum class DockEdge(val splitDirection: SplitDirection?, val placesFirst: Boolea
  * [directory] 는 마지막으로 안 작업 디렉터리다. 모르면 null 이고 홈에서 시작한다.
  * [claudeSessionId] 는 [TerminalProgram.Claude] 탭에만, [url] 은 [TerminalProgram.Browser] 탭에만,
  * [deviceId]·[deviceName]·[devicePlatform] 은 [TerminalProgram.Device] 탭에만, [filePath]·[commitHash] 는 [TerminalProgram.File] 탭에만 있다. [deviceName]·[devicePlatform] 은
- * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다.
+ * 고를 때의 값이고, [devicePlatform] 이 null 이면 이 값을 저장하기 전에 만든 탭이다. [deviceLogVisible] 은 기기 탭이 로그 창을 띄우고 있는지다
+ * (docs/common/device-logcat.html R2).
  * [commitHash] 가 있으면 디스크가 아니라 그 커밋 시점의 파일을 보이는 커밋 파일 탭이다(docs/common/terminal-commit-file.html).
  * [command] 가 있는 셸 탭은 그 명령으로 시작하고 끝나면 셸로 남는 실행 탭이다. [commandTyped] 가 거짓이면 로그인 셸 대신
  * 명령을 돌리고(앱 실행 스크립트), 참이면 로그인 셸을 띄운 뒤 명령을 프롬프트에 쳐 넣는다(사용자 명령). [commandTitle] 이
@@ -42,6 +43,7 @@ data class TerminalTab(
     val deviceId: String? = null,
     val deviceName: String? = null,
     val devicePlatform: DevicePlatform? = null,
+    val deviceLogVisible: Boolean = false,
     val name: String? = null,
     val claudeCheckedAt: Long? = null,
     val filePath: String? = null,
@@ -600,6 +602,8 @@ data class TerminalWorkspace(
     fun setDirectory(tabId: Long, directory: String): TerminalWorkspace = replaceTab(tabId) { it.copy(directory = directory) }
 
     fun setUrl(tabId: Long, url: String): TerminalWorkspace = replaceTab(tabId) { it.copy(url = url) }
+
+    fun setDeviceLogVisible(tabId: Long, visible: Boolean): TerminalWorkspace = replaceTab(tabId) { it.copy(deviceLogVisible = visible) }
 
     /** 앞뒤 공백을 뗀다. 비어 있으면 사용자가 정한 이름을 지워 자동 제목으로 돌아간다. */
     fun renameTab(tabId: Long, name: String): TerminalWorkspace = replaceTab(tabId) { it.copy(name = name.trim().ifEmpty { null }) }

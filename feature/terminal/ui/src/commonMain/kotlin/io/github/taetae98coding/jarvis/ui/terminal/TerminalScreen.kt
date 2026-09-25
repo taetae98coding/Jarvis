@@ -317,6 +317,7 @@ private fun TerminalGroup(
                         tab = tab,
                         devices = devices,
                         onFocus = { viewModel.focusGroup(group.id) },
+                        onLogVisibleChange = { viewModel.setDeviceLogVisible(tab.id, it) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 }

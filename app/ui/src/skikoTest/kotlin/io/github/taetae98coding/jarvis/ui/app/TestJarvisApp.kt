@@ -15,6 +15,7 @@ import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
 import io.github.taetae98coding.jarvis.domain.appinfo.AppRelease
 import io.github.taetae98coding.jarvis.domain.appinfo.AppUpdateRepository
+import io.github.taetae98coding.jarvis.domain.emulator.DeviceLogRepository
 import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorFrame
@@ -87,6 +88,7 @@ import io.github.taetae98coding.jarvis.ui.theme.themeUiModule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -122,6 +124,7 @@ internal fun TestJarvisApp(
     systemScreenAwakeNotification: SystemScreenAwakeNotificationRepository = FakeSystemScreenAwakeNotificationRepository(),
     emulator: EmulatorRepository = FakeEmulatorRepository(),
     pairing: DevicePairingRepository = FakeDevicePairingRepository(),
+    deviceLog: DeviceLogRepository = FakeDeviceLogRepository(),
     deviceRotation: DeviceRotationRepository = FakeDeviceRotationRepository(),
     deviceRotationNotification: DeviceRotationNotificationRepository = FakeDeviceRotationNotificationRepository(),
     screenAwake: ScreenAwakeRepository = ScreenAwakeRepository { },
@@ -152,6 +155,7 @@ internal fun TestJarvisApp(
             single<AppUpdateRepository> { appUpdate }
             single<EmulatorRepository> { emulator }
             single<DevicePairingRepository> { pairing }
+            single<DeviceLogRepository> { deviceLog }
             single<ScreenAwakeSettingsRepository> { settings }
             single<ScreenAwakeRepository> { screenAwake }
             single<SystemScreenAwakeRepository> { systemScreenAwake }
@@ -343,6 +347,16 @@ internal class FakeEmulatorRepository(
     override suspend fun wake(deviceId: String) {
         woken += deviceId
     }
+}
+
+// 기기마다 줄 묶음을 테스트가 흘린다. 구독 수로 로그 창이 읽기를 멈췄는지 본다.
+internal class FakeDeviceLogRepository : DeviceLogRepository {
+    private val logs = HashMap<String, MutableSharedFlow<List<String>>>()
+
+    // 버퍼가 있어야 테스트 스레드에서 tryEmit 으로 흘릴 수 있다.
+    fun of(deviceId: String): MutableSharedFlow<List<String>> = logs.getOrPut(deviceId) { MutableSharedFlow(extraBufferCapacity = 64) }
+
+    override fun observeLog(deviceId: String): Flow<List<String>> = of(deviceId)
 }
 
 // 아직 아무 답도 하지 않은 저장소. 화면은 "확인 중…" 과 빈 목록을 보여줘야 한다.

@@ -1,5 +1,6 @@
 package io.github.taetae98coding.jarvis.data.emulator.agent
 
+import io.github.taetae98coding.jarvis.data.emulator.DeviceLogDataSource
 import io.github.taetae98coding.jarvis.data.emulator.DevicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
@@ -252,14 +253,52 @@ class HostAgentServerTest {
         }
     }
 
+    @Test
+    fun servesLogLinesAfterTheCursor() {
+        val logs = object : DeviceLogDataSource {
+            override fun observeLog(deviceId: String): Flow<List<String>> = flowOf(listOf("$deviceId 1", "$deviceId 2"))
+        }
+
+        withAgent(logs = logs) { port ->
+            // 첫 요청이 읽기를 시작하므로 줄은 그 뒤에 온다.
+            val first = awaitLogs(port, "emulator-5554", after = -1)
+            assertEquals(listOf("emulator-5554 1", "emulator-5554 2"), first.lines)
+
+            val rest = decodeDeviceLogChunk(awaitBody(port, "$HostAgentLogsPath?id=emulator-5554&after=${first.next}"))
+            assertEquals(DeviceLogChunk(next = first.next, lines = emptyList()), rest)
+        }
+    }
+
+    @Test
+    fun rejectsLogRequestsWithoutADevice() {
+        withAgent { port ->
+            assertEquals(400, request(port, HostAgentLogsPath).code)
+            assertEquals(405, request(port, "$HostAgentLogsPath?id=x", method = "POST", body = "").code)
+        }
+    }
+
+    private fun awaitLogs(port: Int, deviceId: String, after: Long): DeviceLogChunk {
+        repeat(20) {
+            val chunk = decodeDeviceLogChunk(awaitBody(port, "$HostAgentLogsPath?id=$deviceId&after=$after"))
+            if (chunk != null && chunk.lines.isNotEmpty()) return chunk
+
+            Thread.sleep(50)
+        }
+
+        fail("에이전트가 $deviceId 의 로그를 주지 않았다")
+    }
+
     private fun withAgent(
         dataSource: EmulatorDataSource = FakeEmulatorDataSource(),
         pairing: DevicePairingDataSource = FakeDevicePairingDataSource(),
+        logs: DeviceLogDataSource = object : DeviceLogDataSource {
+            override fun observeLog(deviceId: String): Flow<List<String>> = emptyFlow()
+        },
         block: (Int) -> Unit,
     ) {
         val port = freePort()
 
-        startEmulatorHostAgent(port, dataSource, pairing).use { block(port) }
+        startEmulatorHostAgent(port, dataSource, pairing, logs).use { block(port) }
     }
 
     // 에이전트는 개수와 목록을 백그라운드에서 받아 두므로 첫 요청이 503 일 수 있다.

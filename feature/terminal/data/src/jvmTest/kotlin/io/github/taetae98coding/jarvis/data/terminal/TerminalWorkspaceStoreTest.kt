@@ -17,6 +17,7 @@ import okio.Path.Companion.toOkioPath
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 /**
@@ -61,6 +62,7 @@ class TerminalWorkspaceStoreTest {
                 .renameTab(workspace.focusedTab!!.id, "서버")
                 .addTab(program = TerminalProgram.Device, deviceId = "emulator-5554", deviceName = "Pixel 9", devicePlatform = DevicePlatform.Android)
                 .addTab(program = TerminalProgram.Device, deviceId = "sim", deviceName = "iPhone 15", devicePlatform = DevicePlatform.IOS)
+                .let { it.setDeviceLogVisible(it.focusedTab!!.id, visible = true) }
         }
 
         val reopened = DefaultTerminalWorkspaceRepository(terminalWorkspaceStoreForRead(path)).observeWorkspace().first()
@@ -68,6 +70,7 @@ class TerminalWorkspaceStoreTest {
         assertEquals(change.after, reopened)
         assertEquals(listOf("서버", null, null), reopened.tabs.map { it.name })
         assertEquals(listOf(null, DevicePlatform.Android, DevicePlatform.IOS), reopened.tabs.map { it.devicePlatform })
+        assertEquals(listOf(false, false, true), reopened.tabs.map { it.deviceLogVisible })
     }
 
     // 이름·플랫폼 키가 없던 때의 파일. 두 값 모두 없는 것으로 읽는다.
@@ -90,6 +93,7 @@ class TerminalWorkspaceStoreTest {
 
         assertNull(tab.name)
         assertNull(tab.devicePlatform)
+        assertFalse(tab.deviceLogVisible)
     }
 
     @Test

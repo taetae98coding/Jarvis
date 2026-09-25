@@ -45,4 +45,8 @@ interface DeviceScreens {
     /** [deviceId] 기기의 화면. 탭·드래그가 기기로 간다. 컴포지션에 있는 동안에만 찍는다. */
     @Composable
     fun Screen(deviceId: String, modifier: Modifier)
+
+    /** [deviceId] 기기의 로그 창(필터·지우기 포함). 컴포지션에 있는 동안에만 읽는다(docs/common/device-logcat.html). */
+    @Composable
+    fun Log(deviceId: String, modifier: Modifier)
 }

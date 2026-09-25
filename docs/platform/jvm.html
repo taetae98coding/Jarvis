@@ -62,6 +62,7 @@
     <li><a href="#terminal-claude-status">패널 줄의 Claude 상태 표시</a></li>
     <li><a href="#terminal-browser">터미널에서 웹 브라우저</a></li>
     <li><a href="#terminal-device">터미널에서 기기 화면</a></li>
+    <li><a href="#device-logcat">기기 탭 로그캣</a></li>
     <li><a href="#terminal-tab-label">탭 종류 표시와 이름 바꾸기</a></li>
     <li><a href="#terminal-panel-item-layout">패널 줄의 버튼을 아래 줄로</a></li>
     <li><a href="#terminal-panel-text-marquee">패널 줄 글자 흐르게</a></li>
@@ -1412,6 +1413,42 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p>메뉴·탭 열기·제스처 좌표는 <code>JarvisAppTerminalDeviceTest</code>(skiko, 이 타깃에서 돈다), 저장은 <code>TerminalWorkspaceStoreTest</code> 가 확인한다. 실제 기기 왕복은 <code>./gradlew :desktopApp:run</code> → 터미널 → + → 기기로 손으로 확인한다. 2026-09-24 에 macOS(arm64)에서 무선 adb 실물 기기 둘(SM-F966N, SM-X906N)과 부팅된 시뮬레이터가 종류와 함께 메뉴에 나오고, 고르면 기기 이름의 탭에 화면이 흐르고, 앱을 다시 켜도 탭이 되살아나고, 화면 켜기 카드가 기기를 깨우고, 프레임 위 클릭이 기기 좌표의 <code>input tap</code> 으로 가는 것을 확인했다. 이때 SM-F966N 의 <code>screencap</code> 경고 문구(<a href="#emulator-control">기기 화면</a>)를 찾아 고쳤다. 마우스 끌기 → 스와이프는 자동화 도구의 합성 끌기가 Compose 에 끌기로 닿지 않아 <span class="badge untested">미검증</span>이다(좌표·지속 시간은 skiko 테스트가 확인한다).</p>
+</section>
+
+<section class="feature" id="device-logcat">
+<h2>기기 탭 로그캣 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/device-logcat.html">기기 탭 로그캣</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>adb -s &lt;시리얼&gt; logcat -v threadtime -T 1000</code></td><td>채택(Android 전부). <code>-T &lt;개수&gt;</code> 는 최근 줄을 찍고 끝나지 않고 이어 흘린다(<code>-d</code> 가 아니다). 다시 띄울 때는 <code>-T '&lt;MM-DD hh:mm:ss.mmm&gt;'</code> 로 마지막으로 받은 줄의 시각부터 읽는다. 2026-09-25 Galaxy Z Fold7(유선·무선)에서 두 형식 모두 확인했다. 시각은 기기 시계라 호스트 시계와 어긋나도 된다</td></tr>
+    <tr><td><code>xcrun simctl spawn &lt;UDID&gt; log stream --style compact</code></td><td>채택(iOS 시뮬레이터). 시뮬레이터 런타임 안의 <code>/usr/bin/log</code> 를 띄운다. 지난 줄을 붙이는 옵션이 없다(<code>log show --last</code> 를 먼저 돌리면 두 명령 사이 줄이 빠지거나 겹친다). 첫 줄 "Filtering the log data…" 머리글은 수준 Unknown 으로 그대로 둔다</td></tr>
+    <tr><td><code>adb logcat -d</code> 를 주기적으로</td><td>버렸다. 부를 때마다 버퍼 전체를 다시 받아 겹친 줄을 걸러야 하고 프로세스가 계속 뜬다</td></tr>
+    <tr><td>ddmlib·adblib 로 adb 서버 소켓에 직접</td><td>버렸다. 의존성 하나(수 MB)가 늘고, 화면·제스처가 이미 adb 명령을 부르는 구조와 어긋난다</td></tr>
+    <tr><td>실물 iOS: <code>idevicesyslog</code>(libimobiledevice), <code>pymobiledevice3 syslog live</code></td><td>버렸다. 둘 다 Homebrew·pip 로 따로 깔아야 하고 이 머신에도 없다. 기본 도구만 쓰는 원칙을 따른다</td></tr>
+    <tr><td>실물 iOS: <code>xcrun devicectl</code>, <code>log collect --device</code></td><td>버렸다. <code>devicectl</code> 에는 syslog 를 흘리는 하위 명령이 없고(<code>device process launch --console</code> 은 이 앱이 띄운 프로세스 하나의 stdout 뿐), <code>log collect</code> 는 root 로 로그 묶음 파일을 한 번 떠 온다. 흘려 보기가 아니다</td></tr>
+    <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. SDK·Xcode 를 찾지 못하면 줄이 오지 않아 "로그를 기다리는 중…"이다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/emulator/data/src/jvmMain/.../emulator/DeviceLog.jvm.kt</code>(데이터 소스, 명령 조립), <code>agent/DeviceLogSessions.kt</code>·<code>agent/HostAgentServer.kt</code>(에이전트 <code>/emulators/logs</code>)</dd>
+  <dt>동작</dt><dd>수집이 시작되면 <code>adb start-server</code> 를 먼저 한 번 부른 뒤(데몬이 로그 프로세스의 파이프를 물려받지 않게) 로그 프로세스를 띄우고, stdout 을 <code>Dispatchers.IO</code> 에서 줄 단위로 읽어 채널에 넣는다. 채널에 쌓인 줄을 한 번에 꺼내 묶음으로 흘려 줄마다 화면이 다시 그려지지 않게 한다. 수집이 끝나면 <code>destroy()</code> 로 프로세스를 죽인다. 프로세스가 스스로 끝나면(기기가 사라짐) 2초 뒤 다시 띄운다. <code>avd:</code>·<code>ios:</code> 식별자는 읽지 않는다(빈 흐름)</dd>
+  <dt>에이전트</dt><dd><code>DeviceLogSessions</code> 가 기기마다 같은 데이터 소스를 한 벌 수집해 최근 2000줄을 전역 순번과 함께 들고, 10초 동안 요청이 없는 기기는 수집을 끊는다. 다른 타깃(Android 앱)이 이 경로를 쓴다</dd>
+  <dt>실패</dt><dd>SDK·Xcode 가 없거나 기기가 없으면 줄이 오지 않는다. 받은 줄은 남는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>다시 띄울 때 마지막 줄과 같은 밀리초에 찍힌 줄이 한 번 더 올 수 있다(<code>-T</code> 는 그 시각을 포함한다).</li>
+  <li>iOS 시뮬레이터는 연 뒤의 줄만 보인다. 실물 iOS 는 "이 기기의 로그는 볼 수 없습니다."다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>./gradlew :feature:emulator:data:jvmTest</code> 가 명령 조립(<code>DeviceLogCommandTest</code>)과 에이전트(<code>DeviceLogSessionsTest</code>, <code>HostAgentServerTest</code>)를, <code>:app:ui:jvmTest</code> 가 토글·표시를 확인한다. 실제 기기는 데스크톱 앱으로 확인한다 — 기기 탭의 로그 버튼을 누르고 <code>pgrep -fl "adb -s .* logcat"</code> 이 하나 뜨고, 숨기면 사라지는지.</p>
 </section>
 
 <section class="feature" id="terminal-tab-label">

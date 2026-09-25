@@ -1,6 +1,7 @@
 package io.github.taetae98coding.jarvis.data.emulator
 
 import io.github.taetae98coding.jarvis.automation.DeviceAutomation
+import io.github.taetae98coding.jarvis.domain.emulator.DeviceLogRepository
 import io.github.taetae98coding.jarvis.domain.emulator.DevicePairingRepository
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorRepository
 import org.koin.dsl.module
@@ -10,5 +11,6 @@ val emulatorDataModule = module {
     // 구독해야 해서 Koin 이 아니라 최상위 val 이 그 수명을 갖는다.
     single<EmulatorRepository> { DefaultEmulatorRepository(emulatorDataSource) }
     single<DevicePairingRepository> { DefaultDevicePairingRepository(devicePairingDataSource) }
+    single<DeviceLogRepository> { DefaultDeviceLogRepository(deviceLogDataSource) }
     deviceAutomation?.let { automation -> single<DeviceAutomation> { automation } }
 }

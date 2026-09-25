@@ -2,8 +2,10 @@ package io.github.taetae98coding.jarvis.data.emulator.agent
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.github.taetae98coding.jarvis.data.emulator.DeviceLogDataSource
 import io.github.taetae98coding.jarvis.data.emulator.DevicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.EmulatorDataSource
+import io.github.taetae98coding.jarvis.data.emulator.deviceLogDataSource
 import io.github.taetae98coding.jarvis.data.emulator.devicePairingDataSource
 import io.github.taetae98coding.jarvis.data.emulator.emulatorDataSource
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorDevice
@@ -13,7 +15,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.awt.image.BufferedImage
@@ -29,7 +35,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 같은 머신의 다른 타깃에 에뮬레이터 개수·목록·화면을 알려주고 제스처·실행·깨우기·페어링을 대신
+ * 같은 머신의 다른 타깃에 에뮬레이터 개수·목록·화면·로그를 알려주고 제스처·실행·깨우기·페어링을 대신
  * 전달하는 로컬 HTTP 에이전트를 띄운다.
  *
  * Android 에뮬레이터·iOS 시뮬레이터·브라우저는 샌드박스 안이라 SDK 도구를 직접 띄울 수 없다.
@@ -39,12 +45,13 @@ import java.util.concurrent.atomic.AtomicReference
  * 여기서 실패해도 앱에는 영향이 없다.
  */
 fun startEmulatorHostAgent(): AutoCloseable =
-    startEmulatorHostAgent(HostAgentPort, emulatorDataSource, devicePairingDataSource)
+    startEmulatorHostAgent(HostAgentPort, emulatorDataSource, devicePairingDataSource, deviceLogDataSource)
 
 internal fun startEmulatorHostAgent(
     port: Int,
     dataSource: EmulatorDataSource,
     pairing: DevicePairingDataSource,
+    logs: DeviceLogDataSource = NoDeviceLogs,
 ): AutoCloseable {
     // 루프백에만 바인딩한다. 에뮬레이터의 10.0.2.2 와 `adb reverse` 는 호스트 루프백으로 들어오므로
     // 이걸로 충분하고, 같은 네트워크의 다른 기기에는 열리지 않는다.
@@ -59,6 +66,14 @@ internal fun startEmulatorHostAgent(
     // 돌고, 응답이 즉시 끝난다.
     scope.launch { dataSource.observeStatus().collect(status::set) }
     scope.launch { dataSource.observeDevices().collect(devices::set) }
+
+    val logSessions = DeviceLogSessions(logs, scope)
+    scope.launch {
+        while (isActive) {
+            delay(AgentLogSweepInterval)
+            logSessions.sweep()
+        }
+    }
 
     // 화면 요청은 그 자리에서 기기를 찍느라 0.3~1초 걸린다. 기본 실행기는 단일 스레드라 그동안 다른
     // 요청이 전부 막히므로 풀을 따로 준다.
@@ -223,6 +238,19 @@ internal fun startEmulatorHostAgent(
         }
     }
 
+    server.createContext(HostAgentLogsPath) { exchange ->
+        exchange.handle {
+            val deviceId = exchange.queryParameter("id")
+            val after = exchange.queryParameter("after")?.toLongOrNull() ?: -1L
+
+            when {
+                exchange.requestMethod != "GET" -> exchange.respond(MethodNotAllowed)
+                deviceId == null -> exchange.respond(BadRequest)
+                else -> exchange.respond(Ok, encodeDeviceLogChunk(logSessions.read(deviceId, after)).encodeToByteArray())
+            }
+        }
+    }
+
     server.start()
 
     return AutoCloseable {
@@ -263,6 +291,10 @@ private fun encodeJpeg(frame: EmulatorFrame.Pixels): ByteArray {
     } finally {
         writer.dispose()
     }
+}
+
+private object NoDeviceLogs : DeviceLogDataSource {
+    override fun observeLog(deviceId: String): Flow<List<String>> = emptyFlow()
 }
 
 private const val ScreenWorkerCount = 4

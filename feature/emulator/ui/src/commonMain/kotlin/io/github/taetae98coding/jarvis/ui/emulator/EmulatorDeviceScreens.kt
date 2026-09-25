@@ -28,4 +28,13 @@ internal object EmulatorDeviceScreens : DeviceScreens {
             modifier = modifier,
         )
     }
+
+    // 같은 기기의 탭끼리는 로그 ViewModel 을 나눠 쓴다(docs/common/device-logcat.html#limits).
+    @Composable
+    override fun Log(deviceId: String, modifier: Modifier) {
+        DeviceLog(
+            viewModel = koinViewModel(key = "device-log:$deviceId") { parametersOf(deviceId) },
+            modifier = modifier,
+        )
+    }
 }

@@ -10,6 +10,7 @@ val emulatorDomainModule = module {
     factoryOf(::SendEmulatorGestureUseCase)
     factoryOf(::LaunchEmulatorUseCase)
     factoryOf(::WakeDeviceUseCase)
+    factoryOf(::ObserveDeviceLogUseCase)
 
     factory { CreatePairingQrCodeUseCase(UuidRandom) }
     factoryOf(::ObservePairingServicesUseCase)
