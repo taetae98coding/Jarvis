@@ -31,6 +31,7 @@ kotlin {
             implementation(projects.feature.terminal.data)
             implementation(projects.feature.theme.data)
             implementation(projects.feature.profiling.data)
+            implementation(projects.feature.focus.data)
         }
 
         androidMain.dependencies {
