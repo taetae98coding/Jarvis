@@ -51,6 +51,7 @@
     <li><a href="#unit-converter">단위 변환</a></li>
     <li><a href="#text-tools">텍스트 도구</a></li>
     <li><a href="#calculator">계산기 (수식·퍼센트·BMI)</a></li>
+    <li><a href="#world-clock">세계 시계·시간대 변환·날짜 계산</a></li>
     <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#qr-code">QR 코드 만들기</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
@@ -670,6 +671,39 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p>도메인·데이터 공통 테스트가 <code>iosSimulatorArm64Test</code> 로 돈다. 숫자 적기가 Kotlin/Native 의 <code>pow</code>·<code>log10</code> 에서 JVM 과 같은 글자를 내는지 여기서 본다. 화면의 시뮬레이터 수동 확인은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="world-clock">
+<h2>세계 시계·시간대 변환·날짜 계산 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/world-clock.html">세계 시계·시간대 변환·날짜 계산</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>오프셋: <code>NSTimeZone.timeZoneWithName(id)?.secondsFromGMTForDate(NSDate)</code></td><td>채택. 모르는 이름은 nil 이라 null 로 옮긴다. 서머타임을 반영한 그 순간의 오프셋이다</td></tr>
+    <tr><td>오프셋: <code>NSCalendar.componentsInTimeZone</code></td><td>버렸다. 벽시계 필드를 받아 다시 조립해야 하고 결과는 같다</td></tr>
+    <tr><td>기기 시간대: <code>NSTimeZone.systemTimeZone.name</code> + <code>resetSystemTimeZone()</code></td><td>채택. <code>systemTimeZone</code> 은 처음 읽은 값을 캐시하므로 읽기 전에 비운다</td></tr>
+    <tr><td>기기 시간대: <code>NSTimeZone.localTimeZone</code></td><td>버렸다. 스스로 따라가는 프록시지만 바뀌었는지 비교하려면 결국 <code>name</code> 을 읽는다. 알림과 짝지으려면 <code>systemTimeZone</code> 이 명확하다</td></tr>
+    <tr><td>변경 신호: <code>NSSystemTimeZoneDidChangeNotification</code></td><td>채택. <code>NSNotificationCenter.addObserverForName</code> 을 <code>callbackFlow</code> 로 감싸 수집하는 동안만 붙인다. 백그라운드에서 바뀌면 앱이 앞으로 올 때 온다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>NSUserDefaults</code>)</td><td>채택. 변경은 <code>NSUserDefaultsDidChangeNotification</code> 으로 온다(<a href="#settings">설정 영구 저장</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/worldclock/data/src/iosMain/…/worldclock/TimeZones.ios.kt</code></dd>
+  <dt>동작</dt><dd>설정 → 일반 → 날짜 및 시간에서 시간대를 바꾸면 알림이 오고 "내 시간대" 가 따라간다</dd>
+  <dt>실패</dt><dd>모르는 시간대는 목록과 세계 시계에서 빠진다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>해당 없음. 시간대 데이터는 iOS 업데이트로 갱신된다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>도메인·데이터 공통 테스트가 <code>iosSimulatorArm64Test</code> 로 돈다. <code>TimeZonesTest</code> 가 시뮬레이터의 <code>NSTimeZone</code> 으로 서울·뉴욕·런던·시드니·카트만두 오프셋, 전환 순간, 목록 43곳을 확인한다. 알림으로 따라가는 것은 <span class="badge untested">미검증</span>이다(시뮬레이터는 Mac 의 시간대를 따르므로 Mac 설정을 바꿔 본다).</p>
 </section>
 
 <section class="feature" id="battery">

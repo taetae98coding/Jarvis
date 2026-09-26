@@ -38,6 +38,7 @@ kotlin {
             implementation(projects.feature.texttools.data)
             implementation(projects.feature.calculator.data)
             implementation(projects.feature.qrcode.data)
+            implementation(projects.feature.worldclock.data)
         }
 
         androidMain.dependencies {

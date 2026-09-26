@@ -22,6 +22,7 @@ kotlin {
             api(projects.feature.texttools.ui)
             api(projects.feature.calculator.ui)
             api(projects.feature.qrcode.ui)
+            api(projects.feature.worldclock.ui)
             implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }

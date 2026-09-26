@@ -20,6 +20,7 @@ import io.github.taetae98coding.jarvis.ui.terminal.TerminalCard
 import io.github.taetae98coding.jarvis.ui.texttools.TextToolsCard
 import io.github.taetae98coding.jarvis.ui.theme.ThemeModeCard
 import io.github.taetae98coding.jarvis.ui.unitconverter.UnitConverterCard
+import io.github.taetae98coding.jarvis.ui.worldclock.WorldClockCard
 
 /**
  * 기능이 늘 때 앱 셸에서 고치는 유일한 파일이다.
@@ -61,5 +62,6 @@ internal fun FeatureGrid(modifier: Modifier = Modifier) {
         item { TextToolsCard() }
         item { CalculatorCard() }
         item { QrCodeCard() }
+        item { WorldClockCard() }
     }
 }
