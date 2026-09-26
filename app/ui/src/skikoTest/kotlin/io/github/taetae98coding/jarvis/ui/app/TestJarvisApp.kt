@@ -34,6 +34,10 @@ import io.github.taetae98coding.jarvis.domain.focus.FocusPhase
 import io.github.taetae98coding.jarvis.domain.focus.FocusSession
 import io.github.taetae98coding.jarvis.domain.focus.FocusSessionRepository
 import io.github.taetae98coding.jarvis.domain.focus.focusDomainModule
+import io.github.taetae98coding.jarvis.domain.calculator.CalculatorField
+import io.github.taetae98coding.jarvis.domain.calculator.CalculatorSettingsRepository
+import io.github.taetae98coding.jarvis.domain.calculator.CalculatorTab
+import io.github.taetae98coding.jarvis.domain.calculator.calculatorDomainModule
 import io.github.taetae98coding.jarvis.domain.devtools.DevTool
 import io.github.taetae98coding.jarvis.domain.devtools.DevToolsSettingsRepository
 import io.github.taetae98coding.jarvis.domain.devtools.devToolsDomainModule
@@ -112,6 +116,7 @@ import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.battery.batteryUiModule
 import io.github.taetae98coding.jarvis.ui.focus.focusUiModule
+import io.github.taetae98coding.jarvis.ui.calculator.calculatorUiModule
 import io.github.taetae98coding.jarvis.ui.devtools.devToolsUiModule
 import io.github.taetae98coding.jarvis.ui.unitconverter.unitConverterUiModule
 import io.github.taetae98coding.jarvis.ui.texttools.textToolsUiModule
@@ -182,6 +187,7 @@ internal fun TestJarvisApp(
     devTools: DevToolsSettingsRepository = FakeDevToolsSettingsRepository(),
     unitConverter: UnitConverterSettingsRepository = FakeUnitConverterSettingsRepository(),
     textTools: TextToolsSettingsRepository = FakeTextToolsSettingsRepository(),
+    calculator: CalculatorSettingsRepository = FakeCalculatorSettingsRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -226,6 +232,7 @@ internal fun TestJarvisApp(
             single<TextToolsSettingsRepository> { textTools }
             // 비밀번호 생성기는 CSPRNG 가 아니어도 된다. 화면이 열리는지만 본다.
             single<SecureRandomSource> { SecureRandomSource { 0 } }
+            single<CalculatorSettingsRepository> { calculator }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -247,6 +254,7 @@ internal fun TestJarvisApp(
                 devToolsDomainModule, devToolsUiModule,
                 unitConverterDomainModule, unitConverterUiModule,
                 textToolsDomainModule, textToolsUiModule,
+                calculatorDomainModule, calculatorUiModule,
                 appUiModule,
             )
         }
@@ -271,6 +279,8 @@ internal fun TestJarvisApp(
  * 기본값은 새 버전이 없는 것이다 — 스스로 업데이트하지 못하는 타깃과 같다. 설치는 요청을 기록하고 [failure] 가 있으면
  * 그것으로 실패한다. [gate] 가 있으면 요청을 기록한 뒤 그것이 끝날 때까지 기다린다.
  */
+}
+
 internal class FakeAppUpdateRepository(
     release: AppRelease? = null,
     var failure: String? = null,
@@ -335,6 +345,8 @@ internal class FakeScreenAwakeSettingsRepository(
 }
 
 // 기본값은 Skiko 로 렌더링하는 세 타깃의 실제 상태와 같다. 셋 다 시스템 전역 화면 유지를 지원하지 않는다.
+}
+
 internal class FakeThemeSettingsRepository(
     mode: ThemeMode = ThemeMode.SYSTEM,
 ) : ThemeSettingsRepository {
@@ -350,6 +362,8 @@ internal class FakeThemeSettingsRepository(
 }
 
 /** [profiling] 에 값을 넣기 전까지는 아무것도 흘리지 않아 카드가 초기값에 머문다. */
+}
+
 internal class FakeProfilingRepository(
     override val supportedMetrics: Set<ProfilingMetric> = ProfilingMetric.entries.toSet(),
 ) : ProfilingRepository {
@@ -359,6 +373,8 @@ internal class FakeProfilingRepository(
 }
 
 /** [status] 에 값을 넣기 전까지는 아무것도 흘리지 않아 카드가 "확인 중" 에 머문다. */
+}
+
 internal class FakeBatteryRepository : BatteryRepository {
     val status = MutableStateFlow<BatteryStatus?>(null)
 
@@ -380,6 +396,8 @@ internal class FakeFocusSessionRepository(
 }
 
 /** 시간은 테스트가 [time] 으로 옮긴다. 날의 경계는 UTC 자정이다. */
+}
+
 internal class FakeFocusClock(
     start: Instant = Instant.fromEpochSeconds(1_790_000_000),
 ) : FocusClock {
@@ -422,6 +440,8 @@ internal class FakeSystemScreenAwakeRepository(
 }
 
 // 기본값은 "셀 수 없음" 과 빈 목록이다. 개수를 세지 못하는 타깃이 답하는 값과 같다.
+}
+
 internal class FakeEmulatorRepository(
     android: EmulatorSummary? = null,
     ios: EmulatorSummary? = null,
@@ -458,6 +478,8 @@ internal class FakeEmulatorRepository(
 }
 
 // 기기마다 줄 묶음을 테스트가 흘린다. 구독 수로 로그 창이 읽기를 멈췄는지 본다.
+}
+
 internal class FakeDeviceLogRepository : DeviceLogRepository {
     private val logs = HashMap<String, MutableSharedFlow<List<String>>>()
 
@@ -483,6 +505,8 @@ internal object SilentEmulatorRepository : EmulatorRepository {
 }
 
 // 기본값은 페어링을 기다리는 기기가 없는 개발자 머신이다.
+}
+
 internal class FakeDevicePairingRepository(
     services: List<PairingService>? = emptyList(),
     private val result: PairingResult = PairingResult.Paired(isConnected = true),
@@ -500,6 +524,8 @@ internal class FakeDevicePairingRepository(
 }
 
 // 기본값은 Skiko 로 렌더링하는 세 타깃 중 JVM 의 실제 상태와 같다. 돌릴 화면이 없다.
+}
+
 internal class FakeDeviceRotationRepository(
     initial: DeviceRotationStatus = DeviceRotationStatus(),
 ) : DeviceRotationRepository {
@@ -521,6 +547,8 @@ internal class FakeDeviceRotationRepository(
 }
 
 // 기본값은 Skiko 로 렌더링하는 세 타깃의 실제 상태와 같다. 셋 다 알림 컨트롤을 만들 수 없다.
+}
+
 internal class FakeDeviceRotationNotificationRepository(
     initial: DeviceRotationNotificationStatus = DeviceRotationNotificationStatus(),
 ) : DeviceRotationNotificationRepository {
@@ -554,6 +582,8 @@ internal class FakeSystemScreenAwakeNotificationRepository(
 }
 
 // 셸 대신 테스트가 출력을 흘려 넣고 종료를 정한다. 기본값은 JVM·Android 처럼 셸을 띄울 수 있는 타깃이다.
+}
+
 internal class FakeTerminalRepository(
     override val isSupported: Boolean = true,
     override val isClaudeSupported: Boolean = true,
@@ -588,6 +618,8 @@ internal class FakeTerminalRepository(
  * 파일 대신 메모리에 둔다. 같은 인스턴스를 다음 [TestJarvisApp] 에 넘기면 앱을 다시 켠 것과 같다 —
  * 세션은 새로 열리고 배치는 남는다.
  */
+}
+
 internal class FakeTerminalWorkspaceRepository(
     initial: TerminalWorkspace = TerminalWorkspace.initial(),
 ) : TerminalWorkspaceRepository {
@@ -610,6 +642,8 @@ internal class FakeTerminalWorkspaceRepository(
  * 지우기는 요청을 기록하고 그 경로를 저장소가 아닌 것으로 되돌린다. [failure] 가 있으면 둘 다 그것으로 실패한다.
  * [gate] 가 있으면 둘 다 요청을 기록한 뒤 그것이 끝날 때까지 기다린다 — 뒤에서 도는 동안의 화면을 볼 수 있게.
  */
+}
+
 internal class FakeGitWorktreeRepository(
     worktrees: Map<String, GitWorktree> = emptyMap(),
     var failure: String? = null,
@@ -659,6 +693,8 @@ internal class FakeGitWorktreeRepository(
 }
 
 /** 폴더·파일마다 정해 둔 값을 답한다. 기본값은 어느 폴더도 읽을 수 없는 것이다. 값을 바꾸면 디스크가 바뀐 것처럼 따라간다. 쓰면 그 값이 바뀐다. */
+}
+
 internal class FakeFileRepository(
     directories: Map<String, List<FileEntry>> = emptyMap(),
     files: Map<String, FileContent> = emptyMap(),
@@ -694,6 +730,8 @@ internal class FakeFileRepository(
  * 코드 파일의 자동완성·선언·사용처(docs/common/terminal-code-navigation.html). 기본값은 분석이 준비됐고 결과가 없는 것이다.
  * 넣기는 접두사를 항목 이름으로 바꾸고 요청을 기록한다.
  */
+}
+
 internal class FakeCodeIntelRepository(
     status: CodeAnalysisStatus = CodeAnalysisStatus.Ready,
     var completions: List<CodeCompletion> = emptyList(),
@@ -727,6 +765,8 @@ internal class FakeCodeIntelRepository(
  * [failure] 가 있으면 그것으로 실패한다. 상태는 바꾸지 않는다 — 결과는 테스트가 [statuses] 로 정한다.
  * [gate] 가 있으면 push 는 요청을 기록한 뒤 그것이 끝날 때까지 기다린다.
  */
+}
+
 internal class FakeGitChangesRepository(
     statuses: Map<String, GitStatus> = emptyMap(),
     graphs: Map<String, List<GitGraphLine>> = emptyMap(),
@@ -783,6 +823,8 @@ internal class FakeGitChangesRepository(
 }
 
 /** 창 sessionId 마다 테스트가 정한 활동을 답한다. 기본값은 어떤 세션도 찾지 못한 것이다. */
+}
+
 internal class FakeClaudeActivityRepository(
     activities: Map<String, ClaudeActivity> = emptyMap(),
 ) : ClaudeActivityRepository {
@@ -925,5 +967,35 @@ internal class FakeTextToolsSettingsRepository : TextToolsSettingsRepository {
 
     override fun setPasswordOptions(options: PasswordOptions) {
         passwordOptions.value = options
+    }
+}
+
+internal class FakeCalculatorSettingsRepository : CalculatorSettingsRepository {
+    val tab = MutableStateFlow(CalculatorTab.EXPRESSION)
+    val inputs = MutableStateFlow(emptyMap<CalculatorField, String>())
+    val history = MutableStateFlow(emptyList<String>())
+
+    override fun observeSelectedTab() = tab
+
+    override fun readSelectedTab() = tab.value
+
+    override fun setSelectedTab(tab: CalculatorTab) {
+        this.tab.value = tab
+    }
+
+    override fun observeInput(field: CalculatorField) = inputs.map { it[field].orEmpty() }
+
+    override fun readInput(field: CalculatorField) = inputs.value[field].orEmpty()
+
+    override fun setInput(field: CalculatorField, input: String) {
+        inputs.value += field to input
+    }
+
+    override fun observeHistory() = history
+
+    override fun readHistory() = history.value
+
+    override fun setHistory(expressions: List<String>) {
+        history.value = expressions
     }
 }

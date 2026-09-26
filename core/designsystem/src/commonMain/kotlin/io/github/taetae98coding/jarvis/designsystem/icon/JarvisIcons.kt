@@ -38,11 +38,27 @@ object JarvisIcons {
 
     val Back: ImageVector by lazy { outline("Back", "M19 12H5M12 19l-7-7 7-7") }
 
+    val Backspace: ImageVector by lazy {
+        outline(
+            "Backspace",
+            "M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" +
+                "M18 9l-6 6M12 9l6 6",
+        )
+    }
+
     val Battery: ImageVector by lazy {
         outline(
             "Battery",
             "M4 7h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" +
                 "M22 11v2",
+        )
+    }
+
+    val Calculator: ImageVector by lazy {
+        outline(
+            "Calculator",
+            "M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" +
+                "M8 6h8M16 14v4M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M8 18h.01M12 18h.01",
         )
     }
 
@@ -194,9 +210,9 @@ object JarvisIcons {
 
     internal val all: List<ImageVector>
         get() = listOf(
-            Activity, Add, Android, Apple, Back, Battery, Check, ChevronDown, ChevronLeft, ChevronRight, Claude, Close, Code, Copy, Edit, Eye, File, Folder,
-            Forward, GitBranch, Globe, Logs, Monitor, Moon, Pause, Play, PlusMinus, Remove, RotateLeft, RotateRight, Ruler, SkipForward, Smartphone, Sun, Swap,
-            Terminal, Timer, Type, User, Wifi,
+            Activity, Add, Android, Apple, Back, Backspace, Battery, Calculator, Check, ChevronDown, ChevronLeft, ChevronRight, Claude, Close, Code, Copy, Edit,
+            Eye, File, Folder, Forward, GitBranch, Globe, Logs, Monitor, Moon, Pause, Play, PlusMinus, Remove, RotateLeft, RotateRight, Ruler, SkipForward,
+            Smartphone, Sun, Swap, Terminal, Timer, Type, User, Wifi,
         )
 }
 

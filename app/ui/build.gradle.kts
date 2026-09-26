@@ -20,6 +20,7 @@ kotlin {
             api(projects.feature.devtools.ui)
             api(projects.feature.unitconverter.ui)
             api(projects.feature.texttools.ui)
+            api(projects.feature.calculator.ui)
             implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }
