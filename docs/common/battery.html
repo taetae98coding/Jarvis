@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>배터리 상태 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>배터리 상태</span></nav>
+
+<header>
+  <h1>배터리 상태</h1>
+  <p class="lead">홈의 "배터리" 카드가 이 앱이 돌고 있는 기기의 배터리 잔량, 충전 상태, 전원 종류, 저전력 모드를 보이고, 플랫폼이 알려 줄 때마다 바로 고친다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>Android/iOS/JVM(Macos) 3개 플랫폼 구현하면 좋을 기능들 그리고 현제 스토어 도구나 생산성에서 순위 높은 앱들 찾아서 기능 추가해줘.</p>
+  <footer>2026-09-26 대화.</footer>
+</blockquote>
+
+<p>지시를 받고 2026-09-26 에 스토어 순위를 봤다. Google Play 도구 상위의 올인원 유틸리티(Quick Tools 등)는 손전등·QR 과 함께 배터리 정보를 넣었고, Mac App Store 유틸리티 차트의 AlDente 류와 개발자 도구 차트의 Device Monitor² 는 배터리·시스템 상태를 보여 주는 앱이다. 세 플랫폼 모두 배터리 상태를 공개 API 나 명령으로 읽을 수 있고, 이미 있는 <a href="profiling.html">프로파일링</a> 카드와 같이 "이 기기의 상태" 를 보는 카드라 골랐다.</p>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 홈 기능 그리드에 "배터리" 카드가 있고, 맨 끝(터미널 카드 다음)에 놓인다. 앞에 두면 뒤 카드들이 첫 화면 밖으로 밀려 나기 때문이다.</li>
+  <li><strong>R2.</strong> 배터리가 있으면 잔량을 정수 퍼센트(<code>87%</code>)와 막대로 보인다. 전원 없이 20%(<code>Battery.LowBatteryPercent</code>) 이하이면 막대를 오류 색으로 그린다.</li>
+  <li><strong>R3.</strong> 충전 상태를 "충전 중" · "방전 중" · "완충" · "전원 연결됨 (충전 안 함)" 중 하나로 보인다.</li>
+  <li><strong>R4.</strong> 플랫폼이 알려 주면 전원 종류("전원 어댑터" · "USB" · "무선 충전" · "도크" · "배터리"), 온도(<code>31.5°C</code>), 건강("좋음" · "과열" · …), 저전력 모드("켜짐" · "꺼짐") 줄을 더한다. 알려 주지 않는 항목은 줄을 그리지 않는다.</li>
+  <li><strong>R5.</strong> 배터리가 없는 기기(데스크톱 Mac 등)는 "배터리 없음", 플랫폼이 알려 주지 않거나 읽기에 실패하면 "측정 불가", 첫 값이 오기 전에는 "확인 중" 을 한 줄로 보인다. 앱이 죽거나 카드가 숨지 않는다.</li>
+  <li><strong>R6.</strong> 값은 <a href="state-observation.html">상태 조회 규칙</a>을 따른다. 플랫폼이 변경을 알려 주면(Android·iOS·Web) 그 신호마다 다시 읽고, 알려 주지 않는 JVM 만 <code>BatteryPollInterval</code>(5초)마다 읽는다. 카드가 보이지 않으면 등록을 풀거나 폴링을 멈춘다.</li>
+  <li><strong>R7.</strong> 같은 값이 다시 와도 화면을 다시 그리지 않는다(Android 는 전압만 바뀌어도 방송이 온다).</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>충전 한도 설정(AlDente 의 핵심 기능). macOS 는 SMC 에 쓰는 권한 있는 헬퍼가, Android·iOS 는 시스템 권한이 필요하다.</li>
+    <li>남은 시간 예측, 사이클 수, 설계 용량 대비 최대 용량. 플랫폼마다 있는 곳이 달라 한 줄로 맞출 수 없고, iOS 는 공개 API 가 없다.</li>
+    <li>연결된 기기(에뮬레이터·실물 기기)의 배터리. 이 카드는 Jarvis 가 떠 있는 기기만 본다.</li>
+    <li>경고 알림. 보여 주기만 한다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>제목</td><td>배터리</td></tr>
+    <tr><td>아이콘</td><td><code>JarvisIcons.Battery</code> (새 아이콘. 오른쪽에 단자가 있는 가로 배터리 윤곽)</td></tr>
+    <tr><td>줄</td><td><code>JarvisLabeledValue</code>. 위에서부터 "잔량"(아래에 <code>LinearProgressIndicator</code>) · "상태" · "전원" · "온도" · "건강" · "저전력 모드". 값이 없는 줄은 없다</td></tr>
+    <tr><td>배터리 값이 없을 때</td><td>"상태" 한 줄에 <code>확인 중</code> / <code>배터리 없음</code> / <code>측정 불가</code></td></tr>
+    <tr><td>컨트롤</td><td>없다. 보여 주기만 한다</td></tr>
+    <tr><td>테스트 태그</td><td>카드 <code>feature:battery</code>, 줄 <code>feature:battery:level</code> / <code>:charging</code> / <code>:powerSource</code> / <code>:temperature</code> / <code>:health</code> / <code>:lowPowerMode</code>, 값 없음 줄 <code>feature:battery:status</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<p><code>:feature:battery:domain</code> · <code>:feature:battery:data</code> · <code>:feature:battery:ui</code> 셋이다(<a href="module-architecture.html">모듈 구조</a> R1). 패키지는 <code>domain.battery</code> · <code>data.battery</code> · <code>ui.battery</code>.</p>
+
+<dl class="meta">
+  <dt>모델</dt><dd><code>domain/battery/Battery.kt</code> — <code>Battery(levelPercent, charging: ChargingState, powerSource: PowerSource?, temperatureCelsius: Double?, health: BatteryHealth?, lowPowerMode: Boolean?)</code> 와 <code>isLow</code>. 상태는 <code>BatteryStatus</code>(<code>Loading</code> · <code>NoBattery</code> · <code>Unavailable</code> · <code>Available(battery)</code>)</dd>
+  <dt>계약</dt><dd><code>BatteryRepository.observeBattery(): Flow&lt;BatteryStatus&gt;</code>(cold)</dd>
+  <dt>유스케이스</dt><dd><code>ObserveBatteryUseCase(scope): StateFlow&lt;BatteryStatus&gt;</code> — <code>stateIn(scope, WhileSubscribed(), Loading)</code></dd>
+  <dt>상태</dt><dd><code>DefaultBatteryRepository</code> — <code>source.observe().distinctUntilChanged()</code>(R7)</dd>
+  <dt>공급</dt><dd><code>internal expect fun createBatterySource(context: PlatformContext): BatterySource</code>. <code>BatterySource</code> 는 <code>fun observe(): Flow&lt;BatteryStatus&gt;</code> 하나다. 공용 도우미 <code>levelPercent(level, scale)</code>(Android) · <code>levelPercent(fraction)</code>(iOS·Web)</dd>
+  <dt>UI</dt><dd><code>ui/battery/BatteryCard.kt</code>, <code>BatteryViewModel.kt</code>, <code>BatteryFormat.kt</code>(퍼센트·온도·라벨)</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 공급은 표본기가 아니라 Flow 다</strong>
+  프로파일링은 모든 플랫폼이 폴링이라 <code>sample()</code> 하나로 맞췄다. 배터리는 세 플랫폼이 변경 알림을 주고 JVM 만 폴링이라, 플랫폼마다 <code>observeOnSignals</code>·<code>observeByPolling</code> 중 맞는 것을 고르도록 <code>Flow</code> 를 그대로 내게 했다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 없는 기기와 모르는 기기를 나눈다</strong>
+  데스크톱 Mac 은 <code>pmset</code> 이 "배터리 없음" 을 분명히 알려 준다. 반면 iOS 시뮬레이터·Safari 는 그저 모른다. 둘을 한 문구로 합치면 노트북에서 읽기가 실패했을 때도 "배터리 없음" 이 되어 틀린 말을 하므로 나눴다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td><code>ACTION_BATTERY_CHANGED</code>·<code>ACTION_POWER_SAVE_MODE_CHANGED</code> 리시버를 신호로, sticky 인텐트와 <code>PowerManager.isPowerSaveMode</code> 를 읽는다. 여섯 줄 모두</td><td><a href="../platform/android.html#battery">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td><code>UIDevice</code> 배터리 알림 둘과 <code>NSProcessInfoPowerStateDidChangeNotification</code>. 온도·건강·어댑터 종류는 공개 API 가 없어 줄이 없다. 시뮬레이터는 측정 불가</td><td><a href="../platform/ios.html#battery">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge workaround">우회</span></td><td>변경 알림(IOKit)을 JVM 에서 부를 수 없어 <code>pmset -g batt</code>·<code>pmset -g</code> 를 5초마다 읽는다</td><td><a href="../platform/jvm.html#battery">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>Battery Status API(<code>navigator.getBattery()</code>) 의 <code>levelchange</code>·<code>chargingchange</code>. Chromium 만, 잔량과 충전 여부만</td><td><a href="../platform/web.html#battery">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppTest.batteryCardShowsEveryRow</code></td><td>R2, R3, R4. 여섯 줄과 형식</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTest.batteryCardHidesRowsThePlatformDoesNotGive</code></td><td>R4. 없는 항목은 줄이 없다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTest.batteryCardShowsLoadingThenNoBattery</code></td><td>R5. "확인 중" 에서 "배터리 없음" 으로</td><td>같음</td></tr>
+    <tr><td><code>BatteryTest</code></td><td>R2. 20% 이하·전원 없음일 때만 <code>isLow</code></td><td><code>:feature:battery:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>ObserveBatteryUseCaseTest</code></td><td>R5. 첫 값은 <code>Loading</code>, 이후 리포지토리를 따른다</td><td>같음</td></tr>
+    <tr><td><code>BatteryRepositoryTest</code></td><td>R6, R7. 수집할 때만 소스를 열고, 같은 값은 거른다. 잔량 환산</td><td><code>:feature:battery:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>MacBatteryParsersTest</code></td><td>R3, R4, R5. <code>pmset</code> 출력의 잔량·충전 상태·전원·저전력 모드, 배터리 없는 Mac</td><td><code>:feature:battery:data</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>BatteryFormatTest</code></td><td>R2, R4. 퍼센트 자르기, 온도 표기</td><td><code>:feature:battery:ui</code> <code>jvmTest</code></td></tr>
+    <tr><td><code>JarvisKoinTest.everyDefinitionResolves</code></td><td>새 정의(리포지토리, 유스케이스, ViewModel)가 해석된다</td><td><code>:shared</code> <code>jvmTest</code></td></tr>
+  </tbody>
+</table>
+
+<p>플랫폼 코드(리시버, <code>UIDevice</code>, <code>getBattery()</code>)는 컴파일로만 확인했다. 실제 값은 플랫폼 스펙의 검증 항목대로 기기 설정 화면과 비교한다.</p>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>JVM 은 5초 간격이라 전원을 꽂고 뽑은 것이 최대 5초 늦게 보인다(<a href="../platform/jvm.html#battery">jvm.html</a>).</li>
+  <li>Web 은 배터리 없는 PC 에서도 Chromium 이 "충전 중, 100%" 를 돌려주도록 표준이 정했다. 그래서 "배터리 없음" 대신 "완충" 으로 보인다(<a href="../platform/web.html#battery">web.html</a>).</li>
+  <li>항목마다 있는 플랫폼이 다르다. 같은 카드라도 Android 는 여섯 줄, Web 은 세 줄이다.</li>
+</ul>
+
+<footer class="page">
+  <a href="profiling.html">← 프로파일링</a> · <a href="state-observation.html">상태 조회 규칙 →</a>
+</footer>
+
+</body>
+</html>

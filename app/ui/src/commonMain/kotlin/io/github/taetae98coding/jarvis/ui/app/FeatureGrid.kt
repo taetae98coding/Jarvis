@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
+import io.github.taetae98coding.jarvis.ui.battery.BatteryCard
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorCard
 import io.github.taetae98coding.jarvis.ui.profiling.ProfilingCard
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationCard
@@ -46,5 +47,7 @@ internal fun FeatureGrid(modifier: Modifier = Modifier) {
         item { DeviceRotationCard() }
 
         item { TerminalCard() }
+
+        item { BatteryCard() }
     }
 }

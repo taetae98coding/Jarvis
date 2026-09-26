@@ -39,6 +39,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
     <li><a href="#profiling">프로파일링</a></li>
+    <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -515,6 +516,40 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>MacProfilingParsersTest</code> 가 개발 머신에서 받은 <code>vm_stat</code>·<code>ioreg</code>·<code>netstat</code> 출력을 해석하고, <code>MacProfilingSourceTest</code> 가 macOS 에서 실제 명령을 불러 두 번째 표본에 여섯 지표가 모두 있는지 본다(다른 OS 에서는 건너뛴다). 2026-09-25 개발 머신(Mac Studio, macOS 26, JDK 21.0.12)에서 <code>:desktopApp:run</code> 으로 띄워 카드의 여섯 줄이 모두 값을 보이고 초마다 바뀌는 것을 봤다(CPU 27–55%, 메모리 27.3–27.9 / 34.4 GB, GPU 12–15%). 실제 값은 활동 모니터(CPU, 메모리, GPU 기록, 네트워크, 디스크)와 비교한다.</p>
+</section>
+
+<section class="feature" id="battery">
+<h2>배터리 상태 <span class="badge workaround">우회</span></h2>
+<p>공통 스펙: <a href="../common/battery.html">배터리 상태</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>IOKit <code>IOPSNotificationCreateRunLoopSource</code> + <code>IOPSCopyPowerSourcesInfo</code></td><td>버렸다. 변경 알림이 있는 유일한 길이지만 JVM 에서 부르려면 JNI·JNA 가 필요하고 지금 의존성에 없다. 들여오면 걷어낼 수 있다</td></tr>
+    <tr><td><code>pmset -g batt</code></td><td>채택. <code>Now drawing from 'AC Power'|'Battery Power'</code> 와 <code>-InternalBattery-0 … 87%; discharging; …</code> 줄을 준다. 배터리가 없는 Mac 은 첫 줄만 있다. 권한이 필요 없다</td></tr>
+    <tr><td><code>pmset -g</code> 의 <code>lowpowermode</code></td><td>채택. 저전력 모드(macOS 12+). 줄이 없으면 저전력 모드 줄을 그리지 않는다</td></tr>
+    <tr><td><code>ioreg -r -c AppleSmartBattery</code></td><td>버렸다. 온도·사이클 수까지 주지만 키가 모델마다 다르고 출력이 수 KB 다. 공통 스펙이 사이클 수를 뺐다</td></tr>
+    <tr><td><code>pmset -g pslog</code></td><td>버렸다. 변경마다 줄을 흘리는 도구지만 끝나지 않는 프로세스를 들고 있어야 하고 형식 보장이 없다</td></tr>
+    <tr><td>Linux·Windows</td><td>분기를 만들지 않는다. <code>pmset</code> 이 없어 실행이 실패하고 측정 불가가 된다. 예외는 없다</td></tr>
+  </tbody>
+</table>
+
+<h3>우회</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/battery/data/src/jvmMain/.../battery/BatterySource.jvm.kt</code>, <code>MacBatteryParsers.kt</code>(출력 해석)</dd>
+  <dt>동작</dt><dd><code>observeByPolling(BatteryPollInterval)</code> — 5초마다 <code>Dispatchers.IO</code> 에서 <code>pmset -g batt</code> 와 <code>pmset -g</code> 를 띄워 읽는다. <code>charging</code>·<code>finishing charge</code> 는 충전 중, <code>charged</code> 는 완충, <code>AC attached</code>(최적화 충전·충전 한도)는 충전 안 함이다. 전원은 어댑터·배터리 둘만 가린다</dd>
+  <dt>실패</dt><dd>명령마다 <code>runCatching</code> 과 5초 타임아웃. 출력에 <code>Now drawing from</code> 이 없으면 측정 불가</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>전원을 꽂고 뽑은 것이 최대 5초 늦게 보인다. 카드가 보이는 동안 5초마다 프로세스 둘을 띄운다.</li>
+  <li>온도·건강 줄은 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>MacBatteryParsersTest</code> 가 2026-09-26 개발 머신(Mac Studio, macOS 26)에서 받은 <code>pmset -g batt</code>(배터리 없음)·<code>pmset -g</code> 출력과, MacBook 형식의 방전·충전·완충·<code>AC attached</code> 줄을 해석한다. 개발 머신에 배터리가 없어 노트북 줄은 <code>pmset</code> 형식대로 만든 표본이다. 노트북에서는 카드를 띄운 채 전원을 뽑아 5초 안에 "방전 중 · 배터리" 로 바뀌는지, 메뉴 막대 배터리 아이콘의 잔량과 같은지 본다.</p>
 </section>
 
 <section class="feature" id="state-observation">

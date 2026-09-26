@@ -43,6 +43,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
     <li><a href="#profiling">프로파일링</a></li>
+    <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -514,6 +515,39 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>:feature:profiling:data</code> 의 공통 테스트는 <code>testAndroidHostTest</code> 로도 돈다. <code>ProfilingSource.android.kt</code> 자체는 컴파일(<code>:androidApp:assembleDebug</code>)로만 확인했다. 2026-09-25 에 연결된 기기가 다른 앱 테스트에 쓰이고 있어 기기 확인은 하지 못했다. 확인할 때는 기기에서 카드를 띄우고 <code>adb shell top -n 1</code>(이 앱 줄), 설정 → 저장 공간과 비교한다.</p>
+</section>
+
+<section class="feature" id="battery">
+<h2>배터리 상태 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/battery.html">배터리 상태</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>Intent.ACTION_BATTERY_CHANGED</code> (sticky 브로드캐스트)</td><td>채택. 잔량(<code>EXTRA_LEVEL / EXTRA_SCALE</code>), 상태(<code>EXTRA_STATUS</code>), 전원(<code>EXTRA_PLUGGED</code>), 온도(<code>EXTRA_TEMPERATURE</code>, 0.1°C), 건강(<code>EXTRA_HEALTH</code>), 배터리 유무(<code>EXTRA_PRESENT</code>)를 한 번에 준다. 매니페스트에 선언할 수 없고 동적 등록만 받는다. <code>registerReceiver(null, filter)</code> 는 리시버 없이 마지막 값을 돌려준다</td></tr>
+    <tr><td><code>PowerManager.ACTION_POWER_SAVE_MODE_CHANGED</code> + <code>isPowerSaveMode</code></td><td>채택. 절전 모드 변경 신호와 지금 값</td></tr>
+    <tr><td><code>BatteryManager.getIntProperty(BATTERY_PROPERTY_CAPACITY)</code></td><td>버렸다. 잔량만 주고 변경 알림이 없다. 위 브로드캐스트가 같은 값을 준다</td></tr>
+    <tr><td><code>ACTION_POWER_CONNECTED</code>/<code>DISCONNECTED</code></td><td>버렸다. <code>ACTION_BATTERY_CHANGED</code> 가 전원 변화에도 온다</td></tr>
+    <tr><td>충전 한도·사이클 수(<code>EXTRA_CYCLE_COUNT</code>, Android 14)</td><td>스코프 밖. 공통 스펙이 뺐다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/battery/data/src/androidMain/.../battery/BatterySource.android.kt</code></dd>
+  <dt>동작</dt><dd>수집이 시작되면 두 액션을 받는 리시버를 <code>RECEIVER_NOT_EXPORTED</code> 로 등록하고(<code>callbackFlow</code>), <code>awaitClose</code> 에서 푼다. 신호마다 sticky 인텐트와 <code>isPowerSaveMode</code> 를 다시 읽는다(<code>observeOnSignals</code>). 상태가 <code>UNKNOWN</code> 이면 전원이 꽂혀 있는지로 방전·충전 안 함을 가른다</dd>
+  <dt>실패</dt><dd>sticky 인텐트가 없거나 잔량이 음수면 측정 불가, <code>EXTRA_PRESENT</code> 가 false 면 배터리 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>온도는 배터리 센서 값이다. 기기 표면 온도가 아니다.</li>
+  <li>제조사 충전 보호(80% 제한 등)는 <code>NOT_CHARGING</code> 으로만 보이고 이유는 알 수 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:battery:data</code> 의 공통 테스트가 <code>testAndroidHostTest</code> 로도 돈다. 리시버 코드는 <code>:feature:battery:data:compileAndroidMain</code> 으로만 확인했다(2026-09-26). 기기에서는 카드를 띄운 채 <code>adb shell dumpsys battery set level 15</code>·<code>dumpsys battery unplug</code> 로 값을 바꿔 곧바로 따라오는지, <code>dumpsys battery reset</code> 으로 돌아오는지 본다.</p>
 </section>
 
 <section class="feature" id="state-observation">

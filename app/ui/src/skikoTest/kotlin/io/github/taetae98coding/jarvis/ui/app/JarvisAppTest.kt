@@ -58,6 +58,11 @@ import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationNotificationTes
 import io.github.taetae98coding.jarvis.ui.rotation.deviceRotationAngleTestTag
 import io.github.taetae98coding.jarvis.ui.screen.KeepScreenAwakeTestTag
 import io.github.taetae98coding.jarvis.domain.theme.ThemeMode
+import io.github.taetae98coding.jarvis.domain.battery.Battery
+import io.github.taetae98coding.jarvis.domain.battery.BatteryHealth
+import io.github.taetae98coding.jarvis.domain.battery.BatteryStatus
+import io.github.taetae98coding.jarvis.domain.battery.ChargingState
+import io.github.taetae98coding.jarvis.domain.battery.PowerSource
 import io.github.taetae98coding.jarvis.domain.profiling.DiskActivity
 import io.github.taetae98coding.jarvis.domain.profiling.DiskSpace
 import io.github.taetae98coding.jarvis.domain.profiling.MemoryUsage
@@ -68,6 +73,15 @@ import io.github.taetae98coding.jarvis.domain.profiling.ProfilingScope
 import io.github.taetae98coding.jarvis.domain.profiling.Reading
 import io.github.taetae98coding.jarvis.domain.profiling.Usage
 import io.github.taetae98coding.jarvis.ui.theme.themeModeOptionTestTag
+import io.github.taetae98coding.jarvis.ui.battery.BatteryChargingTestTag
+import io.github.taetae98coding.jarvis.ui.battery.BatteryHealthTestTag
+import io.github.taetae98coding.jarvis.ui.battery.BatteryLevelTestTag
+import io.github.taetae98coding.jarvis.ui.battery.BatteryLoading
+import io.github.taetae98coding.jarvis.ui.battery.BatteryLowPowerModeTestTag
+import io.github.taetae98coding.jarvis.ui.battery.BatteryNone
+import io.github.taetae98coding.jarvis.ui.battery.BatteryPowerSourceTestTag
+import io.github.taetae98coding.jarvis.ui.battery.BatteryStatusTestTag
+import io.github.taetae98coding.jarvis.ui.battery.BatteryTemperatureTestTag
 import io.github.taetae98coding.jarvis.ui.profiling.ProfilingMeasuring
 import io.github.taetae98coding.jarvis.ui.profiling.ProfilingUnavailable
 import io.github.taetae98coding.jarvis.ui.profiling.profilingRowTestTag
@@ -311,6 +325,55 @@ class JarvisAppTest {
         onNodeWithTag(profilingRowTestTag(ProfilingMetric.CPU)).assertTextEquals("CPU (이 앱)", "5%")
         // 기기 전체를 잰 줄에는 붙지 않는다.
         onNodeWithTag(profilingRowTestTag(ProfilingMetric.MEMORY)).assertTextEquals("메모리", "1 B / 2 B (50%)")
+    }
+
+    @Test
+    fun batteryCardShowsEveryRow() = runComposeUiTest {
+        val battery = FakeBatteryRepository()
+        battery.status.value = BatteryStatus.Available(
+            Battery(
+                levelPercent = 87,
+                charging = ChargingState.CHARGING,
+                powerSource = PowerSource.USB,
+                temperatureCelsius = 31.5,
+                health = BatteryHealth.GOOD,
+                lowPowerMode = false,
+            ),
+        )
+        setContent { TestJarvisApp(battery = battery) }
+
+        onNodeWithTag(BatteryLevelTestTag).assertTextEquals("잔량", "87%")
+        onNodeWithTag(BatteryChargingTestTag).assertTextEquals("상태", "충전 중")
+        onNodeWithTag(BatteryPowerSourceTestTag).assertTextEquals("전원", "USB")
+        onNodeWithTag(BatteryTemperatureTestTag).assertTextEquals("온도", "31.5°C")
+        onNodeWithTag(BatteryHealthTestTag).assertTextEquals("건강", "좋음")
+        onNodeWithTag(BatteryLowPowerModeTestTag).assertTextEquals("저전력 모드", "꺼짐")
+    }
+
+    @Test
+    fun batteryCardHidesRowsThePlatformDoesNotGive() = runComposeUiTest {
+        val battery = FakeBatteryRepository()
+        battery.status.value = BatteryStatus.Available(Battery(levelPercent = 40, charging = ChargingState.DISCHARGING))
+        setContent { TestJarvisApp(battery = battery) }
+
+        onNodeWithTag(BatteryChargingTestTag).assertTextEquals("상태", "방전 중")
+        listOf(BatteryPowerSourceTestTag, BatteryTemperatureTestTag, BatteryHealthTestTag, BatteryLowPowerModeTestTag).forEach {
+            onNodeWithTag(it).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun batteryCardShowsLoadingThenNoBattery() = runComposeUiTest {
+        val battery = FakeBatteryRepository()
+        setContent { TestJarvisApp(battery = battery) }
+
+        onNodeWithTag(BatteryStatusTestTag).assertTextEquals("상태", BatteryLoading)
+
+        battery.status.value = BatteryStatus.NoBattery
+        waitForIdle()
+
+        onNodeWithTag(BatteryStatusTestTag).assertTextEquals("상태", BatteryNone)
+        onNodeWithTag(BatteryLevelTestTag).assertDoesNotExist()
     }
 
     @Test

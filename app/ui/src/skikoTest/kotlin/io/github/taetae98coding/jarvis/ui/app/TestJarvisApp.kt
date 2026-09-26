@@ -25,6 +25,9 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
 import io.github.taetae98coding.jarvis.domain.emulator.PairingService
+import io.github.taetae98coding.jarvis.domain.battery.BatteryRepository
+import io.github.taetae98coding.jarvis.domain.battery.BatteryStatus
+import io.github.taetae98coding.jarvis.domain.battery.batteryDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.Profiling
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
@@ -87,6 +90,7 @@ import io.github.taetae98coding.jarvis.domain.theme.themeDomainModule
 import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
+import io.github.taetae98coding.jarvis.ui.battery.batteryUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
@@ -146,6 +150,7 @@ internal fun TestJarvisApp(
     theme: ThemeSettingsRepository = FakeThemeSettingsRepository(),
     themeAppearance: ThemeAppearanceRepository = ThemeAppearanceRepository { },
     profiling: ProfilingRepository = FakeProfilingRepository(),
+    battery: BatteryRepository = FakeBatteryRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -181,6 +186,7 @@ internal fun TestJarvisApp(
             single<ThemeSettingsRepository> { theme }
             single<ThemeAppearanceRepository> { themeAppearance }
             single<ProfilingRepository> { profiling }
+            single<BatteryRepository> { battery }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -197,6 +203,7 @@ internal fun TestJarvisApp(
                 terminalDomainModule, terminalUiModule,
                 themeDomainModule, themeUiModule,
                 profilingDomainModule, profilingUiModule,
+                batteryDomainModule, batteryUiModule,
                 appUiModule,
             )
         }
@@ -306,6 +313,13 @@ internal class FakeProfilingRepository(
     val profiling = MutableStateFlow<Profiling?>(null)
 
     override fun observeProfiling() = profiling.filterNotNull()
+}
+
+/** [status] 에 값을 넣기 전까지는 아무것도 흘리지 않아 카드가 "확인 중" 에 머문다. */
+internal class FakeBatteryRepository : BatteryRepository {
+    val status = MutableStateFlow<BatteryStatus?>(null)
+
+    override fun observeBattery() = status.filterNotNull()
 }
 
 internal class FakeSystemScreenAwakeRepository(

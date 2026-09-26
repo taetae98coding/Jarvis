@@ -42,6 +42,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
     <li><a href="#profiling">프로파일링</a></li>
+    <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -483,6 +484,37 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>ProfilingSource.wasmJs.kt</code> 자체는 컴파일(<code>:webApp:compileProductionExecutableKotlinWasmJs</code>)로만 확인했다. 실제 값은 <code>:webApp:wasmJsBrowserDevelopmentRun</code> 으로 띄워 Chrome 개발자 도구 → Application → Storage 와 비교한다.</p>
+</section>
+
+<section class="feature" id="battery">
+<h2>배터리 상태 <span class="badge partial">조건부</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/battery.html">배터리 상태</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>Battery Status API <code>navigator.getBattery()</code></td><td>채택. <code>BatteryManager</code> 의 <code>level</code>(0–1)·<code>charging</code> 과 <code>levelchange</code>·<code>chargingchange</code> 이벤트. Chromium 계열에만 있다. Firefox 는 52 에서, Safari 는 처음부터 지문 수집 우려로 내놓지 않는다. 보안 컨텍스트(HTTPS·localhost)가 필요하다</td></tr>
+    <tr><td><code>chargingTime</code>·<code>dischargingTime</code></td><td>버렸다. 공통 스펙이 남은 시간을 뺐다</td></tr>
+    <tr><td>저전력 모드·온도·전원 종류</td><td>브라우저 API 가 없다. 줄을 그리지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/battery/data/src/wasmJsMain/.../battery/BatterySource.wasmJs.kt</code></dd>
+  <dt>동작</dt><dd>수집이 시작되면 <code>getBattery()</code> 를 기다리고, 받은 <code>BatteryManager</code> 를 <code>EventTarget</code> 으로 보아 두 이벤트에 리스너를 붙인다(<code>callbackFlow</code>, <code>awaitClose</code> 에서 뗀다). 신호마다 <code>level</code>·<code>charging</code> 을 다시 읽는다. 충전 중이고 100% 면 완충이다</dd>
+  <dt>실패</dt><dd><code>getBattery</code> 가 없거나(Safari·Firefox) 거부되면 측정 불가</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>표준이 배터리 없는 기기에 "충전 중, 1.0" 을 주라고 정해서 데스크톱 PC 에서도 "완충" 으로 보인다. 배터리 없음과 가릴 방법이 없다.</li>
+  <li>잔량·충전 상태 두 줄만 있다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:battery:data</code> 의 공통 테스트가 <code>wasmJsBrowserTest</code> 로도 돈다. 플랫폼 코드는 <code>:feature:battery:data:compileKotlinWasmJs</code> 로만 확인했다(2026-09-26). Chrome 에서 카드를 띄워 DevTools 콘솔의 <code>(await navigator.getBattery()).level</code> 과 비교하고, Safari 에서는 "측정 불가" 인지 본다.</p>
 </section>
 
 <section class="feature" id="state-observation">

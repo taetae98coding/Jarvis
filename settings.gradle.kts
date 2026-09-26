@@ -73,6 +73,10 @@ include(":feature:profiling:domain")
 include(":feature:profiling:data")
 include(":feature:profiling:ui")
 
+include(":feature:battery:domain")
+include(":feature:battery:data")
+include(":feature:battery:ui")
+
 include(":feature:mcp:domain")
 include(":feature:mcp:data")
 
