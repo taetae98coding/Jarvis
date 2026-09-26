@@ -49,6 +49,7 @@
     <li><a href="#focus-timer">집중 타이머</a></li>
     <li><a href="#dev-utilities">개발자 도구 모음</a></li>
     <li><a href="#battery">배터리 상태</a></li>
+    <li><a href="#qr-code">QR 코드 만들기</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -598,6 +599,39 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>:feature:battery:data</code> 의 공통 테스트가 <code>iosSimulatorArm64Test</code> 로도 돈다. 플랫폼 코드는 <code>:feature:battery:data:compileKotlinIosSimulatorArm64</code> 로만 확인했다(2026-09-26). 시뮬레이터에서는 "측정 불가" 가 맞는 결과다. 실기기에서 설정 → 배터리의 잔량·저전력 모드와 비교한다.</p>
+</section>
+
+<section class="feature" id="qr-code">
+<h2>QR 코드 만들기 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/qr-code.html">QR 코드 만들기</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>인코더: 공통 Kotlin <code>QrEncoder</code></td><td>채택. <code>:feature:qrcode:domain</code> 에 ISO/IEC 18004 를 직접 옮겼다(<a href="../common/qr-code.html#implementation">공통 결정</a>). 정수 비트 연산만 쓰므로 이 타깃에서도 같은 버전·마스크·격자를 낸다</td></tr>
+    <tr><td>인코더: CoreImage <code>CIFilter.qrCodeGenerator()</code>(<code>CIQRCodeGenerator</code>)</td><td>버렸다. 비트맵만 주고 버전·마스크를 고를 수 없으며, 이 타깃과 macOS 에만 있어 Android·Web 과 다른 코드가 나온다. 대신 검증에 썼다: macOS 의 같은 CoreImage 판독기(<code>CIDetector</code>)가 공통 인코더의 코드를 모두 읽었다(<a href="../common/qr-code.html#verification">공통 검증</a>)</td></tr>
+    <tr><td>그리기: Compose <code>drawWithCache</code> + <code>drawRect</code></td><td>채택. 한 줄의 연속된 어두운 모듈을 사각형 하나로 묶어 그린다. 색은 <code>JarvisTheme.colors.scanCodeDark</code>·<code>scanCodeLight</code> 라 다크 테마에서도 흰 바탕·검은 모듈이다. iOS 에서는 Skiko(Metal) 위에 그린다</td></tr>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code></td><td>채택. <code>UIPasteboard.generalPasteboard.string</code> 에 쓴다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>NSUserDefaults</code>)</td><td>채택. Wi-Fi 비밀번호는 쓰지 않는다 — plist 가 기기·iCloud 백업에 평문으로 실린다. 키체인(<code>SecItemAdd</code>)은 Web 에 대안이 없어 버렸다</td></tr>
+    <tr><td>판독(스캔): <code>AVCaptureMetadataOutput</code>·VisionKit <code>DataScannerViewController</code></td><td>스코프 밖. <code>NSCameraUsageDescription</code> 과 권한 요청이 필요하다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/qrcode/{domain,data,ui}/src/commonMain/…</code>. 이 타깃만의 코드는 없다</dd>
+  <dt>동작</dt><dd>Android 와 같다. 복사한 문자열은 Universal Clipboard 로 같은 계정의 Mac 에도 간다</dd>
+  <dt>실패</dt><dd>해당 없음. <code>UIPasteboard</code> 쓰기는 실패를 알리지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>iOS 카메라는 Wi-Fi 코드를 읽으면 "네트워크에 연결" 배너를 띄운다. 숨긴 네트워크(<code>H:true</code>)는 iOS 버전에 따라 연결이 안 될 수 있다 — 판독기 쪽 동작이다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>도메인·데이터 공통 테스트가 <code>iosSimulatorArm64Test</code> 로 돈다(<code>allTests</code>). 리드–솔로몬·BCH 의 비트 연산이 Kotlin/Native 에서 JVM 과 같은 격자를 낸다(기준 격자 테스트). 화면은 컴파일로만 확인했고 시뮬레이터·기기 수동 확인은 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="state-observation">

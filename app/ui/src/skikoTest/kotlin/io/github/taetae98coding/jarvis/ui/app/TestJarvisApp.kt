@@ -37,6 +37,12 @@ import io.github.taetae98coding.jarvis.domain.focus.focusDomainModule
 import io.github.taetae98coding.jarvis.domain.devtools.DevTool
 import io.github.taetae98coding.jarvis.domain.devtools.DevToolsSettingsRepository
 import io.github.taetae98coding.jarvis.domain.devtools.devToolsDomainModule
+import io.github.taetae98coding.jarvis.domain.qrcode.QrCodeInput
+import io.github.taetae98coding.jarvis.domain.qrcode.QrCodeSettingsRepository
+import io.github.taetae98coding.jarvis.domain.qrcode.QrContentType
+import io.github.taetae98coding.jarvis.domain.qrcode.QrErrorCorrection
+import io.github.taetae98coding.jarvis.domain.qrcode.QrField
+import io.github.taetae98coding.jarvis.domain.qrcode.qrCodeDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.Profiling
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
@@ -102,6 +108,7 @@ import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.battery.batteryUiModule
 import io.github.taetae98coding.jarvis.ui.focus.focusUiModule
 import io.github.taetae98coding.jarvis.ui.devtools.devToolsUiModule
+import io.github.taetae98coding.jarvis.ui.qrcode.qrCodeUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
@@ -167,6 +174,7 @@ internal fun TestJarvisApp(
     focusClock: FakeFocusClock = FakeFocusClock(),
     focusAlarm: FocusAlarmRepository = FakeFocusAlarmRepository(),
     devTools: DevToolsSettingsRepository = FakeDevToolsSettingsRepository(),
+    qrCode: QrCodeSettingsRepository = FakeQrCodeSettingsRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -207,6 +215,7 @@ internal fun TestJarvisApp(
             single<FocusClock> { focusClock }
             single<FocusAlarmRepository> { focusAlarm }
             single<DevToolsSettingsRepository> { devTools }
+            single<QrCodeSettingsRepository> { qrCode }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -226,6 +235,7 @@ internal fun TestJarvisApp(
                 batteryDomainModule, batteryUiModule,
                 focusDomainModule, focusUiModule,
                 devToolsDomainModule, devToolsUiModule,
+                qrCodeDomainModule, qrCodeUiModule,
                 appUiModule,
             )
         }
@@ -838,5 +848,25 @@ internal class FakeDevToolsSettingsRepository : DevToolsSettingsRepository {
 
     override fun setInput(tool: DevTool, input: String) {
         inputs.value += tool to input
+    }
+}
+
+internal class FakeQrCodeSettingsRepository : QrCodeSettingsRepository {
+    val input = MutableStateFlow(QrCodeInput())
+
+    override fun observeInput() = input
+
+    override fun readInput() = input.value
+
+    override fun setContentType(type: QrContentType) {
+        input.value = input.value.copy(type = type)
+    }
+
+    override fun setField(field: QrField, value: String) {
+        input.value = input.value.copy(fields = input.value.fields + (field to value))
+    }
+
+    override fun setErrorCorrection(errorCorrection: QrErrorCorrection) {
+        input.value = input.value.copy(errorCorrection = errorCorrection)
     }
 }

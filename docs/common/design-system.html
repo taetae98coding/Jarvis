@@ -55,7 +55,7 @@
 
 <ol>
   <li><strong>R1.</strong> 앱의 루트는 <code>MaterialTheme</code> 대신 <code>JarvisTheme</code> 로 감싼다. <code>JarvisTheme</code> 은 안에서 <code>MaterialTheme(colorScheme, typography, shapes)</code> 를 부르므로, Material 3 컴포넌트(<code>Switch</code>, <code>FilterChip</code>, <code>OutlinedButton</code> …)는 인자를 따로 받지 않아도 Jarvis 값으로 그려진다.</li>
-  <li><strong>R2.</strong> <code>JarvisTheme</code> 은 여섯 가지 토큰을 공급한다: <code>colorScheme</code>(M3 색 역할), <code>colors</code>(M3 에 없는 역할: success·warning·terminal), <code>typography</code>(M3 글꼴 단계), <code>codeTextStyle</code>(고정폭), <code>shapes</code>(M3 모서리 단계), <code>dimens</code>(간격·아이콘 크기·선 굵기·레이아웃). 값은 <a href="#tokens">토큰 표</a>와 같다.</li>
+  <li><strong>R2.</strong> <code>JarvisTheme</code> 은 여섯 가지 토큰을 공급한다: <code>colorScheme</code>(M3 색 역할), <code>colors</code>(M3 에 없는 역할: success·warning·terminal·scanCode), <code>typography</code>(M3 글꼴 단계), <code>codeTextStyle</code>(고정폭), <code>shapes</code>(M3 모서리 단계), <code>dimens</code>(간격·아이콘 크기·선 굵기·레이아웃). 값은 <a href="#tokens">토큰 표</a>와 같다.</li>
   <li><strong>R3.</strong> 색은 라이트·다크 두 벌이고, 기본값은 시스템 설정(<code>isSystemInDarkTheme()</code>)을 따른다. 시스템 설정이 바뀌면 앱을 다시 켜지 않아도 따라간다. 사용자가 고른 모드를 넘기는 자리가 <code>JarvisTheme(darkTheme = …)</code> 이고, 그 값은 <a href="theme-mode.html">화면 테마</a>가 정한다.</li>
   <li><strong>R4.</strong> 기능 코드(<code>feature/*/ui</code>, <code>app/ui</code>, <code>core/ui</code>)는 dp·sp 숫자와 <code>Color(…)</code> 리터럴을 직접 쓰지 않고 <code>JarvisTheme</code> 토큰이나 컴포넌트의 <code>*Defaults</code> 를 거친다. 예외는 <a href="#decision-literals">결정</a>에 적은 세 가지뿐이다.</li>
   <li><strong>R5.</strong> 기본값을 가진 컴포넌트는 모두 같은 이름의 <code>&lt;컴포넌트&gt;Defaults</code> object 를 가진다. 기본값은 <code>JarvisTheme</code> 토큰에서 오고, 호출하는 쪽은 인자로 Defaults 와 다른 값을 넘겨 그 컴포넌트만의 값을 가진다. 기능 하나에서만 쓰는 컴포넌트는 그 기능 모듈이 자기 Defaults 를 소유한다.</li>
@@ -71,6 +71,7 @@
     <li>글꼴 파일 번들. 플랫폼 기본 글꼴을 그대로 쓴다(<a href="#decision-font">결정</a>).</li>
     <li>앱 안에서 라이트/다크를 고르는 설정 화면. 이 문서에서는 <code>JarvisTheme(darkTheme = …)</code> 인자로 받을 자리만 두었고, 2026-09-25 <a href="theme-mode.html">화면 테마</a>가 그 자리를 채웠다.</li>
     <li>터미널 글자 영역의 색. 셸 프로그램은 어두운 배경을 가정하므로 라이트 테마에서도 터미널 창은 어둡다(<a href="terminal.html">터미널</a>).</li>
+    <li>QR 코드 모듈의 색. 판독기는 밝은 바탕의 어두운 모듈을 가정하므로 다크 테마에서도 흰 바탕·검은 모듈이다(<a href="qr-code.html#decision-colors">QR 코드</a>).</li>
   </ul>
 </aside>
 
@@ -84,7 +85,7 @@
   <thead><tr><th>토큰</th><th>타입</th><th>값</th></tr></thead>
   <tbody>
     <tr><td><code>colorScheme</code></td><td>M3 <code>ColorScheme</code></td><td>기준색 파랑(primary 라이트 <code>#2E5DAA</code> / 다크 <code>#ADC6FF</code>), tertiary 청록(<code>#006A6A</code> / <code>#80D5D4</code>). surfaceContainer 다섯 단계까지 모든 역할을 직접 적는다. 전체 값은 <code>JarvisColorScheme.kt</code></td></tr>
-    <tr><td><code>colors</code></td><td><code>JarvisColors</code></td><td><code>success</code>·<code>onSuccess</code>·<code>successContainer</code>·<code>onSuccessContainer</code>(초록), <code>warning</code>·<code>onWarning</code>·<code>warningContainer</code>·<code>onWarningContainer</code>(호박), <code>terminalBackground</code> <code>#1E1E1E</code>·<code>terminalForeground</code> <code>#D4D4D4</code>(두 테마 공통)</td></tr>
+    <tr><td><code>colors</code></td><td><code>JarvisColors</code></td><td><code>success</code>·<code>onSuccess</code>·<code>successContainer</code>·<code>onSuccessContainer</code>(초록), <code>warning</code>·<code>onWarning</code>·<code>warningContainer</code>·<code>onWarningContainer</code>(호박), <code>terminalBackground</code> <code>#1E1E1E</code>·<code>terminalForeground</code> <code>#D4D4D4</code>(두 테마 공통), <code>scanCodeDark</code> <code>#000000</code>·<code>scanCodeLight</code> <code>#FFFFFF</code>(두 테마 공통, <a href="qr-code.html#decision-colors">QR 코드</a>)</td></tr>
     <tr><td><code>typography</code></td><td>M3 <code>Typography</code></td><td>M3 기본 단계. <code>titleMedium</code>·<code>titleLarge</code> 만 <code>SemiBold</code> 로 올려 카드·화면 제목을 본문과 가른다</td></tr>
     <tr><td><code>codeTextStyle</code></td><td><code>TextStyle</code></td><td><code>FontFamily.Monospace</code>, 13sp. 터미널 글자</td></tr>
     <tr><td><code>shapes</code></td><td>M3 <code>Shapes</code></td><td>extraSmall 4 · small 8 · medium 12 · large 16 · extraLarge 28 (dp, 둥근 모서리)</td></tr>
@@ -148,13 +149,14 @@
     <tr><td><code>Pause</code>, <code>SkipForward</code></td><td><a href="focus-timer.html">집중 타이머</a> 카드의 일시정지·건너뛰기 버튼. 세로 막대 둘 / 삼각형과 세로 막대. 시작·재개는 <code>Play</code>, 초기화는 <code>RotateLeft</code></td><td>일시정지 / 건너뛰기 (시작 / 재개 / 초기화)</td></tr>
     <tr><td><code>Moon</code></td><td><a href="theme-mode.html">화면 테마</a> 카드 머리. 초승달 윤곽선</td><td>없음 — 장식</td></tr>
     <tr><td><code>Code</code></td><td><a href="dev-utilities.html">개발자 도구</a> 카드 머리. 서로 마주 보는 꺾쇠 둘</td><td>없음 — 장식</td></tr>
-    <tr><td><code>Copy</code></td><td>개발자 도구 결과 줄의 복사 버튼. 겹친 사각형 둘</td><td><i>결과 이름</i> 복사</td></tr>
+    <tr><td><code>Copy</code></td><td>개발자 도구 결과 줄의 복사 버튼, QR 코드 화면의 "텍스트 복사" 버튼(글자 앞). 겹친 사각형 둘</td><td><i>결과 이름</i> 복사 / 없음 — 버튼에 글자가 함께 있다</td></tr>
+    <tr><td><code>QrCode</code></td><td><a href="qr-code.html">QR 코드</a> 카드 머리. 모서리 사각형 셋과 흩어진 점</td><td>없음 — 장식</td></tr>
     <tr><td><code>Wifi</code></td><td>기기 목록 상단 막대의 <a href="wireless-pairing.html">Wi-Fi 페어링</a> 버튼</td><td>Wi-Fi 로 페어링</td></tr>
     <tr><td><code>RotateLeft</code>, <code>RotateRight</code></td><td>화면 회전 카드의 -90° / +90° 버튼(글자 옆), 회전 카드 머리(<code>RotateRight</code>), 터미널 브라우저 탭의 새로 고침(<code>RotateRight</code>, contentDescription "새로 고침")</td><td>없음 — 버튼에 글자가 함께 있다</td></tr>
     <tr><td><code>Eye</code>, <code>Monitor</code>, <code>Smartphone</code>, <code>Terminal</code></td><td>기능 카드 머리: 화면 꺼짐 방지 / 시스템 전역 / 에뮬레이터 / 터미널. <code>Smartphone</code> 은 기기 줄의 상태 표시와 터미널 새 탭 메뉴의 기기 줄 앞(<a href="terminal-device.html">기기 화면</a>)도 겸한다. <code>Eye</code> 는 터미널 패널 줄의 Claude 상태 표시 "모니터링 중"(contentDescription "Claude 모니터링 중", <a href="terminal-claude-status.html">Claude 상태 표시</a>)도 겸한다</td><td>없음 — 장식</td></tr>
     <tr><td><code>Android</code>, <code>Apple</code></td><td>터미널 탭 줄의 기기 탭 종류 표시와 새 탭 메뉴의 기기 줄 앞(<a href="terminal-tab-label.html">탭 종류 표시</a>). <code>Android</code> 는 더듬이 둘과 눈 둘이 있는 반원 머리, <code>Apple</code> 은 꼭지가 달린 사과 윤곽선</td><td>탭 줄: Android / iOS. 메뉴: 없음 — 항목에 글자가 함께 있다</td></tr>
     <tr><td><code>Terminal</code>, <code>Claude</code>, <code>Globe</code>, <code>Smartphone</code></td><td>터미널 탭 줄에서 탭 제목 앞의 종류 표시(<a href="terminal-tab-label.html">탭 종류 표시</a>). <code>Smartphone</code> 은 플랫폼을 모르는 기기 탭</td><td>터미널 / Claude / 브라우저 / 기기</td></tr>
-    <tr><td><code>ChevronRight</code></td><td>눌러서 다른 화면으로 가는 카드(에뮬레이터, 터미널, 개발자 도구) 머리의 오른쪽 끝</td><td>없음 — 카드 자체가 버튼이다</td></tr>
+    <tr><td><code>ChevronRight</code></td><td>눌러서 다른 화면으로 가는 카드(에뮬레이터, 터미널, 개발자 도구, QR 코드) 머리의 오른쪽 끝</td><td>없음 — 카드 자체가 버튼이다</td></tr>
   </tbody>
 </table>
 

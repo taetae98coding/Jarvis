@@ -34,6 +34,7 @@ kotlin {
             implementation(projects.feature.battery.data)
             implementation(projects.feature.focus.data)
             implementation(projects.feature.devtools.data)
+            implementation(projects.feature.qrcode.data)
         }
 
         androidMain.dependencies {

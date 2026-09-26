@@ -11,6 +11,7 @@ import io.github.taetae98coding.jarvis.ui.devtools.DevToolsCard
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorCard
 import io.github.taetae98coding.jarvis.ui.focus.FocusTimerCard
 import io.github.taetae98coding.jarvis.ui.profiling.ProfilingCard
+import io.github.taetae98coding.jarvis.ui.qrcode.QrCodeCard
 import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationCard
 import io.github.taetae98coding.jarvis.ui.screen.ScreenAwakeCard
 import io.github.taetae98coding.jarvis.ui.screen.SystemScreenAwakeCard
@@ -53,5 +54,6 @@ internal fun FeatureGrid(modifier: Modifier = Modifier) {
         item { BatteryCard() }
         item { FocusTimerCard() }
         item { DevToolsCard() }
+        item { QrCodeCard() }
     }
 }

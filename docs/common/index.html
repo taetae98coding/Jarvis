@@ -44,6 +44,7 @@
   <li><a href="battery.html">배터리 상태</a><p>홈 카드가 이 기기의 배터리 잔량·충전 상태·전원·저전력 모드를 보이고, 플랫폼이 알려 줄 때마다 고친다</p></li>
   <li><a href="focus-timer.html">집중 타이머 (뽀모도로)</a><p>홈 카드가 25분 집중과 5분·15분 휴식을 번갈아 재고, 단계가 끝나면 알림으로 알린다. 앱을 껐다 켜도 이어진다</p></li>
   <li><a href="dev-utilities.html">개발자 도구 모음</a><p>홈 카드에서 여는 화면에서 타임스탬프·Base64·URL·JSON·UUID·해시·색을 변환하고 결과를 복사한다</p></li>
+  <li><a href="qr-code.html">QR 코드 만들기</a><p>홈 카드에서 여는 화면에서 텍스트·URL·Wi-Fi·연락처·전화·문자·이메일을 QR 코드로 만들고 담긴 문자열을 복사한다</p></li>
   <li><a href="state-observation.html">상태 조회 규칙</a><p>콜백이 있으면 콜백으로, 없으면 N초마다 다시 읽는다</p></li>
   <li><a href="emulator-count.html">에뮬레이터 개수</a><p>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터를 실행 중/전체로 센다</p></li>
   <li><a href="emulator-control.html">기기 목록·화면·제스처</a><p>가상 기기와 연결된 실물 기기 목록을 보고, 화면을 보면서 탭·스와이프를 보낸다</p></li>
@@ -116,7 +117,7 @@
     <tr><td><code>platformAppUpdater(): AppUpdater?</code></td><td><code>data.appinfo</code></td><td>새 Release 를 읽고 받아 설치한다. macOS 의 <code>.app</code> 설치본만 본문이 있고 나머지는 null</td><td><a href="app-update.html">앱 업데이트</a></td></tr>
     <tr><td><code>createIdleInhibitor(): IdleInhibitor</code></td><td><code>data.screen</code></td><td>Compose가 커버하지 않는 플랫폼의 화면 꺼짐 방지. JVM만 본문이 있다</td><td><a href="keep-screen-awake.html">화면 꺼짐 방지</a></td></tr>
     <tr><td><code>createSystemScreenAwakeDataSource(context): SystemScreenAwakeDataSource</code></td><td><code>data.screen</code></td><td>앱이 없는 동안의 화면 유지. 상태를 읽고 효과를 적용한다. Android만 본문이 있다</td><td><a href="system-keep-screen-awake.html">화면 꺼짐 방지 (시스템 전역)</a></td></tr>
-    <tr><td><code>createSettingsStore(context): SettingsStore</code></td><td><code>data.settings</code> (<code>:core:data</code>)</td><td>설정을 영구 저장하고 변경을 알리는 키-값 저장소. boolean 과 문자열을 담는다. <code>screen</code>·<code>rotation</code>·<code>theme</code>·<code>focus</code> 가 쓴다</td><td><a href="settings-persistence.html">설정 영구 저장</a></td></tr>
+    <tr><td><code>createSettingsStore(context): SettingsStore</code></td><td><code>data.settings</code> (<code>:core:data</code>)</td><td>설정을 영구 저장하고 변경을 알리는 키-값 저장소. boolean 과 문자열을 담는다. <code>screen</code>·<code>rotation</code>·<code>theme</code>·<code>focus</code>·<code>qrcode</code> 가 쓴다</td><td><a href="settings-persistence.html">설정 영구 저장</a></td></tr>
     <tr><td><code>createThemeAppearance(context): ThemeAppearance</code></td><td><code>data.theme</code></td><td>고른 화면 테마를 앱 밖 표면(시스템 막대, 창 틀, 페이지)에 알린다. 네 타깃 모두 본문이 있고 JVM 만 다음 실행에 반영된다</td><td><a href="theme-mode.html">화면 테마</a></td></tr>
     <tr><td><code>createProfilingSource(context): ProfilingSource</code></td><td><code>data.profiling</code></td><td>이 기기의 CPU·메모리·GPU·네트워크·디스크 지표를 표본으로 읽는다. 네 타깃 모두 본문이 있고, 줄 수 없는 지표는 측정 불가로 둔다</td><td><a href="profiling.html">프로파일링</a></td></tr>
     <tr><td><code>createBatterySource(context): BatterySource</code></td><td><code>data.battery</code></td><td>이 기기의 배터리 상태를 cold Flow 로 흘린다. Android·iOS·Web 은 변경 알림, JVM 은 <code>pmset</code> 폴링</td><td><a href="battery.html">배터리 상태</a></td></tr>

@@ -83,6 +83,10 @@ include(":feature:devtools:domain")
 include(":feature:devtools:data")
 include(":feature:devtools:ui")
 
+include(":feature:qrcode:domain")
+include(":feature:qrcode:data")
+include(":feature:qrcode:ui")
+
 include(":feature:mcp:domain")
 include(":feature:mcp:data")
 

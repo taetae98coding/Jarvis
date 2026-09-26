@@ -134,6 +134,16 @@ object JarvisIcons {
 
     val Play: ImageVector by lazy { outline("Play", "M7 4l13 8-13 8z") }
 
+    val QrCode: ImageVector by lazy {
+        outline(
+            "QrCode",
+            "M4 3h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" +
+                "M17 3h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" +
+                "M4 16h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z" +
+                "M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1",
+        )
+    }
+
     val Remove: ImageVector by lazy { outline("Remove", "M5 12h14") }
 
     val RotateLeft: ImageVector by lazy { outline("RotateLeft", "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5") }
@@ -181,7 +191,7 @@ object JarvisIcons {
     internal val all: List<ImageVector>
         get() = listOf(
             Activity, Add, Android, Apple, Back, Battery, Check, ChevronDown, ChevronLeft, ChevronRight, Claude, Close, Code, Copy, Edit, Eye, File, Folder,
-            Forward, GitBranch, Globe, Logs, Monitor, Moon, Pause, Play, Remove, RotateLeft, RotateRight, SkipForward, Smartphone, Sun, Terminal, Timer,
+            Forward, GitBranch, Globe, Logs, Monitor, Moon, Pause, Play, QrCode, Remove, RotateLeft, RotateRight, SkipForward, Smartphone, Sun, Terminal, Timer,
             User, Wifi,
         )
 }

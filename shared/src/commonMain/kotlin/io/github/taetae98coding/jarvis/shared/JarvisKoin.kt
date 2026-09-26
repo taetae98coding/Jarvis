@@ -8,6 +8,7 @@ import io.github.taetae98coding.jarvis.data.devtools.devToolsDataModule
 import io.github.taetae98coding.jarvis.data.emulator.emulatorDataModule
 import io.github.taetae98coding.jarvis.data.focus.focusDataModule
 import io.github.taetae98coding.jarvis.data.profiling.profilingDataModule
+import io.github.taetae98coding.jarvis.data.qrcode.qrCodeDataModule
 import io.github.taetae98coding.jarvis.data.rotation.rotationDataModule
 import io.github.taetae98coding.jarvis.data.screen.screenDataModule
 import io.github.taetae98coding.jarvis.data.terminal.terminalDataModule
@@ -19,6 +20,7 @@ import io.github.taetae98coding.jarvis.domain.emulator.emulatorDomainModule
 import io.github.taetae98coding.jarvis.domain.focus.focusDomainModule
 import io.github.taetae98coding.jarvis.domain.mcp.mcpDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.profilingDomainModule
+import io.github.taetae98coding.jarvis.domain.qrcode.qrCodeDomainModule
 import io.github.taetae98coding.jarvis.domain.rotation.rotationDomainModule
 import io.github.taetae98coding.jarvis.domain.screen.screenDomainModule
 import io.github.taetae98coding.jarvis.domain.terminal.terminalDomainModule
@@ -30,6 +32,7 @@ import io.github.taetae98coding.jarvis.ui.devtools.devToolsUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.focus.focusUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
+import io.github.taetae98coding.jarvis.ui.qrcode.qrCodeUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
 import io.github.taetae98coding.jarvis.ui.terminal.terminalUiModule
@@ -67,6 +70,7 @@ internal fun jarvisModules(context: PlatformContext): List<Module> =
         batteryDomainModule, batteryDataModule, batteryUiModule,
         focusDomainModule, focusDataModule, focusUiModule,
         devToolsDomainModule, devToolsDataModule, devToolsUiModule,
+        qrCodeDomainModule, qrCodeDataModule, qrCodeUiModule,
         browserModule, mcpDomainModule,
         appUiModule,
     )
