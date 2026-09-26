@@ -4,5 +4,5 @@ APP_NAME=Jarvis
 
 // gradle/libs.versions.toml 의 appVersion 과 같아야 한다. CURRENT_PROJECT_VERSION 은 MAJOR×10000 + MINOR×100 + PATCH 다.
 // Gradle 이 Xcode 설정을 쓸 수 없어서 ./gradlew checkIosAppVersion 이 어긋나면 실패시킨다(docs/platform/ios.html#release-build).
-MARKETING_VERSION=1.1.0
-CURRENT_PROJECT_VERSION=10100
+MARKETING_VERSION=1.2.0
+CURRENT_PROJECT_VERSION=10200
