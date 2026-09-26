@@ -5,6 +5,7 @@ import io.github.taetae98coding.jarvis.data.PlatformContext
 import io.github.taetae98coding.jarvis.data.appinfo.appInfoDataModule
 import io.github.taetae98coding.jarvis.data.battery.batteryDataModule
 import io.github.taetae98coding.jarvis.data.emulator.emulatorDataModule
+import io.github.taetae98coding.jarvis.data.focus.focusDataModule
 import io.github.taetae98coding.jarvis.data.profiling.profilingDataModule
 import io.github.taetae98coding.jarvis.data.rotation.rotationDataModule
 import io.github.taetae98coding.jarvis.data.screen.screenDataModule
@@ -13,6 +14,7 @@ import io.github.taetae98coding.jarvis.data.theme.themeDataModule
 import io.github.taetae98coding.jarvis.domain.appinfo.appInfoDomainModule
 import io.github.taetae98coding.jarvis.domain.battery.batteryDomainModule
 import io.github.taetae98coding.jarvis.domain.emulator.emulatorDomainModule
+import io.github.taetae98coding.jarvis.domain.focus.focusDomainModule
 import io.github.taetae98coding.jarvis.domain.mcp.mcpDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.profilingDomainModule
 import io.github.taetae98coding.jarvis.domain.rotation.rotationDomainModule
@@ -23,6 +25,7 @@ import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.battery.batteryUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
+import io.github.taetae98coding.jarvis.ui.focus.focusUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
@@ -59,6 +62,7 @@ internal fun jarvisModules(context: PlatformContext): List<Module> =
         themeDomainModule, themeDataModule, themeUiModule,
         profilingDomainModule, profilingDataModule, profilingUiModule,
         batteryDomainModule, batteryDataModule, batteryUiModule,
+        focusDomainModule, focusDataModule, focusUiModule,
         browserModule, mcpDomainModule,
         appUiModule,
     )

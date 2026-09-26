@@ -42,6 +42,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
     <li><a href="#profiling">프로파일링</a></li>
+    <li><a href="#focus-timer">집중 타이머</a></li>
     <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
@@ -484,6 +485,39 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>ProfilingSource.wasmJs.kt</code> 자체는 컴파일(<code>:webApp:compileProductionExecutableKotlinWasmJs</code>)로만 확인했다. 실제 값은 <code>:webApp:wasmJsBrowserDevelopmentRun</code> 으로 띄워 Chrome 개발자 도구 → Application → Storage 와 비교한다.</p>
+</section>
+
+<section class="feature" id="focus-timer">
+<h2>집중 타이머 <span class="badge partial">조건부</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/focus-timer.html">집중 타이머</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>Notification</code> API + <code>setTimeout</code></td><td>채택. 탭이 열려 있으면 백그라운드 탭이어도 OS 알림을 띄운다. 보안 컨텍스트(HTTPS·localhost)와 권한이 필요하다. 백그라운드 탭의 타이머는 브라우저가 1분 단위로 묶을 수 있다</td></tr>
+    <tr><td>Notification Triggers (<code>showTrigger: new TimestampTrigger()</code>)</td><td>버렸다. 탭이 닫혀도 울리는 예약 알림이었지만 Chrome 오리진 트라이얼에서 멈췄고 표준이 되지 않았다</td></tr>
+    <tr><td>Service Worker + Push</td><td>버렸다. 서버가 있어야 한다. 이 앱은 정적 파일로 배포된다</td></tr>
+    <tr><td><code>Notification.requestPermission()</code></td><td>채택. 사용자 동작 직후여야 해서 시작 버튼을 누른 흐름에서 부른다. 이미 정했으면(<code>granted</code>·<code>denied</code>) 부르지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/focus/data/src/wasmJsMain/.../focus/FocusAlarm.wasmJs.kt</code></dd>
+  <dt>동작</dt><dd><code>schedule</code> 이 권한을 요청한 뒤 걸려 있던 <code>setTimeout</code> 을 지우고, 끝나는 시각까지의 지연으로 새로 건다. 때가 되면 권한이 <code>granted</code> 일 때만 <code>new Notification(title, { body })</code>. <code>cancel</code> 은 <code>clearTimeout</code></dd>
+  <dt>시간대</dt><dd><code>-new Date(epochMillis).getTimezoneOffset() * 60</code>(부호가 반대다)</dd>
+  <dt>실패</dt><dd><code>Notification</code> 이 없는 브라우저나 권한 거부면 아무것도 하지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>탭이 열려 있어야 한다. 탭을 닫거나 새로 고치면 알림이 사라진다. 다시 열면 카드는 맞는 상태를 보인다.</li>
+  <li>iOS Safari 는 홈 화면에 추가한 웹 앱에서만 Notification 을 준다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>FocusAlarm.wasmJs.kt</code> 는 컴파일(<code>:feature:focus:data:compileKotlinWasmJs</code>)로만 확인했다. 확인할 때는 <code>./gradlew :webApp:wasmJsBrowserDevelopmentRun</code> 으로 띄워 시작 버튼을 누르고 권한을 허용한 뒤 기다린다. 짧게 보려면 <code>FocusPhase</code> 길이를 임시로 줄인다.</p>
 </section>
 
 <section class="feature" id="battery">

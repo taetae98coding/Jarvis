@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 사용자가 "알람 및 리마인더" 를 허용하면 단계 끝 알림을 정시에 울린다. 거부해도 부정확한 알람으로 동작한다. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <application>
+        <!-- 앱 자신의 AlarmManager PendingIntent 만 받으므로 exported 가 필요 없다. 클래스 이름은 namespace 와 패키지가 달라 전부 적는다. -->
+        <receiver
+            android:name="io.github.taetae98coding.jarvis.data.focus.FocusAlarmReceiver"
+            android:exported="false" />
+    </application>
+
+</manifest>

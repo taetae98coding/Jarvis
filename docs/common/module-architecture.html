@@ -43,7 +43,7 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 공용 코드는 기능마다 <code>:feature:&lt;기능&gt;:domain</code> · <code>:feature:&lt;기능&gt;:data</code> · <code>:feature:&lt;기능&gt;:ui</code> 셋으로 나뉜다. 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code>, <code>terminal</code>, <code>theme</code>(2026-09-25, <a href="theme-mode.html">화면 테마</a>), <code>profiling</code>(2026-09-25, <a href="profiling.html">프로파일링</a>) 일곱이다.</li>
+  <li><strong>R1.</strong> 공용 코드는 기능마다 <code>:feature:&lt;기능&gt;:domain</code> · <code>:feature:&lt;기능&gt;:data</code> · <code>:feature:&lt;기능&gt;:ui</code> 셋으로 나뉜다. 기능은 <code>appinfo</code>, <code>emulator</code>, <code>screen</code>, <code>rotation</code>, <code>terminal</code>, <code>theme</code>(2026-09-25, <a href="theme-mode.html">화면 테마</a>), <code>profiling</code>(2026-09-25, <a href="profiling.html">프로파일링</a>), <code>focus</code>(2026-09-26, <a href="focus-timer.html">집중 타이머</a>) 여덟이다.</li>
   <li><strong>R2.</strong> 계층 의존은 기능 안에서 한 방향이다. <code>ui → domain</code>, <code>data → domain</code>. 어느 기능에서도 <code>ui</code>가 <code>data</code>를, <code>data</code>가 <code>ui</code>를 컴파일 타임에 볼 수 없다.</li>
   <li><strong>R3.</strong> 기능은 서로를 의존하지 않는다. 기능 사이에 필요한 것은 <code>:core:*</code>로 내려가고, 기능 하나가 다른 기능의 타입을 import 하면 그 구조는 틀린 것이다.</li>
   <li><strong>R4.</strong> <code>:core:*</code>에는 두 기능 이상이 쓰는 것만 둔다. 한 기능만 쓰는 것은 그 기능이 갖는다.</li>
@@ -93,7 +93,7 @@
                        │
                     :app:ui              ← JarvisApp, Home 화면, FeatureGrid, 백스택
         ┌──────────────┬──────────────┼──────────────┬──────────────┐
-  :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation  :feature:terminal  :feature:theme  :feature:profiling
+  :feature:appinfo  :feature:emulator  :feature:screen  :feature:rotation  :feature:terminal  :feature:theme  :feature:profiling  :feature:focus
         │  ui → domain ← data (기능마다 셋)
         └──────────────┴──────────────┴──────────────┴──────────────┘
                  :core:ui        :core:data   :core:widget(android)   ← 두 기능 이상이 쓰는 것만
@@ -140,7 +140,8 @@
 │   ├── rotation   RotationAngle, DeviceRotationRepository, DeviceRotationNotificationRepository, 유스케이스 6개, rotationDomainModule
 │   ├── terminal   TerminalRepository, TerminalWorkspace, TerminalEmulator, LineDiscipline, 유스케이스 2개
 │   ├── theme      ThemeMode, ThemeSettingsRepository, ThemeAppearanceRepository, 유스케이스 3개, themeDomainModule
-│   └── profiling  Profiling, Reading, ProfilingRepository, ObserveProfilingUseCase, profilingDomainModule
+│   ├── profiling  Profiling, Reading, ProfilingRepository, ObserveProfilingUseCase, profilingDomainModule
+│   └── focus      FocusSession, FocusTimerState, FocusClock, FocusSessionRepository, FocusAlarmRepository, 유스케이스 6개, focusDomainModule
 ├── data
 │   ├── PlatformContext(expect)                      ← :core:data
 │   ├── state      observeByPolling / observeOnSignals / observeSystemState   ← :core:data
@@ -152,7 +153,8 @@
 │   ├── rotation   DeviceRotationDataSource(expect), 알림 고정 리포지토리
 │   ├── terminal   TerminalDataSource(expect), 리포지토리
 │   ├── theme      ThemeAppearance(expect), 리포지토리 둘
-│   └── profiling  ProfilingSource(expect), CounterDelta, DefaultProfilingRepository
+│   ├── profiling  ProfilingSource(expect), CounterDelta, DefaultProfilingRepository
+│   └── focus      FocusAlarm(expect), localUtcOffsetSeconds(expect), SystemFocusClock, DefaultFocusSessionRepository
 ├── designsystem
 │   ├── theme      JarvisTheme, 색·글꼴·모양·치수 토큰   ← :core:designsystem
 │   ├── icon       JarvisIcons                        ← :core:designsystem
@@ -168,6 +170,7 @@
 │   ├── terminal   TerminalCard, TerminalScreen, TerminalPane, TerminalViewModel, TerminalRoute
 │   ├── theme      ThemeModeCard, appDarkTheme(), ViewModel 둘
 │   ├── profiling  ProfilingCard, ProfilingViewModel, ProfilingFormat
+│   ├── focus      FocusTimerCard, FocusTimerViewModel, FocusFormat
 │   └── app        JarvisApp, HomeRoute, HomeScreen, FeatureGrid   ← :app:ui
 ├── widget                                            (Android 전용)
 │   ├── WidgetRefresh, WidgetRefreshJobService, WriteSettingsPermissionActivity, NotificationWidget(s), StatusTileService, AsyncReceiver   ← :core:widget

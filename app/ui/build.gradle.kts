@@ -16,6 +16,7 @@ kotlin {
             api(projects.feature.theme.ui)
             api(projects.feature.profiling.ui)
             api(projects.feature.battery.ui)
+            api(projects.feature.focus.ui)
             implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }

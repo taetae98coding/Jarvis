@@ -28,6 +28,12 @@ import io.github.taetae98coding.jarvis.domain.emulator.PairingService
 import io.github.taetae98coding.jarvis.domain.battery.BatteryRepository
 import io.github.taetae98coding.jarvis.domain.battery.BatteryStatus
 import io.github.taetae98coding.jarvis.domain.battery.batteryDomainModule
+import io.github.taetae98coding.jarvis.domain.focus.FocusAlarmRepository
+import io.github.taetae98coding.jarvis.domain.focus.FocusClock
+import io.github.taetae98coding.jarvis.domain.focus.FocusPhase
+import io.github.taetae98coding.jarvis.domain.focus.FocusSession
+import io.github.taetae98coding.jarvis.domain.focus.FocusSessionRepository
+import io.github.taetae98coding.jarvis.domain.focus.focusDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.Profiling
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
@@ -91,6 +97,7 @@ import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.battery.batteryUiModule
+import io.github.taetae98coding.jarvis.ui.focus.focusUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
@@ -111,6 +118,7 @@ import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import org.koin.mp.KoinPlatformTools
+import kotlin.time.Instant
 
 // 화면 테스트는 저장소도 플랫폼도 모른다. 도메인 인터페이스만 가짜로 끼우면 되는 것이 :ui 가
 // :data 를 보지 않는다는 증거다.
@@ -151,6 +159,9 @@ internal fun TestJarvisApp(
     themeAppearance: ThemeAppearanceRepository = ThemeAppearanceRepository { },
     profiling: ProfilingRepository = FakeProfilingRepository(),
     battery: BatteryRepository = FakeBatteryRepository(),
+    focusSession: FocusSessionRepository = FakeFocusSessionRepository(),
+    focusClock: FakeFocusClock = FakeFocusClock(),
+    focusAlarm: FocusAlarmRepository = FakeFocusAlarmRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -187,6 +198,9 @@ internal fun TestJarvisApp(
             single<ThemeAppearanceRepository> { themeAppearance }
             single<ProfilingRepository> { profiling }
             single<BatteryRepository> { battery }
+            single<FocusSessionRepository> { focusSession }
+            single<FocusClock> { focusClock }
+            single<FocusAlarmRepository> { focusAlarm }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -204,6 +218,7 @@ internal fun TestJarvisApp(
                 themeDomainModule, themeUiModule,
                 profilingDomainModule, profilingUiModule,
                 batteryDomainModule, batteryUiModule,
+                focusDomainModule, focusUiModule,
                 appUiModule,
             )
         }
@@ -320,6 +335,48 @@ internal class FakeBatteryRepository : BatteryRepository {
     val status = MutableStateFlow<BatteryStatus?>(null)
 
     override fun observeBattery() = status.filterNotNull()
+}
+
+internal class FakeFocusSessionRepository(
+    initial: FocusSession = FocusSession(),
+) : FocusSessionRepository {
+    val session = MutableStateFlow(initial)
+
+    override fun observeFocusSession() = session
+
+    override fun readFocusSession() = session.value
+
+    override fun saveFocusSession(session: FocusSession) {
+        this.session.value = session
+    }
+}
+
+/** 시간은 테스트가 [time] 으로 옮긴다. 날의 경계는 UTC 자정이다. */
+internal class FakeFocusClock(
+    start: Instant = Instant.fromEpochSeconds(1_790_000_000),
+) : FocusClock {
+    val time = MutableStateFlow(start)
+
+    override fun now(): Instant = time.value
+
+    override fun observeNow(): Flow<Instant> = time
+
+    override fun localEpochDay(instant: Instant): Long = instant.epochSeconds.floorDiv(86_400L)
+}
+
+internal class FakeFocusAlarmRepository : FocusAlarmRepository {
+    val scheduled = mutableListOf<Pair<Instant, FocusPhase>>()
+
+    var cancels = 0
+        private set
+
+    override fun schedule(at: Instant, phase: FocusPhase) {
+        scheduled += at to phase
+    }
+
+    override fun cancel() {
+        cancels++
+    }
 }
 
 internal class FakeSystemScreenAwakeRepository(

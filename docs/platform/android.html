@@ -43,6 +43,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
     <li><a href="#profiling">프로파일링</a></li>
+    <li><a href="#focus-timer">집중 타이머</a></li>
     <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
@@ -515,6 +516,45 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>:feature:profiling:data</code> 의 공통 테스트는 <code>testAndroidHostTest</code> 로도 돈다. <code>ProfilingSource.android.kt</code> 자체는 컴파일(<code>:androidApp:assembleDebug</code>)로만 확인했다. 2026-09-25 에 연결된 기기가 다른 앱 테스트에 쓰이고 있어 기기 확인은 하지 못했다. 확인할 때는 기기에서 카드를 띄우고 <code>adb shell top -n 1</code>(이 앱 줄), 설정 → 저장 공간과 비교한다.</p>
+</section>
+
+<section class="feature" id="focus-timer">
+<h2>집중 타이머 <span class="badge ok">구현</span> <span class="badge untested">미검증</span></h2>
+<p>공통 스펙: <a href="../common/focus-timer.html">집중 타이머</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>AlarmManager.setExactAndAllowWhileIdle(RTC_WAKEUP)</code></td><td>채택(허용일 때). 도즈 중에도 정시에 울린다. <code>SCHEDULE_EXACT_ALARM</code> 을 선언하고 <code>canScheduleExactAlarms()</code> 가 true 일 때만 부른다. Android 14 부터 새로 설치한 앱은 기본으로 거부라 사용자가 설정 → 알람 및 리마인더에서 켜야 한다</td></tr>
+    <tr><td><code>AlarmManager.setAndAllowWhileIdle(RTC_WAKEUP)</code></td><td>채택(거부일 때 대체). 권한이 필요 없다. 부정확한 알람이라 시스템이 배치해 몇 분까지 늦출 수 있다</td></tr>
+    <tr><td><code>USE_EXACT_ALARM</code></td><td>버렸다. 자동 허용이지만 Play 정책이 알람 시계·타이머가 핵심 기능인 앱에만 허용한다. Jarvis 는 개발 도구다</td></tr>
+    <tr><td><code>setAlarmClock</code></td><td>버렸다. 상태 막대에 알람 아이콘이 뜨고 정확한 알람 권한도 똑같이 필요하다</td></tr>
+    <tr><td><code>setWindow</code></td><td>버렸다. Android 12 부터 창의 최소 길이가 10분이라 5분 휴식보다 길다</td></tr>
+    <tr><td>WorkManager <code>OneTimeWorkRequest.setInitialDelay</code></td><td>버렸다. 실행 시각을 보장하지 않고(제약·배터리 최적화로 밀린다) 의존성이 늘어난다</td></tr>
+    <tr><td>포그라운드 서비스 + 카운트다운 알림</td><td>버렸다. 25분 동안 서비스를 붙잡아야 하고 Android 14 의 포그라운드 서비스 유형 제약(<code>specialUse</code> 신고)이 따른다. 끝나는 순간 한 번 알리면 된다</td></tr>
+    <tr><td><code>NotificationManager.notify</code> (채널 <code>focus_timer</code>, <code>IMPORTANCE_HIGH</code>)</td><td>채택. 소리·헤드업이 있어야 단계가 끝난 것을 알아챈다. 알림 컨트롤 채널(<code>notification_widget</code>, 낮은 중요도)과 따로 둔다</td></tr>
+    <tr><td><code>POST_NOTIFICATIONS</code></td><td>minSdk 33 이라 런타임 권한이다. <code>:core:data</code> 의 <code>createNotificationPermission</code> 으로 처음 시작할 때(프로세스당 한 번) 묻는다. 두 번 거부하면 요청이 앱 알림 설정을 열기 때문에 매번 묻지 않는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/focus/data/src/androidMain/.../focus/FocusAlarm.android.kt</code>, <code>feature/focus/data/src/androidMain/AndroidManifest.xml</code>(<code>FocusAlarmReceiver</code>, <code>SCHEDULE_EXACT_ALARM</code>)</dd>
+  <dt>동작</dt><dd><code>schedule</code> 이 요청 코드 하나짜리 <code>PendingIntent.getBroadcast</code>(단계를 extra 로)를 알람에 건다. 같은 요청 코드라 새 알람이 이전 것을 덮고, <code>cancel</code> 은 extra 와 무관하게 같은 PendingIntent 를 찾아 거둔다. 울리면 <code>FocusAlarmReceiver</code> 가 채널을 만들고 알림을 올린다. 알림을 누르면 앱의 런처 Activity 가 열린다. 작은 아이콘은 이 모듈이 리소스를 갖지 않아 <code>android.R.drawable.ic_lock_idle_alarm</code> 이다</dd>
+  <dt>시간대</dt><dd><code>localUtcOffsetSeconds</code> = <code>TimeZone.getDefault().getOffset(epochMillis) / 1000</code></dd>
+  <dt>실패</dt><dd>알람 등록은 <code>runCatching</code>. 알림 권한이 없으면 리시버가 조용히 끝난다. 어느 경우든 카드의 타이머는 그대로다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>"알람 및 리마인더" 를 허용하지 않으면 알림이 몇 분 늦을 수 있다.</li>
+  <li>기기를 재부팅하면 AlarmManager 알람이 지워진다. <code>BOOT_COMPLETED</code> 로 다시 걸지 않는다. 카드는 다시 열면 맞는 상태를 보인다.</li>
+  <li>앱을 강제 종료하면 시스템이 그 앱의 알람을 지운다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 테스트(<code>FocusTimerTest</code>, <code>FocusSessionRepositoryTest</code>)는 <code>testAndroidHostTest</code> 로도 돈다. <code>FocusAlarm.android.kt</code> 는 컴파일(<code>:feature:focus:data:compileAndroidMain</code>)로만 확인했다. 기기에서 확인할 때는 카드에서 시작한 뒤 앱을 백그라운드로 보내고 <code>adb shell dumpsys alarm | grep jarvis</code> 로 알람이 걸린 것을 본다. 울리는 것까지 짧게 보려면 <code>FocusPhase</code> 길이를 임시로 줄인다.</p>
 </section>
 
 <section class="feature" id="battery">

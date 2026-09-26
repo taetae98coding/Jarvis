@@ -120,6 +120,8 @@ object JarvisIcons {
         )
     }
 
+    val Pause: ImageVector by lazy { outline("Pause", "M6 4h4v16H6zM14 4h4v16h-4z") }
+
     val Play: ImageVector by lazy { outline("Play", "M7 4l13 8-13 8z") }
 
     val Remove: ImageVector by lazy { outline("Remove", "M5 12h14") }
@@ -127,6 +129,8 @@ object JarvisIcons {
     val RotateLeft: ImageVector by lazy { outline("RotateLeft", "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5") }
 
     val RotateRight: ImageVector by lazy { outline("RotateRight", "M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5") }
+
+    val SkipForward: ImageVector by lazy { outline("SkipForward", "M5 4l10 8-10 8zM19 5v14") }
 
     val Smartphone: ImageVector by lazy {
         outline(
@@ -147,6 +151,8 @@ object JarvisIcons {
 
     val Terminal: ImageVector by lazy { outline("Terminal", "M4 17l6-6-6-6M12 19h8") }
 
+    val Timer: ImageVector by lazy { outline("Timer", "M10 2h4M12 14l3-3M4 14a8 8 0 1 0 16 0a8 8 0 1 0-16 0") }
+
     val User: ImageVector by lazy {
         outline(
             "User",
@@ -165,7 +171,7 @@ object JarvisIcons {
     internal val all: List<ImageVector>
         get() = listOf(
             Activity, Add, Android, Apple, Back, Battery, Check, ChevronDown, ChevronLeft, ChevronRight, Claude, Close, Edit, Eye, File, Folder, Forward, GitBranch,
-            Globe, Logs, Monitor, Moon, Play, Remove, RotateLeft, RotateRight, Smartphone, Sun, Terminal, User, Wifi,
+            Globe, Logs, Monitor, Moon, Pause, Play, Remove, RotateLeft, RotateRight, SkipForward, Smartphone, Sun, Terminal, Timer, User, Wifi,
         )
 }
 
