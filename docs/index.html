@@ -65,6 +65,7 @@
 │   ├── unit-converter.html          단위 변환 (길이·넓이(평)·무게·부피·온도·속도·데이터·시간·에너지)
 │   ├── text-tools.html              텍스트 도구 (글자 수 세기·비밀번호 생성·대소문자 변환)
 │   ├── calculator.html              계산기 (수식·퍼센트·BMI)
+│   ├── qr-code.html                 QR 코드 만들기 (텍스트·URL·Wi-Fi·연락처)
 │   ├── state-observation.html       상태 조회 규칙
 │   ├── emulator-count.html          에뮬레이터 개수
 │   ├── emulator-control.html        기기 목록·화면·제스처 (가상 기기 + 실물 기기)
@@ -243,6 +244,13 @@
       <td class="center"><a href="platform/ios.html#focus-timer"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/jvm.html#focus-timer"><span class="badge partial">조건부</span></a></td>
       <td class="center"><a href="platform/web.html#focus-timer"><span class="badge partial">조건부</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/qr-code.html">QR 코드 만들기</a></td>
+      <td class="center"><a href="platform/android.html#qr-code"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#qr-code"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#qr-code"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#qr-code"><span class="badge partial">조건부</span></a></td>
     </tr>
     <tr>
       <td><a href="common/dev-utilities.html">개발자 도구 모음</a></td>
@@ -638,6 +646,7 @@
   <li><a href="common/unit-converter.html">단위 변환</a><p>홈 카드에서 여는 화면에서 길이·넓이(평)·무게·부피·온도·속도·데이터·시간·에너지 단위를 바꾸고 값을 복사한다. 카드에 마지막 변환이 보인다</p></li>
   <li><a href="common/text-tools.html">텍스트 도구</a><p>홈 카드에서 여는 화면에서 글자 수(공백 포함·제외, 바이트, 목표 글자 수)를 세고, 안전한 비밀번호를 만들고, 대소문자·공백을 정리해 복사한다</p></li>
   <li><a href="common/calculator.html">계산기 (수식·퍼센트·BMI)</a><p>홈 카드에서 여는 화면에서 수식을 치는 대로 셈하고, 퍼센트 세 가지와 대한비만학회 기준 BMI 를 계산한다. 최근 계산을 다시 쓴다</p></li>
+  <li><a href="common/qr-code.html">QR 코드 만들기</a><p>홈 카드에서 여는 화면에서 텍스트·URL·Wi-Fi·연락처·전화·문자·이메일을 QR 코드로 만들고 담긴 문자열을 복사한다</p></li>
   <li><a href="common/state-observation.html">상태 조회 규칙</a><p>콜백이 있으면 콜백으로, 없으면 N초마다 다시 읽는다</p></li>
   <li><a href="common/emulator-count.html">에뮬레이터 개수</a><p>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터를 실행 중/전체로 센다</p></li>
   <li><a href="common/emulator-control.html">기기 목록·화면·제스처</a><p>가상 기기와 연결된 실물 기기 목록을 보고, 화면을 보면서 탭·스와이프를 보낸다</p></li>

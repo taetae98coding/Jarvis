@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR 코드 만들기 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>QR 코드 만들기</span></nav>
+
+<header>
+  <h1>QR 코드 만들기</h1>
+  <p class="lead">홈의 "QR 코드" 카드를 누르면 텍스트·URL, Wi-Fi, 연락처, 전화, 문자, 이메일을 QR 코드로 바로 만들고, 담긴 문자열을 복사한다. 카드는 마지막으로 만든 코드를 작게 보인다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>사람들이 많이 접속하는 url이나 appStore, playStore 다운로드 순위 참고해서 구현할 도구들 조사 후 추가해줘.</p>
+  <footer>2026-09-26 대화.</footer>
+</blockquote>
+
+<aside class="note">
+  <strong>왜 이 기능인가</strong>
+  App Store·Play Store 의 무료 유틸리티 차트 상위권에는 QR 코드 판독·생성 앱(QR Code Reader, QR Scanner, QRCodeSuite 류)이 꾸준히 올라 있고,
+  웹에서도 QR 생성 페이지(qr-code-generator.com, qrcode-monkey.com)가 방문자가 많은 도구 페이지다. 손님에게 Wi-Fi 를 알려 주거나, 개발 중인 앱의
+  딥 링크·빌드 URL 을 휴대폰 카메라로 넘기는 일은 Jarvis 사용자가 매일 하는 일이다. 생성은 순수 Kotlin 이라 Android·iOS·macOS·Web 네 곳에서 같은 코드를 낸다.
+</aside>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 홈 그리드 맨 끝에 "QR 코드" 카드가 있고, 누르면 QR 코드 화면으로 간다. 화면의 뒤로 버튼은 홈으로 돌아간다.
+    만들 수 있는 입력이 저장돼 있으면 카드는 그 코드를 작게 그리고 옆에 담긴 문자열을 보인다. 없으면 설명 문구만 보인다.</li>
+  <li><strong>R2.</strong> 화면 위쪽의 칩 여섯 개(텍스트·URL, Wi-Fi, 연락처, 전화, 문자, 이메일)로 종류를 고른다. 고른 칩 하나만 선택 상태이고, 종류마다 입력 칸이 바뀐다.</li>
+  <li><strong>R3.</strong> Wi-Fi: 네트워크 이름, 보안(WPA·WPA2·WPA3 / WEP / 없음), 비밀번호, 숨긴 네트워크 스위치로 <code>WIFI:T:WPA;S:&lt;이름&gt;;P:&lt;비밀번호&gt;;H:true;;</code> 를 만든다.
+    이름과 비밀번호의 <code>\ ; , : "</code> 앞에는 <code>\</code> 를 붙인다. 보안이 없음이면 <code>T:nopass</code> 이고 <code>P</code> 를 뺀다. 숨긴 네트워크가 아니면 <code>H</code> 를 뺀다.
+    이름이 없거나, 보안이 있는데 비밀번호가 없으면 코드 대신 "<i>칸 이름</i> 칸을 채워야 QR 코드가 나타납니다." 를 보인다.</li>
+  <li><strong>R4.</strong> 연락처: 이름·전화번호·이메일 중 채운 것만으로 MECARD <code>MECARD:N:…;TEL:…;EMAIL:…;;</code> 를 만든다. 값은 R3 과 같은 규칙으로 이스케이프하고, 전화번호의 공백은 뺀다.</li>
+  <li><strong>R5.</strong> 전화 <code>tel:&lt;번호&gt;</code>, 문자 <code>SMSTO:&lt;번호&gt;[:&lt;내용&gt;]</code>, 이메일 <code>mailto:&lt;주소&gt;[?subject=…&amp;body=…]</code>. 번호의 공백은 빼고, 이메일 제목·본문은 UTF-8 <code>%XX</code>(RFC 3986 비예약 문자만 그대로, 공백은 <code>%20</code>)로 적는다.
+    내용·제목·본문만 있고 번호·주소가 없으면 R3 과 같은 문구로 빠진 칸을 알린다.</li>
+  <li><strong>R6.</strong> 텍스트·URL 은 친 그대로 담는다. 어느 종류든 칸이 모두 비어 있으면 "내용을 넣으면 QR 코드가 나타납니다." 를 보인다.</li>
+  <li><strong>R7.</strong> 오류 정정 칩 넷(L 7%, M 15%, Q 25%, H 30%)으로 단계를 고른다. 기본은 M 이다. 코드는 그 단계를 그대로 쓰고, 남는 자리가 있어도 단계를 올리지 않는다.</li>
+  <li><strong>R8.</strong> 마지막 종류, 칸마다의 값, 오류 정정 단계가 앱을 껐다 켜도 남는다. <strong>Wi-Fi 비밀번호만은 저장하지 않고</strong> 앱이 떠 있는 동안만 기억한다(<a href="#decision-password">결정</a>).</li>
+  <li><strong>R9.</strong> 코드는 ISO/IEC 18004 QR 코드 모델 2 다. 입력이 전부 숫자면 숫자 모드, 전부 영숫자 45자(<code>0–9 A–Z</code>, 공백, <code>$%*+-./:</code>)면 영숫자 모드, 아니면 UTF-8 바이트 모드로 한 세그먼트에 담는다.
+    버전은 1–40 중 들어가는 가장 작은 것이고, 여덟 마스크 중 벌점(N1–N4)이 가장 낮은 것을 고른다.</li>
+  <li><strong>R10.</strong> 버전 40 에도 들어가지 않으면 코드 대신 오류 색으로 "QR 코드에 담기에 너무 깁니다. 지금 <i>n</i>바이트, 이 오류 정정 단계의 최대는 <i>m</i>바이트입니다." 를 보인다
+    (숫자·영숫자 모드면 단위가 "자"). 바이트 모드의 최대는 L 2953, M 2331, Q 1663, H 1273 이다.</li>
+  <li><strong>R11.</strong> 코드는 테마와 상관없이 흰 바탕에 검은 모듈로, 둘레에 4 모듈 이상의 조용한 영역을 두고 그린다. 모듈 한 칸은 1 px 이상이면 정수 픽셀로 맞춘다.</li>
+  <li><strong>R12.</strong> 코드 아래에 버전·크기·오류 정정 단계와 담긴 문자열(선택 가능)을 보이고, "텍스트 복사" 버튼은 그 문자열을 시스템 클립보드에 넣는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong>QR 판독(스캔).</strong> 차트 상위 앱의 절반은 판독기지만, 카메라 권한과 미리보기·판독 API 가 플랫폼마다 다르다(Android CameraX + ML Kit, iOS <code>AVCaptureMetadataOutput</code>,
+      macOS 는 카메라가 없는 기기도 많고, Web 은 <code>BarcodeDetector</code> 가 Chrome 계열에만 있다). 이 변경은 생성만 하고 판독은 따로 스펙을 세워 뒤따른다.
+      판독 없이도 휴대폰 기본 카메라가 만든 코드를 읽으므로 생성만으로 쓸모가 있다.</li>
+    <li><strong>이미지 저장·공유.</strong> PNG 로 저장하거나 공유 시트에 넘기려면 Android <code>MediaStore</code>·<code>Intent.ACTION_SEND</code>, iOS <code>UIActivityViewController</code>,
+      macOS 저장 대화상자, Web <code>&lt;a download&gt;</code> 로 네 개의 <code>actual</code> 이 생긴다. 지금은 문자열 복사만 두고, 이미지는 화면을 보여 주거나 스크린숏으로 넘긴다. 뒤따를 일로 남긴다.</li>
+    <li><strong>여러 모드를 섞는 세그먼트 최적화</strong>(예: 숫자 긴 구간만 숫자 모드). 이 앱의 입력은 대부분 소문자가 섞인 URL·Wi-Fi·연락처라 어차피 바이트 모드이고, 얻는 것이 몇 비트다.</li>
+    <li><strong>ECI(UTF-8 지정자).</strong> 바이트 모드에 ECI 26 을 붙이면 표준대로 UTF-8 임을 밝히지만, 오래된 판독기 일부는 ECI 를 모르면 통째로 읽지 못한다.
+      iOS·Android 카메라와 ZXing 계열은 ECI 없이도 UTF-8 을 알아보므로 붙이지 않는다.</li>
+    <li>vCard, 일정(<code>BEGIN:VEVENT</code>), 위치(<code>geo:</code>), 색·로고를 넣은 꾸민 코드, Micro QR.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>카드 제목</td><td>QR 코드 (아이콘 <code>JarvisIcons.QrCode</code>, 오른쪽 끝 <code>ChevronRight</code>)</td></tr>
+    <tr><td>카드 내용</td><td>코드가 있으면 작은 코드(<code>QrCodeCardDefaults.imageSize</code> = spacing.xxl × 4)와 담긴 문자열(최대 네 줄, 말줄임). 없으면 "텍스트·URL·Wi-Fi·연락처를 QR 코드로 만든다. 눌러서 연다."</td></tr>
+    <tr><td>화면 상단 막대</td><td>제목 "QR 코드", 뒤로 버튼(<code>JarvisTopBar</code>)</td></tr>
+    <tr><td>종류 칩</td><td><code>FilterChip</code> 여섯 개, 넘치면 다음 줄로(<code>FlowRow</code>)</td></tr>
+    <tr><td>입력 칸</td><td><code>OutlinedTextField</code>, 칸 이름이 라벨이다. 텍스트·URL: 여러 줄. Wi-Fi: 네트워크 이름(SSID), 보안 칩 셋, 비밀번호(보안이 없음이면 숨김, 보조 문구 "비밀번호는 기기에 저장하지 않습니다. 앱을 다시 열면 다시 넣어야 합니다."), "숨긴 네트워크" 스위치.
+      연락처: 이름·전화번호·이메일 주소. 전화: 전화번호. 문자: 전화번호·내용(여러 줄). 이메일: 이메일 주소·제목·본문(여러 줄). 전화번호·이메일 칸은 그에 맞는 키보드 종류를 요청한다</td></tr>
+    <tr><td>오류 정정</td><td>"오류 정정" 제목 아래 칩 넷: L 7%, M 15%, Q 25%, H 30%</td></tr>
+    <tr><td>결과 카드</td><td>코드가 있으면: 정사각형 코드(화면 폭, 최대 <code>QrCodeScreenDefaults.maxImageSize</code> = gridMinCellWidth × 2), "버전 <i>v</i> · <i>n</i>×<i>n</i> 모듈 · 오류 정정 <i>L</i>", 고정폭 글꼴의 담긴 문자열(선택 가능),
+      "텍스트 복사" 버튼(<code>JarvisIcons.Copy</code> + 글자). 없으면 R3·R6·R10 의 문구(너무 길 때만 <code>colorScheme.error</code>)</td></tr>
+    <tr><td>코드 이미지</td><td>contentDescription "QR 코드". 색은 <code>JarvisTheme.colors.scanCodeDark</code>·<code>scanCodeLight</code></td></tr>
+    <tr><td>테스트 태그</td><td>카드 <code>feature:qrcode</code>, 카드 속 코드 <code>qrcode:card:image</code>, 화면 <code>qrcode:screen</code>, 종류 칩 <code>qrcode:type:&lt;storedValue&gt;</code>, 칸 <code>qrcode:field:&lt;storedValue&gt;</code>,
+      오류 정정 칩 <code>qrcode:ecc:&lt;L|M|Q|H&gt;</code>, 보안 칩 <code>qrcode:security:&lt;WPA|WEP|nopass&gt;</code>, 숨긴 네트워크 스위치 <code>qrcode:hidden</code>, 코드 <code>qrcode:image</code>,
+      담긴 문자열 <code>qrcode:payload</code>, 복사 버튼 <code>qrcode:copy</code>, 안내·오류 문구 <code>qrcode:message</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd><code>feature/qrcode/domain/…/qrcode/</code> — 인코더 <code>QrEncoder</code>(<code>encode(text, errorCorrection, mask?)</code> → <code>QrEncodeResult.Success(QrCode)</code> | <code>TooLong(mode, limit, length)</code>),
+    <code>QrSymbolBuilder</code>(기능 패턴·코드워드 배치·마스크·형식/버전 정보), <code>ReedSolomon</code>(GF(256)), <code>QrSegment</code>·<code>BitBuffer</code>, <code>QrTables</code>(ISO 표 9 의 블록 구성·정렬 패턴 위치),
+    결과 <code>QrCode(version, errorCorrection, mask, mode, matrix)</code>·<code>QrMatrix(size, isDark(x, y))</code>.
+    입력 모델 <code>QrContentType</code>·<code>QrField</code>·<code>WifiSecurity</code>·<code>QrCodeInput</code>, 문자열 조립 <code>QrPayload</code>, <code>QrCodeSettingsRepository</code>,
+    유스케이스 <code>ObserveQrCodeInputUseCase</code>·<code>SelectQrContentTypeUseCase</code>·<code>SetQrFieldUseCase</code>·<code>SetQrErrorCorrectionUseCase</code>·<code>GenerateQrCodeUseCase</code>(입력 → <code>QrCodeResult</code>: Empty | Missing | TooLong | Ready)</dd>
+  <dt>data</dt><dd><code>DefaultQrCodeSettingsRepository</code> — <code>SettingsStore</code> 문자열 키 <code>qrcode_type</code>, <code>qrcode_error_correction</code>, <code>qrcode_field_&lt;storedValue&gt;</code>.
+    저장하지 않는 칸(<code>QrField.persisted = false</code>, 지금은 <code>WIFI_PASSWORD</code>)은 리포지토리 안의 <code>MutableStateFlow</code> 에 든다. 리포지토리가 <code>single</code> 이라 카드와 화면이 같은 값을 본다</dd>
+  <dt>ui</dt><dd><code>QrCodeCard</code>(인자 없음), <code>QrCodeScreen</code>, <code>QrCodeImage</code>(Canvas), <code>QrCodeViewModel</code>·<code>QrCodeCardViewModel</code>(internal), <code>QrCodeRoute</code>(Navigation3 키).
+    Koin 모듈은 <code>qrCodeDomainModule</code>·<code>qrCodeDataModule</code>·<code>qrCodeUiModule</code></dd>
+  <dt>상태</dt><dd>리포지토리의 <code>observeInput()</code> 은 저장소 변경 신호 하나(<code>observeSystemState(store.changes, SettingsPollInterval)</code>)에 모든 칸을 다시 읽고 메모리 칸과 <code>combine</code> 한다.
+    ViewModel 은 그것과 화면이 방금 넘긴 칸 값(drafts)을 합쳐 <code>stateIn(viewModelScope, WhileSubscribed(), …initial())</code> 하고, 결과는 그 입력을 <code>GenerateQrCodeUseCase</code> 에 넘긴 값이다.
+    카드의 ViewModel 은 저장된 입력만 본다</dd>
+  <dt>expect</dt><dd>없음. 클립보드는 Compose 의 <code>LocalClipboardManager</code> 가 플랫폼 구현을 준다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 인코더를 domain 의 순수 Kotlin 으로 직접 짠다</strong>
+  domain 은 <code>kotlinx-coroutines-core</code>·<code>koin-core</code> 만 쓴다(<a href="module-architecture.html">모듈 구조</a>). 플랫폼 생성기(iOS·macOS <code>CIQRCodeGenerator</code>, Android 는 ZXing 을 들여야 함, Web 은 없음)를 쓰면
+  <code>actual</code> 이 넷이 되고 버전·마스크 선택이 플랫폼마다 달라진다. 구조는 Project Nayuki 의 QR Code generator library(MIT, <a href="https://www.nayuki.io/page/qr-code-generator-library">nayuki.io</a>)를 옮겼다:
+  세그먼트 → 비트열(종결자·바이트 정렬·<code>0xEC 0x11</code> 채움) → 블록마다 리드–솔로몬(원시 다항식 <code>0x11D</code>) → 짧은 블록·긴 블록 교차 배치 → 지그재그 배치 → 여덟 마스크 벌점 → 형식 정보 BCH(15,5, <code>0x537</code>, XOR <code>0x5412</code>)·버전 정보 BCH(18,6, <code>0x1F25</code>).
+  Nayuki 의 <code>boostEcl</code>(남는 자리에서 단계를 올림)은 사용자가 고른 단계를 그대로 보이려고 뺐다(R7). 벌점의 N4 는 정수로만 계산해 네 타깃이 같은 마스크를 고른다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 연락처는 vCard 3.0 이 아니라 MECARD</strong>
+  같은 이름·번호·이메일이 MECARD 로는 약 50 바이트, vCard 3.0(<code>BEGIN:VCARD</code>·<code>VERSION:3.0</code>·<code>FN</code>·<code>N</code>·<code>END:VCARD</code> 와 CRLF)으로는 약 100 바이트다. 코드가 한두 버전 작아지면 모듈이 커져 화면을 멀리서도 읽는다.
+  iOS 카메라와 Android 카메라(Google 렌즈)·ZXing 계열이 모두 MECARD 를 연락처로 연다. 이스케이프 규칙이 Wi-Fi 와 같아 <code>QrPayload.escape</code> 하나로 끝난다.
+  vCard 가 필요한 항목(주소·회사·여러 번호)은 입력 칸을 늘릴 때 다시 본다.
+</aside>
+
+<aside class="decision" id="decision-password">
+  <strong>결정: Wi-Fi 비밀번호는 저장하지 않는다</strong>
+  <code>SettingsStore</code> 는 평문이다: Android <code>SharedPreferences</code> XML(자동 백업에 실려 클라우드로 간다), iOS <code>NSUserDefaults</code> plist(iCloud·기기 백업), macOS <code>~/Library/Preferences</code> plist, Web <code>localStorage</code>(같은 출처의 모든 스크립트가 읽는다).
+  네트워크 이름·보안 방식은 남기고 비밀번호는 앱이 떠 있는 동안만 메모리에 둔다. 앱을 다시 열면 Wi-Fi 종류의 카드는 비밀번호가 빠져 코드를 만들지 않고 설명 문구를 보이며, 화면은 비밀번호 칸을 채우라고 알린다.
+  키체인·Keystore 에 넣는 길은 <code>actual</code> 넷과 Web 의 대안 부재 때문에 버렸다.
+</aside>
+
+<aside class="decision" id="decision-colors">
+  <strong>결정: 코드 색은 테마를 따르지 않는 토큰</strong>
+  판독기는 밝은 바탕의 어두운 모듈을 가정하고, 반전(다크 테마의 흰 모듈) 코드를 못 읽는 판독기가 많다. 그래서 다크 테마에서도 검정 <code>#000000</code> 모듈과 흰 <code>#FFFFFF</code> 바탕을 쓴다.
+  <code>ui</code> 에 <code>Color(…)</code> 를 쓰지 않도록 <code>JarvisColors</code> 에 두 테마 공통 토큰 <code>scanCodeDark</code>·<code>scanCodeLight</code> 를 더했다(<a href="design-system.html#tokens">토큰 표</a>, 터미널 색과 같은 방식).
+  조용한 영역 4 모듈은 dp 가 아니라 모듈 수라 <code>QrCodeImageDefaults.QuietZoneModules</code> 상수다. 모듈 크기를 정수 픽셀로 내리는 것은, 소수 픽셀 칸 사이에 안티에일리어싱 회색 실선이 생겨 모듈 경계를 흐리지 않게 하려는 것이다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 입력 칸은 화면이 들고, 저장소는 뒤따라 적는다</strong>
+  <a href="dev-utilities.html#implementation">개발자 도구</a>와 같다. 칸마다 <code>TextFieldState</code> 를 종류가 바뀔 때 한 번 채우고 스스로 들며, 바뀔 때마다 <code>SetQrFieldUseCase</code> 로 적는다.
+  ViewModel 은 칸마다 마지막으로 받은 값을 저장값 위에 덮어 코드를 만들므로, 저장 신호가 늦게 와도 코드가 입력을 곧바로 따라간다. 복사는 <code>LocalClipboardManager.setText</code> 로, 개발자 도구와 같은 사정이다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>공통 인코더, Skia Canvas, <code>ClipboardManager.setPrimaryClip</code>, <code>SharedPreferences</code></td><td><a href="../platform/android.html#qr-code">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>공통 인코더, Skiko Canvas, <code>UIPasteboard.generalPasteboard</code>, <code>NSUserDefaults</code></td><td><a href="../platform/ios.html#qr-code">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 인코더, Skiko Canvas, AWT 시스템 클립보드, <code>java.util.prefs</code>. CoreImage 판독으로 확인했다</td><td><a href="../platform/jvm.html#qr-code">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>공통 인코더, Skiko(Canvas), <code>navigator.clipboard.writeText</code>(보안 컨텍스트), <code>localStorage</code></td><td><a href="../platform/web.html#qr-code">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>QrEncoderTest</code></td><td>R7·R9·R10. "HELLO WORLD" 1-Q 의 데이터 코드워드와 리드–솔로몬 ECC(thonky.com 튜토리얼), ISO 부록 "01234567" 1-M 벡터, GF(256) 곱셈,
+      형식 정보 32개(ISO 표 C.1)와 버전 정보(7·8·27·40), 원시·데이터 코드워드 수, 정렬 패턴 위치, 모드별 최대 길이(ISO 용량 표), 버전 경계(1↔2, 9↔10 의 문자 수 표시자 변화, 40),
+      너무 긴 입력의 한도, UTF-8 바이트 수, 기능 패턴·형식 정보 두 사본·버전 정보 두 사본의 위치, "HELLO WORLD" Q 마스크 0 의 기준 격자 전체, 자동 마스크가 강제 마스크와 같은 격자를 냄, 버전 40 생성</td>
+      <td><code>:feature:qrcode:domain</code> <code>commonTest</code> — Wasm·iOS 에서도 돌아 정수 비트 연산이 타깃마다 같은지 확인한다</td></tr>
+    <tr><td><code>QrPayloadTest</code></td><td>R3–R6. Wi-Fi 이스케이프 다섯 글자, 보안 셋·숨김, 빠진 칸 알림, MECARD 의 채운 칸만·이스케이프, <code>tel:</code>·<code>SMSTO:</code>·<code>mailto:</code> 퍼센트 인코딩, 다른 종류 칸 무시</td><td>같음</td></tr>
+    <tr><td><code>QrCodeUseCasesTest</code></td><td>R7·R10. 고른 단계로 생성, Empty·Missing·TooLong 전달, 명령이 리포지토리에 적힘</td><td>같음</td></tr>
+    <tr><td><code>QrCodeSettingsRepositoryTest</code></td><td>R8. 기본값(텍스트·M), 종류·칸·단계가 새 리포지토리에서 되읽힘, Wi-Fi 비밀번호는 저장소에 쓰이지 않음, 모르는 저장값, 관찰이 두 저장소의 쓰기를 따라가고 수집이 끝나면 리스너가 풀림</td><td><code>:feature:qrcode:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>QrCodeScreenTest</code></td><td>R2·R3·R6·R7·R10·R12. 빈 입력 문구, 입력하면 코드와 문자열이 보이고 복사됨, 종류·단계 칩, Wi-Fi 폼의 이스케이프·보안 없음, 너무 긴 입력의 한도 문구, 카드는 코드가 있을 때만 그림</td><td><code>:feature:qrcode:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppQrCodeTest</code></td><td>R1·R8·R12. 홈 카드 → 화면 → 뒤로, 종류·칸·단계가 저장소에 적히고 복사됨, 저장된 입력이 카드 코드와 화면 칸으로 복원됨</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td>판독 확인(수동, 2026-09-26)</td><td>R9·R11. 인코더 격자 21개(마스크 0–7, L·M·Q·H, 숫자·영숫자·UTF-8·이모지, Wi-Fi·MECARD, 버전 1–40)와 <code>QrCodeImage</code> 를 라이트·다크 테마에서 96·300·440 dp 로 그린 PNG 5개를
+      macOS CoreImage <code>CIDetector(CIDetectorTypeQRCode)</code> 로 읽어 모두 원문과 같았고, 판독기가 보고한 버전·마스크·단계도 인코더와 같았다. 기준 격자는 이 판독을 거친 것이다</td><td>—</td></tr>
+    <tr><td>수동 확인</td><td>R11. 휴대폰 카메라로 실제 화면의 코드를 읽기 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>카드의 작은 코드는 미리보기다. 긴 입력(버전 20 이상)은 모듈이 1 px 안팎이라 카드에서는 읽히지 않을 수 있고, 화면의 큰 코드를 써야 한다.</li>
+  <li>앱을 다시 열면 Wi-Fi 비밀번호를 다시 넣어야 한다(<a href="#decision-password">결정</a>).</li>
+  <li>Web 은 HTTPS·localhost 가 아니면 복사가 조용히 실패한다(<a href="../platform/web.html#qr-code">web.html</a>).</li>
+  <li>입력마다 코드를 메인 스레드에서 다시 만든다(여덟 마스크 벌점 포함). 짧은 입력은 눈에 띄지 않지만, 버전 40 에 가까운 수천 자를 붙여 넣으면 그 순간 프레임이 늦을 수 있다. 문제가 되면 생성만 <code>Dispatchers.Default</code> 로 옮긴다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

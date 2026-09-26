@@ -16,11 +16,17 @@ class JarvisColors(
     val onWarningContainer: Color,
     val terminalBackground: Color,
     val terminalForeground: Color,
+    val scanCodeDark: Color,
+    val scanCodeLight: Color,
 )
 
 // 셸 프로그램은 어두운 배경을 가정해서 색을 고른다. 라이트 테마에서도 터미널은 어둡게 둔다.
 private val TerminalBackground = Color(0xFF1E1E1E)
 private val TerminalForeground = Color(0xFFD4D4D4)
+
+// QR 코드 판독기는 밝은 바탕의 어두운 모듈을 가정하고, 반전된 코드는 못 읽는 것이 많다. 다크 테마에서도 흑백 그대로 둔다.
+private val ScanCodeDark = Color(0xFF000000)
+private val ScanCodeLight = Color(0xFFFFFFFF)
 
 internal val JarvisLightColors = JarvisColors(
     success = Color(0xFF1B6D2F),
@@ -33,6 +39,8 @@ internal val JarvisLightColors = JarvisColors(
     onWarningContainer = Color(0xFF271900),
     terminalBackground = TerminalBackground,
     terminalForeground = TerminalForeground,
+    scanCodeDark = ScanCodeDark,
+    scanCodeLight = ScanCodeLight,
 )
 
 internal val JarvisDarkColors = JarvisColors(
@@ -46,4 +54,6 @@ internal val JarvisDarkColors = JarvisColors(
     onWarningContainer = Color(0xFFFFDEA6),
     terminalBackground = TerminalBackground,
     terminalForeground = TerminalForeground,
+    scanCodeDark = ScanCodeDark,
+    scanCodeLight = ScanCodeLight,
 )

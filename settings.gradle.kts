@@ -93,6 +93,10 @@ include(":feature:texttools:domain")
 include(":feature:texttools:data")
 include(":feature:texttools:ui")
 
+include(":feature:qrcode:domain")
+include(":feature:qrcode:data")
+include(":feature:qrcode:ui")
+
 include(":feature:mcp:domain")
 include(":feature:mcp:data")
 

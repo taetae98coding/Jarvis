@@ -52,6 +52,12 @@ import io.github.taetae98coding.jarvis.domain.texttools.TextLimit
 import io.github.taetae98coding.jarvis.domain.texttools.TextTool
 import io.github.taetae98coding.jarvis.domain.texttools.TextToolsSettingsRepository
 import io.github.taetae98coding.jarvis.domain.texttools.textToolsDomainModule
+import io.github.taetae98coding.jarvis.domain.qrcode.QrCodeInput
+import io.github.taetae98coding.jarvis.domain.qrcode.QrCodeSettingsRepository
+import io.github.taetae98coding.jarvis.domain.qrcode.QrContentType
+import io.github.taetae98coding.jarvis.domain.qrcode.QrErrorCorrection
+import io.github.taetae98coding.jarvis.domain.qrcode.QrField
+import io.github.taetae98coding.jarvis.domain.qrcode.qrCodeDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.Profiling
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
@@ -120,6 +126,7 @@ import io.github.taetae98coding.jarvis.ui.calculator.calculatorUiModule
 import io.github.taetae98coding.jarvis.ui.devtools.devToolsUiModule
 import io.github.taetae98coding.jarvis.ui.unitconverter.unitConverterUiModule
 import io.github.taetae98coding.jarvis.ui.texttools.textToolsUiModule
+import io.github.taetae98coding.jarvis.ui.qrcode.qrCodeUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
@@ -188,6 +195,7 @@ internal fun TestJarvisApp(
     unitConverter: UnitConverterSettingsRepository = FakeUnitConverterSettingsRepository(),
     textTools: TextToolsSettingsRepository = FakeTextToolsSettingsRepository(),
     calculator: CalculatorSettingsRepository = FakeCalculatorSettingsRepository(),
+    qrCode: QrCodeSettingsRepository = FakeQrCodeSettingsRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -233,6 +241,7 @@ internal fun TestJarvisApp(
             // 비밀번호 생성기는 CSPRNG 가 아니어도 된다. 화면이 열리는지만 본다.
             single<SecureRandomSource> { SecureRandomSource { 0 } }
             single<CalculatorSettingsRepository> { calculator }
+            single<QrCodeSettingsRepository> { qrCode }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -255,6 +264,7 @@ internal fun TestJarvisApp(
                 unitConverterDomainModule, unitConverterUiModule,
                 textToolsDomainModule, textToolsUiModule,
                 calculatorDomainModule, calculatorUiModule,
+                qrCodeDomainModule, qrCodeUiModule,
                 appUiModule,
             )
         }
@@ -944,6 +954,10 @@ internal class FakeTextToolsSettingsRepository : TextToolsSettingsRepository {
     override fun setSelectedTool(tool: TextTool) {
         this.tool.value = tool
     }
+}
+
+internal class FakeQrCodeSettingsRepository : QrCodeSettingsRepository {
+    val input = MutableStateFlow(QrCodeInput())
 
     override fun observeInput() = input
 
@@ -997,5 +1011,15 @@ internal class FakeCalculatorSettingsRepository : CalculatorSettingsRepository {
 
     override fun setHistory(expressions: List<String>) {
         history.value = expressions
+    override fun setContentType(type: QrContentType) {
+        input.value = input.value.copy(type = type)
+    }
+
+    override fun setField(field: QrField, value: String) {
+        input.value = input.value.copy(fields = input.value.fields + (field to value))
+    }
+
+    override fun setErrorCorrection(errorCorrection: QrErrorCorrection) {
+        input.value = input.value.copy(errorCorrection = errorCorrection)
     }
 }

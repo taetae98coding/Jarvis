@@ -21,6 +21,7 @@ kotlin {
             api(projects.feature.unitconverter.ui)
             api(projects.feature.texttools.ui)
             api(projects.feature.calculator.ui)
+            api(projects.feature.qrcode.ui)
             implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }

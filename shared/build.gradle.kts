@@ -37,6 +37,7 @@ kotlin {
             implementation(projects.feature.unitconverter.data)
             implementation(projects.feature.texttools.data)
             implementation(projects.feature.calculator.data)
+            implementation(projects.feature.qrcode.data)
         }
 
         androidMain.dependencies {
