@@ -45,6 +45,7 @@
     <li><a href="#profiling">프로파일링</a></li>
     <li><a href="#focus-timer">집중 타이머</a></li>
     <li><a href="#dev-utilities">개발자 도구 모음</a></li>
+    <li><a href="#unit-converter">단위 변환</a></li>
     <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
@@ -589,6 +590,39 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>:feature:devtools:domain</code>·<code>:feature:devtools:data</code> 의 공통 테스트가 <code>testAndroidHostTest</code> 로도 돈다(해시 벡터 포함). 화면과 복사는 <code>:androidApp:assembleDebug</code> 컴파일로만 확인했고, 기기에서 복사해 다른 앱에 붙여 넣는 것은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="unit-converter">
+<h2>단위 변환 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/unit-converter.html">단위 변환</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>변환·숫자 쓰기</td><td>채택. 전부 <code>:feature:unitconverter:domain</code> 의 공통 Kotlin 이다. 반올림은 <code>kotlin.math</code> 와 <code>Long</code> 으로 직접 하고, 입력 문법은 정규식으로 좁힌 뒤 <code>toDoubleOrNull</code> 로 읽는다(<a href="../common/unit-converter.html#implementation">공통 결정</a>)</td></tr>
+    <tr><td>숫자 쓰기: <code>java.text.DecimalFormat</code>·<code>android.icu.number.NumberFormatter</code></td><td>버렸다. 기기 로캘에 따라 소수점이 쉼표가 되어 복사한 값이 다른 타깃과 달라지고, iOS·Web 에 같은 것이 없어 <code>actual</code> 넷이 생긴다</td></tr>
+    <tr><td>키패드: <code>KeyboardType.Decimal</code></td><td>채택. Compose 가 <code>EditorInfo.inputType = TYPE_CLASS_NUMBER | TYPE_NUMBER_FLAG_DECIMAL</code> 로 넘겨 숫자 키패드가 뜬다. <code>TYPE_NUMBER_FLAG_SIGNED</code> 를 켜는 <code>KeyboardType</code> 이 없어 Gboard 등에서 <code>-</code> 키가 없을 수 있으므로 "부호 바꾸기" 버튼을 둔다</td></tr>
+    <tr><td>키패드: <code>KeyboardType.Text</code></td><td>버렸다. 음수는 칠 수 있지만 숫자를 넣는 대부분의 경우에 글자 자판이 뜬다</td></tr>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code>(<code>AndroidClipboardManager</code>)</td><td>채택. <code>setText</code> 가 <code>ClipboardManager.setPrimaryClip(ClipData.newPlainText(…))</code> 를 부른다(<a href="#dev-utilities">개발자 도구</a>와 같은 경로). 권한이 필요 없고, Android 13+ 는 시스템이 "복사됨" 오버레이를 띄운다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>SharedPreferences</code> <code>jarvis.settings</code>)</td><td>채택. 문자열 키 <code>unitconverter_category</code>, <code>unitconverter_&lt;분류&gt;_from·_to·_input</code>. 변경은 <code>OnSharedPreferenceChangeListener</code> 로 온다(<a href="#settings-persistence">설정 영구 저장</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/unitconverter/{domain,data,ui}/src/commonMain/…</code>. 이 타깃만의 코드는 없다</dd>
+  <dt>동작</dt><dd>카드를 누르면 화면이 열리고, 값 칸을 누르면 숫자 키패드가 뜬다. 결과의 복사 버튼과 목록 줄이 시스템 클립보드에 숫자를 넣는다</dd>
+  <dt>실패</dt><dd><code>setPrimaryClip</code> 이 던지면(업무 프로필 정책 등) <code>runCatching</code> 으로 삼키고 아무것도 복사되지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>키패드에 쉼표 키가 없는 IME 가 있다. 쉼표는 입력에서 무시하므로 빠져도 값이 같다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:unitconverter:domain</code>·<code>:feature:unitconverter:data</code> 의 공통 테스트가 <code>testAndroidHostTest</code> 로도 돈다. 화면·키패드·복사는 기기에서 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="battery">

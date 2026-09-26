@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단위 변환 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>단위 변환</span></nav>
+
+<header>
+  <h1>단위 변환</h1>
+  <p class="lead">홈의 "단위 변환" 카드를 누르면 길이·넓이(평)·무게(근·돈)·부피·온도·속도·데이터·시간·에너지 단위를 서로 바꾸고, 결과와 그 분류의 모든 단위 값을 눌러 복사한다. 카드에는 마지막 변환이 보인다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>사람들이 많이 접속하는 url이나 appStore, playStore 다운로드 순위 참고해서 구현할 도구들 조사 후 추가해줘.</p>
+  <footer>2026-09-26 대화. 조사 결과 고른 도구 여럿 가운데 이 문서는 단위 변환을 맡는다.</footer>
+</blockquote>
+
+<aside class="note">
+  <strong>왜 이 기능인가</strong>
+  Play 스토어·App Store 의 도구(Tools/Utilities) 분류 상위 앱 가운데 "나침반·돋보기·단위 변환기" 를 한데 묶은 올인원 도구 앱이 꾸준히 오르고, 단위 변환기 단독 앱도 많이 받는다.
+  웹에서는 unitconverters.net, rapidtables.com, calculator.net 의 변환 페이지가 트래픽이 큰 계산 사이트다.
+  한국에서는 "평 계산기"·"평수 계산" 이 흔한 검색어다. 부동산은 여전히 평으로 말하는데 계량법은 m² 로 적게 해서, 두 단위를 오가야 하는 일이 잦다.
+  그래서 국제 단위와 함께 평·자·근·돈·냥·되 같은 척관법 단위를 넣는다. 변환은 순수 Kotlin 이라 네 플랫폼에서 같은 결과를 낸다.
+</aside>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 홈 그리드 끝에 "단위 변환" 카드가 있고, 누르면 단위 변환 화면으로 간다. 화면의 뒤로 버튼은 홈으로 돌아간다.</li>
+  <li><strong>R2.</strong> 화면 위쪽의 칩 아홉 개(길이, 넓이, 무게, 부피, 온도, 속도, 데이터, 시간, 에너지)로 분류를 고른다. 고른 칩 하나만 선택 상태다.</li>
+  <li><strong>R3.</strong> 분류마다 <a href="#definitions">단위 표</a>의 단위가 있다. "변환할 단위" 와 "바꿀 단위" 메뉴는 고른 분류의 단위만 보인다.
+    두 메뉴 사이의 "단위 서로 바꾸기" 버튼은 두 단위를 맞바꾼다.</li>
+  <li><strong>R4.</strong> 값 칸에 숫자를 넣으면 결과("<i>값</i> <i>기호</i>", 예 <code>3.30578512397 m²</code>)와, 그 분류의 모든 단위로 바꾼 값 목록을 단위 표 순서로 보인다.
+    값 칸 옆 "부호 바꾸기" 버튼은 앞의 <code>-</code> 를 붙이거나 뗀다.</li>
+  <li><strong>R5.</strong> 입력은 <a href="#number-format">숫자 규칙</a>을 따른다. 비어 있으면 결과도 목록도 없고, 숫자가 아니면 오류 문구만 보인다.</li>
+  <li><strong>R6.</strong> 값은 <a href="#definitions">정의</a>대로 바꾼다. 곱셈 단위는 기준 단위를 거친 비례 변환이고, 온도는 섭씨·화씨·켈빈 사이의 1차 변환(<code>°F = °C × 9/5 + 32</code>, <code>K = °C + 273.15</code>)이다.</li>
+  <li><strong>R7.</strong> 결과는 <a href="#number-format">숫자 규칙</a>대로 부동소수 찌꺼기 없이 쓴다(예: <code>100 °C = 212 °F</code>, <code>0.1 + 0.2</code> 는 <code>0.3</code>).</li>
+  <li><strong>R8.</strong> 결과 카드의 복사 버튼과 목록의 각 줄을 누르면 그 값의 숫자(기호 없이)가 시스템 클립보드에 들어간다. Double 범위를 넘은 줄은 "범위를 벗어남" 이고 복사되지 않는다.</li>
+  <li><strong>R9.</strong> 마지막에 고른 분류와 분류마다의 두 단위·입력이 앱을 껐다 켜도 남는다. 분류를 오가면 그 분류에서 쓰던 단위와 값이 돌아온다.</li>
+  <li><strong>R10.</strong> 카드는 마지막 분류의 변환이 숫자이면 "<i>입력</i> <i>기호</i> = <i>결과</i> <i>기호</i>"(예 <code>84 m² = 25.41 평</code>)를, 아니면 설명 문구를 보인다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>통화 환율. 값이 매일 바뀌어 네트워크와 제공자가 필요하고, 오프라인 순수 계산인 이 기능과 성격이 다르다.</li>
+    <li>수식 입력(<code>3×4 평</code>). 계산기는 별개 기능이다. 입력은 숫자 하나다.</li>
+    <li>분류마다 단위를 사용자가 더하고 빼기. 단위 표는 고정이다.</li>
+    <li>압력·각도·연비 같은 분류. 지시에서 요구하지 않았고, 요청이 오면 <code>UnitCategory</code>·<code>MeasureUnit</code> 에 줄을 더하면 된다.</li>
+    <li>채소 근(375 g)·중국 근(500 g). 근은 고기 근 600 g 하나만 둔다(<a href="#definitions">정의</a>).</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>카드 제목</td><td>단위 변환 (아이콘 <code>JarvisIcons.Ruler</code>, 오른쪽 끝 <code>ChevronRight</code>)</td></tr>
+    <tr><td>카드 본문</td><td>마지막 변환 "84 m² = 25.41 평"(<code>titleSmall</code>), 없으면 "길이·넓이(평)·무게(근·돈)·부피·온도·속도·데이터·시간·에너지. 눌러서 열고 값을 넣는다."</td></tr>
+    <tr><td>화면 상단 막대</td><td>제목 "단위 변환", 뒤로 버튼(<code>JarvisTopBar</code>)</td></tr>
+    <tr><td>분류 칩</td><td><code>FilterChip</code> 아홉 개, 줄이 넘치면 다음 줄로(<code>FlowRow</code>)</td></tr>
+    <tr><td>값 칸</td><td>한 줄 <code>OutlinedTextField</code>, 자리표시 "값", 뒤에 변환할 단위의 기호, 숫자 키패드(<code>KeyboardType.Decimal</code>). 옆에 "부호 바꾸기" 버튼(<code>JarvisIcons.PlusMinus</code>)</td></tr>
+    <tr><td>단위 메뉴</td><td>변환할 단위 · "단위 서로 바꾸기"(<code>JarvisIcons.Swap</code>) · 바꿀 단위 가 한 줄. 메뉴 버튼은 "<i>이름</i> (<i>기호</i>)" 와 <code>ChevronDown</code>, 누르면 <code>DropdownMenu</code> 가 분류의 단위를 보이고 고른 단위에 <code>Check</code></td></tr>
+    <tr><td>결과 카드</td><td>바꿀 단위 이름, 큰 글씨(<code>headlineSmall</code>) "<i>값</i> <i>기호</i>"(선택 가능), 복사 버튼(<code>JarvisIcons.Copy</code>, contentDescription "결과 복사")</td></tr>
+    <tr><td>모든 단위</td><td>"모든 단위" 제목 아래 카드 하나에 단위마다 한 줄: 이름, 고정폭 "<i>값</i> <i>기호</i>", 복사 표시 아이콘. 줄 전체가 버튼이고 onClickLabel "<i>이름</i> 값 복사"</td></tr>
+    <tr><td>오류</td><td>숫자가 아니면 <code>colorScheme.error</code> 색으로 "숫자가 아닙니다. 1234.5, -40, 1,000, 1e-3 처럼 적는다"</td></tr>
+    <tr><td>테스트 태그</td><td>카드 <code>feature:unitconverter</code>, 카드 요약 <code>unitconverter:summary</code>, 화면 <code>unitconverter:screen</code>, 칩 <code>unitconverter:category:&lt;storedValue&gt;</code>,
+      값 칸 <code>unitconverter:input</code>, 부호 <code>unitconverter:sign</code>, 메뉴 버튼 <code>unitconverter:from</code>·<code>unitconverter:to</code>, 메뉴 항목 <code>unitconverter:from:&lt;unit&gt;</code>·<code>unitconverter:to:&lt;unit&gt;</code>,
+      맞바꾸기 <code>unitconverter:swap</code>, 결과 <code>unitconverter:result</code>, 복사 <code>unitconverter:copy</code>, 목록 줄 <code>unitconverter:row:&lt;unit&gt;</code>, 오류 <code>unitconverter:error</code></td></tr>
+  </tbody>
+</table>
+
+<h3 id="definitions">단위와 정의</h3>
+
+<p>분류마다 기준 단위가 있고, 각 단위는 <code>기준값 = (값 + shift) × factor</code> 로 기준에 닿는다. shift 는 온도만 0 이 아니다. 기본 선택은 굵게 적었다(변환할 → 바꿀).</p>
+
+<table>
+  <thead><tr><th>분류(기준)</th><th>단위(기호)와 factor</th><th>근거</th></tr></thead>
+  <tbody>
+    <tr><td>길이 (m)</td><td>mm 0.001, <b>cm 0.01</b>, m 1, km 1000, <b>in 0.0254</b>, ft 0.3048, yd 0.9144, mi 1609.344, 해리 nmi 1852, 자 10/33</td><td>국제 야드·파운드 협정(1959): 1 yd = 0.9144 m 정확히, 1 in = 25.4 mm. 해리는 국제 정의 1852 m. 자는 계량법 환산 1자 = 10/33 m(≈ 30.303 cm)</td></tr>
+    <tr><td>넓이 (m²)</td><td>cm² 0.0001, m² 1, <b>평 400/121</b> → <b>m²</b>, ha 10⁴, km² 10⁶, ft² 0.09290304, yd² 0.83612736, ac 4046.8564224, mi² 2589988.110336</td><td>1평 = 6자 × 6자 = (20/11 m)² = 400/121 m² ≈ 3.3058 m². 1 ac = 43,560 ft²(국제 에이커)</td></tr>
+    <tr><td>무게 (kg)</td><td>mg 10⁻⁶, g 0.001, <b>kg 1</b>, t 1000, oz 0.028349523125, <b>lb 0.45359237</b>, 돈 0.00375, 냥 0.0375, 근 0.6</td><td>1 lb = 0.45359237 kg 정확히(1959), 1 oz = lb/16. 1돈 = 3.75 g, 1냥 = 10돈 = 37.5 g, 1근 = 600 g(고기·한약재 기준, 계량법 환산)</td></tr>
+    <tr><td>부피 (L)</td><td>mL 0.001, <b>L 1</b>, m³ 1000, tsp 0.00492892159375, tbsp 0.01478676478125, fl oz 0.0295735295625, cup 0.2365882365, <b>gal 3.785411784</b>, 되 2401/1331</td><td>미국 관습 부피: 1 gal = 231 in³ = 3.785411784 L 정확히, fl oz = gal/128, cup = 8 fl oz, tbsp = fl oz/2, tsp = tbsp/3. 되는 일본 升 과 같은 2401/1331 L ≈ 1.8039 L</td></tr>
+    <tr><td>온도 (K)</td><td><b>°C</b>: factor 1, shift 273.15 · <b>°F</b>: factor 5/9, shift 459.67 · K: factor 1</td><td>SI 정의 T(K) = t(°C) + 273.15, t(°F) = t(°C) × 9/5 + 32</td></tr>
+    <tr><td>속도 (m/s)</td><td>m/s 1, <b>km/h 1/3.6</b>, <b>mph 0.44704</b>, kn 1852/3600</td><td>mi·nmi 정의에서 나온다</td></tr>
+    <tr><td>데이터 (bit)</td><td>bit 1, B 8, KB 8×10³, MB 8×10⁶, <b>GB 8×10⁹</b>, TB 8×10¹², KiB 8×2¹⁰, MiB 8×2²⁰, <b>GiB 8×2³⁰</b>, TiB 8×2⁴⁰</td><td>SI 접두어(10진)와 IEC 80000-13 2진 접두어(Ki·Mi·Gi·Ti)를 따로 둔다. 이름에 10³·2¹⁰ 을 붙여 구별한다</td></tr>
+    <tr><td>시간 (s)</td><td>ms 0.001, s 1, min 60, <b>h 3600</b> → <b>min</b>, 일 86400, 주 604800</td><td>윤초는 셈하지 않는다</td></tr>
+    <tr><td>에너지 (J)</td><td>J 1, <b>kJ 1000</b>, cal 4.184, <b>kcal 4184</b> → kJ, Wh 3600, kWh 3.6×10⁶</td><td>열화학 칼로리 1 cal = 4.184 J(식품 표시의 kcal 과 같다)</td></tr>
+  </tbody>
+</table>
+
+<h3 id="number-format">숫자 규칙</h3>
+
+<ul>
+  <li><strong>입력</strong>: 앞뒤 공백과 자릿수 쉼표(<code>1,234.5</code>)는 무시한다. 남은 글자가 <code>[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?</code> 이고 유한한 Double 이어야 숫자다.
+    <code>NaN</code>·<code>Infinity</code>·16진(<code>0x1p3</code>)·형 접미사(<code>1f</code>)·단위가 붙은 글자(<code>12cm</code>)는 숫자가 아니다.</li>
+  <li><strong>반올림</strong>: 유효 숫자 12자리에서 반올림(0.5 는 올림)하고 끝의 0 과 남은 점을 지운다. 단, 정수 부분은 자르지 않는다(<code>1 TiB = 1099511627776 B</code>).
+    Double 은 유효 숫자가 약 15.9 자리라 두세 번의 곱셈·나눗셈에서 생기는 찌꺼기는 13자리 뒤에만 있다.</li>
+  <li><strong>표기</strong>: 0 은 <code>0</code>(<code>-0</code> 이 없다). 절댓값이 10⁻⁶ 이상 10¹⁵ 미만이면 자릿수 구분 없는 보통 표기(<code>0.000001</code>, <code>1073741824</code>),
+    그 밖은 가수 12자리의 <code>E</code> 표기(<code>1E-7</code>, <code>1.23456789012E17</code>)다. 쉼표를 넣지 않는 것은 복사한 값을 다른 계산기·스프레드시트에 그대로 붙이기 위해서다.</li>
+  <li><strong>온도의 0</strong>: shift 를 빼고 난 값의 절댓값이 |shift| × 10⁻¹² 보다 작으면 0 으로 본다. <code>32 °F → °C</code> 가 491.67 × 5/9 − 273.15 = 5.7E-14 로 나오는 것을 막는다.</li>
+  <li><strong>범위</strong>: 바꾼 값이 Double 범위를 넘으면(예: <code>1e308 km → mm</code>) 그 줄은 글자가 없다(R8).</li>
+</ul>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd><code>feature/unitconverter/domain/…/unitconverter/</code> — <code>UnitCategory</code>(분류 아홉, 기본 단위 쌍, 저장값), <code>MeasureUnit</code>(단위와 factor·shift, <code>toBase</code>·<code>fromBase</code>),
+    <code>UnitConverter</code>(두 단위 변환, 입력 → <code>UnitConversion</code>: <code>Empty</code>·<code>InvalidNumber</code>·<code>Converted(value, result, all)</code>), <code>UnitNumberFormat</code>(<code>parse</code>·<code>format</code>),
+    <code>UnitSelection</code>·<code>UnitConverterState</code>, <code>UnitConverterSettingsRepository</code>, 유스케이스 <code>ObserveUnitConverterStateUseCase</code>·<code>SelectUnitCategoryUseCase</code>·<code>SelectUnitsUseCase</code>·<code>SetUnitInputUseCase</code>·<code>ConvertUnitUseCase</code></dd>
+  <dt>data</dt><dd><code>DefaultUnitConverterSettingsRepository</code> — <code>SettingsStore</code> 의 문자열 키 <code>unitconverter_category</code>, <code>unitconverter_&lt;분류&gt;_from</code>·<code>_to</code>·<code>_input</code>.
+    저장된 단위가 모르는 값이거나 다른 분류의 단위면 그 분류의 기본 단위로 읽는다. 한 분류의 세 키는 <code>observeSystemState</code> 하나로 같은 신호에 함께 다시 읽는다(리스너 하나)</dd>
+  <dt>ui</dt><dd><code>UnitConverterCard</code>(인자 없음), <code>UnitConverterScreen</code>, <code>UnitConverterViewModel</code>·<code>UnitConverterCardViewModel</code>(internal), <code>UnitConverterRoute</code>(Navigation3 키), 이름·기호 표 <code>UnitConverterLabels.kt</code>.
+    Koin 모듈은 <code>unitConverterDomainModule</code>·<code>unitConverterDataModule</code>·<code>unitConverterUiModule</code></dd>
+  <dt>상태</dt><dd>분류와 그 분류의 선택은 저장소의 <code>Flow</code> 를 <code>ObserveUnitConverterStateUseCase</code> 가 <code>stateIn(viewModelScope, WhileSubscribed(), read…())</code> 로 준다.
+    결과는 (상태, 분류별 방금 친 입력)을 <code>combine</code> 해 <code>ConvertUnitUseCase</code> 에 넘긴 값이다. 메뉴가 열렸는지는 화면의 <code>remember</code> 상태다</dd>
+  <dt>expect</dt><dd>없음. 클립보드는 Compose 의 <code>LocalClipboardManager</code>, 키패드는 <code>KeyboardOptions</code> 가 플랫폼 구현을 준다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 변환과 숫자 쓰기를 domain 의 순수 Kotlin 으로 한다</strong>
+  domain 은 <code>kotlinx-coroutines-core</code>·<code>koin-core</code> 만 쓴다(<a href="module-architecture.html">모듈 구조</a>). 공통 stdlib 에는 <code>String.format</code>·<code>BigDecimal</code> 이 없어,
+  유효 숫자 반올림은 값에 10ⁿ 을 곱해 <code>Long</code> 으로 반올림한 뒤 점을 끼워 넣는다. 보통 표기의 상한 10¹⁵ 은 그 <code>Long</code> 이 Double 의 정확한 정수 범위(2⁵³ ≈ 9×10¹⁵) 안에 머무는 한계이기도 하다.
+  플랫폼 <code>NumberFormat</code>·<code>NSNumberFormatter</code>·<code>Intl.NumberFormat</code> 은 로캘마다 쉼표·점이 바뀌어 네 타깃의 결과가 달라지고 <code>actual</code> 넷이 생겨 버렸다.
+  <code>toDoubleOrNull</code> 은 JVM 에서 16진 부동소수와 <code>1f</code> 를 받아 타깃마다 받는 입력이 달라지므로, 정규식으로 문법을 먼저 좁힌다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 비율 표 대신 기준 단위를 거친다</strong>
+  단위 쌍마다 비율을 두면 n² 개가 된다. 분류마다 기준 단위 하나로 가고 오면 n 개의 factor 만 있고, 온도의 shift 도 같은 식에 들어간다.
+  factor 는 정의가 분수인 것(평 400/121, 자 10/33, 되 2401/1331, km/h 1/3.6)을 반올림한 소수 대신 분수 식으로 적어 Double 이 가장 가까운 값을 갖게 한다.
+  두 번의 연산으로 생기는 상대 오차(약 10⁻¹⁶)는 12자리 반올림이 지운다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 입력 칸은 화면이 들고, 저장소는 뒤따라 적는다</strong>
+  <a href="dev-utilities.html#implementation">개발자 도구</a>와 같다. 입력 칸이 저장소 Flow 를 곧장 보이면, 저장이 신호로 돌아오기 전에 친 글자가 옛 값에 덮여 커서가 튄다.
+  그래서 <code>TextFieldState</code> 를 분류마다 한 번 저장된 값으로 채워 스스로 들고, 바뀔 때마다 <code>SetUnitInputUseCase</code> 로 적는다. 결과는 ViewModel 이 분류마다 마지막으로 받은 입력으로 계산한다.
+  "부호 바꾸기" 도 입력 칸에 직접 쓰고 같은 길로 저장한다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 빼기 기호는 버튼으로 넣는다</strong>
+  Compose 의 <code>KeyboardType</code> 에는 부호 있는 소수 키패드가 없다. <code>Decimal</code> 은 Android 에서 <code>TYPE_NUMBER_FLAG_DECIMAL</code>(부호 플래그 없음), iOS 에서 <code>UIKeyboardTypeDecimalPad</code> 라 <code>-</code> 키가 없다.
+  <code>Text</code> 키보드는 온도의 음수를 칠 수 있지만 숫자를 넣는 대부분의 경우에 글자 자판을 띄운다. 숫자 키패드를 두고 옆에 "부호 바꾸기" 버튼을 둔다(<a href="../platform/android.html#unit-converter">플랫폼 스펙</a>).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 복사는 숫자만, <code>LocalClipboardManager.setText</code> 로</strong>
+  기호를 빼고 숫자만 넣어 다른 계산기·스프레드시트에 붙일 수 있게 한다. 기호가 필요하면 결과 글자를 선택해 복사한다.
+  <code>LocalClipboard</code> 는 공통 코드에서 글자 <code>ClipEntry</code> 를 만들 수 없어 개발자 도구와 같이 폐기 예정인 <code>LocalClipboardManager</code> 를 쓴다(<a href="dev-utilities.html#implementation">개발자 도구</a>).
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>공통 변환, <code>ClipboardManager.setPrimaryClip</code>, <code>SharedPreferences</code>, 숫자 키패드 <code>TYPE_CLASS_NUMBER | TYPE_NUMBER_FLAG_DECIMAL</code></td><td><a href="../platform/android.html#unit-converter">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>공통 변환, <code>UIPasteboard.generalPasteboard</code>, <code>NSUserDefaults</code>, <code>UIKeyboardTypeDecimalPad</code></td><td><a href="../platform/ios.html#unit-converter">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 변환, AWT 시스템 클립보드, <code>java.util.prefs</code>. 물리 키보드라 키패드 설정은 쓰이지 않는다</td><td><a href="../platform/jvm.html#unit-converter">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>공통 변환, <code>navigator.clipboard.writeText</code>(보안 컨텍스트), <code>localStorage</code></td><td><a href="../platform/web.html#unit-converter">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>UnitConverterTest</code></td><td>R3·R6. 분류마다 알려진 값(1 평 = 3.30578512397 m², 84 m² = 25.41 평, 1 mi = 1.609344 km, 100 °C = 212 °F, −40 °C = −40 °F, 32 °F = 0 °C, 1 GiB = 1073741824 B, 1 TB = 931.322574615 GiB, 1근 = 160돈 …),
+      모든 단위 쌍의 왕복, 결과 목록의 단위·순서, 빈·잘못된 입력, 범위를 넘은 줄, 분류가 다른 단위 거절, 기본 단위와 저장값</td><td><code>:feature:unitconverter:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>UnitNumberFormatTest</code></td><td>R5·R7. 찌꺼기 제거, 12자리 반올림과 0.5 올림, 반올림 자리 올림, 정수 부분 보존, 0·부호, E 표기 경계, 유한하지 않은 값, 입력 문법(쉼표·부호·지수 허용, 16진·접미사·NaN 거절)</td><td>같음 — Wasm·iOS 에서도 돌아 Double·Long 연산이 타깃마다 같은 글자를 내는지 확인한다</td></tr>
+    <tr><td><code>UnitConverterUseCasesTest</code></td><td>R9. 저장값으로 시작, 분류를 바꾸면 그 분류의 선택을 따라감, 분류별 선택 유지, 섞인 분류 거절</td><td>같음</td></tr>
+    <tr><td><code>UnitConverterSettingsRepositoryTest</code></td><td>R9. 분류·단위·입력 저장과 되읽기, 모르는·다른 분류 저장값, 관찰이 쓰기를 따라감, 선택 관찰의 리스너가 하나이고 수집이 끝나면 풀림</td><td><code>:feature:unitconverter:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>UnitConverterScreenTest</code></td><td>R2·R3·R4·R5·R8·R10. 칩 선택, 결과와 모든 단위 줄, 복사 버튼·줄 누름이 숫자를 클립보드에 넣음, 오류·빈 입력, 메뉴가 분류의 단위만 보임, 맞바꾸기, 부호 바꾸기, 카드 요약·설명</td><td><code>:feature:unitconverter:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppUnitConverterTest</code></td><td>R1·R8·R9·R10. 홈 카드 → 화면 → 뒤로, 분류 선택·입력·맞바꾸기가 저장소에 적히고 결과를 복사함, 저장된 변환이 카드와 화면에 복원됨</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td>수동 확인</td><td>기기의 숫자 키패드 모양과 실제 시스템 클립보드 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>유효 숫자 12자리까지다. 그보다 정밀한 값(예: 13자리 이상 소수)은 반올림되어 보인다. 10¹⁵ 이상 정수는 E 표기로 가수 12자리만 보인다.</li>
+  <li>절대 영도보다 낮은 온도나 음수 길이도 그대로 바꾼다. 물리적으로 맞는지는 판단하지 않는다.</li>
+  <li>Web 은 HTTPS·localhost 가 아니면 복사가 조용히 실패한다(<a href="../platform/web.html#unit-converter">web.html</a>).</li>
+  <li>쉼표는 늘 자릿수 구분으로 본다. 소수점으로 쉼표를 쓰는 로캘(<code>1,5</code>)은 <code>15</code> 로 읽힌다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>
