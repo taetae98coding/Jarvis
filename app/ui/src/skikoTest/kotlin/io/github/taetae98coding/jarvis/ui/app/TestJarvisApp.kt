@@ -96,6 +96,11 @@ import io.github.taetae98coding.jarvis.domain.theme.ThemeAppearanceRepository
 import io.github.taetae98coding.jarvis.domain.theme.ThemeMode
 import io.github.taetae98coding.jarvis.domain.theme.ThemeSettingsRepository
 import io.github.taetae98coding.jarvis.domain.theme.themeDomainModule
+import io.github.taetae98coding.jarvis.domain.worldclock.ClockRepository
+import io.github.taetae98coding.jarvis.domain.worldclock.SavedCitiesRepository
+import io.github.taetae98coding.jarvis.domain.worldclock.TimeZoneRepository
+import io.github.taetae98coding.jarvis.domain.worldclock.WorldCities
+import io.github.taetae98coding.jarvis.domain.worldclock.worldClockDomainModule
 import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
@@ -107,6 +112,7 @@ import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
 import io.github.taetae98coding.jarvis.ui.terminal.terminalUiModule
 import io.github.taetae98coding.jarvis.ui.theme.themeUiModule
+import io.github.taetae98coding.jarvis.ui.worldclock.worldClockUiModule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.channels.Channel
@@ -167,6 +173,9 @@ internal fun TestJarvisApp(
     focusClock: FakeFocusClock = FakeFocusClock(),
     focusAlarm: FocusAlarmRepository = FakeFocusAlarmRepository(),
     devTools: DevToolsSettingsRepository = FakeDevToolsSettingsRepository(),
+    worldClock: FakeWorldClock = FakeWorldClock(),
+    timeZones: TimeZoneRepository = FakeWorldClockTimeZones(),
+    savedCities: SavedCitiesRepository = FakeWorldClockCities(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -207,6 +216,9 @@ internal fun TestJarvisApp(
             single<FocusClock> { focusClock }
             single<FocusAlarmRepository> { focusAlarm }
             single<DevToolsSettingsRepository> { devTools }
+            single<ClockRepository> { worldClock }
+            single<TimeZoneRepository> { timeZones }
+            single<SavedCitiesRepository> { savedCities }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -226,6 +238,7 @@ internal fun TestJarvisApp(
                 batteryDomainModule, batteryUiModule,
                 focusDomainModule, focusUiModule,
                 devToolsDomainModule, devToolsUiModule,
+                worldClockDomainModule, worldClockUiModule,
                 appUiModule,
             )
         }
@@ -838,5 +851,55 @@ internal class FakeDevToolsSettingsRepository : DevToolsSettingsRepository {
 
     override fun setInput(tool: DevTool, input: String) {
         inputs.value += tool to input
+    }
+}
+
+/** 시간은 테스트가 [now] 로 옮긴다. 기본은 2026-09-26 15:30:05Z — 서울은 27일 00:30:05, 뉴욕(EDT)은 26일 11:30:05 다. */
+internal class FakeWorldClock(
+    start: Instant = Instant.fromEpochSeconds(1_790_436_605),
+) : ClockRepository {
+    val now = MutableStateFlow(start)
+
+    override fun observeNow(): Flow<Instant> = now
+
+    override fun readNow(): Instant = now.value
+}
+
+/**
+ * 서머타임 없이 고정 오프셋만 준다(DST 는 :feature:worldclock 의 도메인·데이터 테스트가 본다). 목록의 다른 도시는
+ * UTC+0 으로 알고, 목록 밖의 이름은 모른다.
+ */
+internal class FakeWorldClockTimeZones(
+    localZoneId: String = "Asia/Seoul",
+) : TimeZoneRepository {
+    val localZoneId = MutableStateFlow(localZoneId)
+
+    private val offsets = mapOf(
+        "Asia/Seoul" to 9 * 3600,
+        "Asia/Tokyo" to 9 * 3600,
+        "America/New_York" to -4 * 3600,
+        "Europe/London" to 3600,
+        "Europe/Paris" to 2 * 3600,
+    )
+
+    override fun offsetSecondsAt(zoneId: String, instant: Instant): Int? =
+        offsets[zoneId] ?: 0.takeIf { WorldCities.find(zoneId) != null }
+
+    override fun observeLocalZoneId(): Flow<String> = localZoneId
+
+    override fun readLocalZoneId(): String = localZoneId.value
+}
+
+internal class FakeWorldClockCities(
+    initial: List<String> = listOf("America/New_York", "Europe/London", "Asia/Tokyo"),
+) : SavedCitiesRepository {
+    val zoneIds = MutableStateFlow(initial)
+
+    override fun observeSavedZoneIds(): Flow<List<String>> = zoneIds
+
+    override fun readSavedZoneIds(): List<String> = zoneIds.value
+
+    override fun setSavedZoneIds(zoneIds: List<String>) {
+        this.zoneIds.value = zoneIds
     }
 }

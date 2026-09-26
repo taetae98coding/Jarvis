@@ -83,6 +83,10 @@ include(":feature:devtools:domain")
 include(":feature:devtools:data")
 include(":feature:devtools:ui")
 
+include(":feature:worldclock:domain")
+include(":feature:worldclock:data")
+include(":feature:worldclock:ui")
+
 include(":feature:mcp:domain")
 include(":feature:mcp:data")
 
