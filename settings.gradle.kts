@@ -73,6 +73,10 @@ include(":feature:profiling:domain")
 include(":feature:profiling:data")
 include(":feature:profiling:ui")
 
+include(":feature:devtools:domain")
+include(":feature:devtools:data")
+include(":feature:devtools:ui")
+
 include(":feature:mcp:domain")
 include(":feature:mcp:data")
 

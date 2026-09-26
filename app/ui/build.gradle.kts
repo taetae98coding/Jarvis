@@ -15,6 +15,7 @@ kotlin {
             api(projects.feature.terminal.ui)
             api(projects.feature.theme.ui)
             api(projects.feature.profiling.ui)
+            api(projects.feature.devtools.ui)
             implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }

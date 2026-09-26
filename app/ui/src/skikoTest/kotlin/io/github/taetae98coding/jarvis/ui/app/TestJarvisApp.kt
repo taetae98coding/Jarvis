@@ -25,6 +25,9 @@ import io.github.taetae98coding.jarvis.domain.emulator.EmulatorStatus
 import io.github.taetae98coding.jarvis.domain.emulator.EmulatorSummary
 import io.github.taetae98coding.jarvis.domain.emulator.PairingResult
 import io.github.taetae98coding.jarvis.domain.emulator.PairingService
+import io.github.taetae98coding.jarvis.domain.devtools.DevTool
+import io.github.taetae98coding.jarvis.domain.devtools.DevToolsSettingsRepository
+import io.github.taetae98coding.jarvis.domain.devtools.devToolsDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.Profiling
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
@@ -87,6 +90,7 @@ import io.github.taetae98coding.jarvis.domain.theme.themeDomainModule
 import io.github.taetae98coding.jarvis.ui.appUiModule
 import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
+import io.github.taetae98coding.jarvis.ui.devtools.devToolsUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
@@ -146,6 +150,7 @@ internal fun TestJarvisApp(
     theme: ThemeSettingsRepository = FakeThemeSettingsRepository(),
     themeAppearance: ThemeAppearanceRepository = ThemeAppearanceRepository { },
     profiling: ProfilingRepository = FakeProfilingRepository(),
+    devTools: DevToolsSettingsRepository = FakeDevToolsSettingsRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -181,6 +186,7 @@ internal fun TestJarvisApp(
             single<ThemeSettingsRepository> { theme }
             single<ThemeAppearanceRepository> { themeAppearance }
             single<ProfilingRepository> { profiling }
+            single<DevToolsSettingsRepository> { devTools }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -197,6 +203,7 @@ internal fun TestJarvisApp(
                 terminalDomainModule, terminalUiModule,
                 themeDomainModule, themeUiModule,
                 profilingDomainModule, profilingUiModule,
+                devToolsDomainModule, devToolsUiModule,
                 appUiModule,
             )
         }
@@ -739,5 +746,26 @@ internal class FakeTerminalSession(
     override fun close() {
         closed = true
         channel.close()
+    }
+}
+
+internal class FakeDevToolsSettingsRepository : DevToolsSettingsRepository {
+    val tool = MutableStateFlow(DevTool.TIMESTAMP)
+    val inputs = MutableStateFlow(emptyMap<DevTool, String>())
+
+    override fun observeSelectedTool() = tool
+
+    override fun readSelectedTool() = tool.value
+
+    override fun setSelectedTool(tool: DevTool) {
+        this.tool.value = tool
+    }
+
+    override fun observeInput(tool: DevTool) = inputs.map { it[tool].orEmpty() }
+
+    override fun readInput(tool: DevTool) = inputs.value[tool].orEmpty()
+
+    override fun setInput(tool: DevTool, input: String) {
+        inputs.value += tool to input
     }
 }

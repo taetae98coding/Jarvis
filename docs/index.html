@@ -59,6 +59,7 @@
 │   ├── settings-persistence.html    설정 영구 저장
 │   ├── theme-mode.html              화면 테마 (라이트·다크·시스템)
 │   ├── profiling.html               프로파일링 (CPU·메모리·GPU·네트워크·디스크)
+│   ├── dev-utilities.html           개발자 도구 모음 (타임스탬프·Base64·URL·JSON·UUID·해시·색)
 │   ├── state-observation.html       상태 조회 규칙
 │   ├── emulator-count.html          에뮬레이터 개수
 │   ├── emulator-control.html        기기 목록·화면·제스처 (가상 기기 + 실물 기기)
@@ -223,6 +224,13 @@
       <td class="center"><a href="platform/ios.html#profiling"><span class="badge partial">조건부</span></a></td>
       <td class="center"><a href="platform/jvm.html#profiling"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/web.html#profiling"><span class="badge partial">조건부</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/dev-utilities.html">개발자 도구 모음</a></td>
+      <td class="center"><a href="platform/android.html#dev-utilities"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#dev-utilities"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#dev-utilities"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#dev-utilities"><span class="badge partial">조건부</span></a></td>
     </tr>
     <tr>
       <td><a href="common/state-observation.html">상태 조회 규칙</a></td>
@@ -588,6 +596,7 @@
   <li><a href="common/settings-persistence.html">설정 영구 저장</a><p>토글 값이 앱을 껐다 켜도 남고, 외부 변경도 따라간다</p></li>
   <li><a href="common/theme-mode.html">화면 테마 (라이트·다크·시스템)</a><p>홈 카드에서 고른 모드로 앱 전체 색이 바뀌고, 앱을 껐다 켜도 남는다</p></li>
   <li><a href="common/profiling.html">프로파일링 (CPU·메모리·GPU·네트워크·디스크)</a><p>홈 카드가 이 기기의 CPU·메모리·GPU 사용률, 네트워크 속도, 디스크 읽기·쓰기 비율과 남은 용량을 1초마다 보인다</p></li>
+  <li><a href="common/dev-utilities.html">개발자 도구 모음</a><p>홈 카드에서 여는 화면에서 타임스탬프·Base64·URL·JSON·UUID·해시·색을 변환하고 결과를 복사한다</p></li>
   <li><a href="common/state-observation.html">상태 조회 규칙</a><p>콜백이 있으면 콜백으로, 없으면 N초마다 다시 읽는다</p></li>
   <li><a href="common/emulator-count.html">에뮬레이터 개수</a><p>개발자 머신의 Android 에뮬레이터·iOS 시뮬레이터를 실행 중/전체로 센다</p></li>
   <li><a href="common/emulator-control.html">기기 목록·화면·제스처</a><p>가상 기기와 연결된 실물 기기 목록을 보고, 화면을 보면서 탭·스와이프를 보낸다</p></li>

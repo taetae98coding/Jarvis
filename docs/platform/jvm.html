@@ -39,6 +39,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
     <li><a href="#profiling">프로파일링</a></li>
+    <li><a href="#dev-utilities">개발자 도구 모음</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -515,6 +516,38 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p><code>MacProfilingParsersTest</code> 가 개발 머신에서 받은 <code>vm_stat</code>·<code>ioreg</code>·<code>netstat</code> 출력을 해석하고, <code>MacProfilingSourceTest</code> 가 macOS 에서 실제 명령을 불러 두 번째 표본에 여섯 지표가 모두 있는지 본다(다른 OS 에서는 건너뛴다). 2026-09-25 개발 머신(Mac Studio, macOS 26, JDK 21.0.12)에서 <code>:desktopApp:run</code> 으로 띄워 카드의 여섯 줄이 모두 값을 보이고 초마다 바뀌는 것을 봤다(CPU 27–55%, 메모리 27.3–27.9 / 34.4 GB, GPU 12–15%). 실제 값은 활동 모니터(CPU, 메모리, GPU 기록, 네트워크, 디스크)와 비교한다.</p>
+</section>
+
+<section class="feature" id="dev-utilities">
+<h2>개발자 도구 모음 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/dev-utilities.html">개발자 도구 모음</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>변환(타임스탬프·Base64·URL·JSON·UUID·해시·색)</td><td>채택. 전부 <code>:feature:devtools:domain</code> 의 공통 Kotlin 이다. <code>kotlin.time.Instant</code>·<code>kotlin.io.encoding.Base64</code>·<code>kotlin.uuid.Uuid</code> 는 stdlib 이 이 타깃에 같은 구현을 주고, JSON 파서·SHA-256·SHA-1·MD5 는 직접 짰다(<a href="../common/dev-utilities.html#implementation">공통 결정</a>)</td></tr>
+    <tr><td>해시: <code>java.security.MessageDigest</code></td><td>버렸다. Android 와 같은 까닭이다</td></tr>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code>(<code>AwtClipboardManager</code>)</td><td>채택. <code>Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)</code> 을 부르고, macOS 에서는 <code>NSPasteboard.generalPasteboard</code> 다(<a href="#terminal-selection">터미널 선택</a>과 같은 경로)</td></tr>
+    <tr><td>클립보드: <code>ProcessBuilder("pbcopy")</code></td><td>버렸다. 프로세스를 띄우고 AWT 가 같은 pasteboard 에 쓴다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>java.util.prefs.Preferences</code>)</td><td>채택. macOS 에서는 <code>~/Library/Preferences/com.apple.java.util.prefs.plist</code> 다. <code>PreferenceChangeListener</code> 는 별도 스레드에서 늦게 오므로 입력 칸은 저장값을 곧장 보이지 않는다(<a href="../common/dev-utilities.html#implementation">공통 결정</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/devtools/{domain,data,ui}/src/commonMain/…</code>. 이 타깃만의 코드는 없다</dd>
+  <dt>동작</dt><dd>Android 와 같다</dd>
+  <dt>실패</dt><dd>헤드리스 JVM 이면 <code>systemClipboard</code> 가 <code>HeadlessException</code> 을 던지고 <code>runCatching</code> 이 삼킨다. 데스크톱 앱에서는 일어나지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><code>Preferences</code> 한 값의 최대 길이는 8 KB(<code>Preferences.MAX_VALUE_LENGTH</code>)다. 그보다 긴 입력은 저장이 실패해 다음 실행에 남지 않는다. 결과는 그래도 보인다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:devtools:*:jvmTest</code>(도메인 45·데이터 5·화면 6)와 <code>:app:ui:jvmTest --tests '*JarvisAppDevToolsTest'</code>(카드 → 화면 → 뒤로, 입력 → 결과 → 복사, 저장값 복원 3개)가 돈다. 실제 시스템 클립보드에 쓰는 것은 테스트가 기록용 관리자로 바꾸므로 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="state-observation">

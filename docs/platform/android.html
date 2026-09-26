@@ -43,6 +43,7 @@
     <li><a href="#settings">설정 영구 저장</a></li>
     <li><a href="#theme-mode">화면 테마 (라이트·다크·시스템)</a></li>
     <li><a href="#profiling">프로파일링</a></li>
+    <li><a href="#dev-utilities">개발자 도구 모음</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
     <li><a href="#device-rotation">화면 회전</a></li>
@@ -514,6 +515,39 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>:feature:profiling:data</code> 의 공통 테스트는 <code>testAndroidHostTest</code> 로도 돈다. <code>ProfilingSource.android.kt</code> 자체는 컴파일(<code>:androidApp:assembleDebug</code>)로만 확인했다. 2026-09-25 에 연결된 기기가 다른 앱 테스트에 쓰이고 있어 기기 확인은 하지 못했다. 확인할 때는 기기에서 카드를 띄우고 <code>adb shell top -n 1</code>(이 앱 줄), 설정 → 저장 공간과 비교한다.</p>
+</section>
+
+<section class="feature" id="dev-utilities">
+<h2>개발자 도구 모음 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/dev-utilities.html">개발자 도구 모음</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>변환(타임스탬프·Base64·URL·JSON·UUID·해시·색)</td><td>채택. 전부 <code>:feature:devtools:domain</code> 의 공통 Kotlin 이다. <code>kotlin.time.Instant</code>·<code>kotlin.io.encoding.Base64</code>·<code>kotlin.uuid.Uuid</code> 는 stdlib 이 이 타깃에 같은 구현을 주고, JSON 파서·SHA-256·SHA-1·MD5 는 직접 짰다(<a href="../common/dev-utilities.html#implementation">공통 결정</a>)</td></tr>
+    <tr><td>해시: <code>java.security.MessageDigest</code></td><td>버렸다. 이 타깃에는 있지만 iOS·Web 에 같은 것이 없어 <code>actual</code> 네 개가 생긴다. 공통 구현이 FIPS·RFC 테스트 벡터를 <code>testAndroidHostTest</code> 에서도 통과한다</td></tr>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code>(<code>AndroidClipboardManager</code>)</td><td>채택. <code>setText(AnnotatedString)</code> 이 <code>ClipboardManager.setPrimaryClip(ClipData.newPlainText("plain text", text))</code> 을 부른다(<a href="#terminal-selection">터미널 선택</a>과 같은 경로). 권한이 필요 없고, Android 13+ 는 시스템이 "복사됨" 오버레이를 띄운다</td></tr>
+    <tr><td>클립보드: <code>LocalClipboard</code> + <code>ClipEntry(ClipData)</code></td><td>버렸다. 공통 팩토리가 없어 <code>expect</code> 가 필요하다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>SharedPreferences</code> <code>jarvis.settings</code>)</td><td>채택. 문자열 키 <code>devtools_selected_tool</code>, <code>devtools_input_&lt;도구&gt;</code>. 변경은 <code>OnSharedPreferenceChangeListener</code> 로 온다(<a href="#settings-persistence">설정 영구 저장</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/devtools/{domain,data,ui}/src/commonMain/…</code>. 이 타깃만의 코드는 없다</dd>
+  <dt>동작</dt><dd>카드를 누르면 화면이 열리고, 결과 줄의 복사 버튼이 시스템 클립보드에 글자를 넣는다</dd>
+  <dt>실패</dt><dd><code>setPrimaryClip</code> 이 던지면(프로필 정책으로 클립보드가 막힌 업무 프로필 등) <code>runCatching</code> 으로 삼키고 아무것도 복사되지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>Android 12+ 는 다른 앱이 클립보드를 읽을 때 "붙여 넣음" 알림을 띄운다. 복사 쪽에는 알림이 없다.</li>
+  <li>입력이 <code>SharedPreferences</code> 에 통째로 저장되므로 수 MB 입력은 쓰기가 느려진다(<a href="../common/dev-utilities.html#limits">공통 한계</a>).</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:devtools:domain</code>·<code>:feature:devtools:data</code> 의 공통 테스트가 <code>testAndroidHostTest</code> 로도 돈다(해시 벡터 포함). 화면과 복사는 <code>:androidApp:assembleDebug</code> 컴파일로만 확인했고, 기기에서 복사해 다른 앱에 붙여 넣는 것은 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="state-observation">

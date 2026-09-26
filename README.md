@@ -24,7 +24,7 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 
 기본 패키지는 `io.github.taetae98coding.jarvis`다. 모듈마다 하위 패키지를 따로 쓰므로 같은 패키지가 여러 모듈에 걸치지 않는다.
 
-공용 코드는 **기능마다 clean architecture 세 계층을 모듈로** 갖는다. 기능은 `appinfo` · `emulator` · `screen` · `rotation` · `terminal` · `theme` · `profiling` · `mcp` 여덟이고 서로를 의존하지 않는다.
+공용 코드는 **기능마다 clean architecture 세 계층을 모듈로** 갖는다. 기능은 `appinfo` · `emulator` · `screen` · `rotation` · `terminal` · `theme` · `profiling` · `devtools` · `mcp` 아홉이고 서로를 의존하지 않는다.
 화면이 없는 `mcp` 는 `domain` · `data` 둘만, Android 위젯·알림·타일이 있는 `screen` · `rotation` 은 `widget` 을 하나 더 갖는다. 의존은 한 방향이고 Gradle이 강제한다.
 
 ```
@@ -33,7 +33,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
                    shared               ← Koin 시작. 기능이 늘어도 커지지 않는다
                    app:ui               ← JarvisApp(), Home 화면, FeatureGrid, 백스택
      ┌───────────────┼───────────────┬───────────────┐
- feature:appinfo  feature:emulator  feature:screen  feature:terminal  …  (기능 여덟)
+ feature:appinfo  feature:emulator  feature:screen  feature:terminal  …  (기능 아홉)
      │      기능마다 ui → domain ← data   (widget → domain)
      └───────────────┴───────────────┴───────────────┘
    core:ui   core:data   core:browser   core:automation   core:widget   ← 두 기능 이상이 쓰는 것만
@@ -74,6 +74,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | 화면 꺼짐 방지 | `ScreenAwakeSettingsRepository`, 유스케이스 7개 | `SettingsStore`, `IdleInhibitor`, `SystemScreenAwakeDataSource` | `ScreenAwakeCard`, `SystemScreenAwakeCard` |
 | 화면 테마 | `ThemeMode`, `ThemeSettingsRepository`, `ThemeAppearanceRepository`, 유스케이스 3개 | `SettingsStore`(문자열), `ThemeAppearance` | `ThemeModeCard`, `appDarkTheme()` |
 | 프로파일링 | `Profiling`, `ProfilingRepository`, `ObserveProfilingUseCase` | `ProfilingSource`, `CounterDelta` | `ProfilingCard` |
+| 개발자 도구 | `DevTool`, 변환기 6개(`JsonFormatter`, `HashCalculator` …), `DevToolsSettingsRepository`, 유스케이스 6개 | `DefaultDevToolsSettingsRepository`(`SettingsStore`) | `DevToolsCard`, `DevToolsScreen` |
 | 터미널 | `TerminalWorkspace`, `FileRepository`, `GitWorktreeRepository`, `CodeIntelRepository` | PTY 세션, git, 파일, LSP | 터미널 화면·패널·탭·사이드 바 |
 | MCP 서버 | `McpToolbox`, `McpTools`, `DeviceLeases` | `McpServer`, `McpProtocol` | — |
 
