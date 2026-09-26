@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.IntSize
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfo
 import io.github.taetae98coding.jarvis.domain.appinfo.AppInfoRepository
 import io.github.taetae98coding.jarvis.domain.appinfo.AppRelease
@@ -207,6 +208,8 @@ internal fun TestJarvisApp(
     savedCities: SavedCitiesRepository = FakeWorldClockCities(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
+    // null 이면 테스트 창의 크기(1024×768)를 그대로 쓴다. 홈은 600dp 미만이면 카드 대신 타일을 놓는다.
+    windowSize: IntSize? = null,
     appInfo: AppInfo = TestAppInfo,
     appUpdate: AppUpdateRepository = FakeAppUpdateRepository(),
     // 기본 핸들러(DesktopUriHandler)는 테스트 중에 실제 브라우저를 띄운다. 늘 기록만 하는 것으로 바꾼다.
@@ -284,13 +287,14 @@ internal fun TestJarvisApp(
     }
 
     CompositionLocalProvider(LocalUriHandler provides uriHandler, LocalClipboardManager provides clipboard) {
-        if (windowFocused == null) {
+        if (windowFocused == null && windowSize == null) {
             JarvisApp()
         } else {
             val window = LocalWindowInfo.current
-            val info = remember(window) {
+            val info = remember(window, windowFocused, windowSize) {
                 object : WindowInfo by window {
-                    override val isWindowFocused: Boolean get() = windowFocused.value
+                    override val isWindowFocused: Boolean get() = windowFocused?.value ?: window.isWindowFocused
+                    override val containerSize: IntSize get() = windowSize ?: window.containerSize
                 }
             }
             CompositionLocalProvider(LocalWindowInfo provides info) { JarvisApp() }

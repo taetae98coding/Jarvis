@@ -46,7 +46,7 @@ internal fun QrCodeCard(
 ) {
     JarvisCard(onClick = onClick, modifier = modifier) {
         JarvisCardHeader(
-            title = "QR 코드",
+            title = QrCodeTitle,
             icon = JarvisIcons.QrCode,
             trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
         )

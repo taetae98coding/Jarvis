@@ -128,7 +128,7 @@ internal fun DevToolsScreen(
             .testTag(DevToolsScreenTestTag),
         verticalArrangement = Arrangement.spacedBy(spacing.m),
     ) {
-        JarvisTopBar(title = "개발자 도구", onBack = onBack)
+        JarvisTopBar(title = DevToolsTitle, onBack = onBack)
 
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(spacing.s),

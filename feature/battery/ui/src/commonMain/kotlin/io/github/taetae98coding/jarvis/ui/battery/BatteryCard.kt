@@ -47,7 +47,7 @@ internal fun BatteryCard(
     modifier: Modifier = Modifier,
 ) {
     JarvisCard(modifier = modifier) {
-        JarvisCardHeader(title = "배터리", icon = JarvisIcons.Battery)
+        JarvisCardHeader(title = BatteryTitle, icon = JarvisIcons.Battery)
 
         when (status) {
             BatteryStatus.Loading -> StatusRow(BatteryLoading)

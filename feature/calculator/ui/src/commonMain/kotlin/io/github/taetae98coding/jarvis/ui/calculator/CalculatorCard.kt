@@ -30,7 +30,7 @@ internal fun CalculatorCard(
 ) {
     JarvisCard(onClick = onClick, modifier = modifier) {
         JarvisCardHeader(
-            title = "계산기",
+            title = CalculatorTitle,
             icon = JarvisIcons.Calculator,
             trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
         )

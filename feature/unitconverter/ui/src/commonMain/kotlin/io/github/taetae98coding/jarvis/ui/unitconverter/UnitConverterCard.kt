@@ -38,7 +38,7 @@ internal fun UnitConverterCard(
 ) {
     JarvisCard(onClick = onClick, modifier = modifier) {
         JarvisCardHeader(
-            title = "단위 변환",
+            title = UnitConverterTitle,
             icon = JarvisIcons.Ruler,
             trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
         )

@@ -52,7 +52,7 @@ internal fun SystemScreenAwakeCard(
 ) {
     JarvisCard(modifier = modifier) {
         JarvisCardHeader(
-            title = "화면 꺼짐 방지 (시스템 전역)",
+            title = SystemScreenAwakeTitle,
             icon = JarvisIcons.Monitor,
             enabled = status.supported,
             trailing = {

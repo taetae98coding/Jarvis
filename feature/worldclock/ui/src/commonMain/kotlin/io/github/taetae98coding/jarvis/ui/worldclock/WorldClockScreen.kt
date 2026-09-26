@@ -102,7 +102,7 @@ internal fun WorldClockScreen(
             .testTag(WorldClockScreenTestTag),
         verticalArrangement = Arrangement.spacedBy(spacing.m),
     ) {
-        JarvisTopBar(title = "세계 시계", onBack = onBack)
+        JarvisTopBar(title = WorldClockTitle, onBack = onBack)
 
         PrimaryTabRow(selectedTabIndex = tab.ordinal) {
             WorldClockTab.entries.forEach { option ->

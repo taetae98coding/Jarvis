@@ -31,9 +31,10 @@ Android / iOS / Web 은 전부 구현한다. **데스크톱은 macOS 만** 구�
   [예외 표](docs/common/module-architecture.html#exceptions) 에 한 줄을 더한다.
 - 기능마다 `<기능>DomainModule` / `DataModule` / `UiModule` 을 내놓는다. 리포지토리는 `single`, 유스케이스는 `factory`,
   ViewModel 은 `viewModel` 로 등록하고 화면은 `koinViewModel()` 로만 받는다.
-- ViewModel 은 `internal` 이고 생성자로 유스케이스만 받는다. 기능이 밖에 내놓는 것은 인자 없는 카드·화면과 Koin 모듈뿐이다.
+- ViewModel 은 `internal` 이고 생성자로 유스케이스만 받는다. 기능이 밖에 내놓는 것은 인자 없는 카드·화면, 홈에 놓을 `HomeFeature`, Koin 모듈뿐이다.
 - 타깃 선언은 `build-logic` 컨벤션 플러그인에만 있다. 모듈 빌드 파일에는 그 모듈만 다른 것을 적는다.
-- 새 기능이 고치는 기존 파일은 `settings.gradle.kts`, `shared` 의 Koin 모듈 목록, 카드를 놓는 `FeatureGrid` 뿐이다.
+- 새 기능이 고치는 기존 파일은 `settings.gradle.kts`, `shared` 의 Koin 모듈 목록, `HomeFeature` 를 놓는 `FeatureGrid` 뿐이다.
+- 홈은 창 600dp 를 경계로 카드(Medium 이상)와 아이콘·라벨 타일(Compact)을 오가고, 지원하는 기능이 앞이다([홈 적응형 배치](docs/common/home-adaptive-layout.html)).
 
 ## 상태 조회
 

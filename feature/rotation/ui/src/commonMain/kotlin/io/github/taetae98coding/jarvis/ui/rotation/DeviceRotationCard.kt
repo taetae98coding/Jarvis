@@ -66,7 +66,7 @@ internal fun DeviceRotationCard(
 ) {
     JarvisCard(modifier = modifier) {
         JarvisCardHeader(
-            title = "화면 회전",
+            title = DeviceRotationTitle,
             icon = JarvisIcons.RotateRight,
             enabled = status.supported,
             trailing = {

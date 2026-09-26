@@ -59,7 +59,7 @@ internal fun FocusTimerCard(
     modifier: Modifier = Modifier,
 ) {
     JarvisCard(modifier = modifier) {
-        JarvisCardHeader(title = "집중 타이머", icon = JarvisIcons.Timer)
+        JarvisCardHeader(title = FocusTimerTitle, icon = JarvisIcons.Timer)
 
         Text(
             text = timer.phase.label,

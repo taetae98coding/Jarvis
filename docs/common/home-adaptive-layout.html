@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>홈 적응형 배치 (지원 기능 우선 정렬 · 소형 창 타일 · 기능 화면) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>홈 적응형 배치</span></nav>
+
+<header>
+  <h1>홈 적응형 배치 (지원 기능 우선 정렬 · 소형 창 타일 · 기능 화면)</h1>
+  <p class="lead">홈은 이 플랫폼에서 쓸 수 있는 기능을 앞에 놓는다. 창이 Medium(600dp) 이상이면 지금처럼 홈에서 바로 제어하는 카드를, 그보다 좁으면 아이콘과 라벨뿐인 타일을 놓고, 타일을 누르면 그 기능만 담은 화면에서 설정한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>지금 홈화면에 많은 기능들이 노출되잖아. 그래서 모바일 화면에서 답답한 것 같아.</p>
+  <p>일단 정렬을 각 플랫폼 별로 가능한 것들 먼저 노출되도록 해줘.</p>
+  <p>그리고 각 기능별 홈화면 만들어서 거기서 설정할 수 있도록 UI/UX 개선해줘.</p>
+  <p>Medium 이상 사이즈 단말에서는 지금처럼 홈에서 제어할 수 있는 것들 노출하고 Medium보다 작은 경우 단순히 아이콘 + 라벨만 노출해서 홈에서 세팅하도록 해줘.</p>
+  <footer>2026-09-26 대화.</footer>
+</blockquote>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 홈의 기능 순서는 <em>이 플랫폼에서 지금 쓸 수 있는 기능</em>이 먼저다. 지원 여부가 같은 기능들 사이의 순서는 <code>FeatureGrid</code> 에 적은 순서(화면 꺼짐 방지, 시스템 전역 화면 꺼짐 방지, 화면 테마, 프로파일링, 에뮬레이터, 화면 회전, 터미널, 배터리, 집중 타이머, 개발자 도구, 단위 변환, 텍스트 도구, 계산기, QR 코드, 세계 시계)를 지킨다(안정 정렬).</li>
+  <li><strong>R2.</strong> 지원 여부는 기능이 스스로 말한다. 정적인 기능(화면 꺼짐 방지, 화면 테마, 프로파일링, 집중 타이머, 개발자 도구, 단위 변환, 텍스트 도구, 계산기, QR 코드, 세계 시계)은 늘 지원이고, 상태에 달린 기능(시스템 전역 화면 꺼짐 방지·화면 회전의 <code>supported</code>, 터미널의 <code>isSupported</code>, 에뮬레이터의 셀 수 있는 플랫폼 유무, 배터리의 <code>BatteryStatus</code>)은 그 상태를 따르며 값이 바뀌면 순서도 바뀐다.</li>
+  <li><strong>R3.</strong> 창 너비가 600dp 이상(M3 창 크기 등급 Medium·Expanded)이면 홈은 지금과 같은 기능 카드를 놓는다. 카드의 컨트롤·문구·테스트 태그는 바뀌지 않는다.</li>
+  <li><strong>R4.</strong> 창 너비가 600dp 미만(Compact)이면 홈은 기능마다 아이콘 하나와 라벨 하나뿐인 타일을 놓는다. 타일에는 스위치·버튼·수치가 없다.</li>
+  <li><strong>R5.</strong> 타일을 누르면 그 기능의 화면이 열린다. 화면 꺼짐 방지·시스템 전역 화면 꺼짐 방지·화면 테마·프로파일링·화면 회전·배터리·집중 타이머는 뒤로 버튼과 제목이 있는 상단 막대 아래에 홈 카드와 같은 컨트롤을 담은 새 화면이고, 에뮬레이터·터미널·개발자 도구·단위 변환·텍스트 도구·계산기·QR 코드·세계 시계는 카드를 눌렀을 때와 같은 기존 화면이다.</li>
+  <li><strong>R6.</strong> 기능 화면에서 바꾼 설정은 홈 카드에서 바꾼 것과 같다. 같은 ViewModel·유스케이스를 거치고 같은 곳에 저장된다.</li>
+  <li><strong>R7.</strong> 지원하지 않는 기능의 타일은 잠긴다(눌리지 않고 흐리게 그려진다). 카드 모드에서 그 기능의 카드가 잠기는 것과 같은 뜻이다.</li>
+  <li><strong>R8.</strong> 창 크기가 바뀌면(데스크톱 창 크기 조절, 태블릿 분할 화면) 다음 프레임에 카드와 타일이 서로 바뀐다. 앱을 다시 켤 필요가 없다.</li>
+  <li><strong>R9.</strong> 앱 셸(<code>:app:ui</code>)은 여전히 기능의 ViewModel·유스케이스를 모른다. 기능은 지원 여부·카드·아이콘·라벨·화면 라우트를 하나의 값(<code>HomeFeature</code>)으로 내놓고, 셸은 그 값만 본다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li><strong>앱 정보 카드</strong>는 창 크기와 무관하게 홈 맨 위에 그대로 남는다. 줄이거나 타일로 바꾸라는 지시가 없었다.</li>
+    <li><strong>카드 모드에서 카드를 눌러 기능 화면으로 가는 것</strong>. Medium 이상에서는 홈에서 바로 제어하라는 지시라, 카드는 지금과 같이 동작하고 새 진입점을 더하지 않았다. 창을 좁혔다 넓히면 기능 화면이 백스택에 남아 카드 모드에서도 열려 있을 수 있는데, 이때도 뒤로 가면 홈이다.</li>
+    <li><strong>Expanded 등급의 별도 배치</strong>(두 칸 화면 등). Medium 과 Expanded 를 가르지 않는다.</li>
+    <li><strong>사용자가 순서를 바꾸거나 기능을 숨기는 것</strong>. 지시에 없다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>경계</td><td>창 너비 600dp. <code>JarvisLayout.mediumWindowMinWidth</code>. M3 창 크기 등급의 Compact / Medium 경계와 같다</td></tr>
+    <tr><td>카드 모드 (≥ 600dp)</td><td><code>LazyVerticalStaggeredGrid</code>, 카드 최소 너비 220dp, 간격 12dp(<a href="home-staggered-grid.html">홈 그리드 세로 배치</a>). 카드는 각 기능의 기존 카드 그대로</td></tr>
+    <tr><td>타일 모드 (&lt; 600dp)</td><td><code>LazyVerticalGrid</code>, 타일 최소 너비 128dp(<code>gridMinTileWidth</code>), 높이 112dp 고정(<code>tileHeight</code>), 간격 12dp. 360dp 폰에서 2열</td></tr>
+    <tr><td>타일</td><td><code>JarvisTile</code>: 아이콘(32dp, primary) 위, 라벨(bodyMedium, 가운데, 최대 두 줄) 아래. 카드와 같은 모양·색. 잠기면 M3 Card 의 잠긴 색</td></tr>
+    <tr><td>타일 라벨·아이콘</td><td>카드 제목·아이콘과 같다. 화면 꺼짐 방지 <code>Eye</code> · 화면 꺼짐 방지 (시스템 전역) <code>Monitor</code> · 화면 테마 <code>Moon</code> · 프로파일링 <code>Activity</code> · 에뮬레이터 <code>Smartphone</code> · 화면 회전 <code>RotateRight</code> · 터미널 <code>Terminal</code> · 배터리 <code>Battery</code> · 집중 타이머 <code>Timer</code> · 개발자 도구 <code>Code</code> · 단위 변환 <code>Ruler</code> · 텍스트 도구 <code>Type</code> · 계산기 <code>Calculator</code> · QR 코드 <code>QrCode</code> · 세계 시계 <code>Clock</code></td></tr>
+    <tr><td>기능 화면</td><td><code>HomeFeatureScreen</code>: <code>JarvisTopBar</code>(뒤로 + 제목) 아래에 그 기능의 카드를 전폭으로 놓고 세로 스크롤. 제목은 타일 라벨과 같다</td></tr>
+    <tr><td>정렬</td><td>지원(true) 먼저, 나머지는 목록 순서. 예: Skiko 타깃 테스트 기본값(배터리는 아직 답이 없음)에서는 화면 꺼짐 방지 · 화면 테마 · 프로파일링 · 터미널 · 배터리 · 집중 타이머 · 개발자 도구 · 단위 변환 · 텍스트 도구 · 계산기 · QR 코드 · 세계 시계 · <em>시스템 전역 화면 꺼짐 방지 · 에뮬레이터 · 화면 회전</em></td></tr>
+    <tr><td>테스트 태그</td><td>타일 <code>home:tile:&lt;id&gt;</code>(id 는 <code>keepScreenAwake</code>, <code>keepSystemScreenAwake</code>, <code>themeMode</code>, <code>profiling</code>, <code>emulator</code>, <code>deviceRotation</code>, <code>terminal</code>, <code>battery</code>, <code>focusTimer</code>, <code>devTools</code>, <code>unitConverter</code>, <code>textTools</code>, <code>calculator</code>, <code>qrCode</code>, <code>worldClock</code>). 카드와 기능 화면 안의 컨트롤은 기존 태그 그대로</td></tr>
+  </tbody>
+</table>
+
+<p>지원 여부의 출처는 기능마다 다르다.</p>
+
+<table>
+  <thead><tr><th>기능</th><th>지원</th><th>출처</th></tr></thead>
+  <tbody>
+    <tr><td>화면 꺼짐 방지</td><td>항상</td><td>네 플랫폼 모두 구현·우회(<a href="keep-screen-awake.html#platforms">판정</a>)</td></tr>
+    <tr><td>화면 꺼짐 방지 (시스템 전역)</td><td><code>SystemScreenAwakeStatus.supported</code></td><td>Android 만 true(<a href="system-keep-screen-awake.html#platforms">판정</a>)</td></tr>
+    <tr><td>화면 테마</td><td>항상</td><td>Compose 가 그린다(<a href="theme-mode.html#platforms">판정</a>)</td></tr>
+    <tr><td>프로파일링</td><td>항상</td><td>지표별로 갈리지만 잴 수 있는 지표가 어느 플랫폼에도 있다. 못 재는 지표는 카드가 "측정 불가" 로 표시(<a href="profiling.html#platforms">판정</a>)</td></tr>
+    <tr><td>에뮬레이터</td><td><code>EmulatorStatus</code> 의 <code>android</code>·<code>ios</code> 중 하나라도 null 이 아니면</td><td>아직 답이 없을 때(null)는 지원으로 둔다. 답이 온 뒤에야 한 번 움직이고, 처음부터 뒤로 보냈다가 앞으로 당기면 두 번 움직인다</td></tr>
+    <tr><td>화면 회전</td><td><code>DeviceRotationStatus.supported</code></td><td>Android 만 true(<a href="device-rotation.html#platforms">판정</a>)</td></tr>
+    <tr><td>터미널</td><td><code>IsTerminalSupportedUseCase</code></td><td>JVM·Android(<a href="terminal.html#platforms">판정</a>)</td></tr>
+    <tr><td>배터리</td><td><code>BatteryStatus</code> 가 <code>NoBattery</code>·<code>Unavailable</code> 가 아니면</td><td>배터리가 없는 Mac, Battery Status API 가 없는 브라우저에서 잠긴다(<a href="battery.html#platforms">판정</a>). 아직 답이 없을 때(<code>Loading</code>)는 에뮬레이터와 같은 이유로 지원으로 둔다</td></tr>
+    <tr><td>집중 타이머, 개발자 도구, 단위 변환, 텍스트 도구, 계산기, QR 코드, 세계 시계</td><td>항상</td><td>commonMain 코드로 계산하고 네 플랫폼 모두 구현(<a href="focus-timer.html#platforms">집중 타이머</a>, <a href="dev-utilities.html#platforms">개발자 도구</a>, <a href="unit-converter.html#platforms">단위 변환</a>, <a href="text-tools.html#platforms">텍스트 도구</a>, <a href="calculator.html#platforms">계산기</a>, <a href="qr-code.html#platforms">QR 코드</a>, <a href="world-clock.html#platforms">세계 시계</a>)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>이음새</dt><dd><code>core/ui/src/commonMain/.../ui/home/HomeFeature.kt</code> — <code>interface HomeFeature { id; title; icon; route: NavKey; @Composable fun isSupported(): Boolean; @Composable fun HomeCard(modifier) }</code>. 기능 하나가 홈에 내놓는 전부다. 두 기능 이상이 구현하므로 <code>:core:ui</code> 에 둔다</dd>
+  <dt>기능 화면 틀</dt><dd><code>core/ui/src/commonMain/.../ui/home/HomeFeatureScreen.kt</code> — <code>JarvisTopBar</code> + 세로 스크롤 <code>Column</code></dd>
+  <dt>타일</dt><dd><code>core/designsystem/.../component/JarvisTile.kt</code>, <code>JarvisTileDefaults</code>(height, iconSize, spacing, labelStyle, iconColor). <a href="design-system.html#components">디자인 시스템</a></dd>
+  <dt>토큰</dt><dd><code>JarvisIconSize.large</code> 32 · <code>JarvisLayout.gridMinTileWidth</code> 128 · <code>tileHeight</code> 112 · <code>mediumWindowMinWidth</code> 600 (dp)</dd>
+  <dt>창 등급</dt><dd><code>app/ui/src/commonMain/.../ui/app/WindowWidthClass.kt</code> — <code>LocalWindowInfo.current.containerSize.width</code> 를 <code>LocalDensity</code> 로 dp 로 바꿔 600dp 와 비교한다</dd>
+  <dt>홈</dt><dd><code>app/ui/src/commonMain/.../ui/app/FeatureGrid.kt</code> — <code>HomeFeature</code> 열다섯을 순서대로 적은 목록, <code>isSupported()</code> 로 안정 정렬, 창 등급에 따라 <code>FeatureCardGrid</code>(staggered) 또는 <code>FeatureTileGrid</code>(<code>LazyVerticalGrid</code>)</dd>
+  <dt>기능 쪽</dt><dd>기능마다 <code>&lt;기능&gt;HomeFeature</code> object 와, 화면이 없던 일곱 기능(화면 꺼짐 방지·시스템 전역 화면 꺼짐 방지·화면 테마·프로파일링·화면 회전·배터리·집중 타이머)에는 <code>&lt;기능&gt;Route</code>(<code>@Serializable NavKey</code>)·<code>&lt;기능&gt;Screen(onBack)</code>. Koin ui 모듈이 <code>navigation&lt;Route&gt;</code> 와 <code>navKeySerializers&lt;Route&gt;</code> 를 등록한다. 화면 꺼짐 방지는 라우트가 둘(<code>ScreenAwakeRoute.App</code>·<code>System</code>)이다</dd>
+  <dt>공급</dt><dd>없음. <code>expect</code> 선언이 필요 없다. 창 크기는 Compose 가 플랫폼마다 <code>LocalWindowInfo</code> 에 넣어 준다</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 기능이 <code>HomeFeature</code> 하나를 내놓고, 셸은 그것만 정렬·배치한다</strong>
+  <ul>
+    <li><strong>채택.</strong> <code>:core:ui</code> 의 인터페이스. 지원 여부와 카드가 <code>@Composable</code> 이라 기능이 자기 ViewModel 을 <code>koinViewModel()</code> 로 직접 받는다. 셸이 유스케이스를 모른다는 <a href="module-architecture.html#decision-home">기존 결정</a>이 그대로 지켜지고, 기능을 더할 때 고치는 셸 파일도 여전히 <code>FeatureGrid</code> 하나다. <code>DeviceScreens</code> 가 같은 꼴(컴포저블 멤버를 가진 인터페이스)이다.</li>
+    <li>셸이 기능마다 <code>is&lt;기능&gt;Supported()</code> 컴포저블을 따로 부르고 카드·타일도 따로 적는다. 열다섯 기능 × 네 값을 셸이 손으로 짝지어야 해서 버렸다.</li>
+    <li>Koin 에 <code>HomeFeature</code> 를 등록하고 셸이 <code>getAll()</code> 로 모은다. 순서를 Koin 모듈 로드 순서에 맡기게 되어 버렸다. 순서는 셸이 한 곳에서 적는 편이 읽기 쉽다.</li>
+    <li>플랫폼마다 <code>expect</code> 로 고정 순서를 준다. 지원 여부가 상태(에뮬레이터 개수, 권한)에 달린 기능을 표현할 수 없어 버렸다.</li>
+  </ul>
+</aside>
+
+<aside class="decision">
+  <strong>결정: 창 등급은 <code>LocalWindowInfo.containerSize</code> 로 직접 가른다</strong>
+  <ul>
+    <li><strong>채택.</strong> Compose 가 네 타깃 모두 <code>WindowInfo.containerSize</code> 에 창(Android 는 Window, iOS 는 UIWindow, JVM 은 ComposeWindow 내용, Web 은 canvas) 크기를 넣어 준다. 열 줄이고 의존성이 없다. 테스트는 <code>LocalWindowInfo</code> 를 바꿔 끼워 Compact 를 만든다.</li>
+    <li><code>org.jetbrains.compose.material3:material3-window-size-class</code> 의 <code>calculateWindowSizeClass()</code>. 실험 API(<code>@ExperimentalMaterial3WindowSizeClassApi</code>)고 Android 에서는 Activity 를 요구해 컴포지션 로컬로 바꿔 끼울 수 없다. 버렸다.</li>
+    <li><code>material3-adaptive</code> 의 <code>currentWindowAdaptiveInfo()</code>. <code>androidx.window</code> 를 끌고 오고 위와 같은 이유로 테스트가 어렵다. 버렸다.</li>
+    <li><code>BoxWithConstraints</code> 로 홈 영역의 너비를 잰다. 지시가 "단말 크기" 라 창 기준이 맞고, 화면 여백(16dp)만큼 경계가 어긋난다. 버렸다.</li>
+  </ul>
+</aside>
+
+<aside class="decision">
+  <strong>결정: 기능 화면은 홈 카드를 그대로 담는다</strong>
+  화면 꺼짐 방지·화면 테마·프로파일링·화면 회전·시스템 전역 화면 꺼짐 방지·배터리·집중 타이머의 기능 화면은 상단 막대 아래에 그 기능의 카드 컴포저블을 그대로 놓는다. 컨트롤을 화면용으로 다시 만들면 카드와 화면이 서로 다른 상태·문구를 갖게 되고 테스트 태그도 둘이 된다. 카드를 재사용하면 R6 이 구조로 보장되고, 카드 테스트가 기능 화면에서도 같은 태그로 돈다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 타일은 높이를 고정한다</strong>
+  <code>LazyVerticalGrid</code> 는 한 줄의 항목을 같은 높이로 늘리지 않는다. 라벨이 한 줄인 타일과 두 줄인 타일("화면 꺼짐 방지 (시스템 전역)")이 나란히 놓이면 아래 끝선이 어긋나므로 <code>tileHeight</code>(112dp = 아이콘 32 + 간격 8 + bodyMedium 두 줄 40 + 카드 여백 16 × 2)로 고정하고 라벨은 두 줄에서 말줄임한다. staggered 그리드를 쓰지 않는 이유도 같다 — 높이가 같으면 행으로 묶어도 빈 공간이 없다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<p>정렬·배치·화면은 모두 commonMain 의 Compose 코드다. 플랫폼 차이는 <code>LocalWindowInfo.containerSize</code> 를 누가 채우는지와, 어느 기능이 지원으로 판정되어 앞에 오는지뿐이다.</p>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>폰은 Compact 라 타일, 태블릿·폴더블 펼침은 카드. 시스템 전역 화면 꺼짐 방지·화면 회전이 앞에 온다</td><td><a href="../platform/android.html#home-adaptive-layout">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>iPhone 은 타일, iPad 는 카드. 시스템 전역·회전·터미널은 뒤로 간다</td><td><a href="../platform/ios.html#home-adaptive-layout">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>창을 600dp 아래로 줄이면 타일. 터미널·에뮬레이터가 앞에 온다</td><td><a href="../platform/jvm.html#home-adaptive-layout">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge ok">구현</span></td><td>브라우저 창(canvas) 너비를 따른다. 모바일 브라우저는 타일</td><td><a href="../platform/web.html#home-adaptive-layout">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>JarvisAppHomeLayoutTest.mediumWindowShowsCardsNotTiles</code></td><td>R3. 1024dp 창에서 카드가 있고 타일이 없다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppHomeLayoutTest.compactWindowShowsTilesNotCards</code></td><td>R4. 400dp 창에서 타일 열다섯이 있고 카드가 없다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppHomeLayoutTest.compactWindowPutsSupportedFeaturesFirst</code></td><td>R1, R2. 타일의 시각 순서가 지원 열둘 → 미지원 셋</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppHomeLayoutTest.mediumWindowPutsSupportedCardsInTheFirstRow</code></td><td>R1. 카드 모드에서도 목록 앞의 지원 넷이 첫 줄, 미지원 셋이 그보다 아래</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppHomeLayoutTest.orderFollowsSupportChanges</code></td><td>R2. 화면 회전이 지원으로 바뀌면 타일이 풀리고 앞으로 온다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppHomeLayoutTest.compactWindowLocksUnsupportedTiles</code></td><td>R7. 미지원 타일은 잠기고 지원 타일은 눌린다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppHomeLayoutTest.tileOpensFeatureScreenWhereTheSettingIsMade</code></td><td>R5, R6. 타일 → 기능 화면 → 스위치 켜면 저장소에 남는다 → 뒤로 → 타일</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppHomeLayoutTest.themeTileOpensScreenWithTheSameOptions</code>, <code>systemScreenAwakeTileOpensScreenWhereItIsSupported</code>, <code>rotationTileOpensScreenWhereItIsSupported</code>, <code>profilingTileOpensScreen</code>, <code>batteryTileOpensScreen</code>, <code>focusTimerTileOpensScreenWhereTheTimerStarts</code></td><td>R5, R6. 나머지 기능 화면이 카드와 같은 컨트롤로 동작한다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppHomeLayoutTest.emulatorTileOpensDeviceList</code>, <code>terminalTileOpensTerminal</code>, <code>screenFeatureTilesOpenTheirScreens</code></td><td>R5. 화면이 있던 기능의 타일은 그 화면을 연다</td><td>같음</td></tr>
+    <tr><td><code>JarvisAppTest</code> 의 홈 카드 테스트 전부</td><td>R3, R9. 카드 모드의 카드가 전과 같이 보이고 눌리고 토글된다</td><td>같음</td></tr>
+    <tr><td>수동 확인</td><td>R8. 데스크톱 창을 600dp 아래위로 조절하며 카드·타일이 바뀌는 것 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>지원 여부가 나중에 바뀌는 기능(에뮬레이터 개수, 회전 권한, 배터리 유무)은 그 순간 순서가 움직인다. 사용자가 누르려던 자리가 바뀔 수 있다. 에뮬레이터·배터리는 답이 오기 전을 지원으로 두어 움직임을 한 번으로 줄였다.</li>
+  <li>기능 화면이 백스택에 있는 채로 창을 넓히면 카드 모드에서 열 수 없는 화면이 열려 있는 상태가 된다. 뒤로 가면 홈이고 동작에 문제는 없다.</li>
+  <li>타일 라벨은 두 줄에서 말줄임한다. 128dp 타일에 "화면 꺼짐 방지 (시스템 전역)" 이 두 줄에 다 들어가는 것은 M3 기본 글꼴 기준이라, 시스템 글꼴 크기를 크게 키우면 끝이 잘릴 수 있다.</li>
+  <li>배치 결과(열 수, 타일 높이)는 자동 테스트로 가리지 않는다. <a href="home-staggered-grid.html#limits">홈 그리드 세로 배치</a>와 같은 이유다. 순서는 시맨틱 노드의 좌표로 확인한다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

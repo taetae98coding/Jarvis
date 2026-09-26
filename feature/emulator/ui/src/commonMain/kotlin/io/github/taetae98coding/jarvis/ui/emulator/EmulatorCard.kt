@@ -40,7 +40,7 @@ internal fun EmulatorCard(
 ) {
     JarvisCard(onClick = onClick, modifier = modifier) {
         JarvisCardHeader(
-            title = "에뮬레이터",
+            title = EmulatorTitle,
             icon = JarvisIcons.Smartphone,
             trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
         )

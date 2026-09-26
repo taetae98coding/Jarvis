@@ -54,6 +54,7 @@
     <li><a href="#notification-widget">알림 위젯과 빠른 설정 타일</a></li>
     <li><a href="#card-ripple">카드 물결 효과</a></li>
     <li><a href="#home-staggered-grid">홈 그리드 세로 배치</a></li>
+    <li><a href="#home-adaptive-layout">홈 적응형 배치</a></li>
     <li><a href="#emulator-control">기기 목록·화면·제스처</a></li>
     <li><a href="#emulator-launch">꺼진 에뮬레이터 실행</a></li>
     <li><a href="#emulator-wake">꺼진 화면 깨우기</a></li>
@@ -1048,6 +1049,37 @@ internal actual fun createSystemScreenAwakeDataSource(
 <h3>검증</h3>
 <p><code>JarvisAppTest</code> 가 <code>jvmTest</code>(skikoTest) 에서 돌며 카드 다섯이 보이고 눌리는 것을 확인한다. 배치와 창 크기에 따른 열 수 변화는 <span class="badge untested">미검증</span>이고, <code>./gradlew :desktopApp:run</code> 으로 창을 늘렸다 줄여 수동 확인한다.</p>
 </section>
+
+<section class="feature" id="home-adaptive-layout">
+<h2>홈 적응형 배치 (지원 기능 우선 정렬 · 소형 창 타일 · 기능 화면) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/home-adaptive-layout.html">홈 적응형 배치</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>LocalWindowInfo.current.containerSize</code></td><td>채택. <code>ComposeWindow</code> 가 내용 영역(<code>contentPane</code>)의 크기를 넣고, 사용자가 창을 조절할 때마다 갱신되어 홈이 다음 프레임에 카드·타일을 바꾼다</td></tr>
+    <tr><td><code>Window</code> 의 <code>WindowState.size</code></td><td>버림. 진입점(<code>desktopApp</code>)의 값이라 <code>:app:ui</code> 가 볼 수 없고, 제목 표시줄을 포함한 창 전체 크기다</td></tr>
+    <tr><td><code>Toolkit.getDefaultToolkit().screenSize</code></td><td>버림. 모니터 크기지 창 크기가 아니다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd>공통 코드 그대로(<code>WindowWidthClass.kt</code>, <code>FeatureGrid.kt</code>). 플랫폼 코드가 없다</dd>
+  <dt>동작</dt><dd>기본 창은 Medium 이상이라 카드. 창을 600dp 아래로 줄이면 타일이 된다. 이 플랫폼은 터미널·에뮬레이터·프로파일링·테마·화면 꺼짐 방지가 앞이고 시스템 전역 화면 꺼짐 방지·화면 회전이 뒤다. 배터리는 MacBook 에서는 앞, 배터리가 없는 Mac(<code>NoBattery</code>)에서는 잠겨 뒤로 간다(<a href="#battery">배터리</a>)</dd>
+  <dt>실패</dt><dd>해당 없음</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>창을 경계 근처에서 조절하면 카드와 타일이 오가며 스크롤 위치가 초기화된다. 두 그리드가 서로 다른 <code>LazyListState</code> 를 가져서다. 경계를 자주 오가는 창 크기는 데스크톱에서 드물다.</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:app:ui:jvmTest</code> 의 <code>JarvisAppHomeLayoutTest</code> 가 1024dp(카드)와 400dp(타일) 두 창 크기를 <code>LocalWindowInfo</code> 로 바꿔 끼워 정렬·타일·기능 화면·잠금을 모두 확인한다. 실제 창 조절로 바뀌는 것은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
 
 <section class="feature" id="emulator-control">
 <h2>기기 목록·화면·제스처 <span class="badge partial">조건부</span></h2>

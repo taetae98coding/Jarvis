@@ -145,7 +145,7 @@ internal fun TextToolsScreen(
             .testTag(TextToolsScreenTestTag),
         verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m),
     ) {
-        JarvisTopBar(title = "텍스트 도구", onBack = onBack)
+        JarvisTopBar(title = TextToolsTitle, onBack = onBack)
 
         PrimaryTabRow(selectedTabIndex = tool.ordinal) {
             TextTool.entries.forEach { option ->

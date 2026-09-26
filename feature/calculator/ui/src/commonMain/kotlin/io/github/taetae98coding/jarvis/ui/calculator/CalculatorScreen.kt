@@ -121,7 +121,7 @@ internal fun CalculatorScreen(
             .testTag(CalculatorScreenTestTag),
         verticalArrangement = Arrangement.spacedBy(JarvisTheme.dimens.spacing.m),
     ) {
-        JarvisTopBar(title = "계산기", onBack = onBack)
+        JarvisTopBar(title = CalculatorTitle, onBack = onBack)
 
         PrimaryTabRow(selectedTabIndex = tab.ordinal) {
             CalculatorTab.entries.forEach { option ->

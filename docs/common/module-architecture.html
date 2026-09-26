@@ -50,7 +50,7 @@
   <li><strong>R5.</strong> <code>:domain</code>은 Compose와 플랫폼 API에 의존하지 않는다. 의존성은 <code>kotlinx-coroutines-core</code>와 <code>koin-core</code>뿐이고 <code>expect</code> 선언이 없다. 플랫폼 API 호출은 <code>data</code> 모듈에 있다(UI 타입에 묶인 것은 <a href="#exceptions">예외</a>).</li>
   <li><strong>R6.</strong> 기능 모듈은 자기 조립을 스스로 들고 있다. <code>domain</code>은 유스케이스를, <code>data</code>는 리포지토리를, <code>ui</code>는 ViewModel·화면·라우트를 각각 자기 Koin 모듈에 등록한다.</li>
   <li><strong>R7.</strong> 앱 셸(<code>:app:ui</code>)은 어떤 화면이 있는지 모른다. 라우트는 각 기능의 Koin 모듈이 등록하고, 백스택 키의 직렬화 등록도 기능이 함께 낸다.</li>
-  <li><strong>R8.</strong> 기능을 하나 더할 때 고치는 기존 파일은 <code>settings.gradle.kts</code>와 <code>:shared</code>의 모듈 목록, 그리고 카드를 놓는 <code>FeatureGrid</code> 뿐이다.</li>
+  <li><strong>R8.</strong> 기능을 하나 더할 때 고치는 기존 파일은 <code>settings.gradle.kts</code>와 <code>:shared</code>의 모듈 목록, 그리고 <code>HomeFeature</code> 를 놓는 <code>FeatureGrid</code> 뿐이다. (2026-09-26) 기능이 홈에 내놓는 것은 인자 없는 카드가 아니라 카드·타일 정보·지원 여부·화면 라우트를 묶은 <code>HomeFeature</code> 하나다(<a href="home-adaptive-layout.html#implementation">홈 적응형 배치</a>).</li>
   <li><strong>R12.</strong> (2026-09-24, 2026-09-25 범위 확장) Android 시스템 표면 컨트롤(홈 화면 위젯, 알림, 빠른 설정 타일)이 있는 기능은 <code>:feature:&lt;기능&gt;:widget</code>을 하나 더 갖는다. Android 전용 <code>com.android.library</code> 모듈이고, <code>ui</code>와 같은 방향(<code>widget → domain</code>)만 의존한다. 두 기능이 함께 쓰는 갱신 장치·권한 중계·알림 채널·타일 베이스는 <code>:core:widget</code>에 둔다(R4). 근거는 <a href="home-screen-widget.html#implementation">홈 화면 위젯</a>과 <a href="notification-widget.html#implementation">알림 위젯과 빠른 설정 타일</a>에 있다.</li>
   <li><strong>R13.</strong> (2026-09-25) 화면이 없는 기능은 <code>ui</code> 모듈을 두지 않는다. <code>:feature:mcp</code> 는 <code>domain</code>·<code>data</code> 둘이다. 여러 기능의 능력을 한데 부르는 기능(MCP 도구)을 위해 이음새 인터페이스만 담은 <code>:core:automation</code> 을 두고, 각 기능의 <code>data</code> 가 구현을 Koin 에 등록한다. <code>:feature:mcp:domain</code> 이 <code>:core:automation</code> 을 의존하는 것은 R5 의 예외다 — 인터페이스와 데이터 클래스뿐이라 플랫폼·Compose 가 끌려오지 않는다. 브라우저 엔진은 터미널 화면과 MCP 가 함께 쓰므로 <code>:core:browser</code> 에 둔다(R4). 근거는 <a href="mcp-server.html#modules">MCP 서버</a>에 있다.</li>
   <li><strong>R9.</strong> 패키지 루트는 모듈마다 다르다. 기능 분리 전의 패키지(<code>…jarvis.&lt;계층&gt;.&lt;기능&gt;</code>)를 그대로 쓴다.</li>
@@ -213,7 +213,7 @@ val emulatorUiModule = module {
 
 <aside class="decision" id="decision-home">
   <strong>결정: <code>HomeViewModel</code> 을 기능별 ViewModel 로 해체한다</strong>
-  홈 화면은 네 기능의 카드를 놓는 자리다. 예전에는 <code>HomeViewModel</code> 하나가 앱 정보·에뮬레이터 개수·화면 꺼짐 방지·회전을 모두 들고 있었는데, 그러면 <code>:app:ui</code> 가 네 기능의 유스케이스를 알아야 해서 R3·R7 이 깨진다. 지금은 카드마다 자기 기능의 ViewModel 을 <code>koinViewModel()</code> 로 직접 받고, <code>FeatureGrid</code> 는 인자 없는 카드 컴포저블 넷을 배치만 한다. 화면 꺼짐 방지의 앱 수명 효과도 <code>:feature:screen:ui</code> 의 <code>Modifier.appScreenAwake()</code> 안으로 들어가 앱 셸이 그 내부를 모른다.
+  홈 화면은 네 기능의 카드를 놓는 자리다. 예전에는 <code>HomeViewModel</code> 하나가 앱 정보·에뮬레이터 개수·화면 꺼짐 방지·회전을 모두 들고 있었는데, 그러면 <code>:app:ui</code> 가 네 기능의 유스케이스를 알아야 해서 R3·R7 이 깨진다. 지금은 카드마다 자기 기능의 ViewModel 을 <code>koinViewModel()</code> 로 직접 받고, <code>FeatureGrid</code> 는 기능이 내놓은 <code>HomeFeature</code>(지원 여부·카드·타일의 아이콘과 라벨·화면 라우트) 일곱을 정렬해 배치만 한다(2026-09-26, <a href="home-adaptive-layout.html">홈 적응형 배치</a>). 지원 여부와 카드가 컴포저블 멤버라 기능이 그 안에서 자기 ViewModel 을 받고, 셸은 여전히 유스케이스를 모른다. 화면 꺼짐 방지의 앱 수명 효과도 <code>:feature:screen:ui</code> 의 <code>Modifier.appScreenAwake()</code> 안으로 들어가 앱 셸이 그 내부를 모른다.
 </aside>
 
 <h3 id="core">core 에 무엇이 남나</h3>

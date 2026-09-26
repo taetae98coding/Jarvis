@@ -434,25 +434,28 @@ class JarvisAppTest {
         assertTrue(notification.status.value.pinned)
     }
 
+    // 회전을 지원하지 않으면 회전 카드는 지원하는 카드 열둘 뒤로 밀려 뷰포트 밖에 놓인다. 알림을 만들 수 있는
+    // 플랫폼(Android)은 회전도 지원하므로 아래 테스트와 같이 회전을 지원으로 둔다.
     @Test
     fun deviceRotationNotificationTogglesWhereItIsSupported() = runComposeUiTest {
         val notification = FakeDeviceRotationNotificationRepository(
             DeviceRotationNotificationStatus(supported = true, permitted = true),
         )
-        setContent { TestJarvisApp(deviceRotationNotification = notification) }
+        setContent { TestJarvisApp(deviceRotation = rotatable(), deviceRotationNotification = notification) }
 
         onNodeWithTag(DeviceRotationNotificationTestTag).assertIsOff().performClick().assertIsOn()
 
         assertTrue(notification.status.value.pinned)
     }
 
-    // 권한이 없어도 값은 켜진 채 남고, 그 사실이 스위치 아래에 보인다.
+    // 권한이 없어도 값은 켜진 채 남고, 그 사실이 스위치 아래에 보인다. 알림을 만들 수 있는 플랫폼(Android)은 회전도
+    // 지원하므로 회전을 지원으로 두어야 카드가 홈 첫 줄에 와서 뷰포트 안에 다 보인다(docs/common/home-adaptive-layout.html R1).
     @Test
     fun notificationRowExplainsMissingPermission() = runComposeUiTest {
         val notification = FakeDeviceRotationNotificationRepository(
             DeviceRotationNotificationStatus(supported = true, permitted = false, pinned = true),
         )
-        setContent { TestJarvisApp(deviceRotationNotification = notification) }
+        setContent { TestJarvisApp(deviceRotation = rotatable(), deviceRotationNotification = notification) }
 
         onNodeWithTag(DeviceRotationNotificationTestTag).assertIsOn()
         onNodeWithText("알림 권한이 없어 표시되지 않습니다. 허용하면 바로 나타납니다.").assertIsDisplayed()

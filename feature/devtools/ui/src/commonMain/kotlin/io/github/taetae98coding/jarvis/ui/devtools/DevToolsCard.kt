@@ -30,7 +30,7 @@ internal fun DevToolsCard(
 ) {
     JarvisCard(onClick = onClick, modifier = modifier) {
         JarvisCardHeader(
-            title = "개발자 도구",
+            title = DevToolsTitle,
             icon = JarvisIcons.Code,
             trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
         )

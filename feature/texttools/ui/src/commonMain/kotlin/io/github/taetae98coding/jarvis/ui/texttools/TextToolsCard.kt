@@ -30,7 +30,7 @@ internal fun TextToolsCard(
 ) {
     JarvisCard(onClick = onClick, modifier = modifier) {
         JarvisCardHeader(
-            title = "텍스트 도구",
+            title = TextToolsTitle,
             icon = JarvisIcons.Type,
             trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
         )

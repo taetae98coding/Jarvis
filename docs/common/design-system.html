@@ -90,9 +90,9 @@
     <tr><td><code>codeTextStyle</code></td><td><code>TextStyle</code></td><td><code>FontFamily.Monospace</code>, 13sp. 터미널 글자</td></tr>
     <tr><td><code>shapes</code></td><td>M3 <code>Shapes</code></td><td>extraSmall 4 · small 8 · medium 12 · large 16 · extraLarge 28 (dp, 둥근 모서리)</td></tr>
     <tr><td><code>dimens.spacing</code></td><td><code>JarvisSpacing</code></td><td>xxs 2 · xs 4 · s 8 · m 12 · l 16 · xl 20 · xxl 24 (dp)</td></tr>
-    <tr><td><code>dimens.iconSize</code></td><td><code>JarvisIconSize</code></td><td>small 18 · medium 24 (dp). 버튼 안 아이콘은 small, 단독·IconButton 은 medium</td></tr>
+    <tr><td><code>dimens.iconSize</code></td><td><code>JarvisIconSize</code></td><td>small 18 · medium 24 · large 32 (dp). 버튼 안 아이콘은 small, 단독·IconButton 은 medium, 홈 타일처럼 아이콘이 주인공인 자리는 large</td></tr>
     <tr><td><code>dimens.stroke</code></td><td><code>JarvisStroke</code></td><td>thin 1 · thick 4 (dp). 포커스 테두리, 분할 경계선</td></tr>
-    <tr><td><code>dimens.layout</code></td><td><code>JarvisLayout</code></td><td>screenPadding 16 · gridMinCellWidth 220 · topBarHeight 56 (dp)</td></tr>
+    <tr><td><code>dimens.layout</code></td><td><code>JarvisLayout</code></td><td>screenPadding 16 · gridMinCellWidth 220 · gridMinTileWidth 128 · tileHeight 112 · mediumWindowMinWidth 600 · topBarHeight 56 (dp). 뒤의 셋은 <a href="home-adaptive-layout.html">홈 적응형 배치</a></td></tr>
   </tbody>
 </table>
 
@@ -109,6 +109,7 @@
     <tr><td><code>JarvisIconButton</code></td><td><code>:core:designsystem</code></td><td><code>colors()</code>(M3 <code>IconButtonDefaults.iconButtonColors</code> 위), 아이콘 크기(medium)</td><td>—</td></tr>
     <tr><td><code>JarvisSwitchRow</code></td><td><code>:core:designsystem</code></td><td>제목 글꼴(bodyMedium), 보조 문구 글꼴·색(bodySmall, onSurfaceVariant). 카드 안에서 제목 + <code>Switch</code> 한 줄(<a href="notification-widget.html">알림 위젯</a>)</td><td>—</td></tr>
     <tr><td><code>JarvisTopBar</code></td><td><code>:core:designsystem</code></td><td>제목 글꼴(titleLarge), 뒤로 아이콘·설명(<code>Back</code>, "뒤로")</td><td>막대: <code>minHeight(topBarHeight)</code></td></tr>
+    <tr><td><code>JarvisTile</code></td><td><code>:core:designsystem</code></td><td><code>height</code>(tileHeight), <code>iconSize</code>(large)·<code>iconColor(enabled)</code>(primary / 잠기면 LocalContentColor), <code>spacing</code>(s), <code>labelStyle</code>(bodyMedium), <code>LabelMaxLines</code> 2. 아이콘 + 라벨뿐인 누를 수 있는 카드(<a href="home-adaptive-layout.html">홈 적응형 배치</a>)</td><td>—</td></tr>
     <tr><td><code>ToggleFeatureCard</code></td><td><code>:core:ui</code></td><td><code>JarvisCard</code>·<code>JarvisCardHeader</code> 의 Defaults 를 그대로 쓴다</td><td><code>JarvisCard</code> 에 넘긴다</td></tr>
     <tr><td><code>AppInfoCard</code></td><td><code>:feature:appinfo:ui</code></td><td><code>AppInfoCardDefaults</code>: 제목 headlineSmall, 줄 간격 spacing.m</td><td><code>contentPadding(spacing.xl)</code> — 카드 기본 16 을 20 으로 덮는다</td></tr>
     <tr><td>기기 줄</td><td><code>:feature:emulator:ui</code></td><td><code>EmulatorDeviceDefaults</code>: 상태 아이콘 색(실행 중 success / 화면 꺼짐 warning / 꺼짐 onSurfaceVariant), 실행 중 표시 크기</td><td>—</td></tr>
@@ -177,6 +178,7 @@
     <tr><td>터미널 상단</td><td>"← 뒤로", 제목, 글자 버튼 넷</td><td><code>JarvisTopBar</code>(뒤로 + 제목). 한때 아이콘 버튼 넷(<code>SplitSideBySide</code>, <code>SplitStacked</code>, <code>Add</code>, <code>Close</code>)이 있었으나 <a href="terminal-tab-dock.html">탭 끌어 놓기</a>로 없어졌고 분할 아이콘 둘은 지웠다</td></tr>
     <tr><td>터미널 탭</td><td>이름 + 글자 "×"</td><td>이름 + <code>Close</code> 아이콘(small). 선택·hover·눌림 배경은 Style 이 애니메이션한다</td></tr>
     <tr><td>기능 카드</td><td>제목 글자만</td><td><code>JarvisCardHeader</code>: 아이콘 + 제목 (+ 스위치 또는 <code>ChevronRight</code>)</td></tr>
+    <tr><td>홈 (창 600dp 미만)</td><td>기능 카드</td><td><code>JarvisTile</code>: 카드와 같은 아이콘(large) + 같은 제목. 누르면 <code>JarvisTopBar</code> 아래에 그 카드를 놓은 기능 화면(2026-09-26, <a href="home-adaptive-layout.html">홈 적응형 배치</a>)</td></tr>
     <tr><td>화면 회전 버튼</td><td>"-90°", "+90°"</td><td><code>RotateLeft</code>/<code>RotateRight</code> 아이콘 + 같은 글자</td></tr>
     <tr><td>앱 정보·에뮬레이터 요약 줄</td><td>기능마다 따로 만든 <code>InfoRow</code>·<code>SummaryRow</code></td><td><code>JarvisLabeledValue</code> 하나</td></tr>
   </tbody>
@@ -264,6 +266,7 @@
     <tr><td><code>JarvisThemeTest.materialThemeFollowsJarvisTokens</code></td><td>R1, R2. <code>JarvisTheme</code> 안에서 <code>MaterialTheme.colorScheme</code>·<code>typography</code>·<code>shapes</code> 가 Jarvis 값이다</td><td><code>:core:designsystem</code> <code>skikoTest</code></td></tr>
     <tr><td><code>JarvisThemeTest.darkThemeSwapsColors</code></td><td>R3. <code>darkTheme = true</code> 면 다크 색 두 벌(<code>colorScheme</code>, <code>colors</code>)이 공급된다</td><td>같음</td></tr>
     <tr><td><code>JarvisCardTest.defaultStylePadsContent</code></td><td>R6. 카드 내용이 기본 Style 의 여백(spacing.l)만큼 들어가 있다</td><td>같음</td></tr>
+    <tr><td><code>JarvisTileTest.tileHeightIsFixedRegardlessOfLabelLength</code>, <code>lockedTileDoesNotClick</code>, <code>tileClicks</code></td><td>타일 높이가 라벨 줄 수와 무관하게 tileHeight 이고, 잠긴 타일은 눌리지 않는다</td><td>같음</td></tr>
     <tr><td><code>JarvisCardTest.callerStyleOverridesOnlyWhatItSets</code></td><td>R5, R6. 호출자 Style 이 여백을 바꾸면 그 값이 쓰이고, 넘기지 않은 속성(카드 모양·색)은 그대로다</td><td>같음</td></tr>
     <tr><td><code>JarvisIconsTest.everyIconIsA24dpOutline</code></td><td>R7. 모든 아이콘의 경로 문자열이 해석되고 24dp·24 뷰포트다. 경로 오타는 처음 그릴 때 예외가 나서 이 테스트가 먼저 잡는다</td><td>같음</td></tr>
     <tr><td><code>JarvisAppTest.backReturnsToListThenGrid</code> 외 뒤로 테스트</td><td>R7, R8. "뒤로" contentDescription 으로 찾아 누르면 전과 같이 이동한다</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>

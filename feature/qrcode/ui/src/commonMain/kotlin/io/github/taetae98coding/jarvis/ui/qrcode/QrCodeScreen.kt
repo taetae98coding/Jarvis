@@ -102,7 +102,7 @@ internal fun QrCodeScreen(
             .testTag(QrCodeScreenTestTag),
         verticalArrangement = Arrangement.spacedBy(spacing.m),
     ) {
-        JarvisTopBar(title = "QR 코드", onBack = onBack)
+        JarvisTopBar(title = QrCodeTitle, onBack = onBack)
 
         ChipRow {
             QrContentType.entries.forEach { type ->

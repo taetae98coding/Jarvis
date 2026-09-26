@@ -44,7 +44,7 @@ internal fun WorldClockCard(
 ) {
     JarvisCard(onClick = onClick, modifier = modifier) {
         JarvisCardHeader(
-            title = "세계 시계",
+            title = WorldClockTitle,
             icon = JarvisIcons.Clock,
             trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
         )

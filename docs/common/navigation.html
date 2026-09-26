@@ -45,7 +45,7 @@
 <h2 id="requirements">요구사항</h2>
 
 <ol>
-  <li><strong>R1.</strong> 화면은 셋이다. 앱 셸이 가진 <code>Home</code>(기능 그리드)과 에뮬레이터 기능이 가진 <code>EmulatorRoute.Devices</code>·<code>EmulatorRoute.Screen(deviceId)</code>. 이동은 백스택에 키를 넣고 빼는 것으로만 일어난다.</li>
+  <li><strong>R1.</strong> 화면은 셋이다. 앱 셸이 가진 <code>Home</code>(기능 그리드)과 에뮬레이터 기능이 가진 <code>EmulatorRoute.Devices</code>·<code>EmulatorRoute.Screen(deviceId)</code>. 이동은 백스택에 키를 넣고 빼는 것으로만 일어난다. (이후 <a href="terminal.html">터미널</a>·<a href="wireless-pairing.html">페어링</a> 화면이 더해졌고, 2026-09-26 <a href="home-adaptive-layout.html">홈 적응형 배치</a>로 화면 꺼짐 방지 둘·화면 테마·프로파일링·화면 회전의 기능 화면(<code>ScreenAwakeRoute.App</code>·<code>System</code>, <code>ThemeModeRoute</code>, <code>ProfilingRoute</code>, <code>DeviceRotationRoute</code>)이 같은 방식으로 더해졌다.)</li>
   <li><strong>R2.</strong> 라우트 키는 <code>NavKey</code>이고 <code>@Serializable</code>이다. 화면에 필요한 값은 키에 직렬화 가능한 형태로만 담는다.</li>
   <li><strong>R3.</strong> 백스택은 <code>rememberNavBackStack</code>으로 저장·복원된다. 복원 경로가 있는 플랫폼에서는 앱을 다시 띄웠을 때 마지막 화면으로 돌아온다.</li>
   <li><strong>R4.</strong> 각 라우트의 <code>@Composable</code> 본문은 그 기능의 Koin 모듈에 <code>navigation&lt;T&gt;</code>로 선언하고, <code>NavDisplay</code>는 <code>koinEntryProvider()</code>가 모아 준 <code>entryProvider</code>만 받는다. 화면을 하나 더할 때 앱 셸은 고치지 않는다.</li>

@@ -53,7 +53,7 @@ internal fun ProfilingCard(
     modifier: Modifier = Modifier,
 ) {
     JarvisCard(modifier = modifier) {
-        JarvisCardHeader(title = "프로파일링", icon = JarvisIcons.Activity)
+        JarvisCardHeader(title = ProfilingTitle, icon = JarvisIcons.Activity)
 
         MetricRow(ProfilingMetric.CPU, "CPU", profiling.cpu, scope = { it.scope }, fraction = Usage::fraction) {
             formatPercent(it.percent)

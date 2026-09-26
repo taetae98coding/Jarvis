@@ -79,6 +79,7 @@
 │   ├── home-screen-widget.html      홈 화면 위젯 (Android 전용, 회전·꺼짐 방지)
 │   ├── notification-widget.html     알림 위젯과 빠른 설정 타일 (Android 전용, 회전·꺼짐 방지)
 │   ├── home-staggered-grid.html     홈 그리드 세로 배치
+│   ├── home-adaptive-layout.html    홈 적응형 배치 (지원 기능 우선, 소형 창 타일, 기능 화면)
 │   ├── terminal.html                터미널 (분할·탭)
 │   ├── terminal-claude.html         터미널에서 Claude 실행 (YOLO 모드)
 │   ├── terminal-panels.html         터미널 패널과 세션 유지 (DataStore, Claude 백그라운드 세션)
@@ -371,6 +372,13 @@
       <td class="center"><a href="platform/ios.html#home-staggered-grid"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/jvm.html#home-staggered-grid"><span class="badge ok">구현</span></a></td>
       <td class="center"><a href="platform/web.html#home-staggered-grid"><span class="badge ok">구현</span></a></td>
+    </tr>
+    <tr>
+      <td><a href="common/home-adaptive-layout.html">홈 적응형 배치</a></td>
+      <td class="center"><a href="platform/android.html#home-adaptive-layout"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/ios.html#home-adaptive-layout"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/jvm.html#home-adaptive-layout"><span class="badge ok">구현</span></a></td>
+      <td class="center"><a href="platform/web.html#home-adaptive-layout"><span class="badge ok">구현</span></a></td>
     </tr>
     <tr>
       <td><a href="common/terminal.html">터미널</a></td>
@@ -672,6 +680,7 @@
   <li><a href="common/home-screen-widget.html">홈 화면 위젯</a><p>Android 홈 화면에서 앱을 열지 않고 화면 회전과 시스템 전역 화면 꺼짐 방지를 조작한다</p></li>
   <li><a href="common/notification-widget.html">알림 위젯과 빠른 설정 타일</a><p>Android 알림 창에 고정한 컨트롤과 빠른 설정 타일로 화면 회전과 시스템 전역 화면 꺼짐 방지를 조작한다</p></li>
   <li><a href="common/home-staggered-grid.html">홈 그리드 세로 배치</a><p>높이가 제각각인 기능 카드를 행으로 묶지 않고 가장 짧은 열에 이어 붙인다</p></li>
+  <li><a href="common/home-adaptive-layout.html">홈 적응형 배치</a><p>이 플랫폼에서 쓸 수 있는 기능을 앞에 놓고, 창이 600dp 보다 좁으면 카드 대신 아이콘·라벨 타일을 놓아 누르면 그 기능만 담은 화면에서 설정한다</p></li>
   <li><a href="common/design-system.html">디자인 시스템</a><p>M3 위의 JarvisTheme 토큰, *Defaults 와 Style 로 정의한 컴포넌트, ImageVector 아이콘</p></li>
   <li><a href="common/terminal.html">터미널</a><p>iTerm 처럼 셸을 띄우고 좌우·상하 분할과 탭을 쓴다. JVM 은 pty, Android 는 파이프, iOS·Web 은 불가</p></li>
   <li><a href="common/terminal-claude.html">터미널에서 Claude 실행</a><p>터미널 새 탭(+) 메뉴에서 골라 새 탭에 Claude Code 를 YOLO 모드로 띄운다. JVM 만 가능</p></li>

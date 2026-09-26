@@ -132,7 +132,7 @@ internal fun UnitConverterScreen(
             .testTag(UnitConverterScreenTestTag),
         verticalArrangement = Arrangement.spacedBy(spacing.m),
     ) {
-        JarvisTopBar(title = "단위 변환", onBack = onBack)
+        JarvisTopBar(title = UnitConverterTitle, onBack = onBack)
 
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(spacing.s),

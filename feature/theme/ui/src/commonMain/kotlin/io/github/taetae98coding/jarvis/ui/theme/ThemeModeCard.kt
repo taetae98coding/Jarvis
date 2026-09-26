@@ -46,7 +46,7 @@ internal fun ThemeModeCard(
     modifier: Modifier = Modifier,
 ) {
     JarvisCard(modifier = modifier) {
-        JarvisCardHeader(title = "화면 테마", icon = JarvisIcons.Moon)
+        JarvisCardHeader(title = ThemeModeTitle, icon = JarvisIcons.Moon)
 
         Text(
             text = "앱의 밝은 색과 어두운 색을 고릅니다. 시스템 설정은 OS 의 다크 모드를 따릅니다.",

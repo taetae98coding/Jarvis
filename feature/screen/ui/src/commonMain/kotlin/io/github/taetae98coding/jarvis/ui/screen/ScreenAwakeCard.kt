@@ -30,7 +30,7 @@ internal fun ScreenAwakeCard(
     modifier: Modifier = Modifier,
 ) {
     ToggleFeatureCard(
-        title = "화면 꺼짐 방지",
+        title = ScreenAwakeTitle,
         description = "Jarvis 가 화면에 떠 있는 동안 화면이 꺼지지 않게 합니다.",
         checked = checked,
         onCheckedChange = onCheckedChange,

@@ -34,7 +34,7 @@ internal fun TerminalCard(
 ) {
     JarvisCard(onClick = onClick, enabled = isSupported, modifier = modifier) {
         JarvisCardHeader(
-            title = "터미널",
+            title = TerminalTitle,
             icon = JarvisIcons.Terminal,
             enabled = isSupported,
             trailing = { Icon(imageVector = JarvisIcons.ChevronRight, contentDescription = null) },
