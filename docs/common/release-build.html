@@ -81,6 +81,7 @@
     <tr><td>iOS</td><td>App Store·TestFlight</td><td>Apple Distribution 인증서 없음</td><td>남음. 인증서 발급 후 <code>ExportOptions.plist</code> 의 <code>method</code> 변경</td></tr>
     <tr><td>JVM</td><td>release DMG(R1)</td><td>ProGuard 가 미해결 참조로 실패</td><td>해결. ProGuard 끔, jlink 모듈 지정, 번들 ID·아이콘</td></tr>
     <tr><td>JVM</td><td>설치본 실행(R6)</td><td>—</td><td>해결. 홈·터미널(pty4j)·브라우저(JCEF) 확인</td></tr>
+    <tr><td>JVM</td><td>Google 로그인 페이지에서 설치본 종료(2026-09-27 추가)</td><td>Info.plist 에 <code>NSBluetoothAlwaysUsageDescription</code> 없음 → 패스키 확인이 Bluetooth 에 닿는 순간 macOS 가 앱을 죽임</td><td>해결. <code>infoPlist { extraKeysRawXml }</code> 로 추가(<a href="terminal-browser.html#requirements">브라우저 R10</a>)</td></tr>
     <tr><td>JVM</td><td>Developer ID 서명·공증</td><td>인증서·자격 증명 없음</td><td>남음. 다른 Mac 에서는 Gatekeeper 확인 필요</td></tr>
     <tr><td>Web</td><td>production 번들(R1)</td><td>빌드는 됨</td><td>유지</td></tr>
     <tr><td>Web</td><td>한글(R8)</td><td>한글이 전부 □</td><td>해결. Noto Sans KR 2.8 MB preload</td></tr>

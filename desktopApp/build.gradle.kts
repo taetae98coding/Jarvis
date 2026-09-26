@@ -40,6 +40,14 @@ compose.desktop {
             macOS {
                 bundleID = "io.github.taetae98coding.jarvis"
                 iconFile.set(project.file("icon/Jarvis.icns"))
+                infoPlist {
+                    // Google 로그인처럼 패스키(WebAuthn)를 확인하는 페이지를 열면 Chromium 이 휴대폰 인증기(하이브리드)를 찾으려고
+                    // CoreBluetooth 를 건드린다. 이 키가 없으면 macOS(TCC) 가 앱을 곧바로 죽인다(docs/platform/jvm.html#terminal-browser).
+                    extraKeysRawXml = """
+                        <key>NSBluetoothAlwaysUsageDescription</key>
+                        <string>웹 브라우저 탭의 페이지가 패스키처럼 근처 기기로 인증할 때 Bluetooth 를 씁니다.</string>
+                    """.trimIndent()
+                }
             }
         }
     }
