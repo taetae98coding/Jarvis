@@ -40,6 +40,11 @@
   <footer>2026-09-25 대화. <a href="mcp-server.html">Claude 에게 브라우저·기기 조작 맡기기</a>의 지시다. Claude 가 페이지를 조작하려면 CDP 가 있는 엔진이어야 해서 JVM 의 엔진을 WKWebView 에서 Chromium(JCEF)으로 바꾼다. 그 결과 R5·R6·R9 가 JVM 에서 바뀐다. Android 는 그대로다.</footer>
 </blockquote>
 
+<blockquote class="instruction">
+  <p>inapp browser에서 Google Login 진행하려니까 해당 browser만 열면 자꾸 Jarvis 앱이 죽어 해결해줘.</p>
+  <footer>2026-09-27 대화. 설치본(<code>Jarvis.app</code>)의 브라우저 탭에서 Google 로그인 페이지를 열면 앱 전체가 곧바로 끝나는 문제다. 크래시 리포트(<code>~/Library/Logs/DiagnosticReports/Jarvis-2026-09-26-2038…2040.ips</code> 네 건)가 모두 macOS 가 "<code>NSBluetoothAlwaysUsageDescription</code> 없이 Bluetooth 에 접근했다" 며 앱을 죽인 기록이어서, 로그인 페이지의 패스키 확인이 원인이었다. R10 으로 뽑았다(원인과 버린 후보는 <a href="../platform/jvm.html#terminal-browser">JVM 문서</a>).</footer>
+</blockquote>
+
 <h2 id="requirements">요구사항</h2>
 
 <ol>
@@ -52,6 +57,7 @@
   <li><strong>R7.</strong> 브라우저 탭은 셸을 띄우지 않는다. 닫기(✕), 끌어 놓아 분할·옮기기, 탭 고르기 단축키는 셸 탭과 같다. 브라우저 탭이 선택된 그룹을 ⌘D 로 나누면 새 그룹의 탭은 셸이고, 브라우저 탭에는 작업 디렉터리가 없으므로 패널의 폴더(없으면 홈)에서 시작한다(<a href="terminal-panel-create.html">새 패널 제목·폴더</a>).</li>
   <li><strong>R8.</strong> 웹 페이지를 띄울 수 없는 타깃(JVM 의 macOS 가 아닌 운영체제 포함)에서는 "웹 브라우저" 항목이 없다. 저장된 브라우저 탭이 있는 파일을 그런 타깃에서 열면 그 탭은 "[웹 페이지를 열 수 없습니다]" 만 보인다.</li>
   <li><strong>R9.</strong> 새 탭 메뉴가 떠 있거나 탭을 끄는 동안에는 웹 페이지가 사라지고 그 칸이 비어 보인다. 메뉴가 닫히거나 탭을 놓으면 같은 페이지가 다시 보인다(새로 부르지 않는다). 메뉴와 놓을 자리 미리 보기가 페이지에 가려지지 않게 하려는 것이다(<a href="#limits">한계</a>). 페이지를 네이티브 뷰로 띄우는 Android 에만 해당한다. JVM 은 페이지를 Compose 가 그리므로 메뉴·미리 보기가 페이지 위에 그대로 올라가고 페이지는 사라지지 않는다.</li>
+  <li><strong>R10.</strong> 패스키(WebAuthn)를 확인하는 페이지(Google 로그인 등)를 열어도 앱이 죽지 않는다. 엔진이 휴대폰 인증기를 찾으려고 Bluetooth 에 접근하면 운영체제의 권한 요청이 Jarvis 이름으로 뜨고, 허용하든 거부하든 페이지는 계속 그려지고 아이디·비밀번호 로그인은 된다. Chromium 이 앱 프로세스 안에서 도는 JVM(macOS) 에만 해당한다.</li>
 </ol>
 
 <aside class="warn">
@@ -137,6 +143,8 @@
 
 <p>자동으로 확인하지 못하는 것: 실제 페이지가 뜨는지, 주소 줄로 옮기기, 탭 이름이 페이지 제목이 되는지. 네이티브 웹뷰와 Chromium 엔진은 테스트 화면(<code>runComposeUiTest</code>)에 붙지 않는다. <code>./gradlew :desktopApp:run</code> 과 Android 기기에서 손으로 확인한다.</p>
 
+<p>R10 은 앱 번들(<code>Jarvis.app</code>)의 Info.plist 로 해결하므로 개발 실행이 아니라 <code>./gradlew :desktopApp:createDistributable</code> 로 만든 번들에서 확인한다. 2026-09-27 에 번들의 Info.plist 에 <code>NSBluetoothAlwaysUsageDescription</code> 이 들어간 것과, 그 번들의 브라우저 탭에서 <code>https://accounts.google.com</code> 첫 페이지(패스키 조건부 확인이 돌아 <code>FIDO: touch_id_context.mm</code> 로그가 남는다)가 죽지 않고 그려지는 것을 확인했다. 실제로 Bluetooth 에 접근하는 패스키 챌린지 페이지(<code>accounts.google.com/v3/signin/challenge/pk</code>)까지는 계정이 필요해 자동으로 확인하지 못했다(<span class="badge untested">미검증</span>) — 설치본으로 Google 로그인을 끝까지 진행해 권한 요청이 뜨고 앱이 살아 있는지 본다.</p>
+
 <h2 id="limits">한계</h2>
 
 <ul>
@@ -144,6 +152,7 @@
   <li>Android 는 페이지에 키보드 포커스가 있으면 키 입력이 네이티브 뷰로 바로 가서 터미널 단축키가 듣지 않는다. JVM 은 키가 Compose 를 거쳐 가므로 단축키가 먼저 듣는다.</li>
   <li>Android 는 R6 대로 탭을 옮기거나 다른 탭을 보다 돌아오면 페이지를 새로 연다.</li>
   <li>JVM 은 열린 브라우저 탭마다 Chromium 렌더러가 살아 있다. 탭을 닫기 전까지 메모리를 쥐고, 가려진 탭의 페이지도 돈다.</li>
+  <li>JVM 에서 패스키 페이지(R10)는 처음 한 번 macOS 의 Bluetooth 권한 요청을 띄운다. 거부하면 그 뒤로 휴대폰을 인증기로 쓰는 패스키만 안 되고, 시스템 설정 → 개인 정보 보호 → Bluetooth 에서 되돌릴 수 있다.</li>
   <li>플랫폼마다의 한계는 각 플랫폼 문서에 있다.</li>
 </ul>
 
