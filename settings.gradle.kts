@@ -83,6 +83,10 @@ include(":feature:devtools:domain")
 include(":feature:devtools:data")
 include(":feature:devtools:ui")
 
+include(":feature:texttools:domain")
+include(":feature:texttools:data")
+include(":feature:texttools:ui")
+
 include(":feature:mcp:domain")
 include(":feature:mcp:data")
 

@@ -37,6 +37,12 @@ import io.github.taetae98coding.jarvis.domain.focus.focusDomainModule
 import io.github.taetae98coding.jarvis.domain.devtools.DevTool
 import io.github.taetae98coding.jarvis.domain.devtools.DevToolsSettingsRepository
 import io.github.taetae98coding.jarvis.domain.devtools.devToolsDomainModule
+import io.github.taetae98coding.jarvis.domain.texttools.PasswordOptions
+import io.github.taetae98coding.jarvis.domain.texttools.SecureRandomSource
+import io.github.taetae98coding.jarvis.domain.texttools.TextLimit
+import io.github.taetae98coding.jarvis.domain.texttools.TextTool
+import io.github.taetae98coding.jarvis.domain.texttools.TextToolsSettingsRepository
+import io.github.taetae98coding.jarvis.domain.texttools.textToolsDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.Profiling
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
@@ -102,6 +108,7 @@ import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.battery.batteryUiModule
 import io.github.taetae98coding.jarvis.ui.focus.focusUiModule
 import io.github.taetae98coding.jarvis.ui.devtools.devToolsUiModule
+import io.github.taetae98coding.jarvis.ui.texttools.textToolsUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
@@ -167,6 +174,7 @@ internal fun TestJarvisApp(
     focusClock: FakeFocusClock = FakeFocusClock(),
     focusAlarm: FocusAlarmRepository = FakeFocusAlarmRepository(),
     devTools: DevToolsSettingsRepository = FakeDevToolsSettingsRepository(),
+    textTools: TextToolsSettingsRepository = FakeTextToolsSettingsRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -207,6 +215,9 @@ internal fun TestJarvisApp(
             single<FocusClock> { focusClock }
             single<FocusAlarmRepository> { focusAlarm }
             single<DevToolsSettingsRepository> { devTools }
+            single<TextToolsSettingsRepository> { textTools }
+            // 비밀번호 생성기는 CSPRNG 가 아니어도 된다. 화면이 열리는지만 본다.
+            single<SecureRandomSource> { SecureRandomSource { 0 } }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -226,6 +237,7 @@ internal fun TestJarvisApp(
                 batteryDomainModule, batteryUiModule,
                 focusDomainModule, focusUiModule,
                 devToolsDomainModule, devToolsUiModule,
+                textToolsDomainModule, textToolsUiModule,
                 appUiModule,
             )
         }
@@ -838,5 +850,44 @@ internal class FakeDevToolsSettingsRepository : DevToolsSettingsRepository {
 
     override fun setInput(tool: DevTool, input: String) {
         inputs.value += tool to input
+    }
+}
+
+internal class FakeTextToolsSettingsRepository : TextToolsSettingsRepository {
+    val tool = MutableStateFlow(TextTool.COUNT)
+    val input = MutableStateFlow("")
+    val limit = MutableStateFlow(TextLimit.None)
+    val passwordOptions = MutableStateFlow(PasswordOptions())
+
+    override fun observeSelectedTool() = tool
+
+    override fun readSelectedTool() = tool.value
+
+    override fun setSelectedTool(tool: TextTool) {
+        this.tool.value = tool
+    }
+
+    override fun observeInput() = input
+
+    override fun readInput() = input.value
+
+    override fun setInput(input: String) {
+        this.input.value = input
+    }
+
+    override fun observeLimit() = limit
+
+    override fun readLimit() = limit.value
+
+    override fun setLimit(limit: TextLimit) {
+        this.limit.value = limit
+    }
+
+    override fun observePasswordOptions() = passwordOptions
+
+    override fun readPasswordOptions() = passwordOptions.value
+
+    override fun setPasswordOptions(options: PasswordOptions) {
+        passwordOptions.value = options
     }
 }

@@ -15,6 +15,7 @@ import io.github.taetae98coding.jarvis.ui.rotation.DeviceRotationCard
 import io.github.taetae98coding.jarvis.ui.screen.ScreenAwakeCard
 import io.github.taetae98coding.jarvis.ui.screen.SystemScreenAwakeCard
 import io.github.taetae98coding.jarvis.ui.terminal.TerminalCard
+import io.github.taetae98coding.jarvis.ui.texttools.TextToolsCard
 import io.github.taetae98coding.jarvis.ui.theme.ThemeModeCard
 
 /**
@@ -53,5 +54,6 @@ internal fun FeatureGrid(modifier: Modifier = Modifier) {
         item { BatteryCard() }
         item { FocusTimerCard() }
         item { DevToolsCard() }
+        item { TextToolsCard() }
     }
 }

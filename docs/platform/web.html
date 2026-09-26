@@ -44,6 +44,7 @@
     <li><a href="#profiling">프로파일링</a></li>
     <li><a href="#focus-timer">집중 타이머</a></li>
     <li><a href="#dev-utilities">개발자 도구 모음</a></li>
+    <li><a href="#text-tools">텍스트 도구</a></li>
     <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
@@ -552,6 +553,39 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p>도메인 공통 테스트가 <code>wasmJsBrowserTest</code>(Chrome)로 돈다. 해시의 비트 연산이 Wasm 의 i32 에서 JVM 과 같은 값을 낸다. 화면 테스트(<code>skikoTest</code>)도 이 타깃에서 돈다. 실제 브라우저 클립보드 쓰기는 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="text-tools">
+<h2>텍스트 도구 <span class="badge partial">조건부</span></h2>
+<p>공통 스펙: <a href="../common/text-tools.html">텍스트 도구</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>난수: <code>crypto.getRandomValues(new Int32Array(1))</code></td><td>채택. <code>crypto.subtle</code> 과 달리 보안 컨텍스트가 아니어도 있다. <code>Int32Array</code> 라 값이 Wasm <code>i32</code> 로 그대로 온다. <code>js("…")</code> 한 줄이다</td></tr>
+    <tr><td>난수: <code>Math.random()</code></td><td>버렸다. 암호학적으로 안전하지 않다</td></tr>
+    <tr><td>계산(글자 수·바이트·변환·비밀번호 고르기)</td><td>채택. 공통 Kotlin 이다. <code>Intl.Segmenter</code> 는 브라우저마다 유니코드 버전이 달라 버렸다. 공백 판정은 <code>Regex("\\s")</code> 대신 <code>Char.isWhitespace</code> 다 — JS 정규식은 NBSP 를 공백으로 보지만 JVM 은 아니라 타깃마다 결과가 달라진다</td></tr>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code></td><td>채택. <code>navigator.clipboard.writeText</code> 다. 보안 컨텍스트(HTTPS·localhost)와 사용자 동작 안에서만 허락된다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>localStorage</code>)</td><td>채택. 같은 탭의 쓰기는 직접 신호를 내고, 다른 탭의 쓰기는 <code>storage</code> 이벤트로 온다(<a href="#settings">설정 영구 저장</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/texttools/data/src/wasmJsMain/…/SecureRandom.wasmJs.kt</code>. 나머지는 <code>commonMain</code></dd>
+  <dt>동작</dt><dd>계산과 비밀번호 생성은 다른 타깃과 같다. 복사는 보안 컨텍스트에서만 된다</dd>
+  <dt>실패</dt><dd><code>globalThis.crypto</code> 가 없으면 <code>js()</code> 가 던진다. Wasm GC 를 지원하는 브라우저는 모두 <code>crypto.getRandomValues</code> 를 갖는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>보안 컨텍스트가 아니면 복사 버튼이 아무 일도 하지 않는다. 비밀번호와 변환 결과는 선택해 직접 복사할 수 있다.</li>
+  <li><code>localStorage</code> 는 같은 오리진의 스크립트가 읽을 수 있는 평문이다. 비밀번호는 저장하지 않는다(<a href="../common/text-tools.html#decision-no-password-persist">공통 결정</a>).</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 테스트가 <code>wasmJsBrowserTest</code>(Chrome)로 돈다. <code>PlatformSecureRandomSourceTest</code> 가 브라우저의 <code>crypto.getRandomValues</code> 를 실제로 부른다. 화면 테스트(<code>skikoTest</code>)도 이 타깃에서 돈다. 실제 브라우저 클립보드 쓰기는 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="battery">
