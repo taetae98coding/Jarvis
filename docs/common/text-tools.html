@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>텍스트 도구 — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>텍스트 도구</span></nav>
+
+<header>
+  <h1>텍스트 도구</h1>
+  <p class="lead">홈의 "텍스트 도구" 카드를 누르면 글자 수 세기(공백 포함·제외, 바이트, 목표 글자 수), 비밀번호 생성, 대소문자·공백 정리를 한 화면의 탭으로 쓰고 결과를 복사한다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>사람들이 많이 접속하는 url이나 appStore, playStore 다운로드 순위 참고해서 구현할 도구들 조사 후 추가해줘.</p>
+  <footer>2026-09-26 대화. 같은 지시로 여러 기능이 함께 들어왔고, 이 문서는 그 가운데 텍스트 도구를 다룬다.</footer>
+</blockquote>
+
+<aside class="note">
+  <strong>왜 이 기능인가</strong>
+  한 가지 일만 하는 웹 도구 가운데 방문이 가장 많은 축에 글자·단어 수 세기(wordcounter.net, wordcounter.io 와 수많은 복제 사이트)와
+  비밀번호 생성기(LastPass·1Password·Bitwarden 의 생성기 페이지)가 있다. 한국에서는 자기소개서 항목이 "공백 포함 N자"·"공백 제외 N자"·"N바이트" 로
+  글자 수를 제한해서 "글자수 세기" 가 흔한 검색어이고, 사람인·잡코리아·인크루트가 저마다 자기소개서 글자 수 세기 페이지를 둔다.
+  대소문자·케이스 변환(convertcase.net 류)은 이 둘과 같은 입력 칸을 그대로 쓰는 작은 도구라 세 번째 탭으로 붙였다.
+  셋 다 순수 Kotlin 으로 짤 수 있어 네 플랫폼에서 같은 결과를 내고, 비밀번호 생성의 난수 원천만 플랫폼 API 를 쓴다.
+</aside>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 홈 그리드 맨 끝에 "텍스트 도구" 카드가 있고, 누르면 텍스트 도구 화면으로 간다. 화면의 뒤로 버튼은 홈으로 돌아간다.</li>
+  <li><strong>R2.</strong> 화면 위쪽의 탭 셋(글자 수 세기, 비밀번호 생성, 대소문자·공백)으로 도구를 고른다. 고른 탭 하나만 선택 상태다.</li>
+  <li><strong>R3.</strong> 글자 수 세기 탭은 여러 줄 입력 칸 아래에 다음을 보인다. 입력이 비면 모두 0 이다.
+    <ul>
+      <li>공백 포함 글자 수 — 줄바꿈도 한 글자다. <code>\r\n</code> 은 한 글자다.</li>
+      <li>공백 제외 글자 수 — 공백·탭·줄바꿈 등 <code>Char.isWhitespace</code> 인 글자를 뺀다.</li>
+      <li>단어 수 — 공백으로 나뉜 덩어리 수(한국어는 어절).</li>
+      <li>줄 수 — 줄바꿈 수 + 1. 빈 입력은 0.</li>
+      <li>문단 수 — 빈 줄(공백만 있는 줄 포함)로 나뉜, 글자가 있는 줄 묶음의 수.</li>
+      <li>바이트 (UTF-8) — 코드 포인트마다 1·2·3·4 바이트. 짝 없는 서로게이트는 대체 문자(U+FFFD)로 보고 3 바이트.</li>
+      <li>바이트 (한글 2·영문 1) — 채용 사이트 방식. ASCII(U+0000–U+007F) 코드 포인트는 1, 나머지 코드 포인트는 2.</li>
+      <li>예상 읽기 시간 — 한글·한자·가나 글자는 분당 500자, 그 밖의 단어는 분당 200단어로 읽는다고 보고 초 단위로 올림한다.</li>
+    </ul>
+  </li>
+  <li><strong>R4.</strong> 글자는 UTF-16 단위가 아니라 사용자가 한 글자로 보는 단위로 센다. 완성형 한글·서로게이트 쌍(😀)·결합 문자(é = e + U+0301)·
+    이모지 수식(피부색, 변형 선택자 U+FE0F)·ZWJ 로 이은 이모지(👨‍👩‍👧)·국기(🇰🇷)·옛한글 조합(첫가끝 자모)은 한 글자다(<a href="#decision-grapheme">결정</a>).</li>
+  <li><strong>R5.</strong> 목표 글자 수(선택)를 넣으면 기준(공백 포함 / 공백 제외 / 바이트 한글 2)을 칩으로 고르고, 진행 막대와 "현재 / 목표" 를 보인다.
+    현재가 목표를 넘으면 막대와 글자가 <code>colorScheme.error</code> 색이 되고 "N 초과" 를 보인다. 비우거나 0 이면 목표가 없다.</li>
+  <li><strong>R6.</strong> 비밀번호 생성 탭은 길이 슬라이더(4–64, 기본 16), 대문자·소문자·숫자·기호 스위치(기본 모두 켬), "헷갈리는 글자 빼기"(<code>0 O 1 l I</code>, 기본 끔) 스위치를 둔다.
+    켜진 종류가 하나뿐이면 그 스위치는 끌 수 없다.</li>
+  <li><strong>R7.</strong> 만든 비밀번호는 고른 길이이고, 켜진 종류마다 한 글자 이상을 담으며, 켜진 종류의 글자만 쓴다. 헷갈리는 글자 빼기를 켜면 <code>0 O 1 l I</code> 가 나오지 않는다.</li>
+  <li><strong>R8.</strong> 난수는 플랫폼의 암호학적 난수 생성기(CSPRNG)에서만 얻고, 글자 고르기와 섞기는 거부 표본추출로 치우침 없이 한다. <code>kotlin.random.Random</code> 은 쓰지 않는다.</li>
+  <li><strong>R9.</strong> 강도는 <code>길이 × log2(글자 집합 크기)</code> 비트로 추정하고, 40 미만 약함 / 60 미만 보통 / 80 미만 강함 / 그 이상 매우 강함으로 보인다. 비트 수도 함께 보인다.</li>
+  <li><strong>R10.</strong> 화면을 열 때와 옵션을 바꿀 때마다 새 비밀번호를 만들고, "다시 만들기" 버튼으로도 만든다. 복사 버튼은 비밀번호를 클립보드에 넣는다.</li>
+  <li><strong>R11.</strong> 대소문자·공백 탭은 글자 수 세기와 같은 입력 칸을 쓰고, 그 입력을 다음 여덟 가지로 바꾼 결과를 줄마다 복사 버튼과 함께 보인다.
+    <ul>
+      <li>UPPER · lower — 로캘과 무관한 <code>uppercase()</code>·<code>lowercase()</code>.</li>
+      <li>Title Case — 공백으로 나뉜 단어마다 첫 글자를 대문자, 나머지를 소문자로. 공백은 그대로 둔다.</li>
+      <li>camelCase · snake_case · kebab-case — 줄마다 글자·숫자가 아닌 글자와 대소문자 경계(<code>fooBar</code>, <code>HTTPServer</code>)에서 단어를 나눠 잇는다. 숫자는 앞 단어에 붙는다.</li>
+      <li>공백 정리 — 줄마다 앞뒤 공백을 지우고 안의 공백 연속을 하나로 줄이며, 빈 줄 연속을 하나로 줄이고 앞뒤 빈 줄을 지운다.</li>
+      <li>줄바꿈 없애기 — 줄을 공백 하나로 잇고 공백 연속을 하나로 줄인 뒤 앞뒤를 지운다.</li>
+    </ul>
+    입력이 비면 결과 줄이 없다.</li>
+  <li><strong>R12.</strong> 마지막에 고른 탭, 입력, 목표 글자 수와 기준, 비밀번호 옵션이 앱을 껐다 켜도 남는다. 입력은 앞 <code>8,000</code> UTF-16 단위까지만 저장한다(서로게이트 쌍을 가르지 않는다). 화면의 입력과 계산은 자르지 않는다.</li>
+  <li><strong>R13.</strong> 만든 비밀번호는 저장하지 않는다(<a href="#decision-no-password-persist">결정</a>). 앱을 다시 열면 새 비밀번호다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>여러 단어를 잇는 암호문(passphrase) 모드. 지시 해석에서 뺐다. 단어 목록(EFF 7,776 단어 등)을 앱에 넣어야 한다.</li>
+    <li>유출 여부 확인(Have I Been Pwned). 비밀번호 일부 해시를 외부로 보내야 해서 이 기능의 "앱 안에서 끝낸다" 원칙과 맞지 않는다.</li>
+    <li>사전·패턴 기반 강도 추정(zxcvbn). 여기서 만든 비밀번호는 균등 무작위라 집합 크기와 길이로 엔트로피가 정확히 정해진다. 사용자가 친 비밀번호의 강도는 재지 않는다.</li>
+    <li>맞춤법 검사, 번역, 요약. 외부 서비스가 필요하다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>카드 제목</td><td>텍스트 도구 (아이콘 <code>JarvisIcons.Type</code>, 오른쪽 끝 <code>ChevronRight</code>)</td></tr>
+    <tr><td>카드 설명</td><td>글자 수 세기·비밀번호 생성·대소문자 변환. 눌러서 열고 결과를 복사한다.</td></tr>
+    <tr><td>화면 상단 막대</td><td>제목 "텍스트 도구", 뒤로 버튼(<code>JarvisTopBar</code>)</td></tr>
+    <tr><td>탭</td><td><code>PrimaryTabRow</code> 안의 <code>Tab</code> 셋: "글자 수 세기", "비밀번호 생성", "대소문자·공백"</td></tr>
+    <tr><td>입력(글자 수·대소문자 탭)</td><td>여러 줄 <code>OutlinedTextField</code>(최소 여섯 줄), 자리표시 "세거나 바꿀 글을 붙여 넣으세요"</td></tr>
+    <tr><td>세기 결과</td><td>카드 안에 <code>JarvisLabeledValue</code> 여덟 줄: 공백 포함, 공백 제외, 단어, 줄, 문단, 바이트 (UTF-8), 바이트 (한글 2·영문 1), 예상 읽기 시간. 수는 천 단위 쉼표, 시간은 "N초" 또는 "N분 M초"</td></tr>
+    <tr><td>목표 글자 수</td><td>숫자 입력 칸 "목표 글자 수", 기준 칩 셋(공백 포함 / 공백 제외 / 바이트), <code>LinearProgressIndicator</code>, "현재 / 목표" 와 넘으면 "N 초과"(<code>colorScheme.error</code>)</td></tr>
+    <tr><td>비밀번호</td><td>고정폭 글꼴 비밀번호(선택 가능), 복사 버튼(<code>JarvisIcons.Copy</code>, "비밀번호 복사"), 다시 만들기 버튼(<code>JarvisIcons.RotateRight</code>, "다시 만들기"),
+      강도 "강도: 매우 강함 (103비트)" — 약함 <code>error</code>, 보통 <code>tertiary</code>, 강함·매우 강함 <code>primary</code> 색</td></tr>
+    <tr><td>비밀번호 옵션</td><td>"길이 16" 과 <code>Slider</code>(4–64, 한 칸씩), <code>JarvisSwitchRow</code> 다섯: 대문자 (A–Z), 소문자 (a–z), 숫자 (0–9), 기호 (!@#…), 헷갈리는 글자 빼기 (0 O 1 l I)</td></tr>
+    <tr><td>변환 결과</td><td>여덟 줄, 이름(UPPER, lower, Title Case, camelCase, snake_case, kebab-case, 공백 정리, 줄바꿈 없애기) + 고정폭 값(선택 가능) + 복사 버튼("<i>이름</i> 복사")</td></tr>
+    <tr><td>테스트 태그</td><td>카드 <code>feature:texttools</code>, 화면 <code>texttools:screen</code>, 탭 <code>texttools:tab:&lt;storedValue&gt;</code>, 입력 <code>texttools:input</code>,
+      세기 줄 <code>texttools:stat:&lt;kind&gt;</code>, 목표 입력 <code>texttools:limit</code>, 기준 칩 <code>texttools:basis:&lt;storedValue&gt;</code>, 진행 <code>texttools:progress</code>,
+      비밀번호 <code>texttools:password</code>, 복사 <code>texttools:password:copy</code>, 다시 만들기 <code>texttools:password:regenerate</code>, 강도 <code>texttools:password:strength</code>,
+      길이 <code>texttools:password:length</code>, 옵션 스위치 <code>texttools:password:option:&lt;name&gt;</code>, 변환 줄 <code>texttools:transform:&lt;kind&gt;</code>, 변환 복사 <code>texttools:transform:copy:&lt;kind&gt;</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd><code>feature/texttools/domain/…/texttools/</code> — <code>TextTool</code>(탭 셋, 저장값), <code>TextCounter</code>·<code>TextStats</code>(R3·R4), <code>TextLimit</code>·<code>LimitBasis</code>·<code>LimitProgress</code>(R5),
+    <code>PasswordOptions</code>·<code>PasswordGenerator</code>·<code>PasswordStrength</code>(R6–R9), <code>SecureRandomSource</code>(난수 원천 인터페이스), <code>TextTransform</code>·<code>TextTransformer</code>(R11),
+    <code>TextToolsSettingsRepository</code>, 유스케이스 <code>ObserveTextToolsSettingsUseCase</code>·<code>SelectTextToolUseCase</code>·<code>SetTextInputUseCase</code>(R12 의 자르기)·<code>SetTextLimitUseCase</code>·<code>SetPasswordOptionsUseCase</code>(R6 의 마지막 종류 지키기)·<code>GeneratePasswordUseCase</code>·<code>CountTextUseCase</code>·<code>TransformTextUseCase</code></dd>
+  <dt>data</dt><dd><code>DefaultTextToolsSettingsRepository</code> — <code>SettingsStore</code> 키 <code>texttools_selected_tool</code>, <code>texttools_input</code>, <code>texttools_limit</code>, <code>texttools_limit_basis</code>,
+    <code>texttools_password_length</code>, <code>texttools_password_{uppercase,lowercase,digits,symbols,exclude_ambiguous}</code>. <code>PlatformSecureRandomSource</code> 가 <code>expect</code> 를 부른다</dd>
+  <dt>ui</dt><dd><code>TextToolsCard</code>(인자 없음), <code>TextToolsScreen</code>, <code>TextToolsViewModel</code>(internal), <code>TextToolsRoute</code>(Navigation3 키). Koin 모듈은 <code>textToolsDomainModule</code>·<code>textToolsDataModule</code>·<code>textToolsUiModule</code></dd>
+  <dt>상태</dt><dd>저장된 설정 넷은 저장소 <code>Flow</code> 를 <code>combine</code> 해 <code>stateIn(viewModelScope, WhileSubscribed(), read…())</code> 로 받는다.
+    세기·변환 결과는 (방금 친 입력 또는 저장값, 목표) 에서 계산한 값이다. 방금 친 입력·방금 바꾼 옵션·만든 비밀번호는 ViewModel 의 <code>MutableStateFlow</code> 다.</dd>
+  <dt>expect</dt><dd><code>feature/texttools/data</code>: <code>internal expect fun secureRandomInt(): Int</code> — 플랫폼 CSPRNG 의 32 비트. actual 은 <a href="#platforms">플랫폼 스펙</a>.</dd>
+</dl>
+
+<aside class="decision" id="decision-grapheme">
+  <strong>결정: 글자는 UAX #29 확장 자소 클러스터를 흔한 경우만 공통 코드로 근사한다</strong>
+  <code>String.length</code> 는 UTF-16 단위라 😀 가 2, 👨‍👩‍👧 가 8 이다. 공통 stdlib 에는 자소 클러스터 API 가 없고(JVM <code>BreakIterator</code>, iOS <code>NSString</code> 열거, Web <code>Intl.Segmenter</code> 는 타깃마다 다르고 결과도 유니코드 버전마다 조금씩 다르다),
+  네 <code>actual</code> 로 나누면 같은 입력의 글자 수가 플랫폼마다 달라질 수 있다. 그래서 코드 포인트로 읽고, 앞 글자에 붙는 코드 포인트를 범위 표로 붙인다:
+  결합 문자 블록(U+0300–036F, U+1AB0–1AFF, U+1DC0–1DFF, U+20D0–20FF, U+FE20–FE2F), 변형 선택자(U+FE00–FE0F, U+E0100–E01EF), 이모지 피부색(U+1F3FB–1F3FF), 태그(U+E0020–E007F),
+  ZWJ(U+200D) 와 그 다음 글자, 한글 중성·종성 자모(U+1160–11FF, U+D7B0–D7FF), 짝을 이룬 국기 글자(U+1F1E6–1F1FF 둘), 한글 방점(U+302E–302F), 그리고 <code>\r\n</code>.
+  UAX #29 전체(인도계 문자의 SpacingMark, Prepend, 한글 음절 규칙의 세부)는 옮기지 않았다(<a href="#limits">한계</a>).
+</aside>
+
+<aside class="decision">
+  <strong>결정: 바이트는 두 가지를 함께 보인다</strong>
+  사람인·잡코리아·인크루트 자기소개서 글자 수 세기는 "한글 2바이트, 영문·숫자·공백 1바이트" 로 센다. EUC-KR(CP949)에서 한글 한 글자가 2바이트인 데서 온 관례다.
+  서버가 UTF-8 로 저장하면 한글이 3바이트라서, 개발자가 필드 한도를 확인할 때는 UTF-8 이 맞다. 그래서 두 줄을 이름으로 구분해 모두 보인다.
+  EUC-KR 에 없는 이모지는 관례가 사이트마다 달라(JS 의 UTF-16 단위마다 2를 세면 4) 코드 포인트마다 2로 고정했다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 읽기 시간은 글자 체계를 나눠 계산한다</strong>
+  영어 소리 없이 읽기는 분당 약 200–250단어(Brysbaert 2019 메타분석 238), 한국어는 어절 길이가 달라 단어 수보다 글자 수로 재는 편이 흔하고 분당 500자 안팎을 쓴다.
+  하나의 속도로 섞으면 한 언어는 크게 틀린다. 그래서 한글 음절·자모, CJK 한자, 가나 클러스터는 분당 500자로, 그런 글자가 없는 단어는 분당 200단어로 더해 초로 올림한다.
+  값은 <code>TextCounter.HangulCharactersPerMinute</code>·<code>WordsPerMinute</code> 상수다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 난수는 data 의 <code>expect</code>, 고르기는 domain 의 거부 표본추출</strong>
+  비밀번호는 예측할 수 없어야 하므로 <code>kotlin.random.Random</code>(시드가 드러나면 재현되는 PRNG)은 쓸 수 없다. 공통 stdlib 에 공개된 CSPRNG 는 없다.
+  개발자 도구의 UUID 는 <code>kotlin.uuid.Uuid.random()</code> 이 속에서 플랫폼 CSPRNG 를 쓰는 것에 기댄다(<a href="dev-utilities.html">개발자 도구</a>). 그 122비트를 떼어 쓰는 방법도 있지만,
+  stdlib 이 "UUID 가 CSPRNG 에서 온다" 를 비밀번호 용도로 약속하지 않고 버전·변형 비트를 걸러야 해서 버렸다. 개발자 도구에는 난수 <code>expect</code> 가 없으므로 <code>core</code> 로 옮길 공용 코드도 없다.
+  그래서 domain 은 <code>fun interface SecureRandomSource { fun nextInt(): Int }</code> 만 알고, data 가 플랫폼 CSPRNG 로 채운다.
+  <code>PasswordGenerator.nextIndex(bound)</code> 는 부호 없는 32비트 값이 <code>2^32 - (2^32 mod bound)</code> 미만일 때만 <code>mod bound</code> 로 쓰고 나머지는 버린다(모듈로 치우침 제거).
+  켜진 종류마다 한 글자를 먼저 뽑고, 나머지를 켜진 글자 전체에서 뽑은 뒤 Fisher–Yates 로 섞는다. 섞기의 인덱스도 같은 함수로 뽑는다.
+  강도는 만들어진 문자열이 아니라 옵션(길이, 집합 크기)으로 잰다. 균등 무작위로 만든 비밀번호의 엔트로피는 옵션이 정하고, 종류마다 한 글자를 보장해 줄어드는 몫은 길이 16·집합 89 에서 1비트 미만이라 무시한다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 입력은 앞 8,000 단위까지만 저장한다</strong>
+  JVM <code>java.util.prefs.Preferences.put</code> 은 값이 <code>MAX_VALUE_LENGTH</code>(8,192자)를 넘으면 <code>IllegalArgumentException</code> 을 던진다. 자르지 않으면 macOS 에서 긴 글을 붙여 넣는 순간 입력 저장이 앱을 죽인다.
+  Android <code>SharedPreferences</code> 도 쓸 때마다 XML 파일 전체를 다시 쓰고, Web <code>localStorage</code> 는 오리진당 보통 5 MB 를 다른 설정과 나눠 쓴다. 입력은 한 글자 칠 때마다 저장되므로 짧을수록 싸다.
+  네 타깃이 같은 한도를 쓰도록 가장 좁은 JVM 한도 아래인 8,000 에서 자른다. 자기소개서 한 항목은 보통 500–1,500자이고 긴 항목도 5,000자를 넘는 일이 드물다.
+  저장값만 자르고 화면의 입력·계산은 자르지 않는다. 다음 실행에서는 잘린 글이 돌아온다.
+</aside>
+
+<aside class="decision" id="decision-no-password-persist">
+  <strong>결정: 만든 비밀번호는 저장하지 않는다</strong>
+  <code>SettingsStore</code> 는 평문이다(Android <code>shared_prefs/*.xml</code>, iOS <code>NSUserDefaults</code> plist, macOS <code>~/Library/Preferences</code> plist, Web <code>localStorage</code>).
+  백업·다른 프로세스·같은 오리진의 스크립트가 읽을 수 있는 곳에 비밀번호를 남기면 생성기가 오히려 유출 경로가 된다. 옵션만 저장하고 비밀번호는 ViewModel 메모리에만 둔다.
+  화면을 다시 열면 새로 만든다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 입력 칸은 화면이 들고, 글자 수·대소문자 탭이 나눠 쓴다</strong>
+  개발자 도구와 같은 까닭으로(<a href="dev-utilities.html#implementation">개발자 도구</a>) 입력 칸은 <code>TextFieldState</code> 를 한 번 저장값으로 채워 스스로 들고, 바뀔 때마다 <code>SetTextInputUseCase</code> 로 적는다.
+  목표 글자 수 칸도 같다. 세기와 변환은 둘 다 "이미 쓴 글" 을 다루므로 한 번 붙여 넣은 글을 두 탭이 함께 본다. 비밀번호 탭은 입력이 없다.
+  비밀번호 옵션은 ViewModel 이 방금 바꾼 값을 먼저 쓰고 저장소를 뒤따르게 한다. JVM <code>Preferences</code> 의 변경 알림이 늦게 와서, 저장값만 보면 스위치가 한 박자 늦게 움직인다.
+  복사는 개발자 도구와 같은 <code>LocalClipboardManager.setText</code> 다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>공통 계산, <code>java.security.SecureRandom</code>, <code>ClipboardManager.setPrimaryClip</code>, <code>SharedPreferences</code></td><td><a href="../platform/android.html#text-tools">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>공통 계산, <code>SecRandomCopyBytes</code>, <code>UIPasteboard.generalPasteboard</code>, <code>NSUserDefaults</code></td><td><a href="../platform/ios.html#text-tools">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 계산, <code>java.security.SecureRandom</code>(macOS <code>NativePRNG</code>), AWT 시스템 클립보드, <code>java.util.prefs</code></td><td><a href="../platform/jvm.html#text-tools">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>공통 계산, <code>crypto.getRandomValues</code>, <code>navigator.clipboard.writeText</code>(보안 컨텍스트), <code>localStorage</code></td><td><a href="../platform/web.html#text-tools">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>TextCounterTest</code></td><td>R3·R4. 빈 입력, 공백 포함·제외, 단어·줄·문단, <code>\r\n</code>, 두 가지 바이트, 이모지·결합 문자·ZWJ·국기·피부색·옛한글, 짝 없는 서로게이트, 읽기 시간</td><td><code>:feature:texttools:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>TextLimitTest</code></td><td>R5. 기준별 현재 값, 진행 비율, 초과 판정, 목표 없음</td><td>같음</td></tr>
+    <tr><td><code>PasswordGeneratorTest</code></td><td>R6–R9. 길이, 종류마다 한 글자 이상, 켜진 글자만, 헷갈리는 글자 없음, 거부 표본추출이 버리는 값을 건너뜀, 균등성(카이제곱), 엔트로피·강도 경계, 옵션 정리</td><td>같음</td></tr>
+    <tr><td><code>TextTransformerTest</code></td><td>R11. 여덟 변환, 대소문자 경계·약어·숫자·한글, 여러 줄, 빈 입력</td><td>같음</td></tr>
+    <tr><td><code>TextToolsUseCasesTest</code></td><td>R6·R12·R13. 입력 자르기(서로게이트 보존), 마지막 종류를 끄지 못함, 길이 범위, 설정 관찰</td><td>같음</td></tr>
+    <tr><td><code>TextToolsSettingsRepositoryTest</code></td><td>R12. 탭·입력·목표·옵션 저장과 되읽기, 모르는·잘못된 저장값</td><td><code>:feature:texttools:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>PlatformSecureRandomSourceTest</code></td><td>R8. 네 타깃의 <code>actual</code> 이 던지지 않고 32비트 전체에 퍼진 값을 준다</td><td><code>:feature:texttools:data</code> <code>commonTest</code>(JVM·Android 호스트·iOS 시뮬레이터·Wasm 브라우저)</td></tr>
+    <tr><td><code>TextToolsScreenTest</code></td><td>R2·R3·R5·R6·R10·R11. 탭 선택, 세기 줄 값, 목표 초과 문구, 마지막 종류 스위치 잠김, 비밀번호·변환 복사</td><td><code>:feature:texttools:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppTextToolsTest</code></td><td>R1·R12. 홈 카드 → 화면 → 뒤로, 입력·탭이 저장소에 적힘, 저장된 탭·입력 복원</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R10. 실제 시스템 클립보드에 들어간 값을 다른 앱에 붙여 넣기 <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li>글자 수는 UAX #29 의 근사다. 인도계 문자의 모음 부호(SpacingMark, 예: 힌디어 कि)와 Prepend 는 따로 센다. 새 유니코드 버전의 결합 문자가 위 범위 밖에 생기면 그 글자도 따로 센다.
+    채용 사이트가 JS <code>length</code> 로 세면 이모지 하나를 2 이상으로 세므로 사이트와 값이 다를 수 있다(한글·영문·숫자·기호만 쓰면 같다).</li>
+  <li>줄바꿈을 <code>\r\n</code> 두 바이트로 세는 사이트가 있다. 이 앱은 입력 그대로(보통 <code>\n</code>) 센다.</li>
+  <li>8,000 UTF-16 단위를 넘는 입력은 다음 실행에 앞부분만 돌아온다.</li>
+  <li>Web 은 HTTPS·localhost 가 아니면 복사가 조용히 실패한다(<a href="../platform/web.html#text-tools">web.html</a>).</li>
+  <li>비밀번호는 화면에 평문으로 보인다. 화면 녹화·공유 중에는 보인다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

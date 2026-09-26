@@ -175,6 +175,8 @@ object JarvisIcons {
 
     val Timer: ImageVector by lazy { outline("Timer", "M10 2h4M12 14l3-3M4 14a8 8 0 1 0 16 0a8 8 0 1 0-16 0") }
 
+    val Type: ImageVector by lazy { outline("Type", "M4 7V4h16v3M9 20h6M12 4v16") }
+
     val User: ImageVector by lazy {
         outline(
             "User",
@@ -194,7 +196,7 @@ object JarvisIcons {
         get() = listOf(
             Activity, Add, Android, Apple, Back, Battery, Check, ChevronDown, ChevronLeft, ChevronRight, Claude, Close, Code, Copy, Edit, Eye, File, Folder,
             Forward, GitBranch, Globe, Logs, Monitor, Moon, Pause, Play, PlusMinus, Remove, RotateLeft, RotateRight, Ruler, SkipForward, Smartphone, Sun, Swap,
-            Terminal, Timer, User, Wifi,
+            Terminal, Timer, Type, User, Wifi,
         )
 }
 

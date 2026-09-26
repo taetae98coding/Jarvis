@@ -46,6 +46,7 @@
     <li><a href="#focus-timer">집중 타이머</a></li>
     <li><a href="#dev-utilities">개발자 도구 모음</a></li>
     <li><a href="#unit-converter">단위 변환</a></li>
+    <li><a href="#text-tools">텍스트 도구</a></li>
     <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
@@ -623,6 +624,40 @@ actual fun readDeviceIdentity(context: PlatformContext): DeviceIdentity =
 
 <h3>검증</h3>
 <p><code>:feature:unitconverter:domain</code>·<code>:feature:unitconverter:data</code> 의 공통 테스트가 <code>testAndroidHostTest</code> 로도 돈다. 화면·키패드·복사는 기기에서 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="text-tools">
+<h2>텍스트 도구 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/text-tools.html">텍스트 도구</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>난수: <code>java.security.SecureRandom()</code></td><td>채택. Android 의 기본 공급자는 Conscrypt 의 <code>OpenSSLRandom</code>(BoringSSL, 커널 난수로 시드)이다. <code>setSeed</code> 는 부르지 않는다(옛 <code>SHA1PRNG</code> 에서 시드를 넣으면 결정적이 되던 문제). 권한이 필요 없다</td></tr>
+    <tr><td>난수: <code>SecureRandom.getInstanceStrong()</code></td><td>버렸다. 비밀번호 몇 개에 블로킹 원천이 필요 없고, 기기마다 돌려주는 알고리즘이 다르다</td></tr>
+    <tr><td>난수: <code>kotlin.random.Random</code>·<code>java.util.Random</code></td><td>버렸다. 암호학적으로 안전하지 않다(<a href="../common/text-tools.html#requirements">공통 R8</a>)</td></tr>
+    <tr><td>계산(글자 수·바이트·변환·비밀번호 고르기)</td><td>채택. <code>:feature:texttools:domain</code> 의 공통 Kotlin 이다. <code>android.icu.text.BreakIterator</code> 로 자소를 세면 이 타깃만 값이 달라질 수 있어 버렸다(<a href="../common/text-tools.html#decision-grapheme">공통 결정</a>)</td></tr>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code></td><td>채택. <code>ClipboardManager.setPrimaryClip(ClipData.newPlainText(…))</code> 을 부른다(<a href="#dev-utilities">개발자 도구</a>와 같은 경로). 비밀번호에 <code>ClipDescription.EXTRA_IS_SENSITIVE</code> 를 달려면 <code>ClipData</code> 를 직접 만드는 <code>expect</code> 가 필요해 지금은 달지 않는다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>SharedPreferences</code> <code>jarvis.settings</code>)</td><td>채택. 키는 <a href="../common/text-tools.html#implementation">공통 구현</a>에 있다. 입력은 앞 8,000 단위까지만 적는다</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/texttools/data/src/androidMain/…/SecureRandom.android.kt</code>(<code>secureRandomInt()</code>). 나머지는 <code>commonMain</code></dd>
+  <dt>동작</dt><dd>카드를 누르면 화면이 열리고, 비밀번호는 <code>SecureRandom.nextInt()</code> 의 32비트를 거부 표본추출해 고른다</dd>
+  <dt>실패</dt><dd><code>SecureRandom</code> 은 이 타깃에서 실패하지 않는다. 복사가 던지면(업무 프로필 정책 등) <code>runCatching</code> 으로 삼킨다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>민감 표시(<code>EXTRA_IS_SENSITIVE</code>)를 달지 않아 Android 13+ 의 복사 미리보기에 비밀번호가 보이고, 키보드 앱의 클립보드 기록에 남을 수 있다.</li>
+  <li>입력이 <code>SharedPreferences</code> XML 에 평문으로 저장된다. 비밀번호는 저장하지 않는다(<a href="../common/text-tools.html#decision-no-password-persist">공통 결정</a>).</li>
+</ul>
+
+<h3>검증</h3>
+<p><code>:feature:texttools:domain</code>·<code>:feature:texttools:data</code> 의 공통 테스트가 <code>testAndroidHostTest</code> 로 돈다. <code>PlatformSecureRandomSourceTest</code> 는 호스트 JVM 의 <code>SecureRandom</code> 을 부르므로 기기의 Conscrypt 공급자는 <span class="badge untested">미검증</span>이다. 화면은 <code>:feature:texttools:ui:compileAndroidMain</code> 컴파일로만 확인했다.</p>
 </section>
 
 <section class="feature" id="battery">

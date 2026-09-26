@@ -35,6 +35,7 @@ kotlin {
             implementation(projects.feature.focus.data)
             implementation(projects.feature.devtools.data)
             implementation(projects.feature.unitconverter.data)
+            implementation(projects.feature.texttools.data)
         }
 
         androidMain.dependencies {

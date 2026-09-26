@@ -49,6 +49,7 @@
     <li><a href="#focus-timer">집중 타이머</a></li>
     <li><a href="#dev-utilities">개발자 도구 모음</a></li>
     <li><a href="#unit-converter">단위 변환</a></li>
+    <li><a href="#text-tools">텍스트 도구</a></li>
     <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
@@ -601,6 +602,40 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p>도메인·데이터 공통 테스트가 <code>iosSimulatorArm64Test</code> 로 돈다. 숫자 쓰기의 Double·Long 연산이 Kotlin/Native 에서 JVM 과 같은 글자를 낸다. 화면과 키패드는 시뮬레이터에서 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="text-tools">
+<h2>텍스트 도구 <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/text-tools.html">텍스트 도구</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>난수: <code>SecRandomCopyBytes(kSecRandomDefault, …)</code></td><td>채택. Security 프레임워크의 CSPRNG(커널 난수 원천). 4바이트를 받아 큰 자리부터 이어 <code>Int</code> 를 만든다. 반환값이 <code>errSecSuccess</code> 가 아니면 던진다</td></tr>
+    <tr><td>난수: <code>arc4random_buf</code></td><td>버렸다. 같은 커널 원천이고 실패가 없지만, Apple 이 보안 용도로 문서화한 API 는 <code>SecRandomCopyBytes</code> 다</td></tr>
+    <tr><td>난수: <code>kotlin.random.Random</code></td><td>버렸다. 암호학적으로 안전하지 않다</td></tr>
+    <tr><td>계산(글자 수·바이트·변환·비밀번호 고르기)</td><td>채택. 공통 Kotlin 이다. <code>NSString.enumerateSubstringsInRange(…ByComposedCharacterSequences)</code> 로 세면 이 타깃만 값이 달라질 수 있어 버렸다</td></tr>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code></td><td>채택. <code>UIPasteboard.generalPasteboard.string</code> 에 쓴다. iOS 16+ 는 다른 앱이 붙여 넣을 때 허락을 묻는다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>NSUserDefaults</code>)</td><td>채택. 변경은 <code>NSUserDefaultsDidChangeNotification</code> 으로 온다(<a href="#settings">설정 영구 저장</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/texttools/data/src/iosMain/…/SecureRandom.ios.kt</code>. 나머지는 <code>commonMain</code></dd>
+  <dt>동작</dt><dd>카드를 누르면 화면이 열리고, 비밀번호는 <code>SecRandomCopyBytes</code> 의 32비트를 거부 표본추출해 고른다</dd>
+  <dt>실패</dt><dd><code>SecRandomCopyBytes</code> 가 실패하면 <code>IllegalStateException</code> 을 던진다. 약한 난수로 물러나지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li>복사한 비밀번호는 Universal Clipboard 로 같은 Apple 계정의 기기에도 간다. <code>UIPasteboard.setItems(…, options: [.localOnly: true])</code> 를 쓰려면 Compose 를 거치지 않는 <code>expect</code> 가 필요해 지금은 하지 않는다.</li>
+  <li><code>NSUserDefaults</code> plist 는 평문이다. 비밀번호는 저장하지 않는다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>공통 테스트가 <code>iosSimulatorArm64Test</code> 로 돈다. <code>PlatformSecureRandomSourceTest</code> 가 시뮬레이터에서 <code>SecRandomCopyBytes</code> 를 실제로 불러 32비트 전체가 채워지는지 본다. 화면 테스트(<code>skikoTest</code>)도 이 타깃에서 돈다. 실기기 클립보드는 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="battery">

@@ -24,7 +24,7 @@ Kotlin Multiplatform + Compose Multiplatform 프로젝트 구조.
 
 기본 패키지는 `io.github.taetae98coding.jarvis`다. 모듈마다 하위 패키지를 따로 쓰므로 같은 패키지가 여러 모듈에 걸치지 않는다.
 
-공용 코드는 **기능마다 clean architecture 세 계층을 모듈로** 갖는다. 기능은 `appinfo` · `emulator` · `screen` · `rotation` · `terminal` · `theme` · `profiling` · `battery` · `focus` · `devtools` · `unitconverter` · `mcp` 열둘이고 서로를 의존하지 않는다.
+공용 코드는 **기능마다 clean architecture 세 계층을 모듈로** 갖는다. 기능은 `appinfo` · `emulator` · `screen` · `rotation` · `terminal` · `theme` · `profiling` · `battery` · `focus` · `devtools` · `unitconverter` · `texttools` · `mcp` 열셋이고 서로를 의존하지 않는다.
 화면이 없는 `mcp` 는 `domain` · `data` 둘만, Android 위젯·알림·타일이 있는 `screen` · `rotation` 은 `widget` 을 하나 더 갖는다. 의존은 한 방향이고 Gradle이 강제한다.
 
 ```
@@ -33,7 +33,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
                    shared               ← Koin 시작. 기능이 늘어도 커지지 않는다
                    app:ui               ← JarvisApp(), Home 화면, FeatureGrid, 백스택
      ┌───────────────┼───────────────┬───────────────┐
- feature:appinfo  feature:emulator  feature:screen  feature:terminal  …  (기능 열둘)
+ feature:appinfo  feature:emulator  feature:screen  feature:terminal  …  (기능 열셋)
      │      기능마다 ui → domain ← data   (widget → domain)
      └───────────────┴───────────────┴───────────────┘
    core:ui   core:data   core:browser   core:automation   core:widget   ← 두 기능 이상이 쓰는 것만
@@ -61,7 +61,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | `webApp` | `.jarvis.web` | Kotlin/Wasm — `main()`이 ComposeViewport에 `App()`을 붙인다 |
 | `iosApp` | — | Xcode 프로젝트. SwiftUI가 `shared`의 `MainViewController()`를 감싼다 |
 
-멀티플랫폼 라이브러리 모듈 서른셋은 모두 android / jvm / iosArm64 / iosSimulatorArm64 / wasmJs 타깃을 갖는다(`widget` 모듈 셋은 Android 전용). 그 선언은 `build-logic`의 컨벤션 플러그인에만 있다.
+멀티플랫폼 라이브러리 모듈 서른여섯은 모두 android / jvm / iosArm64 / iosSimulatorArm64 / wasmJs 타깃을 갖는다(`widget` 모듈 셋은 Android 전용). 그 선언은 `build-logic`의 컨벤션 플러그인에만 있다.
 패키지는 기능 분리 전 이름(`.jarvis.<계층>.<기능>`)을 그대로 쓴다. 모듈 경로와 순서가 반대지만, 그 덕에 분리 과정에서 `import`가 한 줄도 바뀌지 않았다.
 같은 기능은 세 모듈에서 같은 마지막 이름을 쓰므로 `emulator`로 찾으면 세 계층이 함께 나온다.
 
@@ -78,6 +78,7 @@ androidApp   iosApp(Xcode)   desktopApp   webApp
 | 집중 타이머 | `FocusSession`, `FocusSessionRepository`, `FocusAlarmRepository`, 유스케이스 6개 | `FocusAlarm`, `SystemFocusClock` | `FocusTimerCard` |
 | 개발자 도구 | `DevTool`, 변환기 6개(`JsonFormatter`, `HashCalculator` …), `DevToolsSettingsRepository`, 유스케이스 6개 | `DefaultDevToolsSettingsRepository`(`SettingsStore`) | `DevToolsCard`, `DevToolsScreen` |
 | 단위 변환 | `UnitCategory`, `MeasureUnit`, `UnitConverter`, `UnitNumberFormat`, `UnitConverterSettingsRepository`, 유스케이스 5개 | `DefaultUnitConverterSettingsRepository`(`SettingsStore`) | `UnitConverterCard`, `UnitConverterScreen` |
+| 텍스트 도구 | `TextCounter`, `PasswordGenerator`, `TextTransformer`, `SecureRandomSource`, `TextToolsSettingsRepository`, 유스케이스 8개 | `DefaultTextToolsSettingsRepository`(`SettingsStore`), `secureRandomInt()`(expect) | `TextToolsCard`, `TextToolsScreen` |
 | 터미널 | `TerminalWorkspace`, `FileRepository`, `GitWorktreeRepository`, `CodeIntelRepository` | PTY 세션, git, 파일, LSP | 터미널 화면·패널·탭·사이드 바 |
 | MCP 서버 | `McpToolbox`, `McpTools`, `DeviceLeases` | `McpServer`, `McpProtocol` | — |
 

@@ -19,6 +19,7 @@ kotlin {
             api(projects.feature.focus.ui)
             api(projects.feature.devtools.ui)
             api(projects.feature.unitconverter.ui)
+            api(projects.feature.texttools.ui)
             implementation(projects.core.designsystem)
             implementation(projects.core.ui)
         }
