@@ -33,6 +33,7 @@ kotlin {
             implementation(projects.feature.profiling.data)
             implementation(projects.feature.battery.data)
             implementation(projects.feature.focus.data)
+            implementation(projects.feature.devtools.data)
         }
 
         androidMain.dependencies {

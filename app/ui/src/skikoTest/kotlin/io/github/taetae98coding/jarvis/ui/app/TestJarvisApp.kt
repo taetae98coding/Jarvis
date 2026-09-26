@@ -34,6 +34,9 @@ import io.github.taetae98coding.jarvis.domain.focus.FocusPhase
 import io.github.taetae98coding.jarvis.domain.focus.FocusSession
 import io.github.taetae98coding.jarvis.domain.focus.FocusSessionRepository
 import io.github.taetae98coding.jarvis.domain.focus.focusDomainModule
+import io.github.taetae98coding.jarvis.domain.devtools.DevTool
+import io.github.taetae98coding.jarvis.domain.devtools.DevToolsSettingsRepository
+import io.github.taetae98coding.jarvis.domain.devtools.devToolsDomainModule
 import io.github.taetae98coding.jarvis.domain.profiling.Profiling
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingMetric
 import io.github.taetae98coding.jarvis.domain.profiling.ProfilingRepository
@@ -98,6 +101,7 @@ import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.battery.batteryUiModule
 import io.github.taetae98coding.jarvis.ui.focus.focusUiModule
+import io.github.taetae98coding.jarvis.ui.devtools.devToolsUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
 import io.github.taetae98coding.jarvis.ui.screen.screenUiModule
@@ -162,6 +166,7 @@ internal fun TestJarvisApp(
     focusSession: FocusSessionRepository = FakeFocusSessionRepository(),
     focusClock: FakeFocusClock = FakeFocusClock(),
     focusAlarm: FocusAlarmRepository = FakeFocusAlarmRepository(),
+    devTools: DevToolsSettingsRepository = FakeDevToolsSettingsRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -201,6 +206,7 @@ internal fun TestJarvisApp(
             single<FocusSessionRepository> { focusSession }
             single<FocusClock> { focusClock }
             single<FocusAlarmRepository> { focusAlarm }
+            single<DevToolsSettingsRepository> { devTools }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -219,6 +225,7 @@ internal fun TestJarvisApp(
                 profilingDomainModule, profilingUiModule,
                 batteryDomainModule, batteryUiModule,
                 focusDomainModule, focusUiModule,
+                devToolsDomainModule, devToolsUiModule,
                 appUiModule,
             )
         }
@@ -810,5 +817,26 @@ internal class FakeTerminalSession(
     override fun close() {
         closed = true
         channel.close()
+    }
+}
+
+internal class FakeDevToolsSettingsRepository : DevToolsSettingsRepository {
+    val tool = MutableStateFlow(DevTool.TIMESTAMP)
+    val inputs = MutableStateFlow(emptyMap<DevTool, String>())
+
+    override fun observeSelectedTool() = tool
+
+    override fun readSelectedTool() = tool.value
+
+    override fun setSelectedTool(tool: DevTool) {
+        this.tool.value = tool
+    }
+
+    override fun observeInput(tool: DevTool) = inputs.map { it[tool].orEmpty() }
+
+    override fun readInput(tool: DevTool) = inputs.value[tool].orEmpty()
+
+    override fun setInput(tool: DevTool, input: String) {
+        inputs.value += tool to input
     }
 }
