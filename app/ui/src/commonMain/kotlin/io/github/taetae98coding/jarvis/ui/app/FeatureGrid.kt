@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.taetae98coding.jarvis.designsystem.theme.JarvisTheme
 import io.github.taetae98coding.jarvis.ui.battery.BatteryCard
+import io.github.taetae98coding.jarvis.ui.calculator.CalculatorCard
 import io.github.taetae98coding.jarvis.ui.devtools.DevToolsCard
 import io.github.taetae98coding.jarvis.ui.emulator.EmulatorCard
 import io.github.taetae98coding.jarvis.ui.focus.FocusTimerCard
@@ -53,5 +54,6 @@ internal fun FeatureGrid(modifier: Modifier = Modifier) {
         item { BatteryCard() }
         item { FocusTimerCard() }
         item { DevToolsCard() }
+        item { CalculatorCard() }
     }
 }

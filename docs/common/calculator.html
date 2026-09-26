@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>계산기 (수식·퍼센트·BMI) — 공통 스펙 — Jarvis</title>
+<link rel="stylesheet" href="../assets/spec.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="../index.html">스펙</a><span><a href="index.html">공통 스펙</a></span><span>계산기</span></nav>
+
+<header>
+  <h1>계산기 (수식·퍼센트·BMI)</h1>
+  <p class="lead">홈의 "계산기" 카드를 누르면 수식을 치는 대로 답이 보이는 계산기, 자주 쓰는 퍼센트 계산 세 가지, 대한비만학회 기준 BMI 를 한 화면의 탭으로 쓴다.</p>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#instruction">사용자 지시</a></li>
+    <li><a href="#requirements">요구사항</a></li>
+    <li><a href="#behavior">화면·동작</a></li>
+    <li><a href="#implementation">공통 구현</a></li>
+    <li><a href="#platforms">플랫폼별 판정</a></li>
+    <li><a href="#verification">검증</a></li>
+    <li><a href="#limits">한계</a></li>
+  </ol>
+</nav>
+
+<h2 id="instruction">사용자 지시</h2>
+
+<blockquote class="instruction">
+  <p>사람들이 많이 접속하는 url이나 appStore, playStore 다운로드 순위 참고해서 구현할 도구들 조사 후 추가해줘.</p>
+  <footer>2026-09-26 대화.</footer>
+</blockquote>
+
+<aside class="note">
+  <strong>왜 이 기능인가</strong>
+  Similarweb 2026년 8월 자료에서 <code>calculator.net</code> 은 미국 Science &amp; Education &gt; Math 분야 1위다(최근 3개월 방문 약 4,200만, 전 세계 순위 약 1,135위).
+  이 사이트로 들어오는 상위 검색어는 "time calculator", "calorie calculator", "bmi calculator", "calculator", "age calculator" 이고,
+  비슷한 사이트로 <code>calculatorsoup.com</code>·<code>omnicalculator.com</code>·<code>percentagecalculator.net</code> 이 꼽힌다.
+  앱 스토어에서도 계산기는 가장 흔한 유틸리티 앱이고(예: 수식을 적어 가며 계산하는 CalcNote), 사람들이 가장 자주 찾는 것은 결국 일반 계산·퍼센트·BMI 다.
+  그래서 이 세 가지를 한 화면에 모은다. 셈은 순수 Kotlin 이라 Android·iOS·macOS·Web 네 곳에서 같은 답을 낸다.
+</aside>
+
+<h2 id="requirements">요구사항</h2>
+
+<ol>
+  <li><strong>R1.</strong> 홈 그리드 끝에 "계산기" 카드가 있고, 누르면 계산기 화면으로 간다. 화면의 뒤로 버튼은 홈으로 돌아간다.</li>
+  <li><strong>R2.</strong> 화면 위쪽 탭 셋(계산기, 퍼센트, BMI)으로 도구를 고른다. 고른 탭 하나만 선택 상태다.</li>
+  <li><strong>R3.</strong> 계산기 탭의 입력 칸에 수식을 직접 치거나 자판 버튼(숫자 0–9, <code>.</code>, <code>+</code> <code>−</code> <code>×</code> <code>÷</code>, <code>^</code>, <code>%</code>, 괄호 <code>(</code> <code>)</code>)으로 넣는다.
+    자판 버튼은 커서 자리에 글자를 넣고(선택한 글자가 있으면 바꾸고), 지우기 버튼은 커서 앞 한 글자(선택이 있으면 선택)를 지우며, <code>C</code> 는 입력을 비운다.</li>
+  <li><strong>R4.</strong> 수식은 치는 대로 계산해 입력 칸 아래에 답을 보인다. 우선순위는 괄호 &gt; <code>%</code>(뒤붙이) &gt; <code>^</code>(오른쪽 결합) &gt; 단항 <code>−</code>·<code>+</code> &gt; <code>×</code> <code>÷</code> &gt; <code>+</code> <code>−</code> 이다.
+    그래서 <code>-2^2 = -4</code>, <code>2^3^2 = 512</code>, <code>2^-1 = 0.5</code> 다. 숫자·닫는 괄호 바로 뒤의 여는 괄호는 곱셈이다(<code>2(3+4) = 14</code>).
+    <code>*</code> <code>/</code> <code>-</code> 와 <code>×</code> <code>÷</code> <code>−</code> 를 같게 읽고 공백은 무시한다. R6 이 적는 지수 꼴(<code>1.5e20</code>, <code>1E-10</code>)도 숫자로 읽어, <code>=</code> 로 입력 칸에 들어간 답을 이어서 셈할 수 있다.</li>
+  <li><strong>R5.</strong> 셈할 수 없는 수식은 예외 없이 오류 상태가 되고 까닭을 보인다: 끝나지 않은 식(<code>3+</code>), 닫히지 않은 괄호, 짝 없는 닫는 괄호, 잘못된 숫자(<code>1.2.3</code>), 읽을 수 없는 글자, 0 으로 나누기, 무한대·정의되지 않는 결과(<code>10^400</code>, <code>(-8)^0.5</code>), 괄호가 <code>100</code> 단계를 넘는 중첩.
+    끝나지 않은 식과 닫히지 않은 괄호는 아직 치는 중인 상태라 흐린 글자로, 나머지는 오류 색으로 보인다. 입력이 비면 답 줄이 없다.</li>
+  <li><strong>R6.</strong> 답은 부동소수점 잡음 없이 보인다: 유효 숫자 12자리로 반올림하고 뒤쪽 0 과 소수점을 지운다(<code>0.1+0.2 = 0.3</code>, <code>1/3 = 0.333333333333</code>).
+    <code>10<sup>15</sup></code> 보다 작은 정수는 자릿수를 잃지 않고 그대로 보인다. 절댓값이 <code>10<sup>15</sup></code> 이상이거나 <code>10<sup>-9</sup></code> 미만이면 <code>1.5e20</code> 꼴로, 그 사이는 지수 없이 보인다. <code>-0</code> 은 <code>0</code> 이다. 자릿수 쉼표는 넣지 않는다.</li>
+  <li><strong>R7.</strong> <code>=</code> 버튼(또는 입력 칸에서 Enter·완료 키)을 누르면 답이 있을 때 입력 칸이 답으로 바뀌고 그 수식이 최근 기록 맨 위에 들어간다. 오류면 아무것도 바뀌지 않는다.</li>
+  <li><strong>R8.</strong> 최근 기록은 <code>20</code> 개까지 새것부터 보이고, 같은 수식을 다시 계산하면 옛 줄을 지우고 맨 위로 올린다. 수식의 연속 공백은 하나로 줄여 적는다.
+    줄을 누르면 그 수식이 입력 칸에 들어가고, "기록 지우기" 는 기록을 모두 지운다. 기록이 없으면 "아직 계산한 식이 없습니다" 를 보인다.</li>
+  <li><strong>R9.</strong> 답 옆의 복사 버튼은 답을 시스템 클립보드에 넣는다. 답이 없으면(빈 입력·오류) 복사 버튼이 없다.</li>
+  <li><strong>R10.</strong> 퍼센트 탭은 percentagecalculator.net 의 세 가지 꼴을 한꺼번에 보인다. 칸마다 숫자(<code>-</code>·소수점 허용, 쉼표 불허)를 넣는다.
+    <ul>
+      <li>"X 의 Y% 는?" → <code>X × Y ÷ 100</code></li>
+      <li>"X 는 Y 의 몇 %?" → <code>X ÷ Y × 100</code> 뒤에 <code>%</code>. Y 가 0 이면 오류</li>
+      <li>"X 에서 Y 로 몇 % 증감?" → <code>(Y − X) ÷ |X| × 100</code>. 양수면 "<i>n</i>% 증가", 음수면 "<i>n</i>% 감소"(n 은 절댓값), 0 이면 "변화 없음". X 가 0 이면 오류</li>
+    </ul>
+    두 칸 중 하나라도 비면 그 꼴의 답은 없고, 숫자가 아니면 어느 칸이 잘못됐는지 보인다. 답은 R6 과 같게 적는다.</li>
+  <li><strong>R11.</strong> BMI 탭은 키(cm)와 몸무게(kg)로 <code>몸무게 ÷ (키/100)<sup>2</sup></code> 를 소수 첫째 자리까지 반올림해 보이고, 반올림한 값으로
+    대한비만학회 성인 기준 단계를 보인다: <code>&lt;18.5</code> 저체중, <code>18.5–22.9</code> 정상, <code>23–24.9</code> 비만 전단계, <code>25–29.9</code> 1단계 비만, <code>30–34.9</code> 2단계 비만, <code>≥35</code> 3단계 비만.
+    그 키에서 정상(18.5–22.9)에 드는 몸무게 범위도 보이고, 어떤 기준인지 화면에 적는다. 키는 <code>30–300</code> cm, 몸무게는 <code>1–500</code> kg 을 벗어나면 그 칸이 잘못됐다고 보인다.</li>
+  <li><strong>R12.</strong> 마지막에 고른 탭, 칸마다의 입력(계산기 수식, 퍼센트 여섯 칸, 키·몸무게), 최근 기록이 앱을 껐다 켜도 남는다.</li>
+</ol>
+
+<aside class="warn">
+  <strong>스코프에서 뺀 것</strong>
+  <ul>
+    <li>시간·나이·칼로리 계산기. calculator.net 상위 검색어에 있지만 시간대·날짜 계산은 <code>kotlinx-datetime</code> 을 새로 들여야 하고, 칼로리는 활동량 표·공식 선택이 따로 필요한 별도 기능이다. 탭을 더하는 식으로 넓힐 수 있게 <code>CalculatorTab</code> 을 열거형으로 두었다.</li>
+    <li>삼각함수·로그 같은 공학 계산. 자판이 두 배가 되고 각도 단위 상태가 생긴다. 파서에 함수 호출 규칙만 더하면 되므로 필요해지면 그때 넣는다.</li>
+    <li>폰 계산기식 <code>%</code>(<code>50+10% = 55</code>). <code>%</code> 는 언제나 "÷100" 이고(<code>50+10% = 50.1</code>), 증감 계산은 퍼센트 탭이 맡는다. 문맥에 따라 뜻이 바뀌는 규칙은 수식만 보고 답을 예측할 수 없게 한다.</li>
+    <li>임의 정밀도(BigDecimal). 공통 stdlib 에 없고 domain 은 새 의존을 들이지 않는다(<a href="module-architecture.html">모듈 구조</a>). <code>Double</code> 로 셈하고 R6 의 반올림으로 잡음을 가린다.</li>
+    <li>아동·청소년 BMI 백분위. 성별·나이별 성장 도표가 필요하다. 화면에 "성인 기준" 이라고 적는다.</li>
+  </ul>
+</aside>
+
+<h2 id="behavior">화면·동작</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>카드 제목</td><td>계산기 (아이콘 <code>JarvisIcons.Calculator</code>, 오른쪽 끝 <code>ChevronRight</code>)</td></tr>
+    <tr><td>카드 설명</td><td>수식 계산·퍼센트·BMI. 눌러서 열고 최근 계산을 다시 쓴다.</td></tr>
+    <tr><td>화면 상단 막대</td><td>제목 "계산기", 뒤로 버튼(<code>JarvisTopBar</code>)</td></tr>
+    <tr><td>탭</td><td><code>PrimaryTabRow</code> 의 <code>Tab</code> 셋: 계산기 / 퍼센트 / BMI</td></tr>
+    <tr><td>계산기 탭</td><td>한 줄 <code>OutlinedTextField</code>(고정폭 글꼴, 자리표시 <code>12×(3+4)</code>), 그 아래 답 줄("= <i>답</i>" + 복사 버튼 <code>JarvisIcons.Copy</code>, contentDescription "결과 복사") 또는 까닭 문구,
+      4열 자판(<code>C ( ) ⌫</code> / <code>7 8 9 ÷</code> / <code>4 5 6 ×</code> / <code>1 2 3 −</code> / <code>% 0 . +</code> / <code>^</code> + 세 칸 너비 <code>=</code>). 지우기는 <code>JarvisIcons.Backspace</code>(contentDescription "한 글자 지우기"),
+      그 아래 "최근 계산" 카드(줄마다 수식과 "= <i>답</i>", "기록 지우기" 버튼)</td></tr>
+    <tr><td>퍼센트 탭</td><td>카드 셋. 카드마다 제목(꼴), 숫자 칸 둘(<code>KeyboardType.Decimal</code>), 답 한 줄</td></tr>
+    <tr><td>BMI 탭</td><td>키(cm)·몸무게(kg) 칸, BMI 값과 단계, 정상 체중 범위, "대한비만학회 성인 기준" 과 단계 표</td></tr>
+    <tr><td>테스트 태그</td><td>카드 <code>feature:calculator</code>, 화면 <code>calculator:screen</code>, 탭 <code>calculator:tab:&lt;storedValue&gt;</code>, 칸 <code>calculator:input:&lt;storedValue&gt;</code>,
+      자판 <code>calculator:key:&lt;key&gt;</code>, 답 <code>calculator:result</code>, 복사 <code>calculator:copy</code>, 기록 줄 <code>calculator:history:&lt;index&gt;</code>, 기록 지우기 <code>calculator:history:clear</code>,
+      퍼센트 답 <code>calculator:percent:&lt;mode&gt;</code>, BMI 답 <code>calculator:bmi</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="implementation">공통 구현</h2>
+
+<dl class="meta">
+  <dt>domain</dt><dd><code>feature/calculator/domain/…/calculator/</code> — <code>CalculatorTab</code>, <code>CalculatorField</code>(저장하는 칸 아홉, 저장값), <code>ExpressionEvaluator</code>(재귀 하강 파서)·<code>CalculationResult</code>·<code>ExpressionError</code>,
+    <code>CalculatorNumberFormat</code>(R6), <code>PercentCalculator</code>·<code>PercentMode</code>·<code>PercentResult</code>, <code>BmiCalculator</code>·<code>BmiCategory</code>·<code>BmiResult</code>, <code>CalculatorSettingsRepository</code>,
+    유스케이스 <code>ObserveCalculatorTabUseCase</code>·<code>SelectCalculatorTabUseCase</code>·<code>ObserveCalculatorInputsUseCase</code>·<code>SetCalculatorInputUseCase</code>·<code>EvaluateExpressionUseCase</code>·<code>CalculatePercentUseCase</code>·<code>CalculateBmiUseCase</code>·
+    <code>ObserveCalculationHistoryUseCase</code>·<code>AddCalculationHistoryUseCase</code>·<code>ClearCalculationHistoryUseCase</code></dd>
+  <dt>data</dt><dd><code>DefaultCalculatorSettingsRepository</code> — <code>SettingsStore</code> 의 문자열 키 <code>calculator_selected_tab</code>, <code>calculator_input_&lt;storedValue&gt;</code>, <code>calculator_history</code>(수식을 줄바꿈으로 이은 한 문자열)</dd>
+  <dt>ui</dt><dd><code>CalculatorCard</code>(인자 없음), <code>CalculatorScreen</code>, <code>CalculatorViewModel</code>(internal), <code>CalculatorRoute</code>(Navigation3 키), <code>CalculatorKey</code>(자판). Koin 모듈은 <code>calculatorDomainModule</code>·<code>calculatorDataModule</code>·<code>calculatorUiModule</code></dd>
+  <dt>상태</dt><dd>탭·칸 입력·기록은 저장소의 <code>Flow</code> 를 유스케이스가 <code>stateIn(viewModelScope, WhileSubscribed(), read…())</code> 한다. 기록은 수식만 저장하고 읽을 때 다시 셈해 답을 붙인다.
+    답은 (저장된 입력 + 화면이 방금 넘긴 입력) 을 <code>combine</code> 해 셈한 값이다.</dd>
+  <dt>expect</dt><dd>없음. 클립보드는 Compose 의 <code>LocalClipboardManager</code> 가, 키보드 종류는 <code>KeyboardOptions</code> 가 플랫폼 구현을 준다.</dd>
+</dl>
+
+<aside class="decision">
+  <strong>결정: 파서를 domain 의 순수 Kotlin 재귀 하강으로 짠다</strong>
+  domain 은 <code>kotlinx-coroutines-core</code>·<code>koin-core</code> 만 쓴다. 문법은 <code>expr := term (± term)*</code>, <code>term := unary ((×|÷|암묵 곱) unary)*</code>, <code>unary := (−|+) unary | power</code>,
+  <code>power := postfix (^ unary)?</code>, <code>postfix := primary %*</code>, <code>primary := 숫자(e±n 지수 포함) | ( expr )</code> 이다. 단항 부호를 <code>^</code> 보다 낮게 두어 수학 관례대로 <code>-2^2 = -4</code> 가 되고, 지수 쪽은 <code>unary</code> 라 <code>2^-1</code> 을 받는다.
+  오류는 <code>CalculationResult.Error</code> 로 돌려주고 던지지 않는다. 치는 동안 매 글자마다 셈하므로 예외를 흐름 제어에 쓰지 않는다. 중첩은 <code>100</code> 단계에서 멈춰 스택이 넘치지 않게 한다.
+  JavaScript 식 <code>eval</code>·스크립트 엔진은 Web 에만 있고 임의 코드를 돌리므로 버렸다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 숫자는 직접 적는다</strong>
+  <code>Double.toString()</code> 은 타깃마다 다르다(JVM 은 <code>1.0E10</code>, JS·Wasm 은 <code>10000000000</code>). <code>String.format</code> 은 공통 stdlib 에 없다.
+  그래서 <code>CalculatorNumberFormat</code> 이 10진 지수를 구해 유효 숫자 12자리 정수로 반올림한 뒤 소수점을 손으로 찍는다. 12자리는 <code>0.1+0.2</code>·<code>1-0.9</code>·<code>1.1×3</code> 의 끝자리 잡음(대략 16번째 자리)을 가리면서
+  일상 계산에 충분하다. 15자리로 하면 <code>1-0.9</code> 가 <code>0.0999999999999998</code> 로 보여 버렸다. 대신 정수는 12자리를 넘어도 그대로 보이도록 따로 적는다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: 입력 칸은 화면이 들고, 저장소는 뒤따라 적는다</strong>
+  <a href="dev-utilities.html#implementation">개발자 도구</a>와 같다. 입력 칸이 저장소 Flow 를 곧장 보여 주면 저장 신호가 늦게 돌아올 때 친 글자가 옛 값에 덮인다. 칸마다 <code>TextFieldState</code> 를
+  한 번 채워 스스로 들고, 바뀔 때마다 <code>SetCalculatorInputUseCase</code> 로 적는다. 자판·<code>=</code>·기록 누르기도 입력 칸에 직접 쓰고 같은 길로 저장된다. 답은 ViewModel 이 칸마다 마지막으로 받은 입력으로 셈한다.
+</aside>
+
+<aside class="decision">
+  <strong>결정: BMI 단계는 반올림한 값으로 가른다</strong>
+  기준표가 "18.5–22.9", "23–24.9" 처럼 소수 첫째 자리로 적혀 있어, 22.95 를 22.9(정상)로 보이면서 비만 전단계로 가르면 화면이 스스로 모순된다. 소수 첫째 자리 정수(<code>229</code>)로 반올림한 뒤 정수끼리 비교한다.
+</aside>
+
+<h2 id="platforms">플랫폼별 판정</h2>
+
+<table>
+  <thead><tr><th>플랫폼</th><th>판정</th><th>어떻게</th><th>문서</th></tr></thead>
+  <tbody>
+    <tr><td>Android</td><td><span class="badge ok">구현</span></td><td>공통 셈, <code>ClipboardManager.setPrimaryClip</code>, 소프트 키보드 <code>TYPE_NUMBER_FLAG_DECIMAL</code>, <code>SharedPreferences</code></td><td><a href="../platform/android.html#calculator">android.html</a></td></tr>
+    <tr><td>iOS</td><td><span class="badge ok">구현</span></td><td>공통 셈, <code>UIPasteboard.generalPasteboard</code>, <code>UIKeyboardTypeDecimalPad</code>, <code>NSUserDefaults</code></td><td><a href="../platform/ios.html#calculator">ios.html</a></td></tr>
+    <tr><td>JVM</td><td><span class="badge ok">구현</span></td><td>공통 셈, AWT 시스템 클립보드, 물리 키보드, <code>java.util.prefs</code></td><td><a href="../platform/jvm.html#calculator">jvm.html</a></td></tr>
+    <tr><td>Web</td><td><span class="badge partial">조건부</span></td><td>공통 셈, <code>navigator.clipboard.writeText</code>(보안 컨텍스트), <code>localStorage</code>. 셈·기록은 조건 없이 되고 복사만 조건이 있다</td><td><a href="../platform/web.html#calculator">web.html</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">검증</h2>
+
+<table>
+  <thead><tr><th>테스트</th><th>확인하는 것</th><th>소스셋</th></tr></thead>
+  <tbody>
+    <tr><td><code>ExpressionEvaluatorTest</code></td><td>R4·R5. 우선순위, 단항 부호, <code>^</code> 결합 방향, <code>%</code>, 암묵 곱, 유니코드 연산자, 공백, 지수 꼴 답 되읽기, 오류 여덟 가지와 위치</td><td><code>:feature:calculator:domain</code> <code>commonTest</code></td></tr>
+    <tr><td><code>CalculatorNumberFormatTest</code></td><td>R6. <code>0.1+0.2</code>, 1/3·2/3, 큰 정수, 음수, <code>-0</code>, 지수 꼴 경계</td><td>같음 — Wasm·iOS 에서도 돌아 타깃마다 같은 글자인지 확인한다</td></tr>
+    <tr><td><code>PercentCalculatorTest</code></td><td>R10. 세 꼴, 0 으로 나누기, 빈 칸, 잘못된 칸, 증감 방향</td><td>같음</td></tr>
+    <tr><td><code>BmiCalculatorTest</code></td><td>R11. 단계 경계(18.4/18.5, 22.9/23.0, 24.9/25, 29.9/30, 34.9/35), 반올림 경계, 정상 체중 범위, 범위 밖 입력</td><td>같음</td></tr>
+    <tr><td><code>CalculatorUseCasesTest</code></td><td>R7·R8·R12. 기록 추가·중복 올림·20개 한도·공백 줄임·지우기, 셈할 수 없는 기록 줄 버림, 탭·입력 관찰</td><td>같음</td></tr>
+    <tr><td><code>CalculatorSettingsRepositoryTest</code></td><td>R12. 탭·칸·기록 저장과 되읽기, 모르는 저장값, 빈 기록</td><td><code>:feature:calculator:data</code> <code>commonTest</code></td></tr>
+    <tr><td><code>CalculatorScreenTest</code></td><td>R2·R3·R5·R7·R8·R9·R10·R11. 탭 선택, 자판이 커서 자리에 넣고 지움, 답·오류 표시, <code>=</code> 가 입력을 답으로 바꿈, 기록 누르기·지우기, 복사, 퍼센트·BMI 답과 기준 문구</td><td><code>:feature:calculator:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td><code>JarvisAppCalculatorTest</code></td><td>R1·R7·R12. 홈 카드 → 화면 → 뒤로, 자판 입력과 <code>=</code> 가 저장소에 입력·기록을 적음, 저장된 탭·입력이 다시 열 때 복원됨</td><td><code>:app:ui</code> <code>skikoTest</code></td></tr>
+    <tr><td>수동 확인</td><td>R9. 실제 시스템 클립보드에 들어간 값을 다른 앱에 붙여 넣기(테스트는 기록용 관리자로 바꾼다) <span class="badge untested">미검증</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits">한계</h2>
+
+<ul>
+  <li><code>Double</code> 셈이라 유효 숫자 15–16자리를 넘는 정수(<code>2^60+1</code>)는 끝자리가 틀린다. 유효 숫자 12자리 반올림은 표시만 바꾸고, <code>=</code> 로 입력 칸에 들어간 답을 다시 셈하면 반올림한 값으로 이어진다.</li>
+  <li>Web 은 HTTPS·localhost 가 아니면 복사가 조용히 실패한다(<a href="../platform/web.html#calculator">web.html</a>).</li>
+  <li>BMI 는 근육량·나이·성별을 보지 않는 선별 지표다. 화면은 진단이 아니라 기준표의 단계만 보인다.</li>
+</ul>
+
+<footer class="page">
+  <a href="index.html">← 공통 스펙</a>
+</footer>
+
+</body>
+</html>

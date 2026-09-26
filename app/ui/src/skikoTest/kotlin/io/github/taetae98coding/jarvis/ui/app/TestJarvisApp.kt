@@ -34,6 +34,10 @@ import io.github.taetae98coding.jarvis.domain.focus.FocusPhase
 import io.github.taetae98coding.jarvis.domain.focus.FocusSession
 import io.github.taetae98coding.jarvis.domain.focus.FocusSessionRepository
 import io.github.taetae98coding.jarvis.domain.focus.focusDomainModule
+import io.github.taetae98coding.jarvis.domain.calculator.CalculatorField
+import io.github.taetae98coding.jarvis.domain.calculator.CalculatorSettingsRepository
+import io.github.taetae98coding.jarvis.domain.calculator.CalculatorTab
+import io.github.taetae98coding.jarvis.domain.calculator.calculatorDomainModule
 import io.github.taetae98coding.jarvis.domain.devtools.DevTool
 import io.github.taetae98coding.jarvis.domain.devtools.DevToolsSettingsRepository
 import io.github.taetae98coding.jarvis.domain.devtools.devToolsDomainModule
@@ -101,6 +105,7 @@ import io.github.taetae98coding.jarvis.ui.appinfo.appInfoUiModule
 import io.github.taetae98coding.jarvis.ui.emulator.emulatorUiModule
 import io.github.taetae98coding.jarvis.ui.battery.batteryUiModule
 import io.github.taetae98coding.jarvis.ui.focus.focusUiModule
+import io.github.taetae98coding.jarvis.ui.calculator.calculatorUiModule
 import io.github.taetae98coding.jarvis.ui.devtools.devToolsUiModule
 import io.github.taetae98coding.jarvis.ui.profiling.profilingUiModule
 import io.github.taetae98coding.jarvis.ui.rotation.rotationUiModule
@@ -167,6 +172,7 @@ internal fun TestJarvisApp(
     focusClock: FakeFocusClock = FakeFocusClock(),
     focusAlarm: FocusAlarmRepository = FakeFocusAlarmRepository(),
     devTools: DevToolsSettingsRepository = FakeDevToolsSettingsRepository(),
+    calculator: CalculatorSettingsRepository = FakeCalculatorSettingsRepository(),
     // null 이면 테스트 창의 포커스를 그대로 쓴다.
     windowFocused: State<Boolean>? = null,
     appInfo: AppInfo = TestAppInfo,
@@ -207,6 +213,7 @@ internal fun TestJarvisApp(
             single<FocusClock> { focusClock }
             single<FocusAlarmRepository> { focusAlarm }
             single<DevToolsSettingsRepository> { devTools }
+            single<CalculatorSettingsRepository> { calculator }
         }
 
         if (KoinPlatformTools.defaultContext().getOrNull() != null) {
@@ -226,6 +233,7 @@ internal fun TestJarvisApp(
                 batteryDomainModule, batteryUiModule,
                 focusDomainModule, focusUiModule,
                 devToolsDomainModule, devToolsUiModule,
+                calculatorDomainModule, calculatorUiModule,
                 appUiModule,
             )
         }
@@ -838,5 +846,35 @@ internal class FakeDevToolsSettingsRepository : DevToolsSettingsRepository {
 
     override fun setInput(tool: DevTool, input: String) {
         inputs.value += tool to input
+    }
+}
+
+internal class FakeCalculatorSettingsRepository : CalculatorSettingsRepository {
+    val tab = MutableStateFlow(CalculatorTab.EXPRESSION)
+    val inputs = MutableStateFlow(emptyMap<CalculatorField, String>())
+    val history = MutableStateFlow(emptyList<String>())
+
+    override fun observeSelectedTab() = tab
+
+    override fun readSelectedTab() = tab.value
+
+    override fun setSelectedTab(tab: CalculatorTab) {
+        this.tab.value = tab
+    }
+
+    override fun observeInput(field: CalculatorField) = inputs.map { it[field].orEmpty() }
+
+    override fun readInput(field: CalculatorField) = inputs.value[field].orEmpty()
+
+    override fun setInput(field: CalculatorField, input: String) {
+        inputs.value += field to input
+    }
+
+    override fun observeHistory() = history
+
+    override fun readHistory() = history.value
+
+    override fun setHistory(expressions: List<String>) {
+        history.value = expressions
     }
 }

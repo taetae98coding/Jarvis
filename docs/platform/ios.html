@@ -48,6 +48,7 @@
     <li><a href="#profiling">프로파일링</a></li>
     <li><a href="#focus-timer">집중 타이머</a></li>
     <li><a href="#dev-utilities">개발자 도구 모음</a></li>
+    <li><a href="#calculator">계산기 (수식·퍼센트·BMI)</a></li>
     <li><a href="#battery">배터리 상태</a></li>
     <li><a href="#state-observation">상태 조회 규칙</a></li>
     <li><a href="#emulator">에뮬레이터 개수</a></li>
@@ -567,6 +568,38 @@ internal actual fun createSystemScreenAwakeDataSource(
 
 <h3>검증</h3>
 <p>도메인·데이터 공통 테스트가 <code>iosSimulatorArm64Test</code> 로 돈다. SHA·MD5 의 32비트 정수 넘침과 회전이 Kotlin/Native 에서 JVM 과 같은 값을 낸다. 화면은 <code>:shared:compileKotlinIosSimulatorArm64</code> 컴파일로만 확인했고 시뮬레이터 수동 확인은 <span class="badge untested">미검증</span>이다.</p>
+</section>
+
+<section class="feature" id="calculator">
+<h2>계산기 (수식·퍼센트·BMI) <span class="badge ok">구현</span></h2>
+<p>공통 스펙: <a href="../common/calculator.html">계산기</a></p>
+
+<h3>기술 조사</h3>
+<table>
+  <thead><tr><th>후보</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>셈(수식·퍼센트·BMI)과 숫자 적기</td><td>채택. 전부 <code>:feature:calculator:domain</code> 의 공통 Kotlin 이다. 재귀 하강 파서와 <code>CalculatorNumberFormat</code> 을 직접 짰고, 타깃마다 다른 <code>Double.toString()</code> 은 쓰지 않는다(<a href="../common/calculator.html#implementation">공통 결정</a>). <code>kotlin.math.pow</code>·<code>log10</code> 만 부른다</td></tr>
+    <tr><td>셈: <code>NSDecimalNumber</code></td><td>버렸다. 10진 정밀도는 좋지만 다른 타깃에 같은 것이 없어 타깃마다 답이 달라진다</td></tr>
+    <tr><td>입력: Compose <code>OutlinedTextField(TextFieldState)</code></td><td>채택. Compose 가 <code>UITextInput</code> 을 흉내 내는 뷰로 소프트 키보드를 띄우고, <code>KeyboardType.Decimal</code> 은 <code>UIKeyboardTypeDecimalPad</code> 가 된다. 수식 칸은 기본 키보드와 <code>ImeAction.Done</code>(리턴 키 "완료")이다</td></tr>
+    <tr><td>클립보드: Compose 의 <code>LocalClipboardManager</code></td><td>채택. <code>setText</code> 가 <code>UIPasteboard.generalPasteboard.string</code> 에 쓴다. 쓰기에는 권한·붙여 넣기 알림이 없다</td></tr>
+    <tr><td>저장: <code>SettingsStore</code>(<code>NSUserDefaults</code>)</td><td>채택. 변경은 <code>NSUserDefaultsDidChangeNotification</code> 으로 온다(<a href="#settings-persistence">설정 영구 저장</a>)</td></tr>
+  </tbody>
+</table>
+
+<h3>구현</h3>
+<dl class="meta">
+  <dt>파일</dt><dd><code>feature/calculator/{domain,data,ui}/src/commonMain/…</code>. 이 타깃만의 코드는 없다</dd>
+  <dt>동작</dt><dd>Android 와 같다. 복사한 답은 Universal Clipboard 로 같은 계정의 Mac 에도 간다</dd>
+  <dt>실패</dt><dd>해당 없음. <code>UIPasteboard</code> 쓰기는 실패를 알리지 않는다</dd>
+</dl>
+
+<h3>한계</h3>
+<ul>
+  <li><code>UIKeyboardTypeDecimalPad</code> 에는 <code>-</code> 가 없어 퍼센트 칸에 음수를 소프트 키보드로 칠 수 없다. 붙여 넣기나 하드웨어 키보드로는 된다. 수식 칸은 기본 키보드라 해당 없다.</li>
+</ul>
+
+<h3>검증</h3>
+<p>도메인·데이터 공통 테스트가 <code>iosSimulatorArm64Test</code> 로 돈다. 숫자 적기가 Kotlin/Native 의 <code>pow</code>·<code>log10</code> 에서 JVM 과 같은 글자를 내는지 여기서 본다. 화면의 시뮬레이터 수동 확인은 <span class="badge untested">미검증</span>이다.</p>
 </section>
 
 <section class="feature" id="battery">
